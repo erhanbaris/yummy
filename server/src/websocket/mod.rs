@@ -2,16 +2,18 @@ pub(crate) mod socket;
 
 use std::sync::Arc;
 
+use actix::Addr;
 use actix_web::web::Data;
 use actix_web::{HttpRequest, web};
 use actix_web_actors::ws;
 
 use crate::auth::{validate_auth, UserJwt};
 use crate::config::YummyConfig;
+use crate::game::GameManager;
 use crate::websocket::socket::{GameWebsocket, ConnectionInfo};
 
-pub async fn websocket_endpoint(req: HttpRequest, stream: web::Payload, config: Data<Arc<YummyConfig>>, connnection_info: Option<web::Query<ConnectionInfo>>) -> Result<actix_web::HttpResponse, actix_web::Error> {
-    println!("Connecting: {:?}", connnection_info);
+pub async fn websocket_endpoint(req: HttpRequest, stream: web::Payload, config: Data<Arc<YummyConfig>>, manager: web::Data<Addr<GameManager>>, connnection_info: Option<web::Query<ConnectionInfo>>) -> Result<actix_web::HttpResponse, actix_web::Error> {
+    log::debug!("Websocket connection: {:?}", connnection_info);
     let config = config.get_ref();
 
     let (connection_id, connection_key) = match connnection_info {

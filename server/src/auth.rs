@@ -41,7 +41,6 @@ pub fn validate_auth<T: Borrow<str>>(config: Arc<YummyConfig>, token: T) -> Opti
     match decode::<Claims>(token, &DecodingKey::from_secret(config.salt_key.as_ref()), &validation) {
         Ok(c) => Some(c.claims),
         Err(error) => {
-            println!("jwt error: {:?}", error);
             None
         }
     }

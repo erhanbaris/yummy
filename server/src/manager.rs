@@ -128,23 +128,9 @@ where
 
 pub trait GameManagerTrait:
     Actor<Context = Context<Self>>
-    + Handler<MessageToRoom>
-    + Handler<ExitFromRoom>
-    + Handler<StartDisconnectProcedure>
-    + Handler<UserReady>
-    + Handler<JoinToRoom>
-    + Handler<KickPlayerFromRoom>
-    + Handler<NewGame<Self::NewGameConfig>>
-    + Handler<UserPlay<Self::Move>>
-    + Handler<UserAction<Self::Action>>
-    + Handler<Connect<Self::Response>>
-    + Handler<RoomList<Self::RoomType>>
+    + Handler<Connect<Self::ConnectResponse>>
 where
     Self: std::marker::Sized,
 {
-    type Move: Serialize + DeserializeOwned + Send + Debug;
-    type Action: Serialize + DeserializeOwned + Send + Debug;
-    type Response: Serialize + DeserializeOwned + Send + Debug;
-    type NewGameConfig: Serialize + DeserializeOwned + Send + Debug;
-    type RoomType: Serialize + DeserializeOwned + Send + Debug;
+    type ConnectResponse: Serialize + DeserializeOwned + Send + Debug;
 }
