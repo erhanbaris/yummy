@@ -1,5 +1,9 @@
-use crate::config::{CLIENT_TIMEOUT, HEARTBEAT_INTERVAL};
 use crate::auth::UserJwt;
+use crate::config::YummyConfig;
+use crate::manager::GameManagerTrait;
+use crate::manager::*;
+use crate::model::ConnectionId;
+use crate::model::RoomId;
 use actix::ActorFutureExt;
 use actix::AsyncContext;
 use actix::ContextFutureSpawner;
@@ -11,6 +15,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use std::fmt::Debug;
+use std::sync::Arc;
 use std::time::Instant;
 
 use actix::{
@@ -44,25 +49,27 @@ unsafe impl<Response> Send for RealSocket<Response> {}
 unsafe impl<Response> Sync for RealSocket<Response> {}
 
 
-pub struct GameWebsocket {
+pub struct GameWebsocket<M: Actor + GameManagerTrait> {
     user: UserJwt,
     connection_id: ConnectionId,
     manager: Addr<M>,
     hb: Instant,
     valid_user: bool,
+    config: Arc<YummyConfig>
 }
 
 impl<M: Actor + GameManagerTrait> GameWebsocket<M>
 where
     std::string::String: std::convert::From<<M as GameManagerTrait>::Response>,
 {
-    pub fn new(connection_id: usize, user: UserJwt, manager: Addr<M>, valid_user: bool) -> Self {
+    pub fn new(config: Arc<YummyConfig>, connection_id: usize, user: UserJwt, manager: Addr<M>, valid_user: bool) -> Self {
         Self {
             connection_id: ConnectionId(connection_id),
             user,
             hb: Instant::now(),
             manager,
             valid_user,
+            config
         }
     }
 
@@ -106,8 +113,8 @@ where
     }
 
     fn hb(&self, ctx: &mut ws::WebsocketContext<Self>) {
-        ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
-            if Instant::now().duration_since(act.hb) > CLIENT_TIMEOUT {
+        ctx.run_interval(self.config.heartbeat_interval, |act, ctx| {
+            if Instant::now().duration_since(act.hb) > act.config.client_timeout {
                 println!("Disconnecting failed heartbeat, {:?}", act.hb);
                 ctx.stop();
                 return;
