@@ -5,20 +5,14 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use actix::Actor;
-use actix::prelude::{Message, Recipient};
 use actix::AsyncContext;
 use actix::{ActorContext, Addr, Running, StreamHandler};
 use actix_web::Result;
 use actix_web_actors::ws;
+use manager::GameManagerTrait;
 
-use crate::config::YummyConfig;
-use crate::manager::GameManagerTrait;
+use core::config::YummyConfig;
 use crate::websocket::request::*;
-
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct WebsocketMessage(pub String);
-
 
 pub struct GameWebsocket<M: Actor + GameManagerTrait> {
     manager: Addr<M>,
@@ -49,7 +43,7 @@ impl<M: Actor + GameManagerTrait> GameWebsocket<M> {
                         auth_type,
                         if_not_exist_create
                     } => {
-                        log::debug!("Auth {:?}", auth_type)
+                        log::debug!("Auth {:?}", auth_type);
                     }
                 };
             }

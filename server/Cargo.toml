@@ -6,6 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+core = { path = "../core" }
+database = { path = "../database" }
+manager = { path = "../manager" }
+
 actix = "0.13"
 actix-cors = "0.6.4"
 actix-web = { version = "4", features = ["rustls"] }

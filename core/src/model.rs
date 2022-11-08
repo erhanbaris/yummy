@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use actix::MessageResponse;
 use uuid::Uuid;
 
+use actix::prelude::Message;
+
 #[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash)]
 pub struct UserId(pub Uuid);
 
@@ -35,3 +37,7 @@ unsafe impl Sync for UserId {}
 
 unsafe impl Send for SessionId {}
 unsafe impl Sync for SessionId {}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct WebsocketMessage(pub String);

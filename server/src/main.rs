@@ -1,12 +1,8 @@
 mod core;
-mod auth;
-mod game;
-mod model;
-mod error;
-mod config;
-mod manager;
 mod endpoint;
 mod websocket;
+
+use ::core::config::{get_configuration, get_env_var};
 
 use actix_web::error::InternalError;
 
@@ -15,10 +11,9 @@ use actix_web::error::{JsonPayloadError};
 use actix_web::web::{JsonConfig, QueryConfig};
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::{middleware, App, HttpServer, web::Data};
+use manager::GameManager;
 
-use crate::config::*;
 use crate::endpoint::websocket_endpoint;
-use crate::game::GameManager;
 
 pub fn json_error_handler(err: JsonPayloadError, _req: &HttpRequest) -> actix_web::Error {
     let detail = err.to_string();
@@ -45,7 +40,7 @@ async fn main() -> std::io::Result<()> {
         let config = get_configuration();
 
         let query_cfg = QueryConfig::default()
-            .error_handler(|err, req| {
+            .error_handler(|err, _| {
                 log::error!("{:?}", err);
                 InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
             });

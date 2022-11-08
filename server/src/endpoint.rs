@@ -4,10 +4,10 @@ use actix::Addr;
 use actix_web::web::Data;
 use actix_web::{HttpRequest, web};
 use actix_web_actors::ws;
+use manager::GameManager;
 
-use crate::config::YummyConfig;
-use crate::error::YummyError;
-use crate::game::GameManager;
+use core::config::YummyConfig;
+use core::error::YummyError;
 use crate::websocket::request::ConnectionInfo;
 use crate::websocket::GameWebsocket;
 

@@ -9,7 +9,6 @@ use crate::{model::UserId, config::YummyConfig};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UserJwt {
-    //#[serde(with = "crate::tool::hashid_usize")]
     pub id: UserId,
     pub name: String,
 }
@@ -40,7 +39,7 @@ pub fn validate_auth<T: Borrow<str>>(config: Arc<YummyConfig>, token: T) -> Opti
     let validation = Validation::default();
     match decode::<Claims>(token, &DecodingKey::from_secret(config.salt_key.as_ref()), &validation) {
         Ok(c) => Some(c.claims),
-        Err(error) => {
+        Err(_) => {
             None
         }
     }
