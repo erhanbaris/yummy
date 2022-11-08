@@ -83,17 +83,8 @@ impl<M: Actor + GameManagerTrait> Actor for GameWebsocket<M> {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        log::debug!("New socket started");
-        if !self.valid_user {
-            log::debug!("Invalid user");
-            ctx.close(Some(actix_web_actors::ws::CloseReason::from(actix_web_actors::ws::CloseCode::Invalid)));
-            ctx.stop();
-            return;
-        }
-
-        if cfg!(not(feature="test")) {
-            self.hb(ctx);
-        }
+        log::debug!("New socket started");    
+        self.hb(ctx);
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
