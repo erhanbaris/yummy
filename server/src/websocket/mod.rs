@@ -1,30 +1,109 @@
-pub(crate) mod socket;
+pub(crate) mod request;
+pub(crate) mod response;
 
 use std::sync::Arc;
+use std::time::Instant;
 
-use actix::Addr;
-use actix_web::web::Data;
-use actix_web::{HttpRequest, web};
+use actix::Actor;
+use actix::prelude::{Message, Recipient};
+use actix::AsyncContext;
+use actix::{ActorContext, Addr, Running, StreamHandler};
+use actix_web::Result;
 use actix_web_actors::ws;
 
-use crate::auth::{validate_auth, UserJwt};
 use crate::config::YummyConfig;
-use crate::game::GameManager;
-use crate::websocket::socket::{GameWebsocket, ConnectionInfo};
+use crate::manager::GameManagerTrait;
+use crate::websocket::request::*;
 
-pub async fn websocket_endpoint(req: HttpRequest, stream: web::Payload, config: Data<Arc<YummyConfig>>, manager: web::Data<Addr<GameManager>>, connnection_info: Option<web::Query<ConnectionInfo>>) -> Result<actix_web::HttpResponse, actix_web::Error> {
-    log::debug!("Websocket connection: {:?}", connnection_info);
-    let config = config.get_ref();
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct WebsocketMessage(pub String);
 
-    let (connection_id, connection_key) = match connnection_info {
-        Some(info) => (info.id.unwrap_or_default(), info.key.to_owned()),
-        None => (0, String::new()),
-    };
 
-    let (player, valid) = match validate_auth(config.clone(), &connection_key[..]) {
-        Some(auth) => (auth.user, true),
-        None => (UserJwt::default(), false),
-    };
+pub struct GameWebsocket<M: Actor + GameManagerTrait> {
+    manager: Addr<M>,
+    hb: Instant,
+    connection_info: ConnectionInfo,
+    config: Arc<YummyConfig>,
+}
 
-    ws::start(GameWebsocket::new(config.clone(), connection_id, player, manager.get_ref().clone(), valid), &req, stream)
+impl<M: Actor + GameManagerTrait> GameWebsocket<M> {
+    pub fn new(
+        config: Arc<YummyConfig>,
+        connection_info: ConnectionInfo,
+        manager: Addr<M>,
+    ) -> Self {
+        Self {
+            connection_info,
+            hb: Instant::now(),
+            manager,
+            config,
+        }
+    }
+
+    fn execute_message(&self, message: String) {
+        match serde_json::from_str::<Request>(&message) {
+            Ok(message) => {
+                match message {
+                    Request::Auth {
+                        auth_type,
+                        if_not_exist_create
+                    } => {
+                        log::debug!("Auth {:?}", auth_type)
+                    }
+                };
+            }
+            Err(error) => {
+                log::error!("{:?}", error);
+            }
+        };
+    }
+
+    fn hb(&self, ctx: &mut ws::WebsocketContext<Self>) {
+        ctx.run_interval(self.config.heartbeat_interval, |act, ctx| {
+            if Instant::now().duration_since(act.hb) > act.config.client_timeout {
+                log::debug!("Disconnecting failed heartbeat, {:?}", act.hb);
+                ctx.stop();
+                return;
+            }
+
+            ctx.ping(b"PING");
+        });
+    }
+}
+
+impl<M: Actor + GameManagerTrait> Actor for GameWebsocket<M> {
+    type Context = ws::WebsocketContext<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        log::debug!("New socket started");
+        self.hb(ctx);
+    }
+
+    fn stopping(&mut self, _: &mut Self::Context) -> Running {
+        Running::Stop
+    }
+}
+
+impl<M: Actor + GameManagerTrait> StreamHandler<Result<ws::Message, ws::ProtocolError>>
+    for GameWebsocket<M>
+{
+    fn handle(&mut self, message: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+        match message {
+            Ok(ws::Message::Close(reason)) => {
+                log::debug!("Stop: {:?}", reason);
+                ctx.stop();
+            }
+            Ok(ws::Message::Ping(message)) => {
+                self.hb = Instant::now();
+                ctx.pong(&message);
+            }
+            Ok(ws::Message::Pong(_)) => {
+                self.hb = Instant::now();
+            }
+            Ok(ws::Message::Text(text)) => self.execute_message(text.to_string()),
+            Ok(ws::Message::Binary(bin)) => self.execute_message(std::str::from_utf8(&bin).unwrap_or_default().to_string()),
+            _ => (),
+        }
+    }
 }

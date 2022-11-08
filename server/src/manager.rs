@@ -1,37 +1,34 @@
 use std::marker::PhantomData;
 use std::fmt::Debug;
 
-use actix::{Actor, Context, Handler};
+use actix::{Actor, Context, Handler, Recipient};
 use actix::prelude::Message;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::UserJwt;
-use crate::model::{ConnectionId, RoomId};
-use crate::websocket::socket::SocketTrait;
+use crate::model::{SessionId, RoomId};
+use crate::websocket::WebsocketMessage;
 
 #[derive(Message)]
-#[rtype(result = "ConnectionId")]
-pub struct Connect<R>
-where
-    R: Debug + Serialize,
-{
-    pub connection_id: ConnectionId,
+#[rtype(result = "SessionId")]
+pub struct Connect {
+    pub connection_id: SessionId,
     pub user: UserJwt,
-    pub socket: Box<dyn SocketTrait<Message = R> + Send>,
+    pub socket: Box<Recipient<WebsocketMessage>>,
 }
 
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct StartDisconnectProcedure {
-    pub connection_id: ConnectionId,
+    pub connection_id: SessionId,
     pub apply_now: bool,
 }
 
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct UserMessage {
-    pub connection_id: ConnectionId,
+    pub connection_id: SessionId,
     pub message: String,
 }
 
@@ -53,14 +50,14 @@ pub enum NewGameType {
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct JoinToRoom {
-    pub connection_id: ConnectionId,
+    pub connection_id: SessionId,
     pub room: JoinToRoomType,
 }
 
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct KickPlayerFromRoom {
-    pub connection_id: ConnectionId,
+    pub connection_id: SessionId,
     pub room_id: RoomId,
 }
 
@@ -70,7 +67,7 @@ pub struct NewGame<C>
 where
     C: Debug + Serialize,
 {
-    pub connection_id: ConnectionId,
+    pub connection_id: SessionId,
     pub game_type: NewGameType,
     pub config: Option<C>,
 }
@@ -78,7 +75,7 @@ where
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct ExitFromRoom {
-    pub connection_id: ConnectionId,
+    pub connection_id: SessionId,
 }
 
 #[derive(Message)]
@@ -93,14 +90,14 @@ where
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct MessageToRoom {
-    pub connection_id: ConnectionId,
+    pub connection_id: SessionId,
     pub message: String,
 }
 
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct UserReady {
-    pub connection_id: ConnectionId,
+    pub connection_id: SessionId,
     pub room_id: RoomId,
 }
 
@@ -110,7 +107,7 @@ pub struct UserPlay<C>
 where
     C: Debug + Serialize,
 {
-    pub connection_id: ConnectionId,
+    pub connection_id: SessionId,
     pub room_id: RoomId,
     pub player_move: C,
 }
@@ -121,14 +118,12 @@ pub struct UserAction<C>
 where
     C: Debug + Serialize,
 {
-    pub connection_id: ConnectionId,
+    pub connection_id: SessionId,
     pub room_id: RoomId,
     pub action: C,
 }
 
-pub trait GameManagerTrait:
-    Actor<Context = Context<Self>>
-    + Handler<Connect<Self::ConnectResponse>>
+pub trait GameManagerTrait: Actor<Context = Context<Self>> + Handler<Connect>
 where
     Self: std::marker::Sized,
 {
