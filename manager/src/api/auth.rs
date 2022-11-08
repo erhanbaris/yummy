@@ -1,23 +1,26 @@
-use actix::{Context, Handler, Recipient};
+use actix::{Context, Handler};
 use actix::prelude::Message;
 
-use core::jwt::UserJwt;
-use core::model::{SessionId, WebsocketMessage};
+use core::error::YummyError;
+use core::model::SessionId;
 
 use crate::GameManager;
 
 #[derive(Message)]
-#[rtype(result = "SessionId")]
-pub struct Auth {
-    pub connection_id: SessionId,
-    pub user: UserJwt,
-    pub socket: Box<Recipient<WebsocketMessage>>,
+#[rtype(result = "Result<SessionId, YummyError>")]
+pub struct EmailAuth {
+    pub email: String,
+    pub password: String,
+    pub if_not_exist_create: bool
 }
 
-impl Handler<Auth> for GameManager {
-    type Result = SessionId;
+unsafe impl Send for EmailAuth {}
+unsafe impl Sync for EmailAuth {}
 
-    fn handle(&mut self, _: Auth, _: &mut Context<Self>) -> Self::Result {
-        SessionId::default()
+impl Handler<EmailAuth> for GameManager {
+    type Result = Result<SessionId, YummyError>;
+
+    fn handle(&mut self, _: EmailAuth, _: &mut Context<Self>) -> Self::Result {
+        Ok(SessionId::default())
     }
 }

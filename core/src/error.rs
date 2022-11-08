@@ -22,3 +22,6 @@ impl ResponseError for YummyError {
         }
     }
 }
+
+unsafe impl Send for YummyError {}
+unsafe impl Sync for YummyError {}

@@ -1,3 +1,4 @@
+mod api;
 mod core;
 mod endpoint;
 mod websocket;
@@ -55,6 +56,9 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
 
+            // Apis
+            .service(web::scope("/v1").configure(api::account::v1_scoped_config))
+            
             //Websocket
             .route("/v1/socket/", web::get().to(websocket_endpoint))
 
