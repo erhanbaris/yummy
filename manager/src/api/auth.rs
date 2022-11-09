@@ -4,13 +4,15 @@ use actix::prelude::Message;
 use core::error::YummyError;
 use core::model::SessionId;
 
+use secrecy::SecretString;
+
 use crate::GameManager;
 
 #[derive(Message)]
 #[rtype(result = "Result<SessionId, YummyError>")]
 pub struct EmailAuth {
     pub email: String,
-    pub password: String,
+    pub password: SecretString,
     pub if_not_exist_create: bool
 }
 

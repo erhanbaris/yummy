@@ -1,9 +1,11 @@
 mod api;
-mod core;
 mod endpoint;
 mod websocket;
 
 use ::core::config::{get_configuration, get_env_var};
+
+use tracing::info;
+use tracing_subscriber;
 
 use actix_web::error::InternalError;
 
@@ -28,9 +30,8 @@ pub fn json_error_handler(err: JsonPayloadError, _req: &HttpRequest) -> actix_we
 async fn main() -> std::io::Result<()> {
     let server_bind = get_env_var("SERVER_BIND", "0.0.0.0:9090".to_string());
     let rust_log_level = get_env_var("RUST_LOG", "debug,backend,actix_web=debug".to_string());
-    
+    tracing_subscriber::fmt::init();
     std::env::set_var("RUST_LOG", &rust_log_level);
-    env_logger::init();
 
     log::info!("Yummy Starting...");
     log::info!("Binding at \"{}\"", server_bind);

@@ -1,5 +1,7 @@
-use actix_web::{ResponseError, http::StatusCode};
+use actix_web::{ResponseError, http::StatusCode, Responder, HttpResponse, HttpResponseBuilder, body::BoxBody};
 use thiserror::Error;
+
+use crate::web::GenericAnswer;
 
 #[derive(Error, Debug)]
 pub enum YummyError {
@@ -9,8 +11,20 @@ pub enum YummyError {
     #[error("Internal error. {0}")]
     ActixError(#[from] actix_web::Error),
 
-    #[error("unknown data store error")]
+    #[error("Internal error")]
+    AnyHow(#[from] anyhow::Error),
+
+    #[error("Unknown error")]
     Unknown,
+}
+
+impl From<YummyError> for HttpResponse {
+    fn from(error: YummyError) -> Self {
+        HttpResponseBuilder::new(error.status_code()).json(GenericAnswer {
+            status: true,
+            result: Some(error.to_string()),
+        })
+    }
 }
 
 impl ResponseError for YummyError {
@@ -18,8 +32,16 @@ impl ResponseError for YummyError {
         match self {
             Self::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Unknown => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::WebsocketConnectArgument(_) => StatusCode::BAD_REQUEST
+            Self::WebsocketConnectArgument(_) => StatusCode::BAD_REQUEST,
+            Self::AnyHow(_) => StatusCode::BAD_REQUEST
         }
+    }
+
+    fn error_response(&self) -> HttpResponse<BoxBody> {
+        HttpResponseBuilder::new(self.status_code()).json(GenericAnswer {
+            status: true,
+            result: Some(self.to_string()),
+        })
     }
 }
 

@@ -1,46 +1,39 @@
-use core::error::YummyError;
+use core::{error::YummyError, web::GenericAnswer};
+use std::default;
 
 use actix::Addr;
-use actix_web::{HttpRequest, web::{Data, Json, Query, ServiceConfig, post}, HttpResponse};
+use actix_web::{HttpRequest, web::{Data, Json, Query, ServiceConfig, get}, HttpResponse, Responder};
 use manager::{GameManager, api::auth::*};
 use serde::Deserialize;
+use secrecy::{SecretString, Secret};
+use tracing::{warn, event};
 
-use crate::core::GenericAnswer;
 
 pub fn v1_scoped_config(cfg: &mut ServiceConfig) {
-    cfg.route("/authenticate/email", post().to(authenticate_email));
+    cfg.route("/authenticate/email", get().to(authenticate_email));
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize)]
 pub struct AuthenticateEmail {
     pub email: String,
-    pub password: String,
+    pub password: SecretString,
 
     #[serde(rename = "create")]
     pub if_not_exist_create: bool
 }
 
-async fn authenticate_email(req: HttpRequest, manager: Data<Addr<GameManager>>, data: Json<AuthenticateEmail>, auth_model: Result<Query<AuthenticateEmail>, actix_web::Error>) ->  Result<actix_web::HttpResponse, YummyError> {
-    let auth_model = match auth_model {
-        Ok(auth_model) => auth_model.into_inner(),
-        Err(error) => return Err(YummyError::WebsocketConnectArgument(error.to_string()))
-    };
+#[tracing::instrument(name="Authenticate email", skip(manager))]
+async fn authenticate_email(manager: Data<Addr<GameManager>>, auth_model: Result<Query<AuthenticateEmail>, actix_web::Error>) ->  Result<HttpResponse, YummyError> {
+    let auth_model = auth_model.map_err(|e| YummyError::ActixError(e.into()))?.into_inner();
     
     let auth_result = manager.get_ref().send(EmailAuth {
         email: auth_model.email,
         password: auth_model.password,
         if_not_exist_create: auth_model.if_not_exist_create
-    }).await;
+    }).await.map_err(|_| YummyError::Unknown)??;
 
-
-    match auth_result {
-        Ok(result) => match result {
-            Ok(result) => Ok(HttpResponse::Ok().json(GenericAnswer {
-                status: true,
-                result: Some(result),
-            })),
-            Err(error) => Err(error)
-        },
-        Err(_) => Err(YummyError::Unknown)
-    }
+    Ok(HttpResponse::Ok().json(GenericAnswer {
+        status: true,
+        result: Some(auth_result),
+    }))
 }
