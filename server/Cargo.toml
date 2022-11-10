@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 core = { path = "../core" }
+database = { path = "../database" }
 manager = { path = "../manager" }
 
 actix = "0.13"

@@ -3,7 +3,7 @@ mod endpoint;
 mod websocket;
 
 use ::core::config::{get_configuration, get_env_var};
-use core::error::YummyError;
+use std::sync::Arc;
 
 use tracing_subscriber;
 
@@ -38,10 +38,14 @@ async fn main() -> std::io::Result<()> {
     log::info!("Binding at \"{}\"", server_bind);
     log::info!("Log level is \"{}\"", rust_log_level);
 
-    HttpServer::new(move || {       
-
+    let config = get_configuration();
+    let database = Arc::new(database::create_connection(&config.database_url).unwrap());
+    let mut connection = database.clone().get().unwrap();
+    database::create_database(&mut connection).unwrap_or_default();
+    let game_manager = Data::new(GameManager::new(config.clone(), database.clone()).start());
+        
+    HttpServer::new(move || {
         let config = get_configuration();
-        let game_manager = Data::new(GameManager::new(config.clone()).unwrap().start());
 
         let query_cfg = QueryConfig::default()
             .error_handler(|err, _| {

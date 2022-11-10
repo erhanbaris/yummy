@@ -24,15 +24,11 @@ pub struct GameManager {
 }
 
 impl GameManager {
-    pub fn new(config: Arc<YummyConfig>) -> anyhow::Result<Self> {
-        let database = Arc::new(database::create_connection(&config.database_url)?);
-        let mut connection = database.clone().get()?;
-        database::create_database(&mut connection)?;
-
-        Ok(Self {
+    pub fn new(config: Arc<YummyConfig>, database: Arc<Pool>) -> Self {
+        Self {
             config,
             database
-        })
+        }
     } 
 }
 

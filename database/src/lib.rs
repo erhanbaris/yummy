@@ -58,8 +58,8 @@ impl ToSql<Text, diesel::sqlite::Sqlite> for RowId where String: ToSql<Text, die
 
 impl FromSql<Text, diesel::sqlite::Sqlite> for RowId where String: FromSql<Text, diesel::sqlite::Sqlite> {
     fn from_sql(bytes: backend::RawValue<diesel::sqlite::Sqlite>) -> deserialize::Result<Self> {
-        let value = <Vec<u8>>::from_sql(bytes)?;
-        let row_id = Uuid::from_slice(&value)?;
+        let value = String::from_utf8(<Vec<u8>>::from_sql(bytes)?)?;
+        let row_id = Uuid::from_str(&value)?;
         Ok(RowId(row_id))
     }
 }
@@ -83,6 +83,7 @@ pub fn get_last_insert_id(connection: &mut PooledConnection) -> Result<RowId, Er
 }
 
 pub fn create_database(connection: &mut PooledConnection) -> Result<(), Error> {
+    println!("create_database");
     sql_query(
         r#"CREATE TABLE user (
             id TEXT PRIMARY KEY,

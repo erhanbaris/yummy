@@ -24,6 +24,7 @@ impl AuthStore {
             .first::<(RowId, String)>(&mut *self.database)
             .optional()?
             .map(|(id, password)| (id, SecretString::new(password)));
+        tracing::info!("{:?}", result);
         Ok(result)
     }
 
@@ -38,6 +39,7 @@ impl AuthStore {
         model.email = email.to_string();
         diesel::insert_into(user::table).values(&vec![model]).execute(&mut *self.database)?;
         
+        tracing::info!("{:?}", row_id);
         Ok(row_id)
     }
 }

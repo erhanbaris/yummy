@@ -8,7 +8,7 @@ pub const DEFAULT_HEARTBEAT_INTERVAL: u64 = 10; // in seconds
 pub const DEFAULT_TOKEN_LIFETIME: i64 = 24; // in seconds
 pub const DEFAULT_COOKIE_KEY: &str = "x-yummy-auth";
 pub const DEFAULT_SALT_KEY: &str = "YUMMY-SALT";
-pub const DEFAULT_DATABASE_URL: &str = ":memory:";
+pub const DEFAULT_DATABASE_URL: &str = "yummy.db";
 
 #[derive(Debug, Default, Clone)]
 pub struct YummyConfig {
