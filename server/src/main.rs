@@ -3,8 +3,8 @@ mod endpoint;
 mod websocket;
 
 use ::core::config::{get_configuration, get_env_var};
+use core::error::YummyError;
 
-use tracing::info;
 use tracing_subscriber;
 
 use actix_web::error::InternalError;
@@ -30,24 +30,24 @@ pub fn json_error_handler(err: JsonPayloadError, _req: &HttpRequest) -> actix_we
 async fn main() -> std::io::Result<()> {
     let server_bind = get_env_var("SERVER_BIND", "0.0.0.0:9090".to_string());
     let rust_log_level = get_env_var("RUST_LOG", "debug,backend,actix_web=debug".to_string());
+    
     tracing_subscriber::fmt::init();
     std::env::set_var("RUST_LOG", &rust_log_level);
 
-    log::info!("Yummy Starting...");
+    log::info!("Yummy is starting...");
     log::info!("Binding at \"{}\"", server_bind);
     log::info!("Log level is \"{}\"", rust_log_level);
 
-    HttpServer::new(move || {
-        // Read configuration from environment
+    HttpServer::new(move || {       
+
         let config = get_configuration();
+        let game_manager = Data::new(GameManager::new(config.clone()).unwrap().start());
 
         let query_cfg = QueryConfig::default()
             .error_handler(|err, _| {
                 log::error!("{:?}", err);
                 InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
             });
-        
-        let game_manager = Data::new(GameManager::new(config.clone()).start());
 
         App::new()
         .app_data(query_cfg)
@@ -57,8 +57,8 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
 
-            // Apis
-            .service(web::scope("/v1").configure(api::account::v1_scoped_config))
+            // Account api
+            .service(web::scope("/v1/account").configure(api::account::v1_scoped_config))
             
             //Websocket
             .route("/v1/socket/", web::get().to(websocket_endpoint))

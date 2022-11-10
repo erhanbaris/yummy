@@ -1,4 +1,4 @@
-use actix_web::{ResponseError, http::StatusCode, Responder, HttpResponse, HttpResponseBuilder, body::BoxBody};
+use actix_web::{ResponseError, http::StatusCode, HttpResponse, HttpResponseBuilder, body::BoxBody};
 use thiserror::Error;
 
 use crate::web::GenericAnswer;
@@ -8,11 +8,17 @@ pub enum YummyError {
     #[error("Websocket connection arguments not valid. {0}")]
     WebsocketConnectArgument(String),
 
-    #[error("Internal error. {0}")]
+    #[error("{0}")]
     ActixError(#[from] actix_web::Error),
 
-    #[error("Internal error")]
+    #[error("{0}")]
     AnyHow(#[from] anyhow::Error),
+
+    #[error("{0}")]
+    DatabaseError(String),
+
+    #[error("{0}")]
+    IoError(#[from] std::io::Error),
 
     #[error("Unknown error")]
     Unknown,
@@ -21,7 +27,7 @@ pub enum YummyError {
 impl From<YummyError> for HttpResponse {
     fn from(error: YummyError) -> Self {
         HttpResponseBuilder::new(error.status_code()).json(GenericAnswer {
-            status: true,
+            status: false,
             result: Some(error.to_string()),
         })
     }
@@ -33,13 +39,15 @@ impl ResponseError for YummyError {
             Self::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Unknown => StatusCode::INTERNAL_SERVER_ERROR,
             Self::WebsocketConnectArgument(_) => StatusCode::BAD_REQUEST,
-            Self::AnyHow(_) => StatusCode::BAD_REQUEST
+            Self::AnyHow(_) => StatusCode::BAD_REQUEST,
+            Self::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::IoError(_) => StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 
     fn error_response(&self) -> HttpResponse<BoxBody> {
         HttpResponseBuilder::new(self.status_code()).json(GenericAnswer {
-            status: true,
+            status: false,
             result: Some(self.to_string()),
         })
     }

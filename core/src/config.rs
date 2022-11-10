@@ -8,6 +8,7 @@ pub const DEFAULT_HEARTBEAT_INTERVAL: u64 = 10; // in seconds
 pub const DEFAULT_TOKEN_LIFETIME: i64 = 24; // in seconds
 pub const DEFAULT_COOKIE_KEY: &str = "x-yummy-auth";
 pub const DEFAULT_SALT_KEY: &str = "YUMMY-SALT";
+pub const DEFAULT_DATABASE_URL: &str = ":memory:";
 
 #[derive(Debug, Default, Clone)]
 pub struct YummyConfig {
@@ -16,6 +17,7 @@ pub struct YummyConfig {
     pub heartbeat_interval: Duration,
     pub client_timeout: Duration,
     pub salt_key: String,
+    pub database_url: String,
     pub hasher: harsh::Harsh
 }
 
@@ -33,5 +35,6 @@ pub fn get_configuration() -> Arc<YummyConfig> {
     yummy_config.cookie_key = get_env_var("COOKIE_KEY", DEFAULT_COOKIE_KEY.to_string());
     yummy_config.salt_key = get_env_var("SALT_KEY", DEFAULT_SALT_KEY.to_string());
     yummy_config.hasher = harsh::Harsh::builder().salt(&yummy_config.salt_key[..]).length(5).build().unwrap();
+    yummy_config.database_url = get_env_var("DATABASE_URL", DEFAULT_DATABASE_URL.to_string());
     Arc::new(yummy_config)
 }

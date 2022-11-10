@@ -1,0 +1,20 @@
+{
+    "cucumberautocomplete.steps": ["server/tests/steps/*.txt"],
+    "cucumberautocomplete.strictGherkinCompletion": true,
+    "cucumberautocomplete.syncfeatures": "server/tests/mangala/*.feature",
+    "cucumberautocomplete.customParameters": [
+        {
+            "parameter": "{word}",
+            "value": ".*"
+        },
+        {
+            "parameter": "{int}",
+            "value": "[0-9]+"
+        }
+    ],
+    "editor.quickSuggestions": {
+      "comments": false,
+      "strings": true,
+      "other": true
+    }
+  }

@@ -2,7 +2,7 @@ use core::{error::YummyError, web::GenericAnswer};
 use std::default;
 
 use actix::Addr;
-use actix_web::{HttpRequest, web::{Data, Json, Query, ServiceConfig, get}, HttpResponse, Responder};
+use actix_web::{HttpRequest, web::{Data, Json, Query, ServiceConfig, get, post}, HttpResponse, Responder};
 use manager::{GameManager, api::auth::*};
 use serde::Deserialize;
 use secrecy::{SecretString, Secret};
@@ -10,7 +10,7 @@ use tracing::{warn, event};
 
 
 pub fn v1_scoped_config(cfg: &mut ServiceConfig) {
-    cfg.route("/authenticate/email", get().to(authenticate_email));
+    cfg.route("/authenticate/email", post().to(authenticate_email));
 }
 
 #[derive(Debug, Deserialize)]
@@ -19,11 +19,12 @@ pub struct AuthenticateEmail {
     pub password: SecretString,
 
     #[serde(rename = "create")]
+    #[serde(default)]
     pub if_not_exist_create: bool
 }
 
 #[tracing::instrument(name="Authenticate email", skip(manager))]
-async fn authenticate_email(manager: Data<Addr<GameManager>>, auth_model: Result<Query<AuthenticateEmail>, actix_web::Error>) ->  Result<HttpResponse, YummyError> {
+async fn authenticate_email(manager: Data<Addr<GameManager>>, auth_model: Result<Json<AuthenticateEmail>, actix_web::Error>) ->  Result<HttpResponse, YummyError> {
     let auth_model = auth_model.map_err(|e| YummyError::ActixError(e.into()))?.into_inner();
     
     let auth_result = manager.get_ref().send(EmailAuth {
