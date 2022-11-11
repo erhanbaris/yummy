@@ -20,7 +20,7 @@ use secrecy::{ExposeSecret, SecretString};
 pub struct EmailAuth {
     pub email: String,
     pub password: SecretString,
-    pub if_not_exist_create: bool
+    pub if_not_exist_create: bool,
 }
 
 unsafe impl Send for EmailAuth {}
@@ -99,7 +99,8 @@ impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<EmailAuth> for Au
             _ => return Err(anyhow!(AuthError::EmailOrPasswordNotValid))
         };
         
-        self.generate_token(UserId(user_id.0), name, Some(auth.email.to_string()))
+        let response = self.generate_token(UserId(user_id.0), name, Some(auth.email.to_string()))?;
+        Ok(response)
     }
 }
 

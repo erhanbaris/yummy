@@ -31,6 +31,15 @@ pub fn json_error_handler(err: JsonPayloadError, _req: &HttpRequest) -> actix_we
 async fn main() -> std::io::Result<()> {
     let server_bind = get_env_var("SERVER_BIND", "0.0.0.0:9090".to_string());
     let rust_log_level = get_env_var("RUST_LOG", "debug,backend,actix_web=debug".to_string());
+    let message = crate::websocket::request::Request::Auth {
+        auth_type: crate::websocket::request::AuthType::Email {
+            email: "erhanbaris@gmail.com".to_string(),
+            password: "erhan".to_string()
+        },
+        if_not_exist_create: true
+    };
+
+    //print!("{:}", serde_json::to_string(&message).unwrap());
     
     tracing_subscriber::fmt::init();
     std::env::set_var("RUST_LOG", &rust_log_level);
@@ -68,7 +77,7 @@ async fn main() -> std::io::Result<()> {
             .service(web::scope("/v1/account").configure(api::account::v1_scoped_config::<database::auth::AuthStore>))
             
             //Websocket
-            .route("/v1/socket/", web::get().to(websocket_endpoint))
+            .route("/v1/socket/", web::get().to(websocket_endpoint::<database::auth::AuthStore>))
 
     })
     .bind(server_bind)?

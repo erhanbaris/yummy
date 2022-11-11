@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc};
+use std::fmt::Debug;
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
@@ -16,6 +16,13 @@ pub struct SessionToken(pub String);
 
 impl SessionToken {
     pub fn empty(&self) -> bool { self.0.is_empty() }
+}
+
+
+impl From<SessionToken> for String {
+    fn from(token: SessionToken) -> Self {
+        serde_json::to_string(&token).unwrap_or_default()
+    }
 }
 
 #[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash)]

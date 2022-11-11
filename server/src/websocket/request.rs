@@ -34,7 +34,7 @@ pub struct ConnectionInfo {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-#[serde(tag = "auth_type", content = "content")]
+#[serde(tag = "auth_type")]
 pub enum AuthType {
     Email {
         email: String,
@@ -48,6 +48,7 @@ pub enum AuthType {
 #[serde(tag = "type")]
 pub enum Request {
     Auth {
+        #[serde(flatten)]
         auth_type: AuthType,
 
         #[serde(rename = "create")]

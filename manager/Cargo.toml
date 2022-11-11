@@ -10,6 +10,7 @@ core = { path = "../core" }
 database = { path = "../database" }
 
 actix = "0.13"
+actix-web-actors = "4.1.0"
 actix-web = { version = "4", features = ["rustls"] }
 
 thiserror = "1.0.37"

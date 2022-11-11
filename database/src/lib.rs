@@ -83,7 +83,6 @@ pub fn get_last_insert_id(connection: &mut PooledConnection) -> Result<RowId, Er
 }
 
 pub fn create_database(connection: &mut PooledConnection) -> Result<(), Error> {
-    println!("create_database");
     sql_query(
         r#"CREATE TABLE user (
             id TEXT PRIMARY KEY,

@@ -4,14 +4,15 @@ use actix::Addr;
 use actix_web::web::Data;
 use actix_web::{HttpRequest, web};
 use actix_web_actors::ws;
-use manager::GameManager;
+use database::auth::AuthStoreTrait;
+use manager::api::auth::AuthManager;
 
 use core::config::YummyConfig;
 use core::error::YummyError;
 use crate::websocket::request::ConnectionInfo;
 use crate::websocket::GameWebsocket;
 
-pub async fn websocket_endpoint(req: HttpRequest, stream: web::Payload, config: Data<Arc<YummyConfig>>, manager: web::Data<Addr<GameManager>>, connnection_info: Result<web::Query<ConnectionInfo>, actix_web::Error>) -> Result<actix_web::HttpResponse, YummyError> {
+pub async fn websocket_endpoint<A: AuthStoreTrait + Unpin + 'static>(req: HttpRequest, stream: web::Payload, config: Data<Arc<YummyConfig>>, manager: web::Data<Addr<AuthManager<A>>>, connnection_info: Result<web::Query<ConnectionInfo>, actix_web::Error>) -> Result<actix_web::HttpResponse, YummyError> {
     log::debug!("Websocket connection: {:?}", connnection_info);
     let config = config.get_ref();
 
