@@ -9,19 +9,18 @@ use actix::AsyncContext;
 use actix::{ActorContext, Addr, Running, StreamHandler};
 use actix_web::Result;
 use actix_web_actors::ws;
-use manager::GameManagerTrait;
 
 use core::config::YummyConfig;
 use crate::websocket::request::*;
 
-pub struct GameWebsocket<M: Actor + GameManagerTrait> {
+pub struct GameWebsocket<M: Actor> {
     manager: Addr<M>,
     hb: Instant,
     connection_info: ConnectionInfo,
     config: Arc<YummyConfig>,
 }
 
-impl<M: Actor + GameManagerTrait> GameWebsocket<M> {
+impl<M: Actor> GameWebsocket<M> {
     pub fn new(
         config: Arc<YummyConfig>,
         connection_info: ConnectionInfo,
@@ -66,7 +65,7 @@ impl<M: Actor + GameManagerTrait> GameWebsocket<M> {
     }
 }
 
-impl<M: Actor + GameManagerTrait> Actor for GameWebsocket<M> {
+impl<M: Actor> Actor for GameWebsocket<M> {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
@@ -79,7 +78,7 @@ impl<M: Actor + GameManagerTrait> Actor for GameWebsocket<M> {
     }
 }
 
-impl<M: Actor + GameManagerTrait> StreamHandler<Result<ws::Message, ws::ProtocolError>>
+impl<M: Actor> StreamHandler<Result<ws::Message, ws::ProtocolError>>
     for GameWebsocket<M>
 {
     fn handle(&mut self, message: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {

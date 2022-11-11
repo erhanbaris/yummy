@@ -9,27 +9,31 @@ pub struct AuthStore {
     database: PooledConnection
 }
 
-impl AuthStore {
-    pub fn new(database: PooledConnection) -> Self {
-        Self { database }
-    }
+pub trait AuthStoreTrait {
+    fn new(database: PooledConnection) -> Self;
+    fn user_login_via_email(&mut self, email: &str) -> Result<Option<(RowId, Option<String>, SecretString)>, crate::error::Error>;
+    fn create_user_via_email(&mut self, email: &str, password: &SecretString) -> Result<RowId, crate::error::Error>;
 }
 
-impl AuthStore {
+impl AuthStoreTrait for AuthStore {
+    fn new(database: PooledConnection) -> Self {
+        Self { database }
+    }
+
     #[tracing::instrument(name="User login via email", skip(self))]
-    pub fn user_login_via_email(&mut self, email: &str) -> Result<Option<(RowId, SecretString)>, crate::error::Error> {
+    fn user_login_via_email(&mut self, email: &str) -> Result<Option<(RowId, Option<String>, SecretString)>, crate::error::Error> {
         let result = user::table
             .filter(user::email.eq(email))
-            .select((user::id, user::password))
-            .first::<(RowId, String)>(&mut *self.database)
+            .select((user::id, user::name, user::password))
+            .first::<(RowId, String, String)>(&mut *self.database)
             .optional()?
-            .map(|(id, password)| (id, SecretString::new(password)));
+            .map(|(id, name, password)| (id, Some(name), SecretString::new(password)));
         tracing::info!("{:?}", result);
         Ok(result)
     }
 
     #[tracing::instrument(name="User login via email", skip(self))]
-    pub fn create_user_via_email(&mut self, email: &str, password: &SecretString) -> Result<RowId, crate::error::Error> {
+    fn create_user_via_email(&mut self, email: &str, password: &SecretString) -> Result<RowId, crate::error::Error> {
         
         let row_id = RowId(Uuid::new_v4());
         let mut model = UserModel::default();

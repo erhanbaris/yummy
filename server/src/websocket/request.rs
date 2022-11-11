@@ -1,3 +1,5 @@
+use core::model::SessionToken;
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -24,7 +26,7 @@ pub struct ConnectionInfo {
     pub user_id: Option<Uuid>,
 
     #[serde(default)]
-    pub session_token: Option<String>,
+    pub session_token: Option<SessionToken>,
 
     #[serde(default)]
     #[serde(rename = "format")]

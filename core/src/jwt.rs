@@ -10,7 +10,8 @@ use crate::{model::UserId, config::YummyConfig};
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UserJwt {
     pub id: UserId,
-    pub name: String,
+    pub name: Option<String>,
+    pub email: Option<String>
 }
 
 #[derive(Debug, Serialize, Deserialize)]

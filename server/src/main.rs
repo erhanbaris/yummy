@@ -5,6 +5,7 @@ mod websocket;
 use ::core::config::{get_configuration, get_env_var};
 use std::sync::Arc;
 
+use manager::api::auth::AuthManager;
 use tracing_subscriber;
 
 use actix_web::error::InternalError;
@@ -43,6 +44,7 @@ async fn main() -> std::io::Result<()> {
     let mut connection = database.clone().get().unwrap();
     database::create_database(&mut connection).unwrap_or_default();
     let game_manager = Data::new(GameManager::new(config.clone(), database.clone()).start());
+    let auth_manager = Data::new(AuthManager::<database::auth::AuthStore>::new(config.clone(), database.clone()).start());
         
     HttpServer::new(move || {
         let config = get_configuration();
@@ -58,11 +60,12 @@ async fn main() -> std::io::Result<()> {
             .app_data(JsonConfig::default().error_handler(json_error_handler))
             .app_data(Data::new(config))
             .app_data(game_manager.clone())
+            .app_data(auth_manager.clone())
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
 
             // Account api
-            .service(web::scope("/v1/account").configure(api::account::v1_scoped_config))
+            .service(web::scope("/v1/account").configure(api::account::v1_scoped_config::<database::auth::AuthStore>))
             
             //Websocket
             .route("/v1/socket/", web::get().to(websocket_endpoint))

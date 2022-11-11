@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
@@ -11,11 +11,11 @@ use actix::prelude::Message;
 #[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash)]
 pub struct UserId(pub Uuid);
 
-#[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash)]
-pub struct SessionId(pub Uuid);
+#[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Clone, Hash)]
+pub struct SessionToken(pub String);
 
-impl SessionId {
-    pub fn empty(&self) -> bool { self.0.is_nil() }
+impl SessionToken {
+    pub fn empty(&self) -> bool { self.0.is_empty() }
 }
 
 #[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash)]
@@ -35,8 +35,8 @@ unsafe impl Sync for RoomId {}
 unsafe impl Send for UserId {}
 unsafe impl Sync for UserId {}
 
-unsafe impl Send for SessionId {}
-unsafe impl Sync for SessionId {}
+unsafe impl Send for SessionToken {}
+unsafe impl Sync for SessionToken {}
 
 #[derive(Message)]
 #[rtype(result = "()")]
