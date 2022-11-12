@@ -115,6 +115,15 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn failed_login_via_email() -> anyhow::Result<()> {
+        let connection = db_conection()?;
+
+        let mut store = AuthStore::new(connection);
+        assert!(store.user_login_via_email("erhanbaris@gmail.com")?.is_none());
+
+        Ok(())
+    }
 
     #[test]
     fn create_user_via_device_id() -> anyhow::Result<()> {
@@ -138,6 +147,15 @@ mod tests {
         assert!(name.is_empty());
         assert!(email.is_empty());
 
+        Ok(())
+    }
+
+    #[test]
+    fn failed_login_via_device_id() -> anyhow::Result<()> {
+        let connection = db_conection()?;
+
+        let mut store = AuthStore::new(connection);
+        assert!(store.user_login_via_device_id("1234567890")?.is_none());
         Ok(())
     }
 }

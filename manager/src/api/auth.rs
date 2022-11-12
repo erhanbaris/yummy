@@ -139,3 +139,67 @@ impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<RefreshToken> for
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use core::config::get_configuration;
+    use std::sync::Arc;
+
+    use actix::Actor;
+    use actix::Addr;
+    use anyhow::Ok;
+    use database::{create_database, create_connection};
+    use secrecy::SecretString;
+
+    use super::AuthManager;
+    use super::EmailAuth;
+
+    fn create_actor() -> anyhow::Result<Addr<AuthManager<database::auth::AuthStore>>> {
+        let config = get_configuration();
+        let connection = create_connection(":memory:")?;
+        create_database(&mut connection.clone().get()?)?;
+        Ok(AuthManager::<database::auth::AuthStore>::new(config.clone(), Arc::new(connection)).start())
+    }
+
+    #[actix::test]
+    async fn create_user_via_email() -> anyhow::Result<()> {
+        let address = create_actor()?;
+        address.send(EmailAuth {
+            email: "erhanbaris@gmail.com".to_string(),
+            password: SecretString::new("erhan".to_string()),
+            if_not_exist_create: true
+        }).await??;
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn login_user_via_email() -> anyhow::Result<()> {
+        let address = create_actor()?;
+        address.send(EmailAuth {
+            email: "erhanbaris@gmail.com".to_string(),
+            password: SecretString::new("erhan".to_string()),
+            if_not_exist_create: true
+        }).await??;
+
+        address.send(EmailAuth {
+            email: "erhanbaris@gmail.com".to_string(),
+            password: SecretString::new("erhan".to_string()),
+            if_not_exist_create: false
+        }).await??;
+
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn failed_login_user_via_email() -> anyhow::Result<()> {
+        let address = create_actor()?;
+        let result = address.send(EmailAuth {
+            email: "erhanbaris@gmail.com".to_string(),
+            password: SecretString::new("erhan".to_string()),
+            if_not_exist_create: false
+        }).await?;
+
+        assert_eq!(result.unwrap_err().to_string(), "Email and/or password not valid".to_string());
+        Ok(())
+    }
+}
