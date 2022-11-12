@@ -39,9 +39,17 @@ pub enum AuthType {
     Email {
         email: String,
         password: String,
+
+        #[serde(rename = "create")]
+        if_not_exist_create: bool
     },
     Custom(String),
-    Device(String)
+    DeviceId {
+        id: String
+    },
+    Refresh {
+        token: String
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -49,9 +57,6 @@ pub enum AuthType {
 pub enum Request {
     Auth {
         #[serde(flatten)]
-        auth_type: AuthType,
-
-        #[serde(rename = "create")]
-        if_not_exist_create: bool
+        auth_type: AuthType
     }
 }

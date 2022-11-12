@@ -26,7 +26,7 @@ pub type PooledConnection = ::r2d2::PooledConnection<Connection>;
 
 sql_function! {fn last_insert_rowid() -> Text;}
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 #[derive(AsExpression, Copy, Clone, FromSqlRow)]
 #[diesel(sql_type = Text)]
 pub struct RowId(pub uuid::Uuid);
@@ -74,23 +74,24 @@ pub fn create_connection(database_url: &str) -> Result<Pool, Error> {
     Ok(r2d2::Pool::builder().build(Connection::new(database_url))?)
 }
 
-pub fn get_last_insert_id(connection: &mut PooledConnection) -> Result<RowId, Error> {
-    let row_id = select(last_insert_rowid())
-        .first::<String>(connection)
-        .map(|str| Uuid::from_str(&str))?
-        .map(|uuid| RowId(uuid))?;
-    Ok(row_id)
-}
-
 pub fn create_database(connection: &mut PooledConnection) -> Result<(), Error> {
     sql_query(
         r#"CREATE TABLE user (
             id TEXT PRIMARY KEY,
-            name TEXT NOT NULL UNIQUE,
-            email TEXT NOT NULL UNIQUE,
-            password TEXT NOT NULL,
+            name TEXT UNIQUE,
+            device_id TEXT UNIQUE,
+            custom_id TEXT UNIQUE,
+            email TEXT UNIQUE,
+            password TEXT,
             insert_date INTEGER NOT NULL,
             last_login_date INTEGER NOT NULL
+        );
+        CREATE TABLE user_metadata (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            key TEXT NOT NULL,
+            value TEXT,
+            insert_date INTEGER NOT NULL
         );"#,
     )
     .execute(connection)?;

@@ -17,7 +17,9 @@ use actix_web::Result;
 use actix_web_actors::ws;
 use database::auth::AuthStoreTrait;
 use manager::api::auth::AuthManager;
+use manager::api::auth::DeviceIdAuth;
 use manager::api::auth::EmailAuth;
+use manager::api::auth::RefreshToken;
 use secrecy::SecretString;
 
 use core::config::YummyConfig;
@@ -75,20 +77,20 @@ impl<A: AuthStoreTrait + Unpin + 'static> GameWebsocket<A> {
         }
     }
 
-    fn auth(&self, auth_type: AuthType, if_not_exist_create: bool, ctx: &mut ws::WebsocketContext<Self>) {
+    fn auth(&self, auth_type: AuthType, ctx: &mut ws::WebsocketContext<Self>) {
         match auth_type {
-            AuthType::Email { email, password } => {
-                spawn_future!(self.auth.send(EmailAuth { email, password: SecretString::new(password), if_not_exist_create }), self, ctx);
-            },
-            _ => todo!("Not implemented")
-        }
+            AuthType::Email { email, password, if_not_exist_create } => spawn_future!(self.auth.send(EmailAuth { email, password: SecretString::new(password), if_not_exist_create }), self, ctx),
+            AuthType::DeviceId { id } => spawn_future!(self.auth.send(DeviceIdAuth(id)), self, ctx),
+            AuthType::Refresh { token } => spawn_future!(self.auth.send(RefreshToken(token)), self, ctx),
+            _ => return
+        };
     }
 
     fn execute_message(&self, message: String, ctx: &mut ws::WebsocketContext<Self>) {
         match serde_json::from_str::<Request>(&message) {
             Ok(message) => {
                 match message {
-                    Request::Auth { auth_type, if_not_exist_create } => self.auth(auth_type, if_not_exist_create, ctx)
+                    Request::Auth { auth_type } => self.auth(auth_type, ctx)
                 };
             }
             Err(error) => {

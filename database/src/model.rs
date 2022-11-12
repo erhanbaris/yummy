@@ -7,6 +7,7 @@ pub struct UserModel {
     pub id: RowId,
     pub name: String,
     pub email: String,
+    pub device_id: String,
     pub password: String,
     pub insert_date: i32,
     pub last_login_date: i32,

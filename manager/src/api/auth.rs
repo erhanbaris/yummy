@@ -28,12 +28,17 @@ unsafe impl Sync for EmailAuth {}
 
 #[derive(Message, Debug)]
 #[rtype(result = "anyhow::Result<SessionToken>")]
-pub struct RefreshToken {
-    pub token: String
-}
+pub struct RefreshToken(pub String);
 
 unsafe impl Send for RefreshToken {}
 unsafe impl Sync for RefreshToken {}
+
+#[derive(Message, Debug)]
+#[rtype(result = "anyhow::Result<SessionToken>")]
+pub struct DeviceIdAuth(pub String);
+
+unsafe impl Send for DeviceIdAuth {}
+unsafe impl Sync for DeviceIdAuth {}
 
 #[derive(Error, Debug)]
 pub enum AuthError {
@@ -85,7 +90,7 @@ impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<EmailAuth> for Au
     fn handle(&mut self, auth: EmailAuth, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut auth_store = AuthStore::new(self.database.get()?);
-        let user_info: Option<(RowId, Option<String>, SecretString)> = auth_store.user_login_via_email(&auth.email)?;
+        let user_info: Option<(RowId, String, SecretString)> = auth_store.user_login_via_email(&auth.email)?;
 
         let (user_id, name) = match (user_info, auth.if_not_exist_create) {
             (Some((user_id, name, password)), _) => {
@@ -95,11 +100,30 @@ impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<EmailAuth> for Au
 
                 (user_id, name)
             },
-            (None, true) => (auth_store.create_user_via_email(&auth.email, &auth.password)?, None),
+            (None, true) => (auth_store.create_user_via_email(&auth.email, &auth.password)?, String::new()),
             _ => return Err(anyhow!(AuthError::EmailOrPasswordNotValid))
         };
         
-        let response = self.generate_token(UserId(user_id.0), name, Some(auth.email.to_string()))?;
+        let response = self.generate_token(UserId(user_id.0), Some(name), Some(auth.email.to_string()))?;
+        Ok(response)
+    }
+}
+
+impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<DeviceIdAuth> for AuthManager<A> {
+    type Result = anyhow::Result<SessionToken>;
+
+    #[tracing::instrument(name="Auth::ViaEmail", skip(self, _ctx))]
+    fn handle(&mut self, auth: DeviceIdAuth, _ctx: &mut Context<Self>) -> Self::Result {
+
+        let mut auth_store = AuthStore::new(self.database.get()?);
+        let user_info: Option<(RowId, String, String)> = auth_store.user_login_via_device_id(&auth.0)?;
+
+        let (user_id, name, email) = match user_info {
+            Some((user_id, name, email)) => (user_id, name, email),
+            None => (auth_store.create_user_via_device_id(&auth.0)?, String::new(), String::new())
+        };
+        
+        let response = self.generate_token(UserId(user_id.0), Some(name), Some(email))?;
         Ok(response)
     }
 }
@@ -109,7 +133,7 @@ impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<RefreshToken> for
 
     #[tracing::instrument(name="Manager::Refresh", skip(self, _ctx))]
     fn handle(&mut self, token: RefreshToken, _ctx: &mut Context<Self>) -> Self::Result {
-        match validate_auth(self.config.clone(), token.token) {
+        match validate_auth(self.config.clone(), token.0) {
             Some(claims) => self.generate_token(claims.user.id, claims.user.name, claims.user.email),
             None => Err(anyhow!(AuthError::TokenNotValid))
         }

@@ -32,14 +32,12 @@ async fn main() -> std::io::Result<()> {
     let server_bind = get_env_var("SERVER_BIND", "0.0.0.0:9090".to_string());
     let rust_log_level = get_env_var("RUST_LOG", "debug,backend,actix_web=debug".to_string());
     let message = crate::websocket::request::Request::Auth {
-        auth_type: crate::websocket::request::AuthType::Email {
-            email: "erhanbaris@gmail.com".to_string(),
-            password: "erhan".to_string()
-        },
-        if_not_exist_create: true
+        auth_type: crate::websocket::request::AuthType::Refresh {
+            token: "asd".to_string()
+        }
     };
 
-    //print!("{:}", serde_json::to_string(&message).unwrap());
+    print!("{:}", serde_json::to_string(&message).unwrap());
     
     tracing_subscriber::fmt::init();
     std::env::set_var("RUST_LOG", &rust_log_level);
