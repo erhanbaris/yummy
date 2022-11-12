@@ -158,4 +158,97 @@ pub mod tests {
         assert!(res.result.is_some());
         assert!(!res.result.unwrap().is_empty());
     }
+
+    #[actix_web::test]
+    async fn auth_device_id() {
+        let app = test::init_service(App::new().configure(config)).await;
+        let req = test::TestRequest::post().uri("/v1/account/authenticate/deviceid")
+            .set_json(json!({
+                "id": "1234567890"
+            }))
+            .to_request();
+
+        let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+        assert!(res.result.is_some());
+        assert!(!res.result.unwrap().is_empty());
+    }
+
+    #[actix_web::test]
+    async fn fail_auth_device_id() {
+        let app = test::init_service(App::new().configure(config)).await;
+        let req = test::TestRequest::post().uri("/v1/account/authenticate/deviceid")
+            .set_json(json!({
+            }))
+            .to_request();
+
+        let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, false);
+        assert!(res.result.is_some());
+        assert!(!res.result.unwrap().is_empty());
+    }
+
+    #[actix_web::test]
+    async fn refresh_token_2() {
+        let app = test::init_service(App::new().configure(config)).await;
+
+        let req = test::TestRequest::post().uri("/v1/account/authenticate/email")
+            .set_json(json!({
+                "email": "erhanbaris@gmail.com",
+                "password": "erhan",
+                "create": true
+            }))
+            .to_request();
+
+        let response: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+
+        let req = test::TestRequest::post().uri("/v1/account/authenticate/refresh")
+            .set_json(json!({
+                "token": response.result.unwrap()
+            }))
+            .to_request();
+
+        let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+        assert!(res.result.is_some());
+        assert!(!res.result.unwrap().is_empty());
+    }
+
+    #[actix_web::test]
+    async fn refresh_token_1() {
+        let app = test::init_service(App::new().configure(config)).await;
+
+        let req = test::TestRequest::post().uri("/v1/account/authenticate/deviceid")
+        .set_json(json!({
+            "id": "1234567890"
+        }))
+        .to_request();
+
+        let response: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+
+        let req = test::TestRequest::post().uri("/v1/account/authenticate/refresh")
+            .set_json(json!({
+                "token": response.result.unwrap()
+            }))
+            .to_request();
+
+        let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+        assert!(res.result.is_some());
+        assert!(!res.result.unwrap().is_empty());
+    }
+
+    #[actix_web::test]
+    async fn fail_auth_refresh_token() {
+        let app = test::init_service(App::new().configure(config)).await;
+        let req = test::TestRequest::post().uri("/v1/account/authenticate/refresh")
+            .set_json(json!({
+            }))
+            .to_request();
+
+        let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, false);
+        assert!(res.result.is_some());
+        assert!(!res.result.unwrap().is_empty());
+    }
 }

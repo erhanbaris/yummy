@@ -95,3 +95,31 @@ pub fn create_database(connection: &mut PooledConnection) -> Result<(), Error> {
     .execute(connection)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::RowId;
+
+    #[test]
+    fn row_id() -> anyhow::Result<()> {
+        let row_id = RowId::default();
+        assert!(row_id.0.is_nil());
+
+        let row_id = RowId(uuid::Uuid::new_v4());
+        assert!(!row_id.0.is_nil());
+
+        let uuid_data = "85fc32fe-eaa5-46c3-b8e8-60bb658b5de7";
+        let row_id: RowId = uuid_data.to_string().into();
+
+        let new_uuid_data: String = row_id.to_string();
+        assert_eq!(&new_uuid_data, uuid_data);
+
+        let uuid_data = uuid::Uuid::new_v4();
+        let row_id: RowId = uuid_data.to_string().into();
+
+        let new_uuid_data: uuid::Uuid = row_id.into();
+        assert_eq!(new_uuid_data, uuid_data);
+
+        Ok(())
+    }
+}
