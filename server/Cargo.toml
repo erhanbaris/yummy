@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-core = { path = "../core" }
+general = { path = "../general" }
 database = { path = "../database" }
 manager = { path = "../manager" }
 
@@ -43,3 +43,9 @@ sha2 = "0.10"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 tracing-opentelemetry = "0.18.0"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+actix-test-server = "0.2.2"
+actix-test = "0.1.0"
+actix-http = "3.2.2"

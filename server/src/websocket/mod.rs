@@ -1,8 +1,8 @@
 pub(crate) mod request;
 pub(crate) mod response;
 
-use core::model::WebsocketMessage;
-use core::web::GenericAnswer;
+use general::model::WebsocketMessage;
+use general::web::GenericAnswer;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -22,7 +22,7 @@ use manager::api::auth::EmailAuth;
 use manager::api::auth::RefreshToken;
 use secrecy::SecretString;
 
-use core::config::YummyConfig;
+use general::config::YummyConfig;
 use crate::websocket::request::*;
 
 pub struct GameWebsocket<A: AuthStoreTrait + Unpin + 'static> {

@@ -5,11 +5,12 @@ use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::*;
 
-use crate::{model::UserId, config::YummyConfig};
+use crate::{model::{UserId, SessionId}, config::YummyConfig};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UserJwt {
     pub id: UserId,
+    pub session: SessionId,
     pub name: Option<String>,
     pub email: Option<String>
 }

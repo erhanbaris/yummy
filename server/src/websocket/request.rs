@@ -1,4 +1,4 @@
-use core::model::SessionToken;
+use general::model::SessionToken;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

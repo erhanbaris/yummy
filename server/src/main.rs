@@ -2,7 +2,7 @@ mod api;
 mod endpoint;
 mod websocket;
 
-use ::core::config::{get_configuration, get_env_var};
+use ::general::config::{get_configuration, get_env_var};
 use std::sync::Arc;
 
 use manager::api::auth::AuthManager;
@@ -15,7 +15,6 @@ use actix_web::error::{JsonPayloadError};
 use actix_web::web::{JsonConfig, QueryConfig};
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::{middleware, App, HttpServer, web::Data};
-use manager::GameManager;
 
 use crate::endpoint::websocket_endpoint;
 
@@ -50,7 +49,6 @@ async fn main() -> std::io::Result<()> {
     let database = Arc::new(database::create_connection(&config.database_url).unwrap());
     let mut connection = database.clone().get().unwrap();
     database::create_database(&mut connection).unwrap_or_default();
-    let game_manager = Data::new(GameManager::new(config.clone(), database.clone()).start());
     let auth_manager = Data::new(AuthManager::<database::auth::AuthStore>::new(config.clone(), database.clone()).start());
         
     HttpServer::new(move || {
@@ -63,10 +61,9 @@ async fn main() -> std::io::Result<()> {
             });
 
         App::new()
-        .app_data(query_cfg)
+            .app_data(query_cfg)
             .app_data(JsonConfig::default().error_handler(json_error_handler))
             .app_data(Data::new(config))
-            .app_data(game_manager.clone())
             .app_data(auth_manager.clone())
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())

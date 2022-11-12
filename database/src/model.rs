@@ -5,10 +5,10 @@ use diesel::*;
 #[diesel(table_name = user)]
 pub struct UserModel {
     pub id: RowId,
-    pub name: String,
-    pub email: String,
-    pub device_id: String,
-    pub password: String,
+    pub name: Option<String>,
+    pub email: Option<String>,
+    pub device_id: Option<String>,
+    pub password: Option<String>,
     pub insert_date: i32,
     pub last_login_date: i32,
 }

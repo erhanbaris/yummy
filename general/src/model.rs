@@ -18,6 +18,17 @@ impl SessionToken {
     pub fn empty(&self) -> bool { self.0.is_empty() }
 }
 
+#[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Clone, Hash)]
+pub struct SessionId(pub Uuid);
+
+impl SessionId {
+    pub fn new() -> Self {
+        Self(uuid::Uuid::new_v4())
+    }
+    
+    pub fn empty(&self) -> bool { self.0.is_nil() }
+}
+
 
 impl From<SessionToken> for String {
     fn from(token: SessionToken) -> Self {

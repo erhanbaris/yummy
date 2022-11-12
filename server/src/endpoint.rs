@@ -7,8 +7,8 @@ use actix_web_actors::ws;
 use database::auth::AuthStoreTrait;
 use manager::api::auth::AuthManager;
 
-use core::config::YummyConfig;
-use core::error::YummyError;
+use general::config::YummyConfig;
+use general::error::YummyError;
 use crate::websocket::request::ConnectionInfo;
 use crate::websocket::GameWebsocket;
 

@@ -12,8 +12,8 @@ pub struct AuthStore {
 pub trait AuthStoreTrait {
     fn new(database: PooledConnection) -> Self;
 
-    fn user_login_via_email(&mut self, email: &str) -> Result<Option<(RowId, String, SecretString)>, crate::error::Error>;
-    fn user_login_via_device_id(&mut self, device_id: &str) -> Result<Option<(RowId, String, String)>, crate::error::Error>;
+    fn user_login_via_email(&mut self, email: &str) -> Result<Option<(RowId, Option<String>, SecretString)>, crate::error::Error>;
+    fn user_login_via_device_id(&mut self, device_id: &str) -> Result<Option<(RowId, Option<String>, Option<String>)>, crate::error::Error>;
 
     fn create_user_via_email(&mut self, email: &str, password: &SecretString) -> Result<RowId, crate::error::Error>;
     fn create_user_via_device_id(&mut self, device_id: &str) -> Result<RowId, crate::error::Error>;
@@ -25,25 +25,25 @@ impl AuthStoreTrait for AuthStore {
     }
 
     #[tracing::instrument(name="User login via email", skip(self))]
-    fn user_login_via_email(&mut self, email: &str) -> Result<Option<(RowId, String, SecretString)>, crate::error::Error> {
+    fn user_login_via_email(&mut self, email: &str) -> Result<Option<(RowId, Option<String>, SecretString)>, crate::error::Error> {
         let result = user::table
             .filter(user::email.eq(email))
             .select((user::id, user::name, user::password))
-            .first::<(RowId, String, String)>(&mut *self.database)
+            .first::<(RowId, Option<String>, Option<String>)>(&mut *self.database)
             .optional()?
-            .map(|(id, name, password)| (id, name, SecretString::new(password)));
-        tracing::info!("{:?}", result);
+            .map(|(id, name, password)| (id, name, SecretString::new(password.unwrap_or_default())));
+
         Ok(result)
     }
 
     #[tracing::instrument(name="User login via device id", skip(self))]
-    fn user_login_via_device_id(&mut self, device_id: &str) -> Result<Option<(RowId, String, String)>, crate::error::Error> {
+    fn user_login_via_device_id(&mut self, device_id: &str) -> Result<Option<(RowId, Option<String>, Option<String>)>, crate::error::Error> {
         let result = user::table
             .filter(user::device_id.eq(device_id))
             .select((user::id, user::name, user::email))
-            .first::<(RowId, String, String)>(&mut *self.database)
+            .first::<(RowId, Option<String>, Option<String>)>(&mut *self.database)
             .optional()?;
-        tracing::info!("{:?}", result);
+
         Ok(result)
     }
 
@@ -54,11 +54,10 @@ impl AuthStoreTrait for AuthStore {
         let mut model = UserModel::default();
         model.id = row_id;
         model.insert_date = Utc::now().timestamp() as i32;
-        model.password = password.expose_secret().to_string();
-        model.email = email.to_string();
+        model.password = Some(password.expose_secret().to_string());
+        model.email = Some(email.to_string());
         diesel::insert_into(user::table).values(&vec![model]).execute(&mut *self.database)?;
-        
-        tracing::info!("{:?}", row_id);
+
         Ok(row_id)
     }
 
@@ -68,10 +67,9 @@ impl AuthStoreTrait for AuthStore {
         let mut model = UserModel::default();
         model.id = row_id;
         model.insert_date = Utc::now().timestamp() as i32;
-        model.device_id = device_id.to_string();
+        model.device_id = Some(device_id.to_string());
         diesel::insert_into(user::table).values(&vec![model]).execute(&mut *self.database)?;
-        
-        tracing::info!("{:?}", row_id);
+
         Ok(row_id)
     }
 }
@@ -109,7 +107,7 @@ mod tests {
         let (logged_user_id, name, password) = store.user_login_via_email("erhanbaris@gmail.com")?.unwrap();
 
         assert_eq!(created_user_id, logged_user_id);
-        assert!(name.is_empty());
+        assert!(name.is_none());
         assert_eq!(password.expose_secret().as_str(), "erhan");
 
         Ok(())
@@ -144,8 +142,8 @@ mod tests {
         let (logged_user_id, name, email) = store.user_login_via_device_id("1234567890")?.unwrap();
 
         assert_eq!(created_user_id, logged_user_id);
-        assert!(name.is_empty());
-        assert!(email.is_empty());
+        assert!(name.is_none());
+        assert!(email.is_none());
 
         Ok(())
     }

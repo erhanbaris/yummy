@@ -1,11 +1,11 @@
 table! {
     user (id) {
         id -> Text,
-        name ->  Text,
-        email -> Text,
-        device_id -> Text,
-        custom_id -> Text,
-        password -> Text,
+        name ->  Nullable<Text>,
+        email -> Nullable<Text>,
+        device_id -> Nullable<Text>,
+        custom_id -> Nullable<Text>,
+        password -> Nullable<Text>,
         insert_date -> Integer,
         last_login_date -> Integer,
     }

@@ -24,8 +24,6 @@ pub type Connection = ConnectionManager<SqliteConnection>;
 pub type Pool = r2d2::Pool<Connection>;
 pub type PooledConnection = ::r2d2::PooledConnection<Connection>;
 
-sql_function! {fn last_insert_rowid() -> Text;}
-
 #[derive(Debug, Default, PartialEq, Eq)]
 #[derive(AsExpression, Copy, Clone, FromSqlRow)]
 #[diesel(sql_type = Text)]

@@ -3,5 +3,5 @@ members = [
     "server",
     "manager",
     "database",
-    "core"
+    "general"
 ]
