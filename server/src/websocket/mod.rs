@@ -482,4 +482,185 @@ mod tests {
         );
         Ok(())
     }
+
+    #[actix_web::test]
+    async fn auth_via_email_5() -> anyhow::Result<()> {
+        let server = create_websocket_server();
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket/")).await;
+
+        // Not valid
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "Email",
+            "email": "erhanbaris@gmail.com",
+            "password": "erhan"
+        });
+        client.send(request).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+        assert!(!response.status);
+
+        // Register with right information
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "Email",
+            "email": "erhanbaris@gmail.com",
+            "password": "erhan",
+            "create": true
+        });
+        client.send(request).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+        assert!(response.status);
+
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "Email",
+            "email": "erhanbaris@gmail.com",
+            "password": "erhan"
+        });
+        client.send(request).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+        assert!(response.status);
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn auth_via_email_6() -> anyhow::Result<()> {
+        let server = create_websocket_server();
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket/")).await;
+
+        // Not valid
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "Email",
+            "email": "erhanbaris@gmail.com",
+            "password": "erhan"
+        });
+        client.send(request).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+        assert!(!response.status);
+
+        // Register with right information
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "Email",
+            "email": "erhanbaris@gmail.com",
+            "password": "erhan",
+            "create": true
+        });
+        client.send(request).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+        assert!(response.status);
+
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "Email",
+            "email": "erhanbaris@gmail.com",
+            "password": "erhan"
+        });
+        client.send(request).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+        assert!(response.status);
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn fail_token_refresh_1() -> anyhow::Result<()> {
+        let server = create_websocket_server();
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket/")).await;
+
+        // Not valid
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "Refresh",
+            "token": "erhanbaris"
+        });
+        client.send(request).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+        assert!(!response.status);
+        assert_eq!(&response.result.unwrap(), "Token is not valid");
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn fail_token_refresh_2() -> anyhow::Result<()> {
+        let server = create_websocket_server();
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket/")).await;
+
+        // Not valid
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "Refresh"
+        });
+        client.send(request).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+        assert!(!response.status);
+        assert_eq!(&response.result.unwrap(), "Wrong message format");
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn token_refresh_1() -> anyhow::Result<()> {
+        let server = create_websocket_server();
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket/")).await;
+
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "DeviceId",
+            "id": "1234567890"
+        });
+        client.send(request).await;
+
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let token = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?.result.unwrap();
+
+        // Not valid
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "Refresh",
+            "token": token
+        });
+        client.send(request).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+        assert!(response.status);
+
+        Ok(())
+    }
 }

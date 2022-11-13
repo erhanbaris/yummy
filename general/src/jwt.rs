@@ -24,7 +24,7 @@ pub struct Claims {
 pub fn generate_auth<T: Borrow<UserJwt>>(config: Arc<YummyConfig>, user: T) -> Option<String> {
     let user = user.borrow();
     let iat = Utc::now();
-    let exp = iat + Duration::hours(config.token_lifetime);
+    let exp = iat + Duration::seconds(config.token_lifetime);
     let claims = Claims {
         exp: exp.timestamp() as usize,
         user: user.clone(),
@@ -40,7 +40,10 @@ pub fn validate_auth<T: Borrow<str>>(config: Arc<YummyConfig>, token: T) -> Opti
     let token = token.borrow();
     let validation = Validation::default();
     match decode::<Claims>(token, &DecodingKey::from_secret(config.salt_key.as_ref()), &validation) {
-        Ok(c) => Some(c.claims),
+        Ok(c) => match c.claims.exp > Utc::now().timestamp() as usize {
+            true =>  Some(c.claims),
+            false => None
+        },
         Err(_) => {
             None
         }
