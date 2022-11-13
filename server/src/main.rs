@@ -1,9 +1,9 @@
 mod api;
-mod endpoint;
 mod websocket;
 
-use ::general::config::{get_configuration, get_env_var};
+use general::config::{get_configuration, get_env_var};
 use std::sync::Arc;
+
 
 use manager::api::auth::AuthManager;
 use tracing_subscriber;
@@ -16,7 +16,7 @@ use actix_web::web::{JsonConfig, QueryConfig};
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::{middleware, App, HttpServer, web::Data};
 
-use crate::endpoint::websocket_endpoint;
+use crate::websocket::websocket_endpoint;
 
 pub fn json_error_handler(err: JsonPayloadError, _req: &HttpRequest) -> actix_web::Error {
     let detail = err.to_string();

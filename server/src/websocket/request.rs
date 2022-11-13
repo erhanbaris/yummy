@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 
-
 #[derive(Deserialize, Clone, Debug, Default)]
 pub enum CommunicationFormat {
     #[default]
@@ -40,7 +39,7 @@ pub enum AuthType {
         email: String,
         password: String,
 
-        #[serde(rename = "create")]
+        #[serde(default, rename = "create")]
         if_not_exist_create: bool
     },
     Custom(String),

@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Answer {
@@ -9,6 +9,16 @@ pub struct Answer {
 pub struct GenericAnswer<T> {
     pub status: bool,
     pub result: Option<T>,
+}
+
+impl<T> GenericAnswer<T>
+where T: DeserializeOwned + Serialize {
+    pub fn new(status: bool, result: T) -> Self {
+        Self {
+            status,
+            result: Some(result)
+        }
+    }
 }
 
 impl<T: Serialize> From<GenericAnswer<T>> for String {

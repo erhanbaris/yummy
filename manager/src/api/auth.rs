@@ -10,16 +10,19 @@ use database::{RowId, Pool};
 use database::auth::{AuthStore, AuthStoreTrait};
 use thiserror::Error;
 use anyhow::anyhow;
+use validator::{Validate, ValidationError};
 
 use general::model::{SessionToken, UserId, SessionId};
 
-use secrecy::{ExposeSecret, SecretString};
-
-#[derive(Message, Debug)]
+#[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<SessionToken>")]
 pub struct EmailAuth {
+    #[validate(email(message="Email address is not valid"))]
     pub email: String,
-    pub password: SecretString,
+
+    #[validate(length(min = 3, max = 32, message = "Length should be between 3 to 32 chars"))]
+    pub password: String,
+
     pub if_not_exist_create: bool,
 }
 
@@ -39,9 +42,18 @@ impl From<SessionToken> for RefreshToken {
 unsafe impl Send for RefreshToken {}
 unsafe impl Sync for RefreshToken {}
 
-#[derive(Message, Debug)]
+#[derive(Message, Debug, Validate)]
 #[rtype(result = "anyhow::Result<SessionToken>")]
-pub struct DeviceIdAuth(pub String);
+pub struct DeviceIdAuth {
+    #[validate(length(min = 8, max = 128, message = "Length should be between 8 to 128 chars"))]
+    pub id: String
+}
+
+impl DeviceIdAuth {
+    pub fn new(id: String) -> Self {
+        Self { id }
+    }
+}
 
 unsafe impl Send for DeviceIdAuth {}
 unsafe impl Sync for DeviceIdAuth {}
@@ -97,11 +109,11 @@ impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<EmailAuth> for Au
     fn handle(&mut self, auth: EmailAuth, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut auth_store = AuthStore::new(self.database.get()?);
-        let user_info: Option<(RowId, Option<String>, SecretString)> = auth_store.user_login_via_email(&auth.email)?;
+        let user_info: Option<(RowId, Option<String>, String)> = auth_store.user_login_via_email(&auth.email)?;
 
         let (user_id, name) = match (user_info, auth.if_not_exist_create) {
             (Some((user_id, name, password)), _) => {
-                if auth.password.expose_secret() != password.expose_secret() {
+                if auth.password != password {
                     return Err(anyhow!(AuthError::EmailOrPasswordNotValid));
                 }
 
@@ -123,11 +135,11 @@ impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<DeviceIdAuth> for
     fn handle(&mut self, auth: DeviceIdAuth, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut auth_store = AuthStore::new(self.database.get()?);
-        let user_info: Option<(RowId, Option<String>, Option<String>)> = auth_store.user_login_via_device_id(&auth.0)?;
+        let user_info: Option<(RowId, Option<String>, Option<String>)> = auth_store.user_login_via_device_id(&auth.id)?;
 
         let (user_id, name, email) = match user_info {
             Some((user_id, name, email)) => (user_id, name, email),
-            None => (auth_store.create_user_via_device_id(&auth.0)?, None, None)
+            None => (auth_store.create_user_via_device_id(&auth.id)?, None, None)
         };
         
         let response = self.generate_token(UserId(user_id.0), name, email, None)?;
@@ -178,7 +190,7 @@ mod tests {
         let (address, _) = create_actor()?;
         address.send(EmailAuth {
             email: "erhanbaris@gmail.com".to_string(),
-            password: SecretString::new("erhan".to_string()),
+            password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
         Ok(())
@@ -189,13 +201,13 @@ mod tests {
         let (address, _) = create_actor()?;
         address.send(EmailAuth {
             email: "erhanbaris@gmail.com".to_string(),
-            password: SecretString::new("erhan".to_string()),
+            password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
 
         address.send(EmailAuth {
             email: "erhanbaris@gmail.com".to_string(),
-            password: SecretString::new("erhan".to_string()),
+            password: "erhan".to_string(),
             if_not_exist_create: false
         }).await??;
 
@@ -207,7 +219,7 @@ mod tests {
         let (address, _) = create_actor()?;
         let result = address.send(EmailAuth {
             email: "erhanbaris@gmail.com".to_string(),
-            password: SecretString::new("erhan".to_string()),
+            password: "erhan".to_string(),
             if_not_exist_create: false
         }).await?;
 
@@ -220,13 +232,13 @@ mod tests {
         let (address, _) = create_actor()?;
         address.send(EmailAuth {
             email: "erhanbaris@gmail.com".to_string(),
-            password: SecretString::new("erhan".to_string()),
+            password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
 
         let result = address.send(EmailAuth {
             email: "erhanbaris@gmail.com".to_string(),
-            password: SecretString::new("wrong password".to_string()),
+            password: "wrong password".to_string(),
             if_not_exist_create: true
         }).await?;
 
@@ -237,15 +249,15 @@ mod tests {
     #[actix::test]
     async fn create_user_via_device_id() -> anyhow::Result<()> {
         let (address, _) = create_actor()?;
-        address.send(DeviceIdAuth("1234567890".to_string())).await??;
+        address.send(DeviceIdAuth::new("1234567890".to_string())).await??;
         Ok(())
     }
 
     #[actix::test]
     async fn login_user_via_device_id() -> anyhow::Result<()> {
         let (address, _) = create_actor()?;
-        let created_token = address.send(DeviceIdAuth("1234567890".to_string())).await??;
-        let logged_in_token = address.send(DeviceIdAuth("1234567890".to_string())).await??;
+        let created_token = address.send(DeviceIdAuth::new("1234567890".to_string())).await??;
+        let logged_in_token = address.send(DeviceIdAuth::new("1234567890".to_string())).await??;
         assert_ne!(created_token, logged_in_token);
 
         Ok(())
@@ -254,8 +266,8 @@ mod tests {
     #[actix::test]
     async fn login_users_via_device_id() -> anyhow::Result<()> {
         let (address, _) = create_actor()?;
-        let login_1 = address.send(DeviceIdAuth("1234567890".to_string())).await??;
-        let login_2 = address.send(DeviceIdAuth("abcdef".to_string())).await??;
+        let login_1 = address.send(DeviceIdAuth::new("1234567890".to_string())).await??;
+        let login_2 = address.send(DeviceIdAuth::new("abcdef".to_string())).await??;
         assert_ne!(login_1, login_2);
 
         Ok(())
@@ -264,7 +276,7 @@ mod tests {
     #[actix::test]
     async fn token_refresh_test_1() -> anyhow::Result<()> {
         let (address, config) = create_actor()?;
-        let old_token: SessionToken = address.send(DeviceIdAuth("1234567890".to_string())).await??;
+        let old_token: SessionToken = address.send(DeviceIdAuth::new("1234567890".to_string())).await??;
 
         // Wait 1 second
         actix::clock::sleep(std::time::Duration::new(1, 0)).await;
@@ -290,7 +302,7 @@ mod tests {
         let (address, config) = create_actor()?;
         let old_token: SessionToken = address.send(EmailAuth {
             email: "erhanbaris@gmail.com".to_string(),
-            password: SecretString::new("erhan".to_string()),
+            password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
 

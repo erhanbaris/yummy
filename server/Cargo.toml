@@ -44,8 +44,16 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 tracing-opentelemetry = "0.18.0"
 
+validator = { version = "0.16", features = ["derive"] }
+serde_trim = "0.4.0"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
 actix-test-server = "0.2.2"
 actix-test = "0.1.0"
 actix-http = "3.2.2"
+
+awc = "3.0.1"
+actix-codec = "0.5.0"
+futures = "0.3.25"
+futures-util = "0.3.25"

@@ -12,7 +12,7 @@ actix-web = { version = "4", features = ["rustls"] }
 thiserror = "1.0.37"
 anyhow = "1.0.66"
 harsh = "0.2.2"
-secrecy = "0.8.0"
+secrecy = { version = "0.8.0", features = ["serde"] }
 
 chrono = "0.4.23"
 jsonwebtoken = "8.1.1"
