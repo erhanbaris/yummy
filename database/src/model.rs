@@ -3,12 +3,12 @@ use diesel::*;
 
 #[derive(Default, Debug, Insertable)]
 #[diesel(table_name = user)]
-pub struct UserModel {
+pub struct UserModel<'a> {
     pub id: RowId,
-    pub name: Option<String>,
-    pub email: Option<String>,
-    pub device_id: Option<String>,
-    pub password: Option<String>,
+    pub name: Option<&'a str>,
+    pub email: Option<&'a str>,
+    pub device_id: Option<&'a str>,
+    pub password: Option<&'a str>,
     pub insert_date: i32,
     pub last_login_date: i32,
 }

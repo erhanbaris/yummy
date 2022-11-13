@@ -53,8 +53,8 @@ impl AuthStoreTrait for AuthStore {
         let mut model = UserModel::default();
         model.id = row_id;
         model.insert_date = Utc::now().timestamp() as i32;
-        model.password = Some(password.to_string());
-        model.email = Some(email.to_string());
+        model.password = Some(password);
+        model.email = Some(email);
         diesel::insert_into(user::table).values(&vec![model]).execute(&mut *self.database)?;
 
         Ok(row_id)
@@ -66,7 +66,7 @@ impl AuthStoreTrait for AuthStore {
         let mut model = UserModel::default();
         model.id = row_id;
         model.insert_date = Utc::now().timestamp() as i32;
-        model.device_id = Some(device_id.to_string());
+        model.device_id = Some(device_id);
         diesel::insert_into(user::table).values(&vec![model]).execute(&mut *self.database)?;
 
         Ok(row_id)
