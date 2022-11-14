@@ -10,7 +10,7 @@ use database::{RowId, Pool};
 use database::auth::{AuthStore, AuthStoreTrait};
 use thiserror::Error;
 use anyhow::anyhow;
-use validator::{Validate, ValidationError};
+use validator::Validate;
 
 use general::model::{SessionToken, UserId, SessionId};
 
@@ -29,13 +29,17 @@ pub struct EmailAuth {
 unsafe impl Send for EmailAuth {}
 unsafe impl Sync for EmailAuth {}
 
-#[derive(Message, Debug)]
+#[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<SessionToken>")]
-pub struct RefreshToken(pub String);
+pub struct RefreshToken {
+
+    #[validate(length(min = 3, max = 256, message = "Length should be between 3 to 256 chars"))]
+    pub token: String
+}
 
 impl From<SessionToken> for RefreshToken {
     fn from(token: SessionToken) -> Self {
-        RefreshToken(token.0)
+        RefreshToken { token: token.0 }
     }
 }
 
@@ -152,7 +156,7 @@ impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<RefreshToken> for
 
     #[tracing::instrument(name="Manager::Refresh", skip(self, _ctx))]
     fn handle(&mut self, token: RefreshToken, _ctx: &mut Context<Self>) -> Self::Result {
-        match validate_auth(self.config.clone(), token.0) {
+        match validate_auth(self.config.clone(), token.token) {
             Some(claims) => self.generate_token(claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session)),
             None => Err(anyhow!(AuthError::TokenNotValid))
         }
@@ -171,8 +175,7 @@ mod tests {
     use actix::Addr;
     use anyhow::Ok;
     use database::{create_database, create_connection};
-    use secrecy::SecretString;
-
+    
     use super::AuthManager;
     use super::DeviceIdAuth;
     use super::EmailAuth;
@@ -280,7 +283,7 @@ mod tests {
 
         // Wait 1 second
         actix::clock::sleep(std::time::Duration::new(1, 0)).await;
-        let new_token: SessionToken = address.send(RefreshToken(old_token.0.to_string())).await??;
+        let new_token: SessionToken = address.send(RefreshToken { token: old_token.0.to_string() }).await??;
        
         assert_ne!(old_token.clone(), new_token.clone());
 
@@ -308,7 +311,7 @@ mod tests {
 
         // Wait 1 second
         actix::clock::sleep(std::time::Duration::new(1, 0)).await;
-        let new_token: SessionToken = address.send(RefreshToken(old_token.0.to_string())).await??;
+        let new_token: SessionToken = address.send(RefreshToken{ token: old_token.0.to_string() }).await??;
        
         assert_ne!(old_token.clone(), new_token.clone());
 

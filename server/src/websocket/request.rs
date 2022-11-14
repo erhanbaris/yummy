@@ -42,7 +42,6 @@ pub enum AuthType {
         #[serde(default, rename = "create")]
         if_not_exist_create: bool
     },
-    Custom(String),
     DeviceId {
         id: String
     },

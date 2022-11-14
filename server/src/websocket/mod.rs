@@ -110,8 +110,7 @@ impl<A: AuthStoreTrait + Unpin + 'static> GameWebsocket<A> {
         match auth_type {
             AuthType::Email { email, password, if_not_exist_create } => spawn_future!(self.auth.send(message_validate!(EmailAuth { email: email.clone(), password: password.clone(), if_not_exist_create })), self, ctx),
             AuthType::DeviceId { id } => spawn_future!(self.auth.send(message_validate!(DeviceIdAuth::new(id.clone()))), self, ctx),
-            AuthType::Refresh { token } => spawn_future!(self.auth.send(RefreshToken(token)), self, ctx),
-            _ => ()
+            AuthType::Refresh { token } => spawn_future!(self.auth.send(RefreshToken { token }), self, ctx),
         };
         Ok(())
     }

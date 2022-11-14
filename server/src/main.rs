@@ -17,6 +17,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::{middleware, App, HttpServer, web::Data};
 
 use crate::websocket::websocket_endpoint;
+use crate::api::http_query;
 
 pub fn json_error_handler(err: JsonPayloadError, _req: &HttpRequest) -> actix_web::Error {
     let detail = err.to_string();
@@ -73,6 +74,8 @@ async fn main() -> std::io::Result<()> {
             
             //Websocket
             .route("/v1/socket/", web::get().to(websocket_endpoint::<database::auth::AuthStore>))
+            .route("/v1/query", web::post().to(http_query::<database::auth::AuthStore>))
+            
 
     })
     .bind(server_bind)?

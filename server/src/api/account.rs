@@ -6,13 +6,10 @@ use database::auth::AuthStoreTrait;
 use manager::api::auth::*;
 use serde::Deserialize;
 
-use crate::websocket::request::Request;
-
 pub fn v1_scoped_config<A: AuthStoreTrait + std::marker::Unpin + 'static>(cfg: &mut ServiceConfig) {
     cfg.route("/authenticate/email", post().to(authenticate_email::<A>));
     cfg.route("/authenticate/deviceid", post().to(authenticate_deviceid::<A>));
     cfg.route("/authenticate/refresh", post().to(refresh_token::<A>));
-    cfg.route("/query", post().to(query::<A>));
 }
 
 #[derive(Debug, Deserialize)]
@@ -67,19 +64,11 @@ async fn authenticate_email<A: AuthStoreTrait + std::marker::Unpin + 'static>(au
 async fn refresh_token<A: AuthStoreTrait + std::marker::Unpin + 'static>(auth_manager: Data<Addr<AuthManager<A>>>, token: Result<Json<Refresh>, actix_web::Error>) ->  Result<HttpResponse, YummyError> {
     let token = token.map_err(|e| YummyError::ActixError(e.into()))?.into_inner();
     
-    let auth_result = auth_manager.get_ref().send(RefreshToken(token.token)).await.map_err(|_| YummyError::Unknown)??;
+    let auth_result = auth_manager.get_ref().send(RefreshToken { token: token.token }).await.map_err(|_| YummyError::Unknown)??;
 
     Ok(HttpResponse::Ok().json(GenericAnswer {
         status: true,
         result: Some(auth_result),
-    }))
-}
-
-async fn query<A: AuthStoreTrait + Unpin + 'static>(_: Data<Addr<AuthManager<A>>>, request: Result<Json<Request>, actix_web::Error>) ->  Result<HttpResponse, YummyError> {
-    log::info!("{:?}", request);
-    Ok(HttpResponse::Ok().json(GenericAnswer {
-        status: true,
-        result: Some("It is alive"),
     }))
 }
 
