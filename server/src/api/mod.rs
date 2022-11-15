@@ -2,7 +2,7 @@ use actix::Addr;
 use actix_web::{web::{Data, Json}, HttpResponse};
 use database::auth::AuthStoreTrait;
 use general::{error::YummyError, web::GenericAnswer, auth::ApiIntegration};
-use manager::api::auth::{AuthManager, RefreshToken, DeviceIdAuth, EmailAuth};
+use manager::api::auth::{AuthManager, RefreshToken, DeviceIdAuth, EmailAuth, CustomIdAuth};
 use validator::Validate;
 
 use crate::websocket::request::{Request, AuthType};
@@ -46,6 +46,7 @@ async fn auth<A: AuthStoreTrait + Unpin + 'static>(auth_type: AuthType, auth_man
     match auth_type {
         AuthType::Email { email, password, if_not_exist_create } => as_response!(auth_manager, EmailAuth { email: email.clone(), password: password.clone(), if_not_exist_create }),
         AuthType::DeviceId { id } => as_response!(auth_manager, DeviceIdAuth::new(id.clone())),
+        AuthType::CustomId { id } => as_response!(auth_manager, CustomIdAuth::new(id.clone())),
         AuthType::Refresh { token } => as_response!(auth_manager, RefreshToken { token: token.clone() }),
     }
 }

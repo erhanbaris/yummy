@@ -4,6 +4,7 @@ extern crate diesel;
 pub mod auth;
 pub mod error;
 pub mod model;
+pub mod account;
 pub(crate) mod schema;
 
 use std::str::FromStr;

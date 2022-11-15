@@ -17,5 +17,8 @@ anyhow = "1.0.66"
 secrecy = { version = "0.8.0", features = ["serde"] }
 chrono = "0.4.23"
 
+strum = "0.24"
+strum_macros = "0.24"
+
 [target.'cfg(windows)'.dependencies]
 libsqlite3-sys = { version = "^0", features = ["bundled"] }

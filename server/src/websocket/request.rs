@@ -45,6 +45,9 @@ pub enum AuthType {
     DeviceId {
         id: String
     },
+    CustomId {
+        id: String
+    },
     Refresh {
         token: String
     }

@@ -62,6 +62,22 @@ impl DeviceIdAuth {
 unsafe impl Send for DeviceIdAuth {}
 unsafe impl Sync for DeviceIdAuth {}
 
+#[derive(Message, Debug, Validate)]
+#[rtype(result = "anyhow::Result<SessionToken>")]
+pub struct CustomIdAuth {
+    #[validate(length(min = 8, max = 128, message = "Length should be between 3 to 128 chars"))]
+    pub id: String
+}
+
+impl CustomIdAuth {
+    pub fn new(id: String) -> Self {
+        Self { id }
+    }
+}
+
+unsafe impl Send for CustomIdAuth {}
+unsafe impl Sync for CustomIdAuth {}
+
 #[derive(Error, Debug)]
 pub enum AuthError {
     #[error("Email and/or password not valid")]
@@ -135,7 +151,7 @@ impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<EmailAuth> for Au
 impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<DeviceIdAuth> for AuthManager<A> {
     type Result = anyhow::Result<SessionToken>;
 
-    #[tracing::instrument(name="Auth::ViaEmail", skip(self, _ctx))]
+    #[tracing::instrument(name="Auth::ViaDeviceId", skip(self, _ctx))]
     fn handle(&mut self, auth: DeviceIdAuth, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut auth_store = AuthStore::new(self.database.get()?);
@@ -144,6 +160,25 @@ impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<DeviceIdAuth> for
         let (user_id, name, email) = match user_info {
             Some((user_id, name, email)) => (user_id, name, email),
             None => (auth_store.create_user_via_device_id(&auth.id)?, None, None)
+        };
+        
+        let response = self.generate_token(UserId(user_id.0), name, email, None)?;
+        Ok(response)
+    }
+}
+
+impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<CustomIdAuth> for AuthManager<A> {
+    type Result = anyhow::Result<SessionToken>;
+
+    #[tracing::instrument(name="Auth::ViaCustomId", skip(self, _ctx))]
+    fn handle(&mut self, auth: CustomIdAuth, _ctx: &mut Context<Self>) -> Self::Result {
+
+        let mut auth_store = AuthStore::new(self.database.get()?);
+        let user_info: Option<(RowId, Option<String>, Option<String>)> = auth_store.user_login_via_custom_id(&auth.id)?;
+
+        let (user_id, name, email) = match user_info {
+            Some((user_id, name, email)) => (user_id, name, email),
+            None => (auth_store.create_user_via_custom_id(&auth.id)?, None, None)
         };
         
         let response = self.generate_token(UserId(user_id.0), name, email, None)?;
@@ -180,6 +215,7 @@ mod tests {
     use super::DeviceIdAuth;
     use super::EmailAuth;
     use super::RefreshToken;
+    use super::CustomIdAuth;
 
     fn create_actor() -> anyhow::Result<(Addr<AuthManager<database::auth::AuthStore>>, Arc<YummyConfig>)> {
         let config = get_configuration();
@@ -188,6 +224,7 @@ mod tests {
         Ok((AuthManager::<database::auth::AuthStore>::new(config.clone(), Arc::new(connection)).start(), config))
     }
 
+    /* email unit tests */
     #[actix::test]
     async fn create_user_via_email() -> anyhow::Result<()> {
         let (address, _) = create_actor()?;
@@ -249,6 +286,7 @@ mod tests {
         Ok(())
     }
 
+    /* device id unit tests */
     #[actix::test]
     async fn create_user_via_device_id() -> anyhow::Result<()> {
         let (address, _) = create_actor()?;
@@ -276,6 +314,35 @@ mod tests {
         Ok(())
     }
 
+    /* custom id unit tests */
+    #[actix::test]
+    async fn create_user_via_custom_id() -> anyhow::Result<()> {
+        let (address, _) = create_actor()?;
+        address.send(CustomIdAuth::new("1234567890".to_string())).await??;
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn login_user_via_custom_id() -> anyhow::Result<()> {
+        let (address, _) = create_actor()?;
+        let created_token = address.send(CustomIdAuth::new("1234567890".to_string())).await??;
+        let logged_in_token = address.send(CustomIdAuth::new("1234567890".to_string())).await??;
+        assert_ne!(created_token, logged_in_token);
+
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn login_users_via_custom_id() -> anyhow::Result<()> {
+        let (address, _) = create_actor()?;
+        let login_1 = address.send(CustomIdAuth::new("1234567890".to_string())).await??;
+        let login_2 = address.send(CustomIdAuth::new("abcdef".to_string())).await??;
+        assert_ne!(login_1, login_2);
+
+        Ok(())
+    }
+
+    /* refreh token unit tests */
     #[actix::test]
     async fn token_refresh_test_1() -> anyhow::Result<()> {
         let (address, config) = create_actor()?;

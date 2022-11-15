@@ -11,6 +11,7 @@ use general::auth::ApiIntegration;
 use general::error::YummyError;
 use general::model::WebsocketMessage;
 use general::web::GenericAnswer;
+use manager::api::auth::CustomIdAuth;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -111,6 +112,7 @@ impl<A: AuthStoreTrait + Unpin + 'static> GameWebsocket<A> {
         match auth_type {
             AuthType::Email { email, password, if_not_exist_create } => spawn_future!(self.auth.send(message_validate!(EmailAuth { email: email.clone(), password: password.clone(), if_not_exist_create })), self, ctx),
             AuthType::DeviceId { id } => spawn_future!(self.auth.send(message_validate!(DeviceIdAuth::new(id.clone()))), self, ctx),
+            AuthType::CustomId { id } => spawn_future!(self.auth.send(message_validate!(CustomIdAuth::new(id.clone()))), self, ctx),
             AuthType::Refresh { token } => spawn_future!(self.auth.send(RefreshToken { token }), self, ctx),
         };
         Ok(())
@@ -375,6 +377,88 @@ mod tests {
         let request = json!({
             "type": "Auth",
             "auth_type": "DeviceId",
+            "id": 123
+        });
+        client.send(request).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
+        assert!(!response.status);
+        Ok(())
+    }
+
+    
+
+    #[actix_web::test]
+    async fn auth_via_custom_id() -> anyhow::Result<()> {
+        let server = create_websocket_server();
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "CustomId",
+            "id": "1234567890"
+        });
+        client.send(request).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
+        assert!(response.status);
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn fail_auth_via_custom_id_1() -> anyhow::Result<()> {
+        let server = create_websocket_server();
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "CustomId",
+        });
+        client.send(request).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
+        assert!(!response.status);
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn fail_auth_via_custom_id_2() -> anyhow::Result<()> {
+        let server = create_websocket_server();
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "CustomId",
+            "id": ""
+        });
+        client.send(request).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+        assert!(!response.status);
+        assert_eq!(response.result.unwrap(), "id: Length should be between 3 to 128 chars".to_string());
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn fail_auth_via_custom_id_3() -> anyhow::Result<()> {
+        let server = create_websocket_server();
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "CustomId",
             "id": 123
         });
         client.send(request).await;
