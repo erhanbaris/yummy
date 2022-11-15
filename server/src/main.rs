@@ -68,15 +68,10 @@ async fn main() -> std::io::Result<()> {
             .app_data(auth_manager.clone())
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
-
-            // Account api
-            .service(web::scope("/v1/account").configure(api::account::v1_scoped_config::<database::auth::AuthStore>))
             
             //Websocket
-            .route("/v1/socket/", web::get().to(websocket_endpoint::<database::auth::AuthStore>))
+            .route("/v1/socket", web::get().to(websocket_endpoint::<database::auth::AuthStore>))
             .route("/v1/query", web::post().to(http_query::<database::auth::AuthStore>))
-            
-
     })
     .bind(server_bind)?
     .run()

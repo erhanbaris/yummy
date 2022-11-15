@@ -1,4 +1,4 @@
-use general::jwt::{generate_auth, UserJwt, validate_auth};
+use general::auth::{generate_auth, UserJwt, validate_auth};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -33,7 +33,7 @@ unsafe impl Sync for EmailAuth {}
 #[rtype(result = "anyhow::Result<SessionToken>")]
 pub struct RefreshToken {
 
-    #[validate(length(min = 3, max = 256, message = "Length should be between 3 to 256 chars"))]
+    #[validate(length(min = 275, max = 1024, message = "Length should be between 275 to 1024 chars"))]
     pub token: String
 }
 
@@ -167,7 +167,7 @@ impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<RefreshToken> for
 mod tests {
     use general::config::YummyConfig;
     use general::config::get_configuration;
-    use general::jwt::validate_auth;
+    use general::auth::validate_auth;
     use general::model::SessionToken;
     use std::sync::Arc;
 

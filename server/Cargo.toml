@@ -37,7 +37,7 @@ strum_macros = "0.24"
 thiserror = "1.0.37"
 anyhow = "1.0.66"
 secrecy = { version = "0.8.0", features = ["serde"] }
-hmac = { version = "0.12", features = ["std"] }
+hmac = "0.12.1"
 sha2 = "0.10"
 
 tracing = "0.1"

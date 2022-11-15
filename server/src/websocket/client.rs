@@ -16,6 +16,8 @@ where
 {
     socket: Framed<BoxedSocket, Codec>,
     url: String,
+    query_param_name: String,
+    key: String,
     marker1: std::marker::PhantomData<REQ>,
     marker2: std::marker::PhantomData<RES>,
 }
@@ -35,12 +37,14 @@ where
     REQ: Debug + Send + Serialize + DeserializeOwned,
     RES: Debug + Send + Serialize + DeserializeOwned,
 {
-    pub async fn new(url: String) -> Self {
-        let client = Client::default().ws(url.clone());
+    pub async fn new(url: String, query_param_name: String, key: String) -> Self {
+        let client = Client::default().ws(format!("{0}?{1}={2}", url, query_param_name, key));
         let (_, socket) = client.connect().await.unwrap();
         Self {
             socket,
             url,
+            query_param_name,
+            key,
             marker1: PhantomData,
             marker2: PhantomData,
         }

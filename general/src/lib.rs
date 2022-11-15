@@ -1,5 +1,5 @@
 
-pub mod jwt;
+pub mod auth;
 pub mod web;
 pub mod error;
 pub mod config;

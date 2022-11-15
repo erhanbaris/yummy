@@ -1,6 +1,13 @@
+use std::collections::HashMap;
 use std::{borrow::Borrow, sync::Arc};
+use std::future::Future;
+use std::pin::Pin;
 
-use actix_web::HttpRequest;
+use actix_web::error::ErrorUnauthorized;
+use actix_web::web::{Data, self};
+use actix_web::{HttpRequest, FromRequest};
+use actix_web::Error;
+use actix_web::dev::Payload;
 use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::*;
@@ -63,5 +70,43 @@ pub fn parse_request(config: Arc<YummyConfig>, req: &HttpRequest) -> Option<Clai
             Some(cookie) => validate_auth(config.clone(), cookie.to_str().unwrap_or_default()),
             None => None,
         },
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ApiIntegration;
+
+impl FromRequest for ApiIntegration {
+    type Error = Error;
+    type Future = Pin<Box<dyn Future<Output = Result<ApiIntegration, Error>>>>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+
+        let config = match req.app_data::<Data<Arc<YummyConfig>>>() {
+            Some(config) => config,
+            None => return Box::pin(async { Err(ErrorUnauthorized("unauthorized")) })
+        };
+
+        let auth_key = match req.headers().get(&config.cookie_key) {
+            Some(value) =>  match value.to_str() {
+                Ok(value) => value.to_string(),
+                Err(_) => return Box::pin(async { Err(ErrorUnauthorized("unauthorized")) })
+            }
+            None => match web::Query::<HashMap<String, String>>::from_query(&req.query_string()) {
+                Ok(map) => match map.0.get(&config.cookie_key) {
+                    Some(value) => value.to_string(),
+                    None => return Box::pin(async { Err(ErrorUnauthorized("unauthorized")) })
+                },
+                Err(_) => return Box::pin(async { Err(ErrorUnauthorized("unauthorized")) })
+            }
+        };
+
+        if auth_key != config.integration_key {
+            return Box::pin(async { Err(ErrorUnauthorized("unauthorized")) })
+        }
+
+        Box::pin(async move {
+            return Ok(ApiIntegration);
+        })
     }
 }
