@@ -1,11 +1,11 @@
 use actix::Addr;
 use actix_web::{web::{Data, Json}, HttpResponse};
-use database::DatabaseTrait;
-use general::{error::YummyError, web::GenericAnswer, auth::ApiIntegration};
-use manager::api::auth::{AuthManager, RefreshToken, DeviceIdAuth, EmailAuth, CustomIdAuth};
+use database::{DatabaseTrait, model::PrivateUserModel};
+use general::{error::YummyError, web::GenericAnswer, auth::{ApiIntegration, UserAuth}, model::UserId};
+use manager::api::{auth::{AuthManager, RefreshTokenRequest, DeviceIdAuthRequest, EmailAuthRequest, CustomIdAuthRequest, AuthError}, user::{UserManager, GetUser}};
 use validator::Validate;
 
-use crate::websocket::request::{Request, AuthType};
+use crate::websocket::request::{Request, AuthType, UserType};
 
 macro_rules! as_error {
     ($error: expr) => {
@@ -42,18 +42,30 @@ macro_rules! as_response {
     };
 }
 
-async fn auth<DB: DatabaseTrait + Unpin + 'static>(auth_type: AuthType, auth_manager: Data<Addr<AuthManager<DB>>>) -> HttpResponse {
+async fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type: AuthType, auth_manager: Data<Addr<AuthManager<DB>>>) -> HttpResponse {
     match auth_type {
-        AuthType::Email { email, password, if_not_exist_create } => as_response!(auth_manager, EmailAuth { email: email.clone(), password: password.clone(), if_not_exist_create }),
-        AuthType::DeviceId { id } => as_response!(auth_manager, DeviceIdAuth::new(id.clone())),
-        AuthType::CustomId { id } => as_response!(auth_manager, CustomIdAuth::new(id.clone())),
-        AuthType::Refresh { token } => as_response!(auth_manager, RefreshToken { token: token.clone() }),
+        AuthType::Email { email, password, if_not_exist_create } => as_response!(auth_manager, EmailAuthRequest { email: email.clone(), password: password.clone(), if_not_exist_create }),
+        AuthType::DeviceId { id } => as_response!(auth_manager, DeviceIdAuthRequest::new(id.clone())),
+        AuthType::CustomId { id } => as_response!(auth_manager, CustomIdAuthRequest::new(id.clone())),
+        AuthType::Refresh { token } => as_response!(auth_manager, RefreshTokenRequest { token: token.clone() }),
     }
 }
 
-pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(auth_manager: Data<Addr<AuthManager<DB>>>, request: Result<Json<Request>, actix_web::Error>, _: ApiIntegration) -> Result<HttpResponse, YummyError> {
+async fn process_user<DB: DatabaseTrait + Unpin + 'static>(user_type: UserType, user_manager: Data<Addr<UserManager<DB>>>, user: Option<UserAuth>) -> HttpResponse {
+     match user_type {
+        UserType::Me => match user {
+            Some(auth) => as_response!(user_manager, GetUser { user: auth.user }),
+            None => as_error!(AuthError::TokenNotValid)
+        },
+        UserType::Get { id } => as_response!(user_manager, GetUser { user: UserId(id) }),
+        UserType::Update {  } => todo!(),
+    }
+}
+
+pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(auth_manager: Data<Addr<AuthManager<DB>>>, user_manager: Data<Addr<UserManager<DB>>>, request: Result<Json<Request>, actix_web::Error>, _: ApiIntegration, user: Option<UserAuth>) -> Result<HttpResponse, YummyError> {
     let response = match request?.0 {
-        Request::Auth { auth_type } => auth(auth_type, auth_manager).await,
+        Request::Auth { auth_type } => process_auth(auth_type, auth_manager).await,
+        Request::User { user_type } => process_user(user_type, user_manager, user).await,
     };
 
     Ok(response)
@@ -71,6 +83,7 @@ pub mod tests {
     use general::web::Answer;
     use general::web::GenericAnswer;
     use manager::api::auth::AuthManager;
+    use manager::api::user::UserManager;
     use serde_json::json;
     use std::sync::Arc;
 
@@ -82,7 +95,8 @@ pub mod tests {
         let config = ::general::config::get_configuration();
         let connection = create_connection(":memory:").unwrap();
         create_database(&mut connection.clone().get().unwrap()).unwrap();
-        let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection)).start());
+        let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection.clone())).start());
+        let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection)).start());
 
         let query_cfg = QueryConfig::default()
             .error_handler(|err, _| {
@@ -94,6 +108,7 @@ pub mod tests {
             .app_data(JsonConfig::default().error_handler(json_error_handler))
             .app_data(Data::new(config))
             .app_data(auth_manager.clone())
+            .app_data(user_manager.clone())
 
             .route("/v1/query", web::post().to(http_query::<database::SqliteStore>));
     }
@@ -103,7 +118,7 @@ pub mod tests {
         let app = test::init_service(App::new().configure(config)).await;
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({}))
             .to_request();
 
@@ -116,7 +131,7 @@ pub mod tests {
         let app = test::init_service(App::new().configure(config)).await;
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Email",
@@ -136,7 +151,7 @@ pub mod tests {
     async fn auth_email_2() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Email",
@@ -156,7 +171,7 @@ pub mod tests {
     async fn auth_device_id() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "DeviceId",
@@ -174,7 +189,7 @@ pub mod tests {
     async fn fail_auth_device_id() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "DeviceId",
@@ -192,7 +207,7 @@ pub mod tests {
         let app = test::init_service(App::new().configure(config)).await;
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Email",
@@ -205,7 +220,7 @@ pub mod tests {
         let response: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Refresh",
@@ -224,7 +239,7 @@ pub mod tests {
         let app = test::init_service(App::new().configure(config)).await;
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "DeviceId",
@@ -235,7 +250,7 @@ pub mod tests {
         let response: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Refresh",
@@ -253,7 +268,7 @@ pub mod tests {
     async fn fail_auth_refresh_token_1() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Refresh"
@@ -270,7 +285,7 @@ pub mod tests {
     async fn fail_auth_refresh_token_2() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Refresh",

@@ -13,7 +13,7 @@ use validator::Validate;
 use general::model::UserId;
 
 #[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<Option<PrivateUserModel>>")]
+#[rtype(result = "anyhow::Result<PrivateUserModel>")]
 pub struct GetUser {
     pub user: UserId
 }
@@ -73,11 +73,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for UserMa
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUser> for UserManager<DB> {
-    type Result = anyhow::Result<Option<PrivateUserModel>>;
+    type Result = anyhow::Result<PrivateUserModel>;
 
     #[tracing::instrument(name="User::GetUser", skip(self, _ctx))]
     fn handle(&mut self, model: GetUser, _ctx: &mut Context<Self>) -> Self::Result {
-        DB::get_user(&mut self.database.get()?, model.user.0.into())
+        let user = DB::get_user(&mut self.database.get()?, model.user.0.into())?;
+
+        match user {
+            Some(user) => Ok(user),
+            None => Err(anyhow::anyhow!(UserError::UserNotFound))
+        }
     }
 }
 
@@ -142,8 +147,8 @@ mod tests {
 
     use super::*;
     use crate::api::auth::AuthManager;
-    use crate::api::auth::DeviceIdAuth;
-    use crate::api::auth::EmailAuth;
+    use crate::api::auth::DeviceIdAuthRequest;
+    use crate::api::auth::EmailAuthRequest;
 
     fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>)> {
         let config = get_configuration();
@@ -157,8 +162,8 @@ mod tests {
         let (user_manager, _, _) = create_actor()?;
         let user = user_manager.send(GetUser {
             user: UserId::default()
-        }).await??;
-        assert!(user.is_none());
+        }).await?;
+        assert!(user.is_err());
         Ok(())
     }
 
@@ -166,11 +171,11 @@ mod tests {
     async fn get_user_2() -> anyhow::Result<()> {
         let (user_manager, auth_manager, config) = create_actor()?;
 
-        let token = auth_manager.send(DeviceIdAuth::new("1234567890".to_string())).await??;
+        let token = auth_manager.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
         let user = validate_auth(config, token.0).unwrap();
         let user = user_manager.send(GetUser {
             user: user.user.id
-        }).await??.unwrap();
+        }).await??;
         assert_eq!(user.device_id, Some("1234567890".to_string()));
         Ok(())
     }
@@ -190,7 +195,7 @@ mod tests {
     async fn fail_update_get_user_2() -> anyhow::Result<()> {
         let (user_manager, auth_manager, config) = create_actor()?;
 
-        let token = auth_manager.send(DeviceIdAuth::new("1234567890".to_string())).await??;
+        let token = auth_manager.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
         let user = validate_auth(config, token.0).unwrap();
         let result = user_manager.send(UpdateUser {
             user: user.user.id,
@@ -204,7 +209,7 @@ mod tests {
     async fn fail_update_get_user_3() -> anyhow::Result<()> {
         let (user_manager, auth_manager, config) = create_actor()?;
 
-        let token = auth_manager.send(EmailAuth {
+        let token = auth_manager.send(EmailAuthRequest {
             email: "erhanbaris@gmail.com".to_string(),
             password: "erhan".to_string(),
             if_not_exist_create: true
@@ -230,7 +235,7 @@ mod tests {
     async fn fail_update_password() -> anyhow::Result<()> {
         let (user_manager, auth_manager, config) = create_actor()?;
 
-        let token = auth_manager.send(EmailAuth {
+        let token = auth_manager.send(EmailAuthRequest {
             email: "erhanbaris@gmail.com".to_string(),
             password: "erhan".to_string(),
             if_not_exist_create: true
@@ -258,7 +263,7 @@ mod tests {
     async fn fail_update_email() -> anyhow::Result<()> {
         let (user_manager, auth_manager, config) = create_actor()?;
 
-        let token = auth_manager.send(EmailAuth {
+        let token = auth_manager.send(EmailAuthRequest {
             email: "erhanbaris@gmail.com".to_string(),
             password: "erhan".to_string(),
             if_not_exist_create: true
@@ -286,7 +291,7 @@ mod tests {
     async fn update_get_user_1() -> anyhow::Result<()> {
         let (user_manager, auth_manager, config) = create_actor()?;
 
-        let token = auth_manager.send(EmailAuth {
+        let token = auth_manager.send(EmailAuthRequest {
             email: "erhanbaris@gmail.com".to_string(),
             password: "erhan".to_string(),
             if_not_exist_create: true
@@ -295,7 +300,7 @@ mod tests {
 
         let user = user_manager.send(GetUser {
             user: user_id
-        }).await??.unwrap();
+        }).await??;
         
         assert_eq!(user.name, None);
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
@@ -310,7 +315,7 @@ mod tests {
 
         let user = user_manager.send(GetUser {
             user: user_id
-        }).await??.unwrap();
+        }).await??;
 
         assert_eq!(user.name, Some("Erhan".to_string()));
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
@@ -322,7 +327,7 @@ mod tests {
     async fn update_get_user_2() -> anyhow::Result<()> {
         let (user_manager, auth_manager, config) = create_actor()?;
 
-        let token = auth_manager.send(EmailAuth {
+        let token = auth_manager.send(EmailAuthRequest {
             email: "erhanbaris@gmail.com".to_string(),
             password: "erhan".to_string(),
             if_not_exist_create: true
@@ -331,7 +336,7 @@ mod tests {
 
         let user = user_manager.send(GetUser {
             user: user_id
-        }).await??.unwrap();
+        }).await??;
         
         assert_eq!(user.name, None);
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
@@ -346,7 +351,7 @@ mod tests {
 
         let user = user_manager.send(GetUser {
             user: user_id
-        }).await??.unwrap();
+        }).await??;
 
         assert_eq!(user.name, Some("Erhan".to_string()));
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
@@ -362,7 +367,7 @@ mod tests {
 
         let user = user_manager.send(GetUser {
             user: user_id
-        }).await??.unwrap();
+        }).await??;
 
         assert_eq!(user.name, Some("Erhan".to_string()));
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));

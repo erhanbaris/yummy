@@ -54,10 +54,26 @@ pub enum AuthType {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+#[serde(tag = "user_type")]
+pub enum UserType {
+    Me,
+    Get {
+        id: Uuid  
+    },
+    Update {
+
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "type")]
 pub enum Request {
     Auth {
         #[serde(flatten)]
         auth_type: AuthType
+    },
+    User {
+        #[serde(flatten)]
+        user_type: UserType
     }
 }

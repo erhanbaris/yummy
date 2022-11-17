@@ -1,5 +1,7 @@
 use crate::{schema::user, RowId};
 use diesel::*;
+use serde::Serialize;
+use serde::Deserialize;
 
 #[derive(Default, Debug, Insertable)]
 #[diesel(table_name = user)]
@@ -24,7 +26,7 @@ pub struct UserUpdate<'a> {
     pub custom_id: Option<Option<&'a str>>,
 }
 
-#[derive(Default, Debug, Queryable)]
+#[derive(Default, Debug, Queryable, Serialize, Deserialize)]
 #[diesel(table_name = user)]
 pub struct PrivateUserModel {
     pub name: Option<String>,

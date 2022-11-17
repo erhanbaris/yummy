@@ -15,7 +15,7 @@ use general::model::{SessionToken, UserId, SessionId};
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<SessionToken>")]
-pub struct EmailAuth {
+pub struct EmailAuthRequest {
     #[validate(email(message="Email address is not valid"))]
     pub email: String,
 
@@ -25,57 +25,57 @@ pub struct EmailAuth {
     pub if_not_exist_create: bool,
 }
 
-unsafe impl Send for EmailAuth {}
-unsafe impl Sync for EmailAuth {}
+unsafe impl Send for EmailAuthRequest {}
+unsafe impl Sync for EmailAuthRequest {}
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<SessionToken>")]
-pub struct RefreshToken {
+pub struct RefreshTokenRequest {
 
     #[validate(length(min = 275, max = 1024, message = "Length should be between 275 to 1024 chars"))]
     pub token: String
 }
 
-impl From<SessionToken> for RefreshToken {
+impl From<SessionToken> for RefreshTokenRequest {
     fn from(token: SessionToken) -> Self {
-        RefreshToken { token: token.0 }
+        RefreshTokenRequest { token: token.0 }
     }
 }
 
-unsafe impl Send for RefreshToken {}
-unsafe impl Sync for RefreshToken {}
+unsafe impl Send for RefreshTokenRequest {}
+unsafe impl Sync for RefreshTokenRequest {}
 
 #[derive(Message, Debug, Validate)]
 #[rtype(result = "anyhow::Result<SessionToken>")]
-pub struct DeviceIdAuth {
+pub struct DeviceIdAuthRequest {
     #[validate(length(min = 8, max = 128, message = "Length should be between 8 to 128 chars"))]
     pub id: String
 }
 
-impl DeviceIdAuth {
+impl DeviceIdAuthRequest {
     pub fn new(id: String) -> Self {
         Self { id }
     }
 }
 
-unsafe impl Send for DeviceIdAuth {}
-unsafe impl Sync for DeviceIdAuth {}
+unsafe impl Send for DeviceIdAuthRequest {}
+unsafe impl Sync for DeviceIdAuthRequest {}
 
 #[derive(Message, Debug, Validate)]
 #[rtype(result = "anyhow::Result<SessionToken>")]
-pub struct CustomIdAuth {
+pub struct CustomIdAuthRequest {
     #[validate(length(min = 8, max = 128, message = "Length should be between 3 to 128 chars"))]
     pub id: String
 }
 
-impl CustomIdAuth {
+impl CustomIdAuthRequest {
     pub fn new(id: String) -> Self {
         Self { id }
     }
 }
 
-unsafe impl Send for CustomIdAuth {}
-unsafe impl Sync for CustomIdAuth {}
+unsafe impl Send for CustomIdAuthRequest {}
+unsafe impl Sync for CustomIdAuthRequest {}
 
 #[derive(Error, Debug)]
 pub enum AuthError {
@@ -121,11 +121,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for AuthMa
     type Context = Context<Self>;
 }
 
-impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAuth> for AuthManager<DB> {
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAuthRequest> for AuthManager<DB> {
     type Result = anyhow::Result<SessionToken>;
 
     #[tracing::instrument(name="Auth::ViaEmail", skip(self, _ctx))]
-    fn handle(&mut self, auth: EmailAuth, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, auth: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
         let user_info: Option<(RowId, Option<String>, String)> = DB::user_login_via_email(&mut connection, &auth.email)?;
@@ -147,11 +147,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
     }
 }
 
-impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceIdAuth> for AuthManager<DB> {
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceIdAuthRequest> for AuthManager<DB> {
     type Result = anyhow::Result<SessionToken>;
 
     #[tracing::instrument(name="Auth::ViaDeviceId", skip(self, _ctx))]
-    fn handle(&mut self, auth: DeviceIdAuth, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, auth: DeviceIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
         let user_info: Option<(RowId, Option<String>, Option<String>)> = DB::user_login_via_device_id(&mut connection, &auth.id)?;
@@ -166,11 +166,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
     }
 }
 
-impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomIdAuth> for AuthManager<DB> {
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomIdAuthRequest> for AuthManager<DB> {
     type Result = anyhow::Result<SessionToken>;
 
     #[tracing::instrument(name="Auth::ViaCustomId", skip(self, _ctx))]
-    fn handle(&mut self, auth: CustomIdAuth, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, auth: CustomIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
         let user_info: Option<(RowId, Option<String>, Option<String>)> = DB::user_login_via_custom_id(&mut connection, &auth.id)?;
@@ -185,11 +185,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
     }
 }
 
-impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshToken> for AuthManager<DB> {
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshTokenRequest> for AuthManager<DB> {
     type Result = anyhow::Result<SessionToken>;
 
     #[tracing::instrument(name="Manager::Refresh", skip(self, _ctx))]
-    fn handle(&mut self, token: RefreshToken, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, token: RefreshTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
         match validate_auth(self.config.clone(), token.token) {
             Some(claims) => self.generate_token(claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session)),
             None => Err(anyhow!(AuthError::TokenNotValid))
@@ -211,10 +211,10 @@ mod tests {
     use database::{create_database, create_connection};
     
     use super::AuthManager;
-    use super::DeviceIdAuth;
-    use super::EmailAuth;
-    use super::RefreshToken;
-    use super::CustomIdAuth;
+    use super::DeviceIdAuthRequest;
+    use super::EmailAuthRequest;
+    use super::RefreshTokenRequest;
+    use super::CustomIdAuthRequest;
 
     fn create_actor() -> anyhow::Result<(Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>)> {
         let config = get_configuration();
@@ -227,7 +227,7 @@ mod tests {
     #[actix::test]
     async fn create_user_via_email() -> anyhow::Result<()> {
         let (address, _) = create_actor()?;
-        address.send(EmailAuth {
+        address.send(EmailAuthRequest {
             email: "erhanbaris@gmail.com".to_string(),
             password: "erhan".to_string(),
             if_not_exist_create: true
@@ -238,13 +238,13 @@ mod tests {
     #[actix::test]
     async fn login_user_via_email() -> anyhow::Result<()> {
         let (address, _) = create_actor()?;
-        address.send(EmailAuth {
+        address.send(EmailAuthRequest {
             email: "erhanbaris@gmail.com".to_string(),
             password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
 
-        address.send(EmailAuth {
+        address.send(EmailAuthRequest {
             email: "erhanbaris@gmail.com".to_string(),
             password: "erhan".to_string(),
             if_not_exist_create: false
@@ -256,7 +256,7 @@ mod tests {
     #[actix::test]
     async fn failed_login_user_via_email_1() -> anyhow::Result<()> {
         let (address, _) = create_actor()?;
-        let result = address.send(EmailAuth {
+        let result = address.send(EmailAuthRequest {
             email: "erhanbaris@gmail.com".to_string(),
             password: "erhan".to_string(),
             if_not_exist_create: false
@@ -269,13 +269,13 @@ mod tests {
     #[actix::test]
     async fn failed_login_user_via_email_2() -> anyhow::Result<()> {
         let (address, _) = create_actor()?;
-        address.send(EmailAuth {
+        address.send(EmailAuthRequest {
             email: "erhanbaris@gmail.com".to_string(),
             password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
 
-        let result = address.send(EmailAuth {
+        let result = address.send(EmailAuthRequest {
             email: "erhanbaris@gmail.com".to_string(),
             password: "wrong password".to_string(),
             if_not_exist_create: true
@@ -289,15 +289,15 @@ mod tests {
     #[actix::test]
     async fn create_user_via_device_id() -> anyhow::Result<()> {
         let (address, _) = create_actor()?;
-        address.send(DeviceIdAuth::new("1234567890".to_string())).await??;
+        address.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
         Ok(())
     }
 
     #[actix::test]
     async fn login_user_via_device_id() -> anyhow::Result<()> {
         let (address, _) = create_actor()?;
-        let created_token = address.send(DeviceIdAuth::new("1234567890".to_string())).await??;
-        let logged_in_token = address.send(DeviceIdAuth::new("1234567890".to_string())).await??;
+        let created_token = address.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
+        let logged_in_token = address.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
         assert_ne!(created_token, logged_in_token);
 
         Ok(())
@@ -306,8 +306,8 @@ mod tests {
     #[actix::test]
     async fn login_users_via_device_id() -> anyhow::Result<()> {
         let (address, _) = create_actor()?;
-        let login_1 = address.send(DeviceIdAuth::new("1234567890".to_string())).await??;
-        let login_2 = address.send(DeviceIdAuth::new("abcdef".to_string())).await??;
+        let login_1 = address.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
+        let login_2 = address.send(DeviceIdAuthRequest::new("abcdef".to_string())).await??;
         assert_ne!(login_1, login_2);
 
         Ok(())
@@ -317,15 +317,15 @@ mod tests {
     #[actix::test]
     async fn create_user_via_custom_id() -> anyhow::Result<()> {
         let (address, _) = create_actor()?;
-        address.send(CustomIdAuth::new("1234567890".to_string())).await??;
+        address.send(CustomIdAuthRequest::new("1234567890".to_string())).await??;
         Ok(())
     }
 
     #[actix::test]
     async fn login_user_via_custom_id() -> anyhow::Result<()> {
         let (address, _) = create_actor()?;
-        let created_token = address.send(CustomIdAuth::new("1234567890".to_string())).await??;
-        let logged_in_token = address.send(CustomIdAuth::new("1234567890".to_string())).await??;
+        let created_token = address.send(CustomIdAuthRequest::new("1234567890".to_string())).await??;
+        let logged_in_token = address.send(CustomIdAuthRequest::new("1234567890".to_string())).await??;
         assert_ne!(created_token, logged_in_token);
 
         Ok(())
@@ -334,8 +334,8 @@ mod tests {
     #[actix::test]
     async fn login_users_via_custom_id() -> anyhow::Result<()> {
         let (address, _) = create_actor()?;
-        let login_1 = address.send(CustomIdAuth::new("1234567890".to_string())).await??;
-        let login_2 = address.send(CustomIdAuth::new("abcdef".to_string())).await??;
+        let login_1 = address.send(CustomIdAuthRequest::new("1234567890".to_string())).await??;
+        let login_2 = address.send(CustomIdAuthRequest::new("abcdef".to_string())).await??;
         assert_ne!(login_1, login_2);
 
         Ok(())
@@ -345,11 +345,11 @@ mod tests {
     #[actix::test]
     async fn token_refresh_test_1() -> anyhow::Result<()> {
         let (address, config) = create_actor()?;
-        let old_token: SessionToken = address.send(DeviceIdAuth::new("1234567890".to_string())).await??;
+        let old_token: SessionToken = address.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
 
         // Wait 1 second
         actix::clock::sleep(std::time::Duration::new(1, 0)).await;
-        let new_token: SessionToken = address.send(RefreshToken { token: old_token.0.to_string() }).await??;
+        let new_token: SessionToken = address.send(RefreshTokenRequest { token: old_token.0.to_string() }).await??;
        
         assert_ne!(old_token.clone(), new_token.clone());
 
@@ -369,7 +369,7 @@ mod tests {
     #[actix::test]
     async fn token_refresh_test_2() -> anyhow::Result<()> {
         let (address, config) = create_actor()?;
-        let old_token: SessionToken = address.send(EmailAuth {
+        let old_token: SessionToken = address.send(EmailAuthRequest {
             email: "erhanbaris@gmail.com".to_string(),
             password: "erhan".to_string(),
             if_not_exist_create: true
@@ -377,7 +377,7 @@ mod tests {
 
         // Wait 1 second
         actix::clock::sleep(std::time::Duration::new(1, 0)).await;
-        let new_token: SessionToken = address.send(RefreshToken{ token: old_token.0.to_string() }).await??;
+        let new_token: SessionToken = address.send(RefreshTokenRequest{ token: old_token.0.to_string() }).await??;
        
         assert_ne!(old_token.clone(), new_token.clone());
 

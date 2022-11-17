@@ -12,7 +12,8 @@ use general::auth::ApiIntegration;
 use general::error::YummyError;
 use general::model::WebsocketMessage;
 use general::web::GenericAnswer;
-use manager::api::auth::CustomIdAuth;
+use manager::api::auth::CustomIdAuthRequest;
+use manager::api::user::UserManager;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -26,15 +27,15 @@ use actix::{ActorContext, Addr, Running, StreamHandler, fut};
 use actix_web::Result;
 use actix_web_actors::ws;
 use manager::api::auth::AuthManager;
-use manager::api::auth::DeviceIdAuth;
-use manager::api::auth::EmailAuth;
-use manager::api::auth::RefreshToken;
+use manager::api::auth::DeviceIdAuthRequest;
+use manager::api::auth::EmailAuthRequest;
+use manager::api::auth::RefreshTokenRequest;
 use validator::Validate;
 
 use general::config::YummyConfig;
 use crate::websocket::request::*;
 
-pub async fn websocket_endpoint<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, stream: Payload, config: Data<Arc<YummyConfig>>, manager: Data<Addr<AuthManager<DB>>>, connnection_info: Result<Query<ConnectionInfo>, actix_web::Error>, _: ApiIntegration) -> Result<actix_web::HttpResponse, YummyError> {
+pub async fn websocket_endpoint<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, stream: Payload, config: Data<Arc<YummyConfig>>, auth_manager: Data<Addr<AuthManager<DB>>>, user_manager: Data<Addr<UserManager<DB>>>, connnection_info: Result<Query<ConnectionInfo>, actix_web::Error>, _: ApiIntegration) -> Result<actix_web::HttpResponse, YummyError> {
     log::debug!("Websocket connection: {:?}", connnection_info);
     let config = config.get_ref();
 
@@ -43,12 +44,13 @@ pub async fn websocket_endpoint<DB: DatabaseTrait + Unpin + 'static>(req: HttpRe
         Err(error) => return Err(YummyError::WebsocketConnectArgument(error.to_string()))
     };
 
-    ws::start(GameWebsocket::new(config.clone(), connnection_info, manager.get_ref().clone()), &req, stream)
+    ws::start(GameWebsocket::new(config.clone(), connnection_info, auth_manager.get_ref().clone(), user_manager.get_ref().clone()), &req, stream)
         .map_err(YummyError::from)
 }
 
 pub struct GameWebsocket<DB: DatabaseTrait + ?Sized + Unpin + 'static> {
     auth: Addr<AuthManager<DB>>,
+    user: Addr<UserManager<DB>>,
     hb: Instant,
     connection_info: ConnectionInfo,
     config: Arc<YummyConfig>,
@@ -99,21 +101,32 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
         config: Arc<YummyConfig>,
         connection_info: ConnectionInfo,
         auth: Addr<AuthManager<DB>>,
+        user: Addr<UserManager<DB>>,
     ) -> Self {
         Self {
             connection_info,
             hb: Instant::now(),
             auth,
+            user,
             config,
         }
     }
 
     fn auth(&self, auth_type: AuthType, ctx: &mut ws::WebsocketContext<Self>) -> anyhow::Result<()> {
         match auth_type {
-            AuthType::Email { email, password, if_not_exist_create } => spawn_future!(self.auth.send(message_validate!(EmailAuth { email: email.clone(), password: password.clone(), if_not_exist_create })), self, ctx),
-            AuthType::DeviceId { id } => spawn_future!(self.auth.send(message_validate!(DeviceIdAuth::new(id.clone()))), self, ctx),
-            AuthType::CustomId { id } => spawn_future!(self.auth.send(message_validate!(CustomIdAuth::new(id.clone()))), self, ctx),
-            AuthType::Refresh { token } => spawn_future!(self.auth.send(RefreshToken { token }), self, ctx),
+            AuthType::Email { email, password, if_not_exist_create } => spawn_future!(self.auth.send(message_validate!(EmailAuthRequest { email: email.clone(), password: password.clone(), if_not_exist_create })), self, ctx),
+            AuthType::DeviceId { id } => spawn_future!(self.auth.send(message_validate!(DeviceIdAuthRequest::new(id.clone()))), self, ctx),
+            AuthType::CustomId { id } => spawn_future!(self.auth.send(message_validate!(CustomIdAuthRequest::new(id.clone()))), self, ctx),
+            AuthType::Refresh { token } => spawn_future!(self.auth.send(RefreshTokenRequest { token }), self, ctx),
+        };
+        Ok(())
+    }
+
+    fn user(&self, user_type: UserType, ctx: &mut ws::WebsocketContext<Self>) -> anyhow::Result<()> {
+        match user_type {
+            UserType::Me => todo!(),
+            UserType::Get { id } => todo!(),
+            UserType::Update { } => todo!(),
         };
         Ok(())
     }
@@ -122,7 +135,8 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
         match serde_json::from_str::<Request>(&message) {
             Ok(message) => {
                 match message {
-                    Request::Auth { auth_type } => self.auth(auth_type, ctx)
+                    Request::Auth { auth_type } => self.auth(auth_type, ctx),
+                    Request::User { user_type } => self.user(user_type, ctx)
                 }
             }
             Err(_) => Err(anyhow::anyhow!("Wrong message format"))
@@ -220,7 +234,8 @@ mod tests {
             let config = ::general::config::get_configuration();
             let connection = create_connection(":memory:").unwrap();
             create_database(&mut connection.clone().get().unwrap()).unwrap();
-            let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection)).start());
+            let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection.clone())).start());
+            let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection)).start());
 
             let query_cfg = QueryConfig::default()
                 .error_handler(|err, _| {
@@ -229,8 +244,9 @@ mod tests {
                 });
 
             App::new()
-                .app_data(auth_manager)
-                .app_data(query_cfg)
+            .app_data(auth_manager)
+            .app_data(user_manager)
+            .app_data(query_cfg)
                 .app_data(JsonConfig::default().error_handler(json_error_handler))
                 .app_data(Data::new(config))
                 .route("/v1/socket", get().to(websocket_endpoint::<database::SqliteStore>))
@@ -241,7 +257,7 @@ mod tests {
     async fn message_format_validate_1() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket"), general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket"), general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
         });
@@ -258,7 +274,7 @@ mod tests {
     async fn message_format_validate_2() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket"), general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket"), general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "type": "Wrong type"
@@ -276,7 +292,7 @@ mod tests {
     async fn message_format_validate_3() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "wrong type": "Auth"
@@ -294,7 +310,7 @@ mod tests {
     async fn message_format_validate_4() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "Type": ""
@@ -312,7 +328,7 @@ mod tests {
     async fn auth_via_device_id() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "type": "Auth",
@@ -332,7 +348,7 @@ mod tests {
     async fn fail_auth_via_device_id_1() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "type": "Auth",
@@ -351,7 +367,7 @@ mod tests {
     async fn fail_auth_via_device_id_2() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "type": "Auth",
@@ -372,7 +388,7 @@ mod tests {
     async fn fail_auth_via_device_id_3() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "type": "Auth",
@@ -394,7 +410,7 @@ mod tests {
     async fn auth_via_custom_id() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "type": "Auth",
@@ -414,7 +430,7 @@ mod tests {
     async fn fail_auth_via_custom_id_1() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "type": "Auth",
@@ -433,7 +449,7 @@ mod tests {
     async fn fail_auth_via_custom_id_2() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "type": "Auth",
@@ -454,7 +470,7 @@ mod tests {
     async fn fail_auth_via_custom_id_3() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "type": "Auth",
@@ -474,7 +490,7 @@ mod tests {
     async fn auth_via_email_1() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "type": "Auth",
@@ -497,7 +513,7 @@ mod tests {
     async fn auth_via_email_2() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "type": "Auth",
@@ -519,7 +535,7 @@ mod tests {
     async fn auth_via_email_3() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "type": "Auth",
@@ -542,7 +558,7 @@ mod tests {
     async fn auth_via_email_4() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "type": "Auth",
@@ -568,7 +584,7 @@ mod tests {
     async fn auth_via_email_5() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         // Not valid
         let request = json!({
@@ -619,7 +635,7 @@ mod tests {
     async fn auth_via_email_6() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         // Not valid
         let request = json!({
@@ -670,7 +686,7 @@ mod tests {
     async fn fail_token_refresh_1() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         // Not valid
         let request = json!({
@@ -693,7 +709,7 @@ mod tests {
     async fn fail_token_refresh_2() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         // Not valid
         let request = json!({
@@ -715,7 +731,7 @@ mod tests {
     async fn token_refresh_1() -> anyhow::Result<()> {
         let server = create_websocket_server();
 
-        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_COOKIE_KEY.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "type": "Auth",

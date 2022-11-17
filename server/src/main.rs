@@ -2,6 +2,7 @@ mod api;
 mod websocket;
 
 use general::config::{get_configuration, get_env_var};
+use manager::api::user::UserManager;
 use std::sync::Arc;
 
 use manager::api::auth::AuthManager;
@@ -29,10 +30,8 @@ pub fn json_error_handler(err: JsonPayloadError, _req: &HttpRequest) -> actix_we
 async fn main() -> std::io::Result<()> {
     let server_bind = get_env_var("SERVER_BIND", "0.0.0.0:9090".to_string());
     let rust_log_level = get_env_var("RUST_LOG", "debug,backend,actix_web=debug".to_string());
-    let message = crate::websocket::request::Request::Auth {
-        auth_type: crate::websocket::request::AuthType::Refresh {
-            token: "asd".to_string()
-        }
+    let message = crate::websocket::request::Request::User {
+        user_type: crate::websocket::request::UserType::Me
     };
 
     print!("{:}", serde_json::to_string(&message).unwrap());
@@ -49,6 +48,7 @@ async fn main() -> std::io::Result<()> {
     let mut connection = database.clone().get().unwrap();
     database::create_database(&mut connection).unwrap_or_default();
     let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), database.clone()).start());
+    let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), database.clone()).start());
         
     HttpServer::new(move || {
         let config = get_configuration();
@@ -64,6 +64,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(JsonConfig::default().error_handler(json_error_handler))
             .app_data(Data::new(config))
             .app_data(auth_manager.clone())
+            .app_data(user_manager.clone())
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
             

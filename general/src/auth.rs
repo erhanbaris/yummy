@@ -61,12 +61,12 @@ pub fn parse_request(config: Arc<YummyConfig>, req: &HttpRequest) -> Option<Clai
     match req.cookies() {
         Ok(cookies) => match cookies.iter().find(|c| c.name() == config.salt_key) {
             Some(cookie) => validate_auth(config.clone(), cookie.value()),
-            None => match req.headers().get(&config.cookie_key) {
+            None => match req.headers().get(&config.api_key_name) {
                 Some(cookie) => validate_auth(config.clone(), cookie.to_str().unwrap_or_default()),
                 None => None,
             },
         },
-        Err(_) => match req.headers().get(&config.cookie_key) {
+        Err(_) => match req.headers().get(&config.api_key_name) {
             Some(cookie) => validate_auth(config.clone(), cookie.to_str().unwrap_or_default()),
             None => None,
         },
@@ -87,13 +87,13 @@ impl FromRequest for ApiIntegration {
             None => return Box::pin(async { Err(ErrorUnauthorized("unauthorized")) })
         };
 
-        let auth_key = match req.headers().get(&config.cookie_key) {
+        let api_key = match req.headers().get(&config.api_key_name) {
             Some(value) =>  match value.to_str() {
                 Ok(value) => value.to_string(),
                 Err(_) => return Box::pin(async { Err(ErrorUnauthorized("unauthorized")) })
             }
             None => match web::Query::<HashMap<String, String>>::from_query(req.query_string()) {
-                Ok(map) => match map.0.get(&config.cookie_key) {
+                Ok(map) => match map.0.get(&config.api_key_name) {
                     Some(value) => value.to_string(),
                     None => return Box::pin(async { Err(ErrorUnauthorized("unauthorized")) })
                 },
@@ -101,10 +101,50 @@ impl FromRequest for ApiIntegration {
             }
         };
 
-        if auth_key != config.integration_key {
+        if api_key != config.integration_key {
             return Box::pin(async { Err(ErrorUnauthorized("unauthorized")) })
         }
 
         Box::pin(async move { Ok(ApiIntegration) })
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct UserAuth {
+    pub user: UserId,
+    pub session: SessionId
+}
+
+use futures_util::future::{ok, err, Ready};
+
+impl FromRequest for UserAuth {
+    type Error = Error;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+
+        let config = match req.app_data::<Data<Arc<YummyConfig>>>() {
+            Some(config) => config,
+            None => return err(ErrorUnauthorized("unauthorized"))
+        };
+
+        let auth_key = match req.headers().get(&config.user_auth_key_name) {
+            Some(value) =>  match value.to_str() {
+                Ok(value) => value.to_string(),
+                Err(_) => return err(ErrorUnauthorized("unauthorized"))
+            }
+            None => match web::Query::<HashMap<String, String>>::from_query(req.query_string()) {
+                Ok(map) => match map.0.get(&config.user_auth_key_name) {
+                    Some(value) => value.to_string(),
+                    None => return err(ErrorUnauthorized("unauthorized"))
+                },
+                Err(_) => return err(ErrorUnauthorized("unauthorized"))
+            }
+        };
+
+        match validate_auth(config.as_ref().clone(), auth_key) {
+            Some(claims) => ok(UserAuth { user: claims.user.id, session: claims.user.session }),
+            None => err(ErrorUnauthorized("unauthorized"))
+        }
     }
 }
