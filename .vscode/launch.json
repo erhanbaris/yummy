@@ -49,7 +49,6 @@
                     "--no-run",
                     "--bin=server",
                     "--package=server",
-                    "--features=websocket-client,static-salt,test"
                 ],
                 "filter": {
                     "name": "server",

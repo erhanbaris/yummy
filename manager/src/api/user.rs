@@ -1,12 +1,13 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
-use database::model::PrivateUserModel;
+use database::model::{PrivateUserModel, UserUpdate};
 use general::config::YummyConfig;
+use thiserror::Error;
 
 use actix::{Context, Actor, Handler};
 use actix::prelude::Message;
-use database::{Pool, DatabaseTrait};
+use database::{Pool, DatabaseTrait, RowId};
 use validator::Validate;
 
 use general::model::UserId;
@@ -15,6 +16,40 @@ use general::model::UserId;
 #[rtype(result = "anyhow::Result<Option<PrivateUserModel>>")]
 pub struct GetUser {
     pub user: UserId
+}
+
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<()>")]
+pub struct UpdateUser {
+    pub user: UserId,
+    pub fields: Vec<UpdateAccountField>
+}
+
+#[derive(Debug)]
+pub enum UpdateAccountFieldType {
+    Name,
+    Password,
+    DeviceId,
+    CustomId,
+    Email
+}
+
+#[derive(Debug)]
+pub struct UpdateAccountField {
+    field: UpdateAccountFieldType,
+    value: Option<String>
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub enum UserError {
+    #[error("User not found")]
+    UserNotFound,
+
+    #[error("The user's email address cannot be changed.")]
+    CannotChangeEmail,
+
+    #[error("The password is too small")]
+    PasswordIsTooSmall
 }
 
 pub struct UserManager<DB: DatabaseTrait + ?Sized> {
@@ -46,6 +81,52 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUser>
     }
 }
 
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUser> for UserManager<DB> {
+    type Result = anyhow::Result<()>;
+
+    #[tracing::instrument(name="User::UpdateUser", skip(self, _ctx))]
+    fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
+        let mut updates = UserUpdate::default();
+        let user_id = RowId(model.user.0);
+
+        let mut connection = self.database.get()?;
+        let user = match DB::get_user(&mut connection, user_id)? {
+            Some(user) => user,
+            None => return Err(anyhow::anyhow!(UserError::UserNotFound))
+        };
+
+        for item in model.fields.iter() {
+            let UpdateAccountField { field, value } = item;
+
+            let value = value.as_ref().map(|item| &item[..]);
+            match field {
+                UpdateAccountFieldType::CustomId => updates.custom_id = Some(value),
+                UpdateAccountFieldType::DeviceId => updates.device_id = Some(value),
+                UpdateAccountFieldType::Name => updates.name = Some(value),
+                UpdateAccountFieldType::Password => {
+                    if let Some(password) = value {
+                        if password.trim().len() < 4 {
+                            return Err(anyhow::anyhow!(UserError::PasswordIsTooSmall))
+                        }
+                        updates.password = value
+                    }
+                },
+                UpdateAccountFieldType::Email => {
+                    if user.email.is_some() {
+                        return Err(anyhow::anyhow!(UserError::CannotChangeEmail));
+                    }
+                    updates.email = value
+                },
+            }
+        }
+
+        match DB::update_user(&mut connection, user_id, updates)? {
+            0 => Err(anyhow::anyhow!(UserError::UserNotFound)),
+            _ => Ok(())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use general::auth::validate_auth;
@@ -59,10 +140,10 @@ mod tests {
     use anyhow::Ok;
     use database::{create_database, create_connection};
 
-    use super::GetUser;
-    use super::UserManager;
+    use super::*;
     use crate::api::auth::AuthManager;
     use crate::api::auth::DeviceIdAuth;
+    use crate::api::auth::EmailAuth;
 
     fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>)> {
         let config = get_configuration();
@@ -89,8 +170,203 @@ mod tests {
         let user = validate_auth(config, token.0).unwrap();
         let user = user_manager.send(GetUser {
             user: user.user.id
+        }).await??.unwrap();
+        assert_eq!(user.device_id, Some("1234567890".to_string()));
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn fail_update_get_user_1() -> anyhow::Result<()> {
+        let (user_manager, _, _) = create_actor()?;
+        let result = user_manager.send(UpdateUser {
+            user: UserId::default(),
+            fields: Vec::new()
+        }).await?;
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn fail_update_get_user_2() -> anyhow::Result<()> {
+        let (user_manager, auth_manager, config) = create_actor()?;
+
+        let token = auth_manager.send(DeviceIdAuth::new("1234567890".to_string())).await??;
+        let user = validate_auth(config, token.0).unwrap();
+        let result = user_manager.send(UpdateUser {
+            user: user.user.id,
+            fields: Vec::new()
+        }).await?;
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn fail_update_get_user_3() -> anyhow::Result<()> {
+        let (user_manager, auth_manager, config) = create_actor()?;
+
+        let token = auth_manager.send(EmailAuth {
+            email: "erhanbaris@gmail.com".to_string(),
+            password: "erhan".to_string(),
+            if_not_exist_create: true
         }).await??;
-        assert!(user.is_some());
+        let user = validate_auth(config, token.0).unwrap();
+        let result = user_manager.send(UpdateUser {
+            user: user.user.id,
+            fields: vec![UpdateAccountField {
+                field: UpdateAccountFieldType::Email,
+                value: Some("erhanbaris@gmail.com".to_string())
+            }]
+        }).await?;
+
+        match result {
+            std::result::Result::Ok(_) => { assert!(false, "Expected 'CannotChangeEmail' error message"); },
+            Err(error) => { assert_eq!(error.downcast_ref::<UserError>().unwrap(), &UserError::CannotChangeEmail); }
+        };
+
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn fail_update_password() -> anyhow::Result<()> {
+        let (user_manager, auth_manager, config) = create_actor()?;
+
+        let token = auth_manager.send(EmailAuth {
+            email: "erhanbaris@gmail.com".to_string(),
+            password: "erhan".to_string(),
+            if_not_exist_create: true
+        }).await??;
+        let user_id = validate_auth(config, token.0).unwrap().user.id;
+
+        
+        let result = user_manager.send(UpdateUser {
+            user: user_id,
+            fields: vec![UpdateAccountField {
+                field: UpdateAccountFieldType::Password,
+                value: Some("123".to_string())
+            }]
+        }).await?;
+
+        match result {
+            std::result::Result::Ok(_) => { assert!(false, "Expected 'PasswordIsTooSmall' error message"); },
+            Err(error) => { assert_eq!(error.downcast_ref::<UserError>().unwrap(), &UserError::PasswordIsTooSmall); }
+        };
+
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn fail_update_email() -> anyhow::Result<()> {
+        let (user_manager, auth_manager, config) = create_actor()?;
+
+        let token = auth_manager.send(EmailAuth {
+            email: "erhanbaris@gmail.com".to_string(),
+            password: "erhan".to_string(),
+            if_not_exist_create: true
+        }).await??;
+        let user_id = validate_auth(config, token.0).unwrap().user.id;
+
+        
+        let result = user_manager.send(UpdateUser {
+            user: user_id,
+            fields: vec![UpdateAccountField {
+                field: UpdateAccountFieldType::Email,
+                value: None
+            }]
+        }).await?;
+
+        match result {
+            std::result::Result::Ok(_) => { assert!(false, "Expected 'CannotChangeEmail' error message"); },
+            Err(error) => { assert_eq!(error.downcast_ref::<UserError>().unwrap(), &UserError::CannotChangeEmail); }
+        };
+
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn update_get_user_1() -> anyhow::Result<()> {
+        let (user_manager, auth_manager, config) = create_actor()?;
+
+        let token = auth_manager.send(EmailAuth {
+            email: "erhanbaris@gmail.com".to_string(),
+            password: "erhan".to_string(),
+            if_not_exist_create: true
+        }).await??;
+        let user_id = validate_auth(config, token.0).unwrap().user.id;
+
+        let user = user_manager.send(GetUser {
+            user: user_id
+        }).await??.unwrap();
+        
+        assert_eq!(user.name, None);
+        assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
+        
+        user_manager.send(UpdateUser {
+            user: user_id,
+            fields: vec![UpdateAccountField {
+                field: UpdateAccountFieldType::Name,
+                value: Some("Erhan".to_string())
+            }]
+        }).await??;
+
+        let user = user_manager.send(GetUser {
+            user: user_id
+        }).await??.unwrap();
+
+        assert_eq!(user.name, Some("Erhan".to_string()));
+        assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
+
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn update_get_user_2() -> anyhow::Result<()> {
+        let (user_manager, auth_manager, config) = create_actor()?;
+
+        let token = auth_manager.send(EmailAuth {
+            email: "erhanbaris@gmail.com".to_string(),
+            password: "erhan".to_string(),
+            if_not_exist_create: true
+        }).await??;
+        let user_id = validate_auth(config, token.0).unwrap().user.id;
+
+        let user = user_manager.send(GetUser {
+            user: user_id
+        }).await??.unwrap();
+        
+        assert_eq!(user.name, None);
+        assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
+        
+        user_manager.send(UpdateUser {
+            user: user_id,
+            fields: vec![UpdateAccountField {
+                field: UpdateAccountFieldType::Name,
+                value: Some("Erhan".to_string())
+            }]
+        }).await??;
+
+        let user = user_manager.send(GetUser {
+            user: user_id
+        }).await??.unwrap();
+
+        assert_eq!(user.name, Some("Erhan".to_string()));
+        assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
+
+        /* Cleanup fields */
+        user_manager.send(UpdateUser {
+            user: user_id,
+            fields: vec![UpdateAccountField {
+                field: UpdateAccountFieldType::Name,
+                value: Some("Erhan".to_string())
+            }]
+        }).await??;
+
+        let user = user_manager.send(GetUser {
+            user: user_id
+        }).await??.unwrap();
+
+        assert_eq!(user.name, Some("Erhan".to_string()));
+        assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
+
         Ok(())
     }
 }

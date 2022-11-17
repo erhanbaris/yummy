@@ -16,7 +16,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Check server
-      run: cargo check -p server
+    - name: Check
+      run: cargo check
     - name: Tests
       run: cargo test --all

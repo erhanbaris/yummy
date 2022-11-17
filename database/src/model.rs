@@ -19,9 +19,9 @@ pub struct UserInsert<'a> {
 pub struct UserUpdate<'a> {
     pub name: Option<Option<&'a str>>,
     pub email: Option<&'a str>,
+    pub password: Option<&'a str>,
     pub device_id: Option<Option<&'a str>>,
     pub custom_id: Option<Option<&'a str>>,
-    pub password: Option<Option<&'a str>>,
 }
 
 #[derive(Default, Debug, Queryable)]
