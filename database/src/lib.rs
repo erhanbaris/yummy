@@ -4,11 +4,12 @@ extern crate diesel;
 pub mod auth;
 pub mod error;
 pub mod model;
-pub mod account;
+pub mod user;
 pub(crate) mod schema;
 
 use std::str::FromStr;
 
+use auth::AuthStoreTrait;
 use diesel::deserialize::FromSql;
 use diesel::serialize::IsNull;
 use diesel::r2d2::ConnectionManager;
@@ -19,11 +20,17 @@ use diesel::sql_types::*;
 use diesel::expression::AsExpression;
 
 use error::Error;
+use user::UserStoreTrait;
 use uuid::Uuid;
 
 pub type Connection = ConnectionManager<SqliteConnection>;
 pub type Pool = r2d2::Pool<Connection>;
 pub type PooledConnection = ::r2d2::PooledConnection<Connection>;
+
+pub trait DatabaseTrait: AuthStoreTrait + UserStoreTrait + Sized { }
+pub struct SqliteStore;
+
+impl DatabaseTrait for SqliteStore { }
 
 #[derive(Debug, Default, PartialEq, Eq)]
 #[derive(AsExpression, Copy, Clone, FromSqlRow)]
@@ -44,7 +51,7 @@ impl From<Uuid> for RowId {
 
 impl From<RowId> for Uuid {
     fn from(row: RowId) -> Self {
-        row.0.clone()
+        row.0
     }
 }
 

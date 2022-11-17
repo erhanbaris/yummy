@@ -1,6 +1,6 @@
 use actix::Addr;
 use actix_web::{web::{Data, Json}, HttpResponse};
-use database::auth::AuthStoreTrait;
+use database::DatabaseTrait;
 use general::{error::YummyError, web::GenericAnswer, auth::ApiIntegration};
 use manager::api::auth::{AuthManager, RefreshToken, DeviceIdAuth, EmailAuth, CustomIdAuth};
 use validator::Validate;
@@ -42,7 +42,7 @@ macro_rules! as_response {
     };
 }
 
-async fn auth<A: AuthStoreTrait + Unpin + 'static>(auth_type: AuthType, auth_manager: Data<Addr<AuthManager<A>>>) -> HttpResponse {
+async fn auth<DB: DatabaseTrait + Unpin + 'static>(auth_type: AuthType, auth_manager: Data<Addr<AuthManager<DB>>>) -> HttpResponse {
     match auth_type {
         AuthType::Email { email, password, if_not_exist_create } => as_response!(auth_manager, EmailAuth { email: email.clone(), password: password.clone(), if_not_exist_create }),
         AuthType::DeviceId { id } => as_response!(auth_manager, DeviceIdAuth::new(id.clone())),
@@ -51,7 +51,7 @@ async fn auth<A: AuthStoreTrait + Unpin + 'static>(auth_type: AuthType, auth_man
     }
 }
 
-pub async fn http_query<A: AuthStoreTrait + Unpin + 'static>(auth_manager: Data<Addr<AuthManager<A>>>, request: Result<Json<Request>, actix_web::Error>, _: ApiIntegration) -> Result<HttpResponse, YummyError> {
+pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(auth_manager: Data<Addr<AuthManager<DB>>>, request: Result<Json<Request>, actix_web::Error>, _: ApiIntegration) -> Result<HttpResponse, YummyError> {
     let response = match request?.0 {
         Request::Auth { auth_type } => auth(auth_type, auth_manager).await,
     };
@@ -82,7 +82,7 @@ pub mod tests {
         let config = ::general::config::get_configuration();
         let connection = create_connection(":memory:").unwrap();
         create_database(&mut connection.clone().get().unwrap()).unwrap();
-        let auth_manager = Data::new(AuthManager::<database::auth::AuthStore>::new(config.clone(), Arc::new(connection)).start());
+        let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection)).start());
 
         let query_cfg = QueryConfig::default()
             .error_handler(|err, _| {
@@ -95,7 +95,7 @@ pub mod tests {
             .app_data(Data::new(config))
             .app_data(auth_manager.clone())
 
-            .route("/v1/query", web::post().to(http_query::<database::auth::AuthStore>));
+            .route("/v1/query", web::post().to(http_query::<database::SqliteStore>));
     }
 
     #[actix_web::test]

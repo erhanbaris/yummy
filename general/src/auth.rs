@@ -92,7 +92,7 @@ impl FromRequest for ApiIntegration {
                 Ok(value) => value.to_string(),
                 Err(_) => return Box::pin(async { Err(ErrorUnauthorized("unauthorized")) })
             }
-            None => match web::Query::<HashMap<String, String>>::from_query(&req.query_string()) {
+            None => match web::Query::<HashMap<String, String>>::from_query(req.query_string()) {
                 Ok(map) => match map.0.get(&config.cookie_key) {
                     Some(value) => value.to_string(),
                     None => return Box::pin(async { Err(ErrorUnauthorized("unauthorized")) })
@@ -105,8 +105,6 @@ impl FromRequest for ApiIntegration {
             return Box::pin(async { Err(ErrorUnauthorized("unauthorized")) })
         }
 
-        Box::pin(async move {
-            return Ok(ApiIntegration);
-        })
+        Box::pin(async move { Ok(ApiIntegration) })
     }
 }

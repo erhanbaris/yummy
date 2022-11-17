@@ -25,7 +25,7 @@ pub struct YummyConfig {
 
 pub fn get_env_var<R: Clone + FromStr>(key: &str, default: R) -> R {
     env::var(key)
-        .map(|value| value.parse::<R>().unwrap_or(default.clone()))
+        .map(|value| value.parse::<R>().unwrap_or_else(|_| default.clone()))
         .unwrap_or(default)
 }
 

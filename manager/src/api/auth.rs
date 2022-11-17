@@ -6,8 +6,7 @@ use general::config::YummyConfig;
 
 use actix::{Context, Handler, Actor};
 use actix::prelude::Message;
-use database::{RowId, Pool};
-use database::auth::{AuthStore, AuthStoreTrait};
+use database::{RowId, Pool, DatabaseTrait};
 use thiserror::Error;
 use anyhow::anyhow;
 use validator::Validate;
@@ -90,13 +89,13 @@ pub enum AuthError {
     TokenNotValid
 }
 
-pub struct AuthManager<A: AuthStoreTrait> {
+pub struct AuthManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
-    _auth: PhantomData<A>
+    _auth: PhantomData<DB>
 }
 
-impl<A: AuthStoreTrait> AuthManager<A> {
+impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
     pub fn new(config: Arc<YummyConfig>, database: Arc<Pool>) -> Self {
         Self {
             config,
@@ -108,7 +107,7 @@ impl<A: AuthStoreTrait> AuthManager<A> {
     pub fn generate_token(&self, id: UserId, name: Option<String>, email: Option<String>, session: Option<SessionId>) -> anyhow::Result<SessionToken> {
         match generate_auth(self.config.clone(), UserJwt {
             id,
-            session: session.unwrap_or_else(|| SessionId::new()) ,
+            session: session.unwrap_or_else(SessionId::new) ,
             name,
             email
         }) {
@@ -118,18 +117,18 @@ impl<A: AuthStoreTrait> AuthManager<A> {
     }
 }
 
-impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Actor for AuthManager<A> {
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for AuthManager<DB> {
     type Context = Context<Self>;
 }
 
-impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<EmailAuth> for AuthManager<A> {
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAuth> for AuthManager<DB> {
     type Result = anyhow::Result<SessionToken>;
 
     #[tracing::instrument(name="Auth::ViaEmail", skip(self, _ctx))]
     fn handle(&mut self, auth: EmailAuth, _ctx: &mut Context<Self>) -> Self::Result {
 
-        let mut auth_store = AuthStore::new(self.database.get()?);
-        let user_info: Option<(RowId, Option<String>, String)> = auth_store.user_login_via_email(&auth.email)?;
+        let mut connection = self.database.get()?;
+        let user_info: Option<(RowId, Option<String>, String)> = DB::user_login_via_email(&mut connection, &auth.email)?;
 
         let (user_id, name) = match (user_info, auth.if_not_exist_create) {
             (Some((user_id, name, password)), _) => {
@@ -139,7 +138,7 @@ impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<EmailAuth> for Au
 
                 (user_id, name)
             },
-            (None, true) => (auth_store.create_user_via_email(&auth.email, &auth.password)?, None),
+            (None, true) => (DB::create_user_via_email(&mut connection, &auth.email, &auth.password)?, None),
             _ => return Err(anyhow!(AuthError::EmailOrPasswordNotValid))
         };
         
@@ -148,18 +147,18 @@ impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<EmailAuth> for Au
     }
 }
 
-impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<DeviceIdAuth> for AuthManager<A> {
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceIdAuth> for AuthManager<DB> {
     type Result = anyhow::Result<SessionToken>;
 
     #[tracing::instrument(name="Auth::ViaDeviceId", skip(self, _ctx))]
     fn handle(&mut self, auth: DeviceIdAuth, _ctx: &mut Context<Self>) -> Self::Result {
 
-        let mut auth_store = AuthStore::new(self.database.get()?);
-        let user_info: Option<(RowId, Option<String>, Option<String>)> = auth_store.user_login_via_device_id(&auth.id)?;
+        let mut connection = self.database.get()?;
+        let user_info: Option<(RowId, Option<String>, Option<String>)> = DB::user_login_via_device_id(&mut connection, &auth.id)?;
 
         let (user_id, name, email) = match user_info {
             Some((user_id, name, email)) => (user_id, name, email),
-            None => (auth_store.create_user_via_device_id(&auth.id)?, None, None)
+            None => (DB::create_user_via_device_id(&mut connection, &auth.id)?, None, None)
         };
         
         let response = self.generate_token(UserId(user_id.0), name, email, None)?;
@@ -167,18 +166,18 @@ impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<DeviceIdAuth> for
     }
 }
 
-impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<CustomIdAuth> for AuthManager<A> {
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomIdAuth> for AuthManager<DB> {
     type Result = anyhow::Result<SessionToken>;
 
     #[tracing::instrument(name="Auth::ViaCustomId", skip(self, _ctx))]
     fn handle(&mut self, auth: CustomIdAuth, _ctx: &mut Context<Self>) -> Self::Result {
 
-        let mut auth_store = AuthStore::new(self.database.get()?);
-        let user_info: Option<(RowId, Option<String>, Option<String>)> = auth_store.user_login_via_custom_id(&auth.id)?;
+        let mut connection = self.database.get()?;
+        let user_info: Option<(RowId, Option<String>, Option<String>)> = DB::user_login_via_custom_id(&mut connection, &auth.id)?;
 
         let (user_id, name, email) = match user_info {
             Some((user_id, name, email)) => (user_id, name, email),
-            None => (auth_store.create_user_via_custom_id(&auth.id)?, None, None)
+            None => (DB::create_user_via_custom_id(&mut connection, &auth.id)?, None, None)
         };
         
         let response = self.generate_token(UserId(user_id.0), name, email, None)?;
@@ -186,7 +185,7 @@ impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<CustomIdAuth> for
     }
 }
 
-impl<A: AuthStoreTrait + std::marker::Unpin + 'static> Handler<RefreshToken> for AuthManager<A> {
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshToken> for AuthManager<DB> {
     type Result = anyhow::Result<SessionToken>;
 
     #[tracing::instrument(name="Manager::Refresh", skip(self, _ctx))]
@@ -217,11 +216,11 @@ mod tests {
     use super::RefreshToken;
     use super::CustomIdAuth;
 
-    fn create_actor() -> anyhow::Result<(Addr<AuthManager<database::auth::AuthStore>>, Arc<YummyConfig>)> {
+    fn create_actor() -> anyhow::Result<(Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>)> {
         let config = get_configuration();
         let connection = create_connection(":memory:")?;
         create_database(&mut connection.clone().get()?)?;
-        Ok((AuthManager::<database::auth::AuthStore>::new(config.clone(), Arc::new(connection)).start(), config))
+        Ok((AuthManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection)).start(), config))
     }
 
     /* email unit tests */

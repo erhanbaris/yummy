@@ -43,7 +43,7 @@ impl FromStr for RoomId {
     type Err = uuid::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Uuid::parse_str(s).map(|id| RoomId(id))
+        Uuid::parse_str(s).map(RoomId)
     }
 }
 

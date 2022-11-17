@@ -7,6 +7,7 @@ use actix_web::HttpRequest;
 use actix_web::web::Data;
 use actix_web::web::Query;
 use actix_web::web::Payload;
+use database::DatabaseTrait;
 use general::auth::ApiIntegration;
 use general::error::YummyError;
 use general::model::WebsocketMessage;
@@ -24,7 +25,6 @@ use actix::WrapFuture;
 use actix::{ActorContext, Addr, Running, StreamHandler, fut};
 use actix_web::Result;
 use actix_web_actors::ws;
-use database::auth::AuthStoreTrait;
 use manager::api::auth::AuthManager;
 use manager::api::auth::DeviceIdAuth;
 use manager::api::auth::EmailAuth;
@@ -34,7 +34,7 @@ use validator::Validate;
 use general::config::YummyConfig;
 use crate::websocket::request::*;
 
-pub async fn websocket_endpoint<A: AuthStoreTrait + Unpin + 'static>(req: HttpRequest, stream: Payload, config: Data<Arc<YummyConfig>>, manager: Data<Addr<AuthManager<A>>>, connnection_info: Result<Query<ConnectionInfo>, actix_web::Error>, _: ApiIntegration) -> Result<actix_web::HttpResponse, YummyError> {
+pub async fn websocket_endpoint<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, stream: Payload, config: Data<Arc<YummyConfig>>, manager: Data<Addr<AuthManager<DB>>>, connnection_info: Result<Query<ConnectionInfo>, actix_web::Error>, _: ApiIntegration) -> Result<actix_web::HttpResponse, YummyError> {
     log::debug!("Websocket connection: {:?}", connnection_info);
     let config = config.get_ref();
 
@@ -44,11 +44,11 @@ pub async fn websocket_endpoint<A: AuthStoreTrait + Unpin + 'static>(req: HttpRe
     };
 
     ws::start(GameWebsocket::new(config.clone(), connnection_info, manager.get_ref().clone()), &req, stream)
-        .map_err(|error| YummyError::from(error))
+        .map_err(YummyError::from)
 }
 
-pub struct GameWebsocket<A: AuthStoreTrait + Unpin + 'static> {
-    auth: Addr<AuthManager<A>>,
+pub struct GameWebsocket<DB: DatabaseTrait + ?Sized + Unpin + 'static> {
+    auth: Addr<AuthManager<DB>>,
     hb: Instant,
     connection_info: ConnectionInfo,
     config: Arc<YummyConfig>,
@@ -94,11 +94,11 @@ macro_rules! message_validate {
     }
 }
 
-impl<A: AuthStoreTrait + Unpin + 'static> GameWebsocket<A> {
+impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
     pub fn new(
         config: Arc<YummyConfig>,
         connection_info: ConnectionInfo,
-        auth: Addr<AuthManager<A>>,
+        auth: Addr<AuthManager<DB>>,
     ) -> Self {
         Self {
             connection_info,
@@ -142,7 +142,7 @@ impl<A: AuthStoreTrait + Unpin + 'static> GameWebsocket<A> {
     }
 }
 
-impl<A: AuthStoreTrait + Unpin + 'static> Actor for GameWebsocket<A> {
+impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Actor for GameWebsocket<DB> {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
@@ -155,8 +155,8 @@ impl<A: AuthStoreTrait + Unpin + 'static> Actor for GameWebsocket<A> {
     }
 }
 
-impl<A: AuthStoreTrait + Unpin + 'static> StreamHandler<Result<ws::Message, ws::ProtocolError>>
-    for GameWebsocket<A>
+impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> StreamHandler<Result<ws::Message, ws::ProtocolError>>
+    for GameWebsocket<DB>
 {
     fn handle(&mut self, message: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         let result = match message {
@@ -185,7 +185,7 @@ impl<A: AuthStoreTrait + Unpin + 'static> StreamHandler<Result<ws::Message, ws::
     }
 }
 
-impl<A: AuthStoreTrait + Unpin + 'static> Handler<WebsocketMessage> for GameWebsocket<A> {
+impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Handler<WebsocketMessage> for GameWebsocket<DB> {
     type Result = ();
 
     fn handle(&mut self, message: WebsocketMessage, ctx: &mut Self::Context) {
@@ -220,7 +220,7 @@ mod tests {
             let config = ::general::config::get_configuration();
             let connection = create_connection(":memory:").unwrap();
             create_database(&mut connection.clone().get().unwrap()).unwrap();
-            let auth_manager = Data::new(AuthManager::<database::auth::AuthStore>::new(config.clone(), Arc::new(connection)).start());
+            let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection)).start());
 
             let query_cfg = QueryConfig::default()
                 .error_handler(|err, _| {
@@ -233,7 +233,7 @@ mod tests {
                 .app_data(query_cfg)
                 .app_data(JsonConfig::default().error_handler(json_error_handler))
                 .app_data(Data::new(config))
-                .route("/v1/socket", get().to(websocket_endpoint::<database::auth::AuthStore>))
+                .route("/v1/socket", get().to(websocket_endpoint::<database::SqliteStore>))
         })
     }
 

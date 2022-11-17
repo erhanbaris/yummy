@@ -4,9 +4,7 @@ mod websocket;
 use general::config::{get_configuration, get_env_var};
 use std::sync::Arc;
 
-
 use manager::api::auth::AuthManager;
-use tracing_subscriber;
 
 use actix_web::error::InternalError;
 
@@ -50,7 +48,7 @@ async fn main() -> std::io::Result<()> {
     let database = Arc::new(database::create_connection(&config.database_url).unwrap());
     let mut connection = database.clone().get().unwrap();
     database::create_database(&mut connection).unwrap_or_default();
-    let auth_manager = Data::new(AuthManager::<database::auth::AuthStore>::new(config.clone(), database.clone()).start());
+    let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), database.clone()).start());
         
     HttpServer::new(move || {
         let config = get_configuration();
@@ -70,8 +68,8 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Logger::default())
             
             //Websocket
-            .route("/v1/socket", web::get().to(websocket_endpoint::<database::auth::AuthStore>))
-            .route("/v1/query", web::post().to(http_query::<database::auth::AuthStore>))
+            .route("/v1/socket", web::get().to(websocket_endpoint::<database::SqliteStore>))
+            .route("/v1/query", web::post().to(http_query::<database::SqliteStore>))
     })
     .bind(server_bind)?
     .run()
