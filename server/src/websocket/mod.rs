@@ -56,9 +56,9 @@ pub struct GameWebsocket<DB: DatabaseTrait + ?Sized + Unpin + 'static> {
     config: Arc<YummyConfig>,
 }
 
-macro_rules! spawn_future {
-    ($fu: expr, $self: expr, $ctx: expr) => {
-        $fu
+macro_rules! send_and_spawn_future {
+    ($message: expr, $self: expr, $ctx: expr, $manager: expr) => {
+        $manager.send(message_validate!($message))
         .into_actor($self)
         .then(|res, _, ctx| {
 
@@ -89,9 +89,12 @@ macro_rules! spawn_future {
 
 macro_rules! message_validate {
     ($model: expr) => {
-        match $model.validate() {
-            Ok(_) => $model,
-            Err(e) => return Err(anyhow::anyhow!(e))
+        {
+            let message = $model;
+            match message.validate() {
+                Ok(_) => message,
+                Err(e) => return Err(anyhow::anyhow!(e))
+            }
         }
     }
 }
@@ -114,19 +117,19 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
 
     fn auth(&self, auth_type: AuthType, ctx: &mut ws::WebsocketContext<Self>) -> anyhow::Result<()> {
         match auth_type {
-            AuthType::Email { email, password, if_not_exist_create } => spawn_future!(self.auth.send(message_validate!(EmailAuthRequest { email: email.clone(), password: password.clone(), if_not_exist_create })), self, ctx),
-            AuthType::DeviceId { id } => spawn_future!(self.auth.send(message_validate!(DeviceIdAuthRequest::new(id.clone()))), self, ctx),
-            AuthType::CustomId { id } => spawn_future!(self.auth.send(message_validate!(CustomIdAuthRequest::new(id.clone()))), self, ctx),
-            AuthType::Refresh { token } => spawn_future!(self.auth.send(RefreshTokenRequest { token }), self, ctx),
+            AuthType::Email { email, password, if_not_exist_create } => send_and_spawn_future!(EmailAuthRequest { email, password, if_not_exist_create }, self, ctx, self.auth),
+            AuthType::DeviceId { id } => send_and_spawn_future!(DeviceIdAuthRequest::new(id), self, ctx, self.auth),
+            AuthType::CustomId { id } => send_and_spawn_future!(CustomIdAuthRequest::new(id), self, ctx, self.auth),
+            AuthType::Refresh { token } => send_and_spawn_future!(RefreshTokenRequest { token }, self, ctx, self.auth),
         };
         Ok(())
     }
 
-    fn user(&self, user_type: UserType, ctx: &mut ws::WebsocketContext<Self>) -> anyhow::Result<()> {
+    fn user(&self, user_type: UserType, _ctx: &mut ws::WebsocketContext<Self>) -> anyhow::Result<()> {
         match user_type {
             UserType::Me => todo!(),
-            UserType::Get { id } => todo!(),
-            UserType::Update { } => todo!(),
+            UserType::Get { user } => todo!(),
+            UserType::Update { name, email, password, device_id, custom_id } => todo!(),
         };
         Ok(())
     }
@@ -700,7 +703,7 @@ mod tests {
 
         let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
         assert!(!response.status);
-        assert_eq!(&response.result.unwrap(), "Token is not valid");
+        assert_eq!(&response.result.unwrap(), "token: Length should be between 275 to 1024 chars");
 
         Ok(())
     }

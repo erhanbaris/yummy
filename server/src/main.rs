@@ -18,12 +18,12 @@ use actix_web::{middleware, App, HttpServer, web::Data};
 use crate::websocket::websocket_endpoint;
 use crate::api::http_query;
 
-pub fn json_error_handler(err: JsonPayloadError, _req: &HttpRequest) -> actix_web::Error {
+pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::Error {
     let detail = err.to_string();
     let res = HttpResponse::BadRequest().body("error");
     log::error!("Json parse issue: {}", detail);
-
-    InternalError::from_response(err, res).into()
+    
+    InternalError::from_response("Json format is not valid. Please check request definition.", res).into()
 }
 
 #[actix_web::main]

@@ -18,17 +18,18 @@ pub struct UserInsert<'a> {
 
 #[derive(Default, Debug, AsChangeset)]
 #[diesel(table_name = user)]
-pub struct UserUpdate<'a> {
-    pub name: Option<Option<&'a str>>,
-    pub email: Option<&'a str>,
-    pub password: Option<&'a str>,
-    pub device_id: Option<Option<&'a str>>,
-    pub custom_id: Option<Option<&'a str>>,
+pub struct UserUpdate {
+    pub name: Option<Option<String>>,
+    pub email: Option<String>,
+    pub password: Option<String>,
+    pub device_id: Option<Option<String>>,
+    pub custom_id: Option<Option<String>>,
 }
 
-#[derive(Default, Debug, Queryable, Serialize, Deserialize)]
+#[derive(Default, Debug, Queryable, Serialize, Deserialize, PartialEq)]
 #[diesel(table_name = user)]
 pub struct PrivateUserModel {
+    pub id: RowId,
     pub name: Option<String>,
     pub email: Option<String>,
     pub device_id: Option<String>,

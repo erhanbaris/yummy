@@ -1,5 +1,6 @@
 use general::model::SessionToken;
 
+use manager::api::user::UpdateUserField;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -58,10 +59,14 @@ pub enum AuthType {
 pub enum UserType {
     Me,
     Get {
-        id: Uuid  
+        user: Uuid
     },
     Update {
-
+        name: Option<Option<String>>,
+        email: Option<String>,
+        password: Option<String>,
+        device_id: Option<Option<String>>,
+        custom_id: Option<Option<String>>,
     }
 }
 

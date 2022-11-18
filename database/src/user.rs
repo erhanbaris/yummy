@@ -23,7 +23,7 @@ impl UserStoreTrait for SqliteStore {
     #[tracing::instrument(name="Get user", skip(connection))]
     fn get_user<'a>(connection: &mut PooledConnection, user_id: RowId) -> anyhow::Result<Option<PrivateUserModel>> {
         Ok(user::table
-            .select((user::name, user::email, user::device_id, user::custom_id, user::insert_date, user::last_login_date))
+            .select((user::id, user::name, user::email, user::device_id, user::custom_id, user::insert_date, user::last_login_date))
             .filter(user::id.eq(user_id))
             .get_result::<PrivateUserModel>(connection)
             .optional()?)
@@ -125,7 +125,7 @@ mod tests {
         let mut connection = db_conection()?;
 
         assert_eq!(SqliteStore::update_user(&mut connection, RowId(uuid::Uuid::new_v4()), UserUpdate {
-            name: Some(Some("123456")),
+            name: Some(Some("123456".to_string())),
             ..Default::default()
         })?, 0);
         Ok(())
@@ -136,7 +136,7 @@ mod tests {
         let mut connection = db_conection()?;
 
         assert_eq!(SqliteStore::update_user(&mut connection, RowId(uuid::Uuid::nil()), UserUpdate {
-            name: Some(Some("123456")),
+            name: Some(Some("123456".to_string())),
             ..Default::default()
         })?, 0);
         Ok(())
@@ -148,7 +148,7 @@ mod tests {
 
         let user_id = SqliteStore::create_user_via_custom_id(&mut connection, "123456789")?;
         assert_eq!(SqliteStore::update_user(&mut connection, user_id, UserUpdate {
-            name: Some(Some("123456")),
+            name: Some(Some("123456".to_string())),
             ..Default::default()
         })?, 1);
         Ok(())

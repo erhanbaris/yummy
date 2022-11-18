@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use database::model::{PrivateUserModel, UserUpdate};
 use general::config::YummyConfig;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use actix::{Context, Actor, Handler};
@@ -18,25 +19,40 @@ pub struct GetUser {
     pub user: UserId
 }
 
-#[derive(Message, Validate, Debug)]
+#[derive(Message, Validate, Debug, Default)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct UpdateUser {
     pub user: UserId,
-    pub fields: Vec<UpdateAccountField>
+    pub name: Option<Option<String>>,
+    #[validate(email)]
+    pub email: Option<String>,
+    pub password: Option<String>,
+    pub device_id: Option<Option<String>>,
+    pub custom_id: Option<Option<String>>,
 }
 
-#[derive(Debug)]
-pub enum UpdateAccountFieldType {
+#[derive(Debug, Serialize, Deserialize)]
+pub enum UpdateUserFieldType {
+    #[serde(rename = "name")]
     Name,
+
+    #[serde(rename = "password")]
     Password,
+
+    #[serde(rename = "device_id")]
     DeviceId,
+
+    #[serde(rename = "custom_id")]
     CustomId,
+
+    #[serde(rename = "email")]
     Email
 }
 
-#[derive(Debug)]
-pub struct UpdateAccountField {
-    field: UpdateAccountFieldType,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateUserField {
+    #[serde(rename = "type")]
+    field: UpdateUserFieldType,
     value: Option<String>
 }
 
@@ -49,7 +65,10 @@ pub enum UserError {
     CannotChangeEmail,
 
     #[error("The password is too small")]
-    PasswordIsTooSmall
+    PasswordIsTooSmall,
+
+    #[error("Update information missing")]
+    UpdateInformationMissing
 }
 
 pub struct UserManager<DB: DatabaseTrait + ?Sized> {
@@ -91,6 +110,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
 
     #[tracing::instrument(name="User::UpdateUser", skip(self, _ctx))]
     fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
+
+        if model.custom_id.is_none() && model.device_id.is_none() && model.email.is_none() && model.name.is_none() && model.password.is_none() {
+            return Err(anyhow::anyhow!(UserError::UpdateInformationMissing));
+        }
+
         let mut updates = UserUpdate::default();
         let user_id = RowId(model.user.0);
 
@@ -100,29 +124,22 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
             None => return Err(anyhow::anyhow!(UserError::UserNotFound))
         };
 
-        for item in model.fields.iter() {
-            let UpdateAccountField { field, value } = item;
+        updates.custom_id = model.custom_id;
+        updates.device_id = model.device_id;
+        updates.name = model.name;
 
-            let value = value.as_ref().map(|item| &item[..]);
-            match field {
-                UpdateAccountFieldType::CustomId => updates.custom_id = Some(value),
-                UpdateAccountFieldType::DeviceId => updates.device_id = Some(value),
-                UpdateAccountFieldType::Name => updates.name = Some(value),
-                UpdateAccountFieldType::Password => {
-                    if let Some(password) = value {
-                        if password.trim().len() < 4 {
-                            return Err(anyhow::anyhow!(UserError::PasswordIsTooSmall))
-                        }
-                        updates.password = value
-                    }
-                },
-                UpdateAccountFieldType::Email => {
-                    if user.email.is_some() {
-                        return Err(anyhow::anyhow!(UserError::CannotChangeEmail));
-                    }
-                    updates.email = value
-                },
+        if let Some(password) = model.password {
+            if password.trim().len() < 4 {
+                return Err(anyhow::anyhow!(UserError::PasswordIsTooSmall))
             }
+            updates.password = Some(password);
+        }
+
+        if let Some(email) = model.email {
+            if user.email.is_some() {
+                return Err(anyhow::anyhow!(UserError::CannotChangeEmail));
+            }
+            updates.email = Some(email)
         }
 
         match DB::update_user(&mut connection, user_id, updates)? {
@@ -185,7 +202,7 @@ mod tests {
         let (user_manager, _, _) = create_actor()?;
         let result = user_manager.send(UpdateUser {
             user: UserId::default(),
-            fields: Vec::new()
+            ..Default::default()
         }).await?;
         assert!(result.is_err());
         Ok(())
@@ -199,7 +216,7 @@ mod tests {
         let user = validate_auth(config, token.0).unwrap();
         let result = user_manager.send(UpdateUser {
             user: user.user.id,
-            fields: Vec::new()
+            ..Default::default()
         }).await?;
         assert!(result.is_err());
         Ok(())
@@ -217,15 +234,36 @@ mod tests {
         let user = validate_auth(config, token.0).unwrap();
         let result = user_manager.send(UpdateUser {
             user: user.user.id,
-            fields: vec![UpdateAccountField {
-                field: UpdateAccountFieldType::Email,
-                value: Some("erhanbaris@gmail.com".to_string())
-            }]
+            email: Some("erhanbaris@gmail.com".to_string()),
+            ..Default::default()
         }).await?;
 
         match result {
             std::result::Result::Ok(_) => { assert!(false, "Expected 'CannotChangeEmail' error message"); },
             Err(error) => { assert_eq!(error.downcast_ref::<UserError>().unwrap(), &UserError::CannotChangeEmail); }
+        };
+
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn fail_update_get_user_4() -> anyhow::Result<()> {
+        let (user_manager, auth_manager, config) = create_actor()?;
+
+        let token = auth_manager.send(EmailAuthRequest {
+            email: "erhanbaris@gmail.com".to_string(),
+            password: "erhan".to_string(),
+            if_not_exist_create: true
+        }).await??;
+        let user = validate_auth(config, token.0).unwrap();
+        let result = user_manager.send(UpdateUser {
+            user: user.user.id,
+            ..Default::default()
+        }).await?;
+
+        match result {
+            std::result::Result::Ok(_) => { assert!(false, "Expected 'UpdateInformationMissing' error message"); },
+            Err(error) => { assert_eq!(error.downcast_ref::<UserError>().unwrap(), &UserError::UpdateInformationMissing); }
         };
 
         Ok(())
@@ -245,10 +283,8 @@ mod tests {
         
         let result = user_manager.send(UpdateUser {
             user: user_id,
-            fields: vec![UpdateAccountField {
-                field: UpdateAccountFieldType::Password,
-                value: Some("123".to_string())
-            }]
+            password: Some("123".to_string()),
+            ..Default::default()
         }).await?;
 
         match result {
@@ -273,10 +309,8 @@ mod tests {
         
         let result = user_manager.send(UpdateUser {
             user: user_id,
-            fields: vec![UpdateAccountField {
-                field: UpdateAccountFieldType::Email,
-                value: None
-            }]
+            email: Some("erhanbaris@gmail.com".to_string()),
+            ..Default::default()
         }).await?;
 
         match result {
@@ -307,10 +341,8 @@ mod tests {
         
         user_manager.send(UpdateUser {
             user: user_id,
-            fields: vec![UpdateAccountField {
-                field: UpdateAccountFieldType::Name,
-                value: Some("Erhan".to_string())
-            }]
+            name: Some(Some("Erhan".to_string())),
+            ..Default::default()
         }).await??;
 
         let user = user_manager.send(GetUser {
@@ -343,10 +375,8 @@ mod tests {
         
         user_manager.send(UpdateUser {
             user: user_id,
-            fields: vec![UpdateAccountField {
-                field: UpdateAccountFieldType::Name,
-                value: Some("Erhan".to_string())
-            }]
+            name: Some(Some("Erhan".to_string())),
+            ..Default::default()
         }).await??;
 
         let user = user_manager.send(GetUser {
@@ -359,10 +389,8 @@ mod tests {
         /* Cleanup fields */
         user_manager.send(UpdateUser {
             user: user_id,
-            fields: vec![UpdateAccountField {
-                field: UpdateAccountFieldType::Name,
-                value: Some("Erhan".to_string())
-            }]
+            name: Some(Some("Erhan".to_string())),
+            ..Default::default()
         }).await??;
 
         let user = user_manager.send(GetUser {

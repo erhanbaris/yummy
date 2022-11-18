@@ -1,8 +1,8 @@
 use actix::Addr;
 use actix_web::{web::{Data, Json}, HttpResponse};
-use database::{DatabaseTrait, model::PrivateUserModel};
+use database::DatabaseTrait;
 use general::{error::YummyError, web::GenericAnswer, auth::{ApiIntegration, UserAuth}, model::UserId};
-use manager::api::{auth::{AuthManager, RefreshTokenRequest, DeviceIdAuthRequest, EmailAuthRequest, CustomIdAuthRequest, AuthError}, user::{UserManager, GetUser}};
+use manager::api::{auth::{AuthManager, RefreshTokenRequest, DeviceIdAuthRequest, EmailAuthRequest, CustomIdAuthRequest, AuthError}, user::{UserManager, GetUser, UpdateUser}};
 use validator::Validate;
 
 use crate::websocket::request::{Request, AuthType, UserType};
@@ -28,8 +28,9 @@ macro_rules! as_ok {
 macro_rules! as_response {
     ($auth_manager: expr, $message: expr) => {
         {
-            match $message.validate() {
-                Ok(_) => match $auth_manager.get_ref().send($message).await {
+            let message = $message;
+            match message.validate() {
+                Ok(_) => match $auth_manager.get_ref().send(message).await {
                     Ok(actix_result) => match actix_result {
                         Ok(result) => as_ok!(result),
                         Err(error) => as_error!(error)
@@ -44,10 +45,10 @@ macro_rules! as_response {
 
 async fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type: AuthType, auth_manager: Data<Addr<AuthManager<DB>>>) -> HttpResponse {
     match auth_type {
-        AuthType::Email { email, password, if_not_exist_create } => as_response!(auth_manager, EmailAuthRequest { email: email.clone(), password: password.clone(), if_not_exist_create }),
-        AuthType::DeviceId { id } => as_response!(auth_manager, DeviceIdAuthRequest::new(id.clone())),
-        AuthType::CustomId { id } => as_response!(auth_manager, CustomIdAuthRequest::new(id.clone())),
-        AuthType::Refresh { token } => as_response!(auth_manager, RefreshTokenRequest { token: token.clone() }),
+        AuthType::Email { email, password, if_not_exist_create } => as_response!(auth_manager, EmailAuthRequest { email, password, if_not_exist_create }),
+        AuthType::DeviceId { id } => as_response!(auth_manager, DeviceIdAuthRequest::new(id)),
+        AuthType::CustomId { id } => as_response!(auth_manager, CustomIdAuthRequest::new(id)),
+        AuthType::Refresh { token } => as_response!(auth_manager, RefreshTokenRequest { token }),
     }
 }
 
@@ -57,8 +58,11 @@ async fn process_user<DB: DatabaseTrait + Unpin + 'static>(user_type: UserType, 
             Some(auth) => as_response!(user_manager, GetUser { user: auth.user }),
             None => as_error!(AuthError::TokenNotValid)
         },
-        UserType::Get { id } => as_response!(user_manager, GetUser { user: UserId(id) }),
-        UserType::Update {  } => todo!(),
+        UserType::Get { user } => as_response!(user_manager, GetUser { user: UserId(user) }),
+        UserType::Update { name, email, password, device_id, custom_id } => match user {
+            Some(auth) => as_response!(user_manager, UpdateUser { user: auth.user, name, email, password, device_id, custom_id }),
+            None => as_error!(AuthError::TokenNotValid)
+        },
     }
 }
 
@@ -79,6 +83,7 @@ pub mod tests {
     use actix_web::error::InternalError;
     use actix_web::web::{QueryConfig, JsonConfig};
     use actix_web::{web, web::Data, App};
+    use database::model::PrivateUserModel;
     use database::{create_database, create_connection};
     use general::web::Answer;
     use general::web::GenericAnswer;
@@ -298,4 +303,237 @@ pub mod tests {
         assert!(res.result.is_some());
         assert!(!res.result.unwrap().is_empty());
     }
+
+    #[actix_web::test]
+    async fn me() {
+        let app = test::init_service(App::new().configure(config)).await;
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .set_json(json!({
+                "type": "Auth",
+                "auth_type": "DeviceId",
+                "id": "1234567890"
+            }))
+            .to_request();
+
+        let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+        assert!(res.result.is_some());
+
+        let token = res.result.as_ref().unwrap();
+        assert!(!token.is_empty());
+
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .set_json(json!({
+                "type": "User",
+                "user_type": "Me"
+            }))
+            .to_request();
+
+        let res: GenericAnswer<serde_json::Value> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+        assert!(res.result.is_some());
+    }
+
+    #[actix_web::test]
+    async fn fail_me() {
+        let app = test::init_service(App::new().configure(config)).await;
+        
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .set_json(json!({
+                "type": "User",
+                "user_type": "Me"
+            }))
+            .to_request();
+
+        let res: GenericAnswer<serde_json::Value> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, false);
+    }
+
+    #[actix_web::test]
+    async fn get_user() {
+        let app = test::init_service(App::new().configure(config)).await;
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .set_json(json!({
+                "type": "Auth",
+                "auth_type": "DeviceId",
+                "id": "1234567890"
+            }))
+            .to_request();
+
+        let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+        assert!(res.result.is_some());
+
+        let token = res.result.as_ref().unwrap();
+        assert!(!token.is_empty());
+
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .set_json(json!({
+                "type": "User",
+                "user_type": "Me"
+            }))
+            .to_request();
+
+        let res: GenericAnswer<PrivateUserModel> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+        let original_user_model = res.result.unwrap();
+
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .set_json(json!({
+                "type": "User",
+                "user_type": "Get",
+                "user": original_user_model.id.to_string()
+            }))
+            .to_request();
+
+        let res: GenericAnswer<PrivateUserModel> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+        let fetched_user_model = res.result.unwrap();
+
+        assert_eq!(original_user_model, fetched_user_model);
+    
+    }
+
+    #[actix_web::test]
+    async fn fail_get_user() {
+        let app = test::init_service(App::new().configure(config)).await;
+        
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .set_json(json!({
+                "type": "User",
+                "user_type": "Me"
+            }))
+            .to_request();
+
+        let res: GenericAnswer<serde_json::Value> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, false);
+    }
+
+    #[actix_web::test]
+    async fn fail_update_user_1() {
+        let app = test::init_service(App::new().configure(config)).await;
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .set_json(json!({
+                "type": "Auth",
+                "auth_type": "DeviceId",
+                "id": "1234567890"
+            }))
+            .to_request();
+
+        let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+        assert!(res.result.is_some());
+
+        let token = res.result.as_ref().unwrap();
+        assert!(!token.is_empty());
+
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .set_json(json!({
+                "type": "User",
+                "user_type": "Update",
+                "updates": []
+            }))
+            .to_request();
+
+        let res: Answer = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, false);
+    }
+
+    #[actix_web::test]
+    async fn fail_update_user_2() {
+        let app = test::init_service(App::new().configure(config)).await;
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .set_json(json!({
+                "type": "Auth",
+                "auth_type": "DeviceId",
+                "id": "1234567890"
+            }))
+            .to_request();
+
+        let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+        assert!(res.result.is_some());
+
+        let token = res.result.as_ref().unwrap();
+        assert!(!token.is_empty());
+
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .set_json(json!({
+                "type": "User",
+                "user_type": "Update",
+                "updates": [{}]
+            }))
+            .to_request();
+
+        let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, false);
+    }
+
+
+    #[actix_web::test]
+    async fn fail_update_user_3() {
+        let app = test::init_service(App::new().configure(config)).await;
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .set_json(json!({
+                "type": "Auth",
+                "auth_type": "Email",
+                "email": "erhanbaris@gmail.com",
+                "password": "erhan",
+                "create": true
+            }))
+            .to_request();
+
+        let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+        assert!(res.result.is_some());
+
+        let token = res.result.as_ref().unwrap();
+        assert!(!token.is_empty());
+
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .set_json(json!({
+                "type": "User",
+                "user_type": "Update",
+                "password": "baris"
+            }))
+            .to_request();
+
+        let res: Answer = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+
+        let req = test::TestRequest::post().uri("/v1/query")
+        .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+        .set_json(json!({
+            "type": "Auth",
+            "auth_type": "Email",
+            "email": "erhanbaris@gmail.com",
+            "password": "baris",
+            "create": false
+        }))
+        .to_request();
+
+    let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+    assert_eq!(res.status, true);
+    assert!(res.result.is_some());
+    }
+
 }

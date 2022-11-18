@@ -20,6 +20,7 @@ use diesel::sql_types::*;
 use diesel::expression::AsExpression;
 
 use error::Error;
+use serde::{Deserialize, Serialize};
 use user::UserStoreTrait;
 use uuid::Uuid;
 
@@ -32,7 +33,7 @@ pub struct SqliteStore;
 
 impl DatabaseTrait for SqliteStore { }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[derive(AsExpression, Copy, Clone, FromSqlRow)]
 #[diesel(sql_type = Text)]
 pub struct RowId(pub uuid::Uuid);

@@ -85,7 +85,7 @@ pub enum AuthError {
     #[error("Session token could not generated")]
     TokenCouldNotGenerated,
     
-    #[error("Token is not valid")]
+    #[error("User token is not valid")]
     TokenNotValid
 }
 
