@@ -487,7 +487,7 @@ pub mod tests {
 
 
     #[actix_web::test]
-    async fn fail_update_user_3() {
+    async fn update_user_1() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
             .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
@@ -536,4 +536,92 @@ pub mod tests {
     assert!(res.result.is_some());
     }
 
+
+    #[actix_web::test]
+    async fn update_user_2() {
+        let app = test::init_service(App::new().configure(config)).await;
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .set_json(json!({
+                "type": "Auth",
+                "auth_type": "Email",
+                "email": "erhanbaris@gmail.com",
+                "password": "erhan",
+                "create": true
+            }))
+            .to_request();
+
+        let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+        assert!(res.result.is_some());
+
+        let token = res.result.as_ref().unwrap();
+        assert!(!token.is_empty());
+
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .set_json(json!({
+                "type": "User",
+                "user_type": "Update",
+                "name": "Erhan BARIS",
+                "custom_id": "1234567890",
+                "device_id": "987654321"
+            }))
+            .to_request();
+
+        let res: Answer = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+
+        let req = test::TestRequest::post().uri("/v1/query")
+        .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+        .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+        .set_json(json!({
+            "type": "User",
+            "user_type": "Me"
+        }))
+        .to_request();
+
+        let res: GenericAnswer<PrivateUserModel> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+        assert!(res.result.is_some());
+
+        let me = res.result.unwrap();
+        assert_eq!(me.custom_id, Some("1234567890".to_string()));
+        assert_eq!(me.device_id, Some("987654321".to_string()));
+        assert_eq!(me.name, Some("Erhan BARIS".to_string()));
+        assert_eq!(me.email, Some("erhanbaris@gmail.com".to_string()));
+        
+        /* Cleanup fields */        
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .set_json(json!({
+                "type": "User",
+                "user_type": "Update",
+                "custom_id": "",
+                "device_id": ""
+            }))
+            .to_request();
+
+        let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+
+        let req = test::TestRequest::post().uri("/v1/query")
+        .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+        .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+        .set_json(json!({
+            "type": "User",
+            "user_type": "Me"
+        }))
+        .to_request();
+
+        let res: GenericAnswer<PrivateUserModel> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+        assert!(res.result.is_some());
+
+        let me = res.result.unwrap();
+        assert_eq!(me.custom_id, Some("".to_string()));
+        assert_eq!(me.device_id, Some("".to_string()));
+    }
 }
