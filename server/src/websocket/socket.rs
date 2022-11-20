@@ -125,11 +125,3 @@ impl<M: Actor + GameManagerTrait> StreamHandler<Result<ws::Message, ws::Protocol
         }
     }
 }
-
-#[derive(Debug, Deserialize, Default)]
-pub struct ConnectionInfo {
-    #[serde(default)]
-    pub id: Option<usize>,
-    pub key: String,
-}
-

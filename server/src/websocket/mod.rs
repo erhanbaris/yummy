@@ -1,50 +1,40 @@
-pub(crate) mod request;
-pub(crate) mod response;
 #[cfg(test)]
 mod client;
 
 use actix_web::HttpRequest;
 use actix_web::web::Data;
-use actix_web::web::Query;
 use actix_web::web::Payload;
 use database::DatabaseTrait;
 use general::auth::ApiIntegration;
+use general::auth::UserAuth;
 use general::error::YummyError;
 use general::model::WebsocketMessage;
 use general::web::GenericAnswer;
-use manager::api::auth::CustomIdAuthRequest;
 use manager::api::user::UserManager;
+use std::cell::RefCell;
 use std::sync::Arc;
 use std::time::Instant;
+
 
 use actix::Actor;
 use actix::AsyncContext;
 use actix::ActorFutureExt;
-use actix::ContextFutureSpawner;
 use actix::Handler;
 use actix::WrapFuture;
 use actix::{ActorContext, Addr, Running, StreamHandler, fut};
 use actix_web::Result;
 use actix_web_actors::ws;
 use manager::api::auth::AuthManager;
-use manager::api::auth::DeviceIdAuthRequest;
-use manager::api::auth::EmailAuthRequest;
-use manager::api::auth::RefreshTokenRequest;
-use validator::Validate;
 
 use general::config::YummyConfig;
-use crate::websocket::request::*;
+use crate::api::process_auth;
+use crate::api::process_user;
+use crate::api::request::*;
 
-pub async fn websocket_endpoint<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, stream: Payload, config: Data<Arc<YummyConfig>>, auth_manager: Data<Addr<AuthManager<DB>>>, user_manager: Data<Addr<UserManager<DB>>>, connnection_info: Result<Query<ConnectionInfo>, actix_web::Error>, _: ApiIntegration) -> Result<actix_web::HttpResponse, YummyError> {
-    log::debug!("Websocket connection: {:?}", connnection_info);
+pub async fn websocket_endpoint<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, stream: Payload, config: Data<Arc<YummyConfig>>, auth_manager: Data<Addr<AuthManager<DB>>>, user_manager: Data<Addr<UserManager<DB>>>, _: ApiIntegration) -> Result<actix_web::HttpResponse, YummyError> {
     let config = config.get_ref();
 
-    let connnection_info = match connnection_info {
-        Ok(connnection_info) => connnection_info.into_inner(),
-        Err(error) => return Err(YummyError::WebsocketConnectArgument(error.to_string()))
-    };
-
-    ws::start(GameWebsocket::new(config.clone(), connnection_info, auth_manager.get_ref().clone(), user_manager.get_ref().clone()), &req, stream)
+    ws::start(GameWebsocket::new(config.clone(), auth_manager.get_ref().clone(), user_manager.get_ref().clone()), &req, stream)
         .map_err(YummyError::from)
 }
 
@@ -52,98 +42,62 @@ pub struct GameWebsocket<DB: DatabaseTrait + ?Sized + Unpin + 'static> {
     auth: Addr<AuthManager<DB>>,
     user: Addr<UserManager<DB>>,
     hb: Instant,
-    connection_info: ConnectionInfo,
+    user_auth: RefCell<Option<UserAuth>>,
     config: Arc<YummyConfig>,
-}
-
-macro_rules! send_and_spawn_future {
-    ($message: expr, $self: expr, $ctx: expr, $manager: expr) => {
-        $manager.send(message_validate!($message))
-        .into_actor($self)
-        .then(|res, _, ctx| {
-
-            let response = match res {
-                Ok(result) => match result {
-                    Ok(result) => String::from(GenericAnswer {
-                        status: true,
-                        result: Some(result),
-                    }),
-                    Err(error) => String::from(GenericAnswer {
-                        status: false,
-                        result: Some(error.to_string()),
-                    })
-                },
-                Err(_) => String::from(GenericAnswer {
-                    status: false,
-                    result: Some("Unexpected internal error"),
-                })
-            };
-
-            ctx.text(String::from(response));
-            fut::ready(())
-            
-        })
-        .spawn($ctx)
-    };
-}
-
-macro_rules! message_validate {
-    ($model: expr) => {
-        {
-            let message = $model;
-            match message.validate() {
-                Ok(_) => message,
-                Err(e) => return Err(anyhow::anyhow!(e))
-            }
-        }
-    }
 }
 
 impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
     pub fn new(
         config: Arc<YummyConfig>,
-        connection_info: ConnectionInfo,
         auth: Addr<AuthManager<DB>>,
         user: Addr<UserManager<DB>>,
     ) -> Self {
         Self {
-            connection_info,
             hb: Instant::now(),
             auth,
             user,
             config,
+            user_auth: RefCell::new(None)
         }
-    }
-
-    fn auth(&self, auth_type: AuthType, ctx: &mut ws::WebsocketContext<Self>) -> anyhow::Result<()> {
-        match auth_type {
-            AuthType::Email { email, password, if_not_exist_create } => send_and_spawn_future!(EmailAuthRequest { email, password, if_not_exist_create }, self, ctx, self.auth),
-            AuthType::DeviceId { id } => send_and_spawn_future!(DeviceIdAuthRequest::new(id), self, ctx, self.auth),
-            AuthType::CustomId { id } => send_and_spawn_future!(CustomIdAuthRequest::new(id), self, ctx, self.auth),
-            AuthType::Refresh { token } => send_and_spawn_future!(RefreshTokenRequest { token }, self, ctx, self.auth),
-        };
-        Ok(())
-    }
-
-    fn user(&self, user_type: UserType, _ctx: &mut ws::WebsocketContext<Self>) -> anyhow::Result<()> {
-        match user_type {
-            UserType::Me => todo!(),
-            UserType::Get { user } => todo!(),
-            UserType::Update { name, email, password, device_id, custom_id } => todo!(),
-        };
-        Ok(())
     }
 
     fn execute_message(&self, message: String, ctx: &mut ws::WebsocketContext<Self>) -> anyhow::Result<()> {
-        match serde_json::from_str::<Request>(&message) {
-            Ok(message) => {
-                match message {
-                    Request::Auth { auth_type } => self.auth(auth_type, ctx),
-                    Request::User { user_type } => self.user(user_type, ctx)
+        let message = match serde_json::from_str::<Request>(&message) {
+            Ok(message) => message,
+            Err(_) => return Err(anyhow::anyhow!("Wrong message format"))
+        };
+
+        let auth_manager = self.auth.clone();
+        let user_manager = self.user.clone();
+
+        let fut = Box::pin(async move {
+
+            let a: Option<UserAuth> = None;
+
+            let result = match message {
+                Request::Auth { auth_type } => process_auth(auth_type, auth_manager).await,
+                Request::User { user_type } => process_user(user_type, user_manager, &a).await
+            };
+            result
+        });
+
+        let actor_future = fut
+            .into_actor(self)
+            .then(move |result, _, ctx| {
+                match result {
+                    Ok(message) => ctx.text(message),
+                    Err(error) => {
+                        tracing::error!("{:?}", error);
+                        ctx.text("{\"status\":false,\"result\":\"Internel error\"}")
+                    }
                 }
-            }
-            Err(_) => Err(anyhow::anyhow!("Wrong message format"))
-        }
+                fut::ready(())
+            });
+
+        // Spawns a future into the context.
+        ctx.spawn(actor_future);
+
+        Ok(())
     }
 
     fn hb(&self, ctx: &mut ws::WebsocketContext<Self>) {

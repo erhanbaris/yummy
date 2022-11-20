@@ -28,8 +28,8 @@ pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::
 async fn main() -> std::io::Result<()> {
     let server_bind = get_env_var("SERVER_BIND", "0.0.0.0:9090".to_string());
     let rust_log_level = get_env_var("RUST_LOG", "debug,backend,actix_web=debug".to_string());
-    let message = crate::websocket::request::Request::User {
-        user_type: crate::websocket::request::UserType::Me
+    let message = crate::api::request::Request::User {
+        user_type: crate::api::request::UserType::Me
     };
 
     print!("{:}", serde_json::to_string(&message).unwrap());
@@ -68,7 +68,7 @@ async fn main() -> std::io::Result<()> {
             
             //Websocket
             .route("/v1/socket", web::get().to(crate::websocket::websocket_endpoint::<database::SqliteStore>))
-            .route("/v1/query", web::post().to(crate::api::http_query::<database::SqliteStore>))
+            .route("/v1/query", web::post().to(crate::api::http::http_query::<database::SqliteStore>))
     })
     .bind(server_bind)?
     .run()

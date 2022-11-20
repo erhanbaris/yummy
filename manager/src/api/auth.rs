@@ -36,6 +36,14 @@ pub struct RefreshTokenRequest {
     pub token: String
 }
 
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<()>")]
+pub struct RestoreTokenRequest {
+
+    #[validate(length(min = 275, max = 1024, message = "Length should be between 275 to 1024 chars"))]
+    pub token: String
+}
+
 impl From<SessionToken> for RefreshTokenRequest {
     fn from(token: SessionToken) -> Self {
         RefreshTokenRequest { token: token.0 }
@@ -188,10 +196,22 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshTokenRequest> for AuthManager<DB> {
     type Result = anyhow::Result<SessionToken>;
 
-    #[tracing::instrument(name="Manager::Refresh", skip(self, _ctx))]
+    #[tracing::instrument(name="Auth::Refresh", skip(self, _ctx))]
     fn handle(&mut self, token: RefreshTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
         match validate_auth(self.config.clone(), token.token) {
             Some(claims) => self.generate_token(claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session)),
+            None => Err(anyhow!(AuthError::TokenNotValid))
+        }
+    }
+}
+
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreTokenRequest> for AuthManager<DB> {
+    type Result = anyhow::Result<()>;
+
+    #[tracing::instrument(name="Auth::Restore", skip(self, _ctx))]
+    fn handle(&mut self, token: RestoreTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
+        match validate_auth(self.config.clone(), token.token) {
+            Some(_) => Ok(()),
             None => Err(anyhow!(AuthError::TokenNotValid))
         }
     }
