@@ -11,7 +11,6 @@ use general::error::YummyError;
 use general::model::WebsocketMessage;
 use general::web::GenericAnswer;
 use manager::api::user::UserManager;
-use std::cell::RefCell;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -42,7 +41,7 @@ pub struct GameWebsocket<DB: DatabaseTrait + ?Sized + Unpin + 'static> {
     auth: Addr<AuthManager<DB>>,
     user: Addr<UserManager<DB>>,
     hb: Instant,
-    user_auth: RefCell<Option<UserAuth>>,
+    user_auth: Arc<Option<UserAuth>>,
     config: Arc<YummyConfig>,
 }
 
@@ -57,11 +56,11 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
             auth,
             user,
             config,
-            user_auth: RefCell::new(None)
+            user_auth: Arc::new(None)
         }
     }
 
-    fn execute_message(&self, message: String, ctx: &mut ws::WebsocketContext<Self>) -> anyhow::Result<()> {
+    fn execute_message(&mut self, message: String, ctx: &mut ws::WebsocketContext<Self>) -> anyhow::Result<()> {
         let message = match serde_json::from_str::<Request>(&message) {
             Ok(message) => message,
             Err(_) => return Err(anyhow::anyhow!("Wrong message format"))
@@ -69,21 +68,21 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
 
         let auth_manager = self.auth.clone();
         let user_manager = self.user.clone();
+        let user_info = self.user_auth.clone();
 
-        let fut = Box::pin(async move {
-
-            let a: Option<UserAuth> = None;
-
+        let future = Box::pin(async {
             let result = match message {
                 Request::Auth { auth_type } => process_auth(auth_type, auth_manager).await,
-                Request::User { user_type } => process_user(user_type, user_manager, &a).await
+                Request::User { user_type } => process_user(user_type, user_manager, user_info).await
             };
             result
         });
 
-        let actor_future = fut
+        let actor_future = future
             .into_actor(self)
-            .then(move |result, _, ctx| {
+            .then(move |result, actor, ctx| {
+                actor.user_auth = Arc::new(None);
+
                 match result {
                     Ok(message) => ctx.text(message),
                     Err(error) => {
@@ -192,7 +191,7 @@ mod tests {
             let connection = create_connection(":memory:").unwrap();
             create_database(&mut connection.clone().get().unwrap()).unwrap();
             let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection.clone())).start());
-            let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection)).start());
+            let user_manager = Data::new(UserManager::<database::SqliteStore>::new(Arc::new(connection)).start());
 
             let query_cfg = QueryConfig::default()
                 .error_handler(|err, _| {

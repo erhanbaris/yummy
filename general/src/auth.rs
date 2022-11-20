@@ -99,36 +99,30 @@ pub struct UserAuth {
     pub session: SessionId
 }
 
-use futures_util::future::{ok, err, Ready};
-
-impl FromRequest for UserAuth {
-    type Error = Error;
-    type Future = Ready<Result<Self, Self::Error>>;
-
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-
+impl UserAuth {
+    pub fn parse(req: &HttpRequest) -> Option<Self> {
         let config = match req.app_data::<Data<Arc<YummyConfig>>>() {
             Some(config) => config,
-            None => return err(ErrorUnauthorized("unauthorized"))
+            None => return None
         };
 
         let auth_key = match req.headers().get(&config.user_auth_key_name) {
             Some(value) =>  match value.to_str() {
                 Ok(value) => value.to_string(),
-                Err(_) => return err(ErrorUnauthorized("unauthorized"))
+                Err(_) => return None
             }
             None => match web::Query::<HashMap<String, String>>::from_query(req.query_string()) {
                 Ok(map) => match map.0.get(&config.user_auth_key_name) {
                     Some(value) => value.to_string(),
-                    None => return err(ErrorUnauthorized("unauthorized"))
+                    None => return None
                 },
-                Err(_) => return err(ErrorUnauthorized("unauthorized"))
+                Err(_) => return None
             }
         };
 
         match validate_auth(config.as_ref().clone(), auth_key) {
-            Some(claims) => ok(UserAuth { user: claims.user.id, session: claims.user.session }),
-            None => err(ErrorUnauthorized("unauthorized"))
+            Some(claims) => Some(UserAuth { user: claims.user.id, session: claims.user.session }),
+            None => None
         }
     }
 }

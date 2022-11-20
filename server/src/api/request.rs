@@ -1,5 +1,5 @@
+use general::model::UserId;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "auth_type")]
@@ -30,7 +30,7 @@ pub enum AuthType {
 pub enum UserType {
     Me,
     Get {
-        user: Uuid
+        user: UserId
     },
     Update {
         name: Option<String>,

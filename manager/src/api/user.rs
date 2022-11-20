@@ -2,7 +2,6 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use database::model::{PrivateUserModel, PublicUserModel, UserUpdate};
-use general::config::YummyConfig;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -84,15 +83,13 @@ pub enum UserError {
 }
 
 pub struct UserManager<DB: DatabaseTrait + ?Sized> {
-    config: Arc<YummyConfig>,
     database: Arc<Pool>,
     _marker: PhantomData<DB>
 }
 
 impl<DB: DatabaseTrait + ?Sized> UserManager<DB> {
-    pub fn new(config: Arc<YummyConfig>, database: Arc<Pool>) -> Self {
+    pub fn new(database: Arc<Pool>) -> Self {
         Self {
-            config,
             database,
             _marker: PhantomData
         }
@@ -197,7 +194,7 @@ mod tests {
         let config = get_configuration();
         let connection = create_connection(":memory:")?;
         create_database(&mut connection.clone().get()?)?;
-        Ok((UserManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection)).start(), config))
+        Ok((UserManager::<database::SqliteStore>::new(Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection)).start(), config))
     }
     
     #[actix::test]

@@ -1,5 +1,8 @@
+use std::sync::Arc;
+
 use actix::Addr;
-use actix_web::HttpResponse;
+use actix_web::http::header::ContentType;
+use actix_web::{HttpResponse, HttpRequest};
 use actix_web::{web::{Data, Json}};
 use database::DatabaseTrait;
 use general::{auth::{UserAuth, ApiIntegration}, error::YummyError};
@@ -8,15 +11,18 @@ use manager::api::{auth::AuthManager, user::UserManager};
 use crate::api::request::Request;
 use super::{process_auth, process_user};
 
-pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(auth_manager: Data<Addr<AuthManager<DB>>>, user_manager: Data<Addr<UserManager<DB>>>, request: Result<Json<Request>, actix_web::Error>, _: ApiIntegration, user: Option<UserAuth>) -> Result<HttpResponse, YummyError> {
+#[tracing::instrument(name="http_query", skip(req, auth_manager, user_manager, _integration))]
+pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, auth_manager: Data<Addr<AuthManager<DB>>>, user_manager: Data<Addr<UserManager<DB>>>, request: Result<Json<Request>, actix_web::Error>, _integration: ApiIntegration) -> Result<HttpResponse, YummyError> {
+    let user = Arc::new(UserAuth::parse(&req));
+    
     let response = match request?.0 {
         Request::Auth { auth_type } => process_auth(auth_type, auth_manager.as_ref().clone()).await,
-        Request::User { user_type } => process_user(user_type, user_manager.as_ref().clone(), &user).await,
+        Request::User { user_type } => process_user(user_type, user_manager.as_ref().clone(), user).await,
     };
 
     match response {
         Ok(message) =>  Ok(HttpResponse::Ok().body(message)),
-        Err(_) => Ok(HttpResponse::Ok().body(""))
+        Err(_) => Ok(HttpResponse::Ok().content_type(ContentType::json()).body("{\"status\":false,\"result\":\"Internel error\"}"))
     }
 }
 
@@ -47,7 +53,7 @@ pub mod tests {
         let connection = create_connection(":memory:").unwrap();
         create_database(&mut connection.clone().get().unwrap()).unwrap();
         let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection.clone())).start());
-        let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection)).start());
+        let user_manager = Data::new(UserManager::<database::SqliteStore>::new(Arc::new(connection)).start());
 
         let query_cfg = QueryConfig::default()
             .error_handler(|err, _| {

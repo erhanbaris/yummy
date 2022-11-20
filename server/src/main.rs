@@ -1,5 +1,4 @@
 mod api;
-mod websocket;
 
 use general::config::{get_configuration, get_env_var};
 use manager::api::user::UserManager;
@@ -46,7 +45,7 @@ async fn main() -> std::io::Result<()> {
     let mut connection = database.clone().get().unwrap();
     database::create_database(&mut connection).unwrap_or_default();
     let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), database.clone()).start());
-    let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), database.clone()).start());
+    let user_manager = Data::new(UserManager::<database::SqliteStore>::new(database.clone()).start());
         
     HttpServer::new(move || {
         let config = get_configuration();
@@ -67,7 +66,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Logger::default())
             
             //Websocket
-            .route("/v1/socket", web::get().to(crate::websocket::websocket_endpoint::<database::SqliteStore>))
+            .route("/v1/socket", web::get().to(crate::api::websocket::websocket_endpoint::<database::SqliteStore>))
             .route("/v1/query", web::post().to(crate::api::http::http_query::<database::SqliteStore>))
     })
     .bind(server_bind)?

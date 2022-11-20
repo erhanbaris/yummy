@@ -1,9 +1,13 @@
 pub(crate) mod http;
 pub(crate) mod request;
+pub(crate) mod response;
+pub(crate) mod websocket;
+
+use std::sync::Arc;
 
 use actix::Addr;
 use database::DatabaseTrait;
-use general::{web::GenericAnswer, auth::UserAuth, model::UserId};
+use general::{web::GenericAnswer, auth::UserAuth};
 use manager::api::{auth::{AuthManager, RefreshTokenRequest, DeviceIdAuthRequest, EmailAuthRequest, CustomIdAuthRequest, AuthError, RestoreTokenRequest}, user::{UserManager, GetDetailedUserInfo, GetPublicUserInfo, UpdateUser}};
 use validator::Validate;
 
@@ -45,6 +49,7 @@ macro_rules! as_response {
     };
 }
 
+#[tracing::instrument(name="process_auth", skip(auth_manager))]
 pub(crate) async fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type: AuthType, auth_manager: Addr<AuthManager<DB>>) -> Result<String, serde_json::Error> {
     match auth_type {
         AuthType::Email { email, password, if_not_exist_create } => as_response!(auth_manager, EmailAuthRequest { email, password, if_not_exist_create }),
@@ -55,14 +60,15 @@ pub(crate) async fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type:
     }
 }
 
-pub(crate) async fn process_user<DB: DatabaseTrait + Unpin + 'static>(user_type: UserType, user_manager: Addr<UserManager<DB>>, user: &Option<UserAuth>) -> Result<String, serde_json::Error> {
+#[tracing::instrument(name="process_user", skip(user_manager))]
+pub(crate) async fn process_user<DB: DatabaseTrait + Unpin + 'static>(user_type: UserType, user_manager: Addr<UserManager<DB>>, user: Arc<Option<UserAuth>>) -> Result<String, serde_json::Error> {
      match user_type {
-        UserType::Me => match user {
+        UserType::Me => match &*user {
             Some(auth) => as_response!(user_manager, GetDetailedUserInfo { user: auth.user }),
             None => as_error!(AuthError::TokenNotValid)
         },
-        UserType::Get { user } => as_response!(user_manager, GetPublicUserInfo { user: UserId(user) }),
-        UserType::Update { name, email, password, device_id, custom_id } => match user {
+        UserType::Get { user } => as_response!(user_manager, GetPublicUserInfo { user }),
+        UserType::Update { name, email, password, device_id, custom_id } => match &*user {
             Some(auth) => as_response!(user_manager, UpdateUser { user: auth.user, name, email, password, device_id, custom_id }),
             None => as_error!(AuthError::TokenNotValid)
         },
