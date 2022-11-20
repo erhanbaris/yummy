@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
-use database::model::{PrivateUserModel, PublicUserModel, UserUpdate};
+use database::model::UserUpdate;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -12,26 +12,22 @@ use validator::Validate;
 
 use general::model::UserId;
 
+use crate::response::Response;
+
 #[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<PrivateUserModel>")]
+#[rtype(result = "anyhow::Result<Response>")]
 pub struct GetDetailedUserInfo {
     pub user: UserId
 }
 
 #[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<PublicUserModel>")]
+#[rtype(result = "anyhow::Result<Response>")]
 pub struct GetPublicUserInfo {
     pub user: UserId
 }
 
-#[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<PublicUserModel>")]
-pub struct GetMe {
-    pub user: UserId
-}
-
 #[derive(Message, Validate, Debug, Default)]
-#[rtype(result = "anyhow::Result<()>")]
+#[rtype(result = "anyhow::Result<Response>")]
 pub struct UpdateUser {
     pub user: UserId,
     pub name: Option<String>,
@@ -101,35 +97,35 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for UserMa
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetDetailedUserInfo> for UserManager<DB> {
-    type Result = anyhow::Result<PrivateUserModel>;
+    type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="User::GetPrivateUser", skip(self, _ctx))]
     fn handle(&mut self, model: GetDetailedUserInfo, _ctx: &mut Context<Self>) -> Self::Result {
         let user = DB::get_private_user_info(&mut self.database.get()?, model.user.0.into())?;
 
         match user {
-            Some(user) => Ok(user),
+            Some(user) => Ok(Response::UserPrivateInfo(user)),
             None => Err(anyhow::anyhow!(UserError::UserNotFound))
         }
     }
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetPublicUserInfo> for UserManager<DB> {
-    type Result = anyhow::Result<PublicUserModel>;
+    type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="User::GetPublicUser", skip(self, _ctx))]
     fn handle(&mut self, model: GetPublicUserInfo, _ctx: &mut Context<Self>) -> Self::Result {
         let user = DB::get_public_user_info(&mut self.database.get()?, model.user.0.into())?;
 
         match user {
-            Some(user) => Ok(user),
+            Some(user) => Ok(Response::UserPublicInfo(user)),
             None => Err(anyhow::anyhow!(UserError::UserNotFound))
         }
     }
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUser> for UserManager<DB> {
-    type Result = anyhow::Result<()>;
+    type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="User::UpdateUser", skip(self, _ctx))]
     fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
@@ -167,7 +163,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
 
         match DB::update_user(&mut connection, user_id, updates)? {
             0 => Err(anyhow::anyhow!(UserError::UserNotFound)),
-            _ => Ok(())
+            _ => Ok(Response::None)
         }
     }
 }

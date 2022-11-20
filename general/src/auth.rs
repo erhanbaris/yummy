@@ -14,7 +14,7 @@ use serde::*;
 
 use crate::{model::{UserId, SessionId}, config::YummyConfig};
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UserJwt {
     pub id: UserId,
     pub session: SessionId,

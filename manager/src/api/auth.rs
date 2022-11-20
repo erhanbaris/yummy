@@ -11,10 +11,12 @@ use thiserror::Error;
 use anyhow::anyhow;
 use validator::Validate;
 
-use general::model::{SessionToken, UserId, SessionId};
+use general::model::{UserId, SessionId};
+
+use crate::response::Response;
 
 #[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<SessionToken>")]
+#[rtype(result = "anyhow::Result<Response>")]
 pub struct EmailAuthRequest {
     #[validate(email(message="Email address is not valid"))]
     pub email: String,
@@ -29,7 +31,7 @@ unsafe impl Send for EmailAuthRequest {}
 unsafe impl Sync for EmailAuthRequest {}
 
 #[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<SessionToken>")]
+#[rtype(result = "anyhow::Result<Response>")]
 pub struct RefreshTokenRequest {
 
     #[validate(length(min = 275, max = 1024, message = "Length should be between 275 to 1024 chars"))]
@@ -37,24 +39,18 @@ pub struct RefreshTokenRequest {
 }
 
 #[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<()>")]
+#[rtype(result = "anyhow::Result<Response>")]
 pub struct RestoreTokenRequest {
 
     #[validate(length(min = 275, max = 1024, message = "Length should be between 275 to 1024 chars"))]
     pub token: String
 }
 
-impl From<SessionToken> for RefreshTokenRequest {
-    fn from(token: SessionToken) -> Self {
-        RefreshTokenRequest { token: token.0 }
-    }
-}
-
 unsafe impl Send for RefreshTokenRequest {}
 unsafe impl Sync for RefreshTokenRequest {}
 
 #[derive(Message, Debug, Validate)]
-#[rtype(result = "anyhow::Result<SessionToken>")]
+#[rtype(result = "anyhow::Result<Response>")]
 pub struct DeviceIdAuthRequest {
     #[validate(length(min = 8, max = 128, message = "Length should be between 8 to 128 chars"))]
     pub id: String
@@ -70,7 +66,7 @@ unsafe impl Send for DeviceIdAuthRequest {}
 unsafe impl Sync for DeviceIdAuthRequest {}
 
 #[derive(Message, Debug, Validate)]
-#[rtype(result = "anyhow::Result<SessionToken>")]
+#[rtype(result = "anyhow::Result<Response>")]
 pub struct CustomIdAuthRequest {
     #[validate(length(min = 8, max = 128, message = "Length should be between 3 to 128 chars"))]
     pub id: String
@@ -112,16 +108,20 @@ impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
         }
     }
 
-    pub fn generate_token(&self, id: UserId, name: Option<String>, email: Option<String>, session: Option<SessionId>) -> anyhow::Result<SessionToken> {
-        match generate_auth(self.config.clone(), UserJwt {
+    pub fn generate_token(&self, id: UserId, name: Option<String>, email: Option<String>, session: Option<SessionId>) -> anyhow::Result<Response> {
+        let user_jwt = UserJwt {
             id,
             session: session.unwrap_or_else(SessionId::new) ,
             name,
             email
-        }) {
-            Some(token) => Ok(SessionToken(token)),
-            _ => Err(anyhow::anyhow!(AuthError::TokenCouldNotGenerated))
-        }
+        };
+
+        let token = match generate_auth(self.config.clone(), &user_jwt) {
+            Some(token) => token,
+            _ => return Err(anyhow::anyhow!(AuthError::TokenCouldNotGenerated))
+        };
+
+        Ok(Response::Auth(token, user_jwt))
     }
 }
 
@@ -130,7 +130,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for AuthMa
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAuthRequest> for AuthManager<DB> {
-    type Result = anyhow::Result<SessionToken>;
+    type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::ViaEmail", skip(self, _ctx))]
     fn handle(&mut self, auth: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
@@ -150,13 +150,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
             _ => return Err(anyhow!(AuthError::EmailOrPasswordNotValid))
         };
         
-        let response = self.generate_token(UserId(user_id.0), name, Some(auth.email.to_string()), None)?;
-        Ok(response)
+        self.generate_token(UserId(user_id.0), name, Some(auth.email.to_string()), None)
     }
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceIdAuthRequest> for AuthManager<DB> {
-    type Result = anyhow::Result<SessionToken>;
+    type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::ViaDeviceId", skip(self, _ctx))]
     fn handle(&mut self, auth: DeviceIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
@@ -169,13 +168,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
             None => (DB::create_user_via_device_id(&mut connection, &auth.id)?, None, None)
         };
         
-        let response = self.generate_token(UserId(user_id.0), name, email, None)?;
-        Ok(response)
+        self.generate_token(UserId(user_id.0), name, email, None)
     }
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomIdAuthRequest> for AuthManager<DB> {
-    type Result = anyhow::Result<SessionToken>;
+    type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::ViaCustomId", skip(self, _ctx))]
     fn handle(&mut self, auth: CustomIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
@@ -188,13 +186,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
             None => (DB::create_user_via_custom_id(&mut connection, &auth.id)?, None, None)
         };
         
-        let response = self.generate_token(UserId(user_id.0), name, email, None)?;
-        Ok(response)
+        self.generate_token(UserId(user_id.0), name, email, None)
     }
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshTokenRequest> for AuthManager<DB> {
-    type Result = anyhow::Result<SessionToken>;
+    type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::Refresh", skip(self, _ctx))]
     fn handle(&mut self, token: RefreshTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
@@ -206,12 +203,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreTokenRequest> for AuthManager<DB> {
-    type Result = anyhow::Result<()>;
+    type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::Restore", skip(self, _ctx))]
     fn handle(&mut self, token: RestoreTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
         match validate_auth(self.config.clone(), token.token) {
-            Some(_) => Ok(()),
+            Some(_) => Ok(Response::None),
             None => Err(anyhow!(AuthError::TokenNotValid))
         }
     }
@@ -222,7 +219,6 @@ mod tests {
     use general::config::YummyConfig;
     use general::config::get_configuration;
     use general::auth::validate_auth;
-    use general::model::SessionToken;
     use std::sync::Arc;
 
     use actix::Actor;

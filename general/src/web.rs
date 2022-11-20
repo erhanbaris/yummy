@@ -13,6 +13,20 @@ pub struct GenericAnswer<T> {
 
 impl<T> GenericAnswer<T>
 where T: DeserializeOwned + Serialize {
+    pub fn success(result: T) -> Self {
+        Self {
+            status: true,
+            result: Some(result)
+        }
+    }
+    
+    pub fn fail(result: T) -> Self {
+        Self {
+            status: false,
+            result: Some(result)
+        }
+    }
+    
     pub fn new(status: bool, result: T) -> Self {
         Self {
             status,

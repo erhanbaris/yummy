@@ -11,6 +11,7 @@ use general::error::YummyError;
 use general::model::WebsocketMessage;
 use general::web::GenericAnswer;
 use manager::api::user::UserManager;
+use manager::response::Response;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -84,7 +85,19 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
                 actor.user_auth = Arc::new(None);
 
                 match result {
-                    Ok(message) => ctx.text(message),
+                    Ok(response) => match response {
+                        Response::Auth(token, auth) => {
+                            actor.user_auth = Arc::new(Some(UserAuth {
+                                user: auth.id,
+                                session: auth.session
+                            }));
+
+                            ctx.text(token);
+                        },
+                        Response::UserPrivateInfo(model) => ctx.text(serde_json::to_string(&GenericAnswer::success(model)).unwrap_or_default()),
+                        Response::UserPublicInfo(model) => ctx.text(serde_json::to_string(&GenericAnswer::success(model)).unwrap_or_default()),
+                        Response::None => ()
+                    },
                     Err(error) => {
                         tracing::error!("{:?}", error);
                         ctx.text("{\"status\":false,\"result\":\"Internel error\"}")
@@ -95,7 +108,6 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
 
         // Spawns a future into the context.
         ctx.spawn(actor_future);
-
         Ok(())
     }
 

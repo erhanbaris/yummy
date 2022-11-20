@@ -5,8 +5,10 @@ use actix_web::http::header::ContentType;
 use actix_web::{HttpResponse, HttpRequest};
 use actix_web::{web::{Data, Json}};
 use database::DatabaseTrait;
+use general::web::GenericAnswer;
 use general::{auth::{UserAuth, ApiIntegration}, error::YummyError};
 use manager::api::{auth::AuthManager, user::UserManager};
+use manager::response::Response;
 
 use crate::api::request::Request;
 use super::{process_auth, process_user};
@@ -21,7 +23,16 @@ pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, a
     };
 
     match response {
-        Ok(message) =>  Ok(HttpResponse::Ok().body(message)),
+        Ok(response) => {
+            let message = match response {
+                Response::Auth(token, _) => HttpResponse::Ok().json(GenericAnswer::success(token)),
+                Response::UserPrivateInfo(model) => HttpResponse::Ok().json(GenericAnswer::success(model)),
+                Response::UserPublicInfo(model) => HttpResponse::Ok().json(GenericAnswer::success(model)),
+                Response::None => HttpResponse::Ok().json(GenericAnswer::success(0)),
+            };
+
+            Ok(message)
+        },
         Err(_) => Ok(HttpResponse::Ok().content_type(ContentType::json()).body("{\"status\":false,\"result\":\"Internel error\"}"))
     }
 }
