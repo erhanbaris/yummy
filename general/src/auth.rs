@@ -57,22 +57,6 @@ pub fn validate_auth<T: Borrow<str>>(config: Arc<YummyConfig>, token: T) -> Opti
     }
 }
 
-pub fn parse_request(config: Arc<YummyConfig>, req: &HttpRequest) -> Option<Claims> {
-    match req.cookies() {
-        Ok(cookies) => match cookies.iter().find(|c| c.name() == config.salt_key) {
-            Some(cookie) => validate_auth(config.clone(), cookie.value()),
-            None => match req.headers().get(&config.api_key_name) {
-                Some(cookie) => validate_auth(config.clone(), cookie.to_str().unwrap_or_default()),
-                None => None,
-            },
-        },
-        Err(_) => match req.headers().get(&config.api_key_name) {
-            Some(cookie) => validate_auth(config.clone(), cookie.to_str().unwrap_or_default()),
-            None => None,
-        },
-    }
-}
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ApiIntegration;
 

@@ -6,18 +6,18 @@ use crate::SqliteStore;
 use crate::{PooledConnection, schema::user, RowId, model::UserInsert};
 
 pub trait AuthStoreTrait: Sized {
-    fn user_login_via_email(connection: &mut PooledConnection, email: &str) -> Result<Option<(RowId, Option<String>, String)>, crate::error::Error>;
-    fn user_login_via_device_id(connection: &mut PooledConnection, device_id: &str) -> Result<Option<(RowId, Option<String>, Option<String>)>, crate::error::Error>;
-    fn user_login_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> Result<Option<(RowId, Option<String>, Option<String>)>, crate::error::Error>;
+    fn user_login_via_email(connection: &mut PooledConnection, email: &str) -> anyhow::Result<Option<(RowId, Option<String>, String)>>;
+    fn user_login_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<Option<(RowId, Option<String>, Option<String>)>>;
+    fn user_login_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<Option<(RowId, Option<String>, Option<String>)>>;
 
-    fn create_user_via_email(connection: &mut PooledConnection, email: &str, password: &str) -> Result<RowId, crate::error::Error>;
-    fn create_user_via_device_id(connection: &mut PooledConnection, device_id: &str) -> Result<RowId, crate::error::Error>;
-    fn create_user_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> Result<RowId, crate::error::Error>;
+    fn create_user_via_email(connection: &mut PooledConnection, email: &str, password: &str) -> anyhow::Result<RowId>;
+    fn create_user_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<RowId>;
+    fn create_user_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<RowId>;
 }
 
 impl AuthStoreTrait for SqliteStore {
     #[tracing::instrument(name="User login via email", skip(connection))]
-    fn user_login_via_email(connection: &mut PooledConnection, email: &str) -> Result<Option<(RowId, Option<String>, String)>, crate::error::Error> {
+    fn user_login_via_email(connection: &mut PooledConnection, email: &str) -> anyhow::Result<Option<(RowId, Option<String>, String)>> {
         let result = user::table
             .filter(user::email.eq(email))
             .select((user::id, user::name, user::password))
@@ -29,7 +29,7 @@ impl AuthStoreTrait for SqliteStore {
     }
 
     #[tracing::instrument(name="User login via device id", skip(connection))]
-    fn user_login_via_device_id(connection: &mut PooledConnection, device_id: &str) -> Result<Option<(RowId, Option<String>, Option<String>)>, crate::error::Error> {
+    fn user_login_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<Option<(RowId, Option<String>, Option<String>)>> {
         let result = user::table
             .filter(user::device_id.eq(device_id))
             .select((user::id, user::name, user::email))
@@ -40,7 +40,7 @@ impl AuthStoreTrait for SqliteStore {
     }
 
     #[tracing::instrument(name="User login via custom id", skip(connection))]
-    fn user_login_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> Result<Option<(RowId, Option<String>, Option<String>)>, crate::error::Error> {
+    fn user_login_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<Option<(RowId, Option<String>, Option<String>)>> {
         let result = user::table
             .filter(user::custom_id.eq(custom_id))
             .select((user::id, user::name, user::email))
@@ -51,7 +51,7 @@ impl AuthStoreTrait for SqliteStore {
     }
 
     #[tracing::instrument(name="User create via email", skip(connection))]
-    fn create_user_via_email(connection: &mut PooledConnection, email: &str, password: &str) -> Result<RowId, crate::error::Error> {
+    fn create_user_via_email(connection: &mut PooledConnection, email: &str, password: &str) -> anyhow::Result<RowId> {
         
         let row_id = RowId(Uuid::new_v4());
         let mut model = UserInsert::default();
@@ -65,7 +65,7 @@ impl AuthStoreTrait for SqliteStore {
     }
 
     #[tracing::instrument(name="User create via device id", skip(connection))]
-    fn create_user_via_device_id(connection: &mut PooledConnection, device_id: &str) -> Result<RowId, crate::error::Error> {
+    fn create_user_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<RowId> {
         let row_id = RowId(Uuid::new_v4());
         let mut model = UserInsert::default();
         model.id = row_id;
@@ -77,7 +77,7 @@ impl AuthStoreTrait for SqliteStore {
     }
 
     #[tracing::instrument(name="User create via custom id", skip(connection))]
-    fn create_user_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> Result<RowId, crate::error::Error> {
+    fn create_user_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<RowId> {
         let row_id = RowId(Uuid::new_v4());
         let mut model = UserInsert::default();
         model.id = row_id;

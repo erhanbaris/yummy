@@ -37,3 +37,11 @@ pub struct PrivateUserModel {
     pub insert_date: i32,
     pub last_login_date: i32,
 }
+
+#[derive(Default, Debug, Queryable, Serialize, Deserialize, PartialEq)]
+#[diesel(table_name = user)]
+pub struct PublicUserModel {
+    pub id: RowId,
+    pub name: Option<String>,
+    pub last_login_date: i32,
+}

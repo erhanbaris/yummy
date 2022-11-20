@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
-use database::model::{PrivateUserModel, UserUpdate};
+use database::model::{PrivateUserModel, PublicUserModel, UserUpdate};
 use general::config::YummyConfig;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -15,7 +15,19 @@ use general::model::UserId;
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<PrivateUserModel>")]
-pub struct GetUser {
+pub struct GetDetailedUserInfo {
+    pub user: UserId
+}
+
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<PublicUserModel>")]
+pub struct GetPublicUserInfo {
+    pub user: UserId
+}
+
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<PublicUserModel>")]
+pub struct GetMe {
     pub user: UserId
 }
 
@@ -23,12 +35,12 @@ pub struct GetUser {
 #[rtype(result = "anyhow::Result<()>")]
 pub struct UpdateUser {
     pub user: UserId,
-    pub name: Option<Option<String>>,
+    pub name: Option<String>,
     #[validate(email)]
     pub email: Option<String>,
     pub password: Option<String>,
-    pub device_id: Option<Option<String>>,
-    pub custom_id: Option<Option<String>>,
+    pub device_id: Option<String>,
+    pub custom_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -91,12 +103,26 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for UserMa
     type Context = Context<Self>;
 }
 
-impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUser> for UserManager<DB> {
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetDetailedUserInfo> for UserManager<DB> {
     type Result = anyhow::Result<PrivateUserModel>;
 
-    #[tracing::instrument(name="User::GetUser", skip(self, _ctx))]
-    fn handle(&mut self, model: GetUser, _ctx: &mut Context<Self>) -> Self::Result {
-        let user = DB::get_user(&mut self.database.get()?, model.user.0.into())?;
+    #[tracing::instrument(name="User::GetPrivateUser", skip(self, _ctx))]
+    fn handle(&mut self, model: GetDetailedUserInfo, _ctx: &mut Context<Self>) -> Self::Result {
+        let user = DB::get_private_user_info(&mut self.database.get()?, model.user.0.into())?;
+
+        match user {
+            Some(user) => Ok(user),
+            None => Err(anyhow::anyhow!(UserError::UserNotFound))
+        }
+    }
+}
+
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetPublicUserInfo> for UserManager<DB> {
+    type Result = anyhow::Result<PublicUserModel>;
+
+    #[tracing::instrument(name="User::GetPublicUser", skip(self, _ctx))]
+    fn handle(&mut self, model: GetPublicUserInfo, _ctx: &mut Context<Self>) -> Self::Result {
+        let user = DB::get_public_user_info(&mut self.database.get()?, model.user.0.into())?;
 
         match user {
             Some(user) => Ok(user),
@@ -119,14 +145,14 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
         let user_id = RowId(model.user.0);
 
         let mut connection = self.database.get()?;
-        let user = match DB::get_user(&mut connection, user_id)? {
+        let user = match DB::get_private_user_info(&mut connection, user_id)? {
             Some(user) => user,
             None => return Err(anyhow::anyhow!(UserError::UserNotFound))
         };
 
-        updates.custom_id = model.custom_id;
-        updates.device_id = model.device_id;
-        updates.name = model.name;
+        updates.custom_id = model.custom_id.map(|item| match item.trim().len() == 0 { true => None, false => Some(item)} );
+        updates.device_id = model.device_id.map(|item| match item.trim().len() == 0 { true => None, false => Some(item)} );
+        updates.name = model.name.map(|item| match item.trim().len() == 0 { true => None, false => Some(item)} );
 
         if let Some(password) = model.password {
             if password.trim().len() < 4 {
@@ -175,9 +201,9 @@ mod tests {
     }
     
     #[actix::test]
-    async fn get_user_1() -> anyhow::Result<()> {
+    async fn get_private_user_1() -> anyhow::Result<()> {
         let (user_manager, _, _) = create_actor()?;
-        let user = user_manager.send(GetUser {
+        let user = user_manager.send(GetDetailedUserInfo {
             user: UserId::default()
         }).await?;
         assert!(user.is_err());
@@ -185,12 +211,12 @@ mod tests {
     }
 
     #[actix::test]
-    async fn get_user_2() -> anyhow::Result<()> {
+    async fn get_private_user_2() -> anyhow::Result<()> {
         let (user_manager, auth_manager, config) = create_actor()?;
 
         let token = auth_manager.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
         let user = validate_auth(config, token.0).unwrap();
-        let user = user_manager.send(GetUser {
+        let user = user_manager.send(GetDetailedUserInfo {
             user: user.user.id
         }).await??;
         assert_eq!(user.device_id, Some("1234567890".to_string()));
@@ -322,7 +348,7 @@ mod tests {
     }
 
     #[actix::test]
-    async fn update_get_user_1() -> anyhow::Result<()> {
+    async fn update_get_public_user_1() -> anyhow::Result<()> {
         let (user_manager, auth_manager, config) = create_actor()?;
 
         let token = auth_manager.send(EmailAuthRequest {
@@ -332,7 +358,84 @@ mod tests {
         }).await??;
         let user_id = validate_auth(config, token.0).unwrap().user.id;
 
-        let user = user_manager.send(GetUser {
+        let user = user_manager.send(GetPublicUserInfo {
+            user: user_id
+        }).await??;
+        
+        assert_eq!(user.name, None);
+        
+        user_manager.send(UpdateUser {
+            user: user_id,
+            name: Some("Erhan".to_string()),
+            ..Default::default()
+        }).await??;
+
+        let user = user_manager.send(GetPublicUserInfo {
+            user: user_id
+        }).await??;
+
+        assert_eq!(user.name, Some("Erhan".to_string()));
+
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn update_get_public_user_2() -> anyhow::Result<()> {
+        let (user_manager, auth_manager, config) = create_actor()?;
+
+        let token = auth_manager.send(EmailAuthRequest {
+            email: "erhanbaris@gmail.com".to_string(),
+            password: "erhan".to_string(),
+            if_not_exist_create: true
+        }).await??;
+        let user_id = validate_auth(config, token.0).unwrap().user.id;
+
+        let user = user_manager.send(GetPublicUserInfo {
+            user: user_id
+        }).await??;
+        
+        assert_eq!(user.name, None);
+        
+        user_manager.send(UpdateUser {
+            user: user_id,
+            name: Some("Erhan".to_string()),
+            ..Default::default()
+        }).await??;
+
+        let user = user_manager.send(GetPublicUserInfo {
+            user: user_id
+        }).await??;
+
+        assert_eq!(user.name, Some("Erhan".to_string()));
+
+        /* Cleanup fields */
+        user_manager.send(UpdateUser {
+            user: user_id,
+            name: Some("Erhan".to_string()),
+            ..Default::default()
+        }).await??;
+
+        let user = user_manager.send(GetPublicUserInfo {
+            user: user_id
+        }).await??;
+
+        assert_eq!(user.name, Some("Erhan".to_string()));
+
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn update_get_private_user_1() -> anyhow::Result<()> {
+        let (user_manager, auth_manager, config) = create_actor()?;
+
+        let token = auth_manager.send(EmailAuthRequest {
+            email: "erhanbaris@gmail.com".to_string(),
+            password: "erhan".to_string(),
+            if_not_exist_create: true
+        }).await??;
+        let user_id = validate_auth(config, token.0).unwrap().user.id;
+
+        let user = user_manager.send(GetDetailedUserInfo {
             user: user_id
         }).await??;
         
@@ -341,11 +444,11 @@ mod tests {
         
         user_manager.send(UpdateUser {
             user: user_id,
-            name: Some(Some("Erhan".to_string())),
+            name: Some("Erhan".to_string()),
             ..Default::default()
         }).await??;
 
-        let user = user_manager.send(GetUser {
+        let user = user_manager.send(GetDetailedUserInfo {
             user: user_id
         }).await??;
 
@@ -356,7 +459,7 @@ mod tests {
     }
 
     #[actix::test]
-    async fn update_get_user_2() -> anyhow::Result<()> {
+    async fn update_get_private_user_2() -> anyhow::Result<()> {
         let (user_manager, auth_manager, config) = create_actor()?;
 
         let token = auth_manager.send(EmailAuthRequest {
@@ -366,7 +469,7 @@ mod tests {
         }).await??;
         let user_id = validate_auth(config, token.0).unwrap().user.id;
 
-        let user = user_manager.send(GetUser {
+        let user = user_manager.send(GetDetailedUserInfo {
             user: user_id
         }).await??;
         
@@ -375,11 +478,11 @@ mod tests {
         
         user_manager.send(UpdateUser {
             user: user_id,
-            name: Some(Some("Erhan".to_string())),
+            name: Some("Erhan".to_string()),
             ..Default::default()
         }).await??;
 
-        let user = user_manager.send(GetUser {
+        let user = user_manager.send(GetDetailedUserInfo {
             user: user_id
         }).await??;
 
@@ -389,11 +492,11 @@ mod tests {
         /* Cleanup fields */
         user_manager.send(UpdateUser {
             user: user_id,
-            name: Some(Some("Erhan".to_string())),
+            name: Some("Erhan".to_string()),
             ..Default::default()
         }).await??;
 
-        let user = user_manager.send(GetUser {
+        let user = user_manager.send(GetDetailedUserInfo {
             user: user_id
         }).await??;
 

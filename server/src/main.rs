@@ -15,9 +15,6 @@ use actix_web::web::{JsonConfig, QueryConfig};
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::{middleware, App, HttpServer, web::Data};
 
-use crate::websocket::websocket_endpoint;
-use crate::api::http_query;
-
 pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::Error {
     let detail = err.to_string();
     let res = HttpResponse::BadRequest().body("error");
@@ -26,6 +23,7 @@ pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::
     InternalError::from_response("Json format is not valid. Please check request definition.", res).into()
 }
 
+#[cfg(not(test))]
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let server_bind = get_env_var("SERVER_BIND", "0.0.0.0:9090".to_string());
@@ -69,8 +67,8 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Logger::default())
             
             //Websocket
-            .route("/v1/socket", web::get().to(websocket_endpoint::<database::SqliteStore>))
-            .route("/v1/query", web::post().to(http_query::<database::SqliteStore>))
+            .route("/v1/socket", web::get().to(crate::websocket::websocket_endpoint::<database::SqliteStore>))
+            .route("/v1/query", web::post().to(crate::api::http_query::<database::SqliteStore>))
     })
     .bind(server_bind)?
     .run()

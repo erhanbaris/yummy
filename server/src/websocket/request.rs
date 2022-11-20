@@ -62,11 +62,11 @@ pub enum UserType {
         user: Uuid
     },
     Update {
-        name: Option<Option<String>>,
+        name: Option<String>,
         email: Option<String>,
         password: Option<String>,
-        device_id: Option<Option<String>>,
-        custom_id: Option<Option<String>>,
+        device_id: Option<String>,
+        custom_id: Option<String>,
     }
 }
 

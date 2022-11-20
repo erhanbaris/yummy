@@ -24,15 +24,6 @@ pub enum YummyError {
     Unknown,
 }
 
-impl From<YummyError> for HttpResponse {
-    fn from(error: YummyError) -> Self {
-        HttpResponseBuilder::new(error.status_code()).json(GenericAnswer {
-            status: false,
-            result: Some(error.to_string()),
-        })
-    }
-}
-
 impl ResponseError for YummyError {
     fn status_code(&self) -> StatusCode {
         match self {

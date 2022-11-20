@@ -2,7 +2,7 @@ use actix::Addr;
 use actix_web::{web::{Data, Json}, HttpResponse};
 use database::DatabaseTrait;
 use general::{error::YummyError, web::GenericAnswer, auth::{ApiIntegration, UserAuth}, model::UserId};
-use manager::api::{auth::{AuthManager, RefreshTokenRequest, DeviceIdAuthRequest, EmailAuthRequest, CustomIdAuthRequest, AuthError}, user::{UserManager, GetUser, UpdateUser}};
+use manager::api::{auth::{AuthManager, RefreshTokenRequest, DeviceIdAuthRequest, EmailAuthRequest, CustomIdAuthRequest, AuthError}, user::{UserManager, GetDetailedUserInfo, GetPublicUserInfo, UpdateUser}};
 use validator::Validate;
 
 use crate::websocket::request::{Request, AuthType, UserType};
@@ -55,10 +55,10 @@ async fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type: AuthType, 
 async fn process_user<DB: DatabaseTrait + Unpin + 'static>(user_type: UserType, user_manager: Data<Addr<UserManager<DB>>>, user: Option<UserAuth>) -> HttpResponse {
      match user_type {
         UserType::Me => match user {
-            Some(auth) => as_response!(user_manager, GetUser { user: auth.user }),
+            Some(auth) => as_response!(user_manager, GetDetailedUserInfo { user: auth.user }),
             None => as_error!(AuthError::TokenNotValid)
         },
-        UserType::Get { user } => as_response!(user_manager, GetUser { user: UserId(user) }),
+        UserType::Get { user } => as_response!(user_manager, GetPublicUserInfo { user: UserId(user) }),
         UserType::Update { name, email, password, device_id, custom_id } => match user {
             Some(auth) => as_response!(user_manager, UpdateUser { user: auth.user, name, email, password, device_id, custom_id }),
             None => as_error!(AuthError::TokenNotValid)
@@ -84,6 +84,7 @@ pub mod tests {
     use actix_web::web::{QueryConfig, JsonConfig};
     use actix_web::{web, web::Data, App};
     use database::model::PrivateUserModel;
+    use database::model::PublicUserModel;
     use database::{create_database, create_connection};
     use general::web::Answer;
     use general::web::GenericAnswer;
@@ -354,7 +355,7 @@ pub mod tests {
     }
 
     #[actix_web::test]
-    async fn get_user() {
+    async fn get_private_user() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
             .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
@@ -395,16 +396,16 @@ pub mod tests {
             }))
             .to_request();
 
-        let res: GenericAnswer<PrivateUserModel> = test::call_and_read_body_json(&app, req).await;
+        let res: GenericAnswer<PublicUserModel> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
         let fetched_user_model = res.result.unwrap();
 
-        assert_eq!(original_user_model, fetched_user_model);
+        assert_eq!(original_user_model.id, fetched_user_model.id);
     
     }
 
     #[actix_web::test]
-    async fn fail_get_user() {
+    async fn fail_get_private_user() {
         let app = test::init_service(App::new().configure(config)).await;
         
         let req = test::TestRequest::post().uri("/v1/query")
@@ -621,7 +622,7 @@ pub mod tests {
         assert!(res.result.is_some());
 
         let me = res.result.unwrap();
-        assert_eq!(me.custom_id, Some("".to_string()));
-        assert_eq!(me.device_id, Some("".to_string()));
+        assert_eq!(me.custom_id, None);
+        assert_eq!(me.device_id, None);
     }
 }

@@ -2,7 +2,6 @@
 extern crate diesel;
 
 pub mod auth;
-pub mod error;
 pub mod model;
 pub mod user;
 pub(crate) mod schema;
@@ -19,7 +18,6 @@ use diesel::serialize::{ToSql, Output};
 use diesel::sql_types::*;
 use diesel::expression::AsExpression;
 
-use error::Error;
 use serde::{Deserialize, Serialize};
 use user::UserStoreTrait;
 use uuid::Uuid;
@@ -50,12 +48,6 @@ impl From<Uuid> for RowId {
     }
 }
 
-impl From<RowId> for Uuid {
-    fn from(row: RowId) -> Self {
-        row.0
-    }
-}
-
 impl ToSql<Text, diesel::sqlite::Sqlite> for RowId where String: ToSql<Text, diesel::sqlite::Sqlite> {
     fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, diesel::sqlite::Sqlite>) -> serialize::Result {
         out.set_value(self.0.to_string());
@@ -77,11 +69,11 @@ impl From<String> for RowId {
     }
 }
 
-pub fn create_connection(database_url: &str) -> Result<Pool, Error> {
+pub fn create_connection(database_url: &str) -> anyhow::Result<Pool> {
     Ok(r2d2::Pool::builder().build(Connection::new(database_url))?)
 }
 
-pub fn create_database(connection: &mut PooledConnection) -> Result<(), Error> {
+pub fn create_database(connection: &mut PooledConnection) -> anyhow::Result<()> {
     sql_query(
         r#"CREATE TABLE user (
             id TEXT PRIMARY KEY,
@@ -122,12 +114,6 @@ mod tests {
 
         let new_uuid_data: String = row_id.to_string();
         assert_eq!(&new_uuid_data, uuid_data);
-
-        let uuid_data = uuid::Uuid::new_v4();
-        let row_id: RowId = uuid_data.to_string().into();
-
-        let new_uuid_data: uuid::Uuid = row_id.into();
-        assert_eq!(new_uuid_data, uuid_data);
 
         Ok(())
     }
