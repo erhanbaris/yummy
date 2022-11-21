@@ -1,82 +1,15 @@
-use std::fmt::Debug;
+pub mod model;
+
 use std::marker::PhantomData;
 use std::sync::Arc;
 use database::model::UserUpdate;
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 use actix::{Context, Actor, Handler};
-use actix::prelude::Message;
 use database::{Pool, DatabaseTrait, RowId};
-use validator::Validate;
-
-use general::model::UserId;
 
 use crate::response::Response;
 
-#[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<Response>")]
-pub struct GetDetailedUserInfo {
-    pub user: UserId
-}
-
-#[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<Response>")]
-pub struct GetPublicUserInfo {
-    pub user: UserId
-}
-
-#[derive(Message, Validate, Debug, Default)]
-#[rtype(result = "anyhow::Result<Response>")]
-pub struct UpdateUser {
-    pub user: UserId,
-    pub name: Option<String>,
-    #[validate(email)]
-    pub email: Option<String>,
-    pub password: Option<String>,
-    pub device_id: Option<String>,
-    pub custom_id: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum UpdateUserFieldType {
-    #[serde(rename = "name")]
-    Name,
-
-    #[serde(rename = "password")]
-    Password,
-
-    #[serde(rename = "device_id")]
-    DeviceId,
-
-    #[serde(rename = "custom_id")]
-    CustomId,
-
-    #[serde(rename = "email")]
-    Email
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UpdateUserField {
-    #[serde(rename = "type")]
-    field: UpdateUserFieldType,
-    value: Option<String>
-}
-
-#[derive(Error, Debug, PartialEq)]
-pub enum UserError {
-    #[error("User not found")]
-    UserNotFound,
-
-    #[error("The user's email address cannot be changed.")]
-    CannotChangeEmail,
-
-    #[error("The password is too small")]
-    PasswordIsTooSmall,
-
-    #[error("Update information missing")]
-    UpdateInformationMissing
-}
+use self::model::*;
 
 pub struct UserManager<DB: DatabaseTrait + ?Sized> {
     database: Arc<Pool>,
@@ -183,8 +116,7 @@ mod tests {
 
     use super::*;
     use crate::api::auth::AuthManager;
-    use crate::api::auth::DeviceIdAuthRequest;
-    use crate::api::auth::EmailAuthRequest;
+    use crate::api::auth::model::*;
 
     fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>)> {
         let config = get_configuration();

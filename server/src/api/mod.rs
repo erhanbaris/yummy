@@ -7,7 +7,10 @@ use std::sync::Arc;
 use actix::Addr;
 use database::DatabaseTrait;
 use general::auth::UserAuth;
-use manager::{api::{auth::{AuthManager, RefreshTokenRequest, DeviceIdAuthRequest, EmailAuthRequest, CustomIdAuthRequest, AuthError, RestoreTokenRequest}, user::{UserManager, GetDetailedUserInfo, GetPublicUserInfo, UpdateUser}}, response::Response};
+use manager::{api::{auth::AuthManager, user::UserManager}, response::Response};
+use manager::api::auth::model::*;
+use manager::api::user::model::*;
+
 use validator::Validate;
 
 use crate::api::request::{AuthType, UserType};

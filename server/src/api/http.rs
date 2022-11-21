@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use actix::Addr;
-use actix_web::http::header::ContentType;
 use actix_web::{HttpResponse, HttpRequest};
 use actix_web::{web::{Data, Json}};
 use database::DatabaseTrait;
