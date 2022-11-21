@@ -232,6 +232,8 @@ mod tests {
     use super::RefreshTokenRequest;
     use super::CustomIdAuthRequest;
 
+    use crate::response::Response;
+
     fn create_actor() -> anyhow::Result<(Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>)> {
         let config = get_configuration();
         let connection = create_connection(":memory:")?;
@@ -361,16 +363,24 @@ mod tests {
     #[actix::test]
     async fn token_refresh_test_1() -> anyhow::Result<()> {
         let (address, config) = create_actor()?;
-        let old_token: SessionToken = address.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
+        let old_token: Response = address.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
+        let old_token = match old_token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
 
         // Wait 1 second
         actix::clock::sleep(std::time::Duration::new(1, 0)).await;
-        let new_token: SessionToken = address.send(RefreshTokenRequest { token: old_token.0.to_string() }).await??;
+        let new_token: Response = address.send(RefreshTokenRequest { token: old_token.to_string() }).await??;
+        let new_token = match new_token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
        
         assert_ne!(old_token.clone(), new_token.clone());
 
-        let old_claims =  validate_auth(config.clone(), old_token.0).unwrap();
-        let new_claims =  validate_auth(config.clone(), new_token.0).unwrap();
+        let old_claims =  validate_auth(config.clone(), old_token).unwrap();
+        let new_claims =  validate_auth(config.clone(), new_token).unwrap();
 
         assert_eq!(old_claims.user.id.clone(), new_claims.user.id.clone());
         assert_eq!(old_claims.user.name.clone(), new_claims.user.name.clone());
@@ -385,20 +395,29 @@ mod tests {
     #[actix::test]
     async fn token_refresh_test_2() -> anyhow::Result<()> {
         let (address, config) = create_actor()?;
-        let old_token: SessionToken = address.send(EmailAuthRequest {
+        let old_token: Response = address.send(EmailAuthRequest {
             email: "erhanbaris@gmail.com".to_string(),
             password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
 
+        let old_token = match old_token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
+
         // Wait 1 second
         actix::clock::sleep(std::time::Duration::new(1, 0)).await;
-        let new_token: SessionToken = address.send(RefreshTokenRequest{ token: old_token.0.to_string() }).await??;
+        let new_token: Response = address.send(RefreshTokenRequest{ token: old_token.clone() }).await??;
+        let new_token = match new_token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
        
         assert_ne!(old_token.clone(), new_token.clone());
 
-        let old_claims =  validate_auth(config.clone(), old_token.0).unwrap();
-        let new_claims =  validate_auth(config.clone(), new_token.0).unwrap();
+        let old_claims =  validate_auth(config.clone(), old_token).unwrap();
+        let new_claims =  validate_auth(config.clone(), new_token).unwrap();
 
         assert_eq!(old_claims.user.id.clone(), new_claims.user.id.clone());
         assert_eq!(old_claims.user.name.clone(), new_claims.user.name.clone());

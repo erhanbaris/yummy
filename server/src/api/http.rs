@@ -5,7 +5,7 @@ use actix_web::http::header::ContentType;
 use actix_web::{HttpResponse, HttpRequest};
 use actix_web::{web::{Data, Json}};
 use database::DatabaseTrait;
-use general::web::GenericAnswer;
+use general::web::{GenericAnswer, Answer};
 use general::{auth::{UserAuth, ApiIntegration}, error::YummyError};
 use manager::api::{auth::AuthManager, user::UserManager};
 use manager::response::Response;
@@ -28,12 +28,12 @@ pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, a
                 Response::Auth(token, _) => HttpResponse::Ok().json(GenericAnswer::success(token)),
                 Response::UserPrivateInfo(model) => HttpResponse::Ok().json(GenericAnswer::success(model)),
                 Response::UserPublicInfo(model) => HttpResponse::Ok().json(GenericAnswer::success(model)),
-                Response::None => HttpResponse::Ok().json(GenericAnswer::success(0)),
+                Response::None => HttpResponse::Ok().json(Answer::success()),
             };
 
             Ok(message)
         },
-        Err(_) => Ok(HttpResponse::Ok().content_type(ContentType::json()).body("{\"status\":false,\"result\":\"Internel error\"}"))
+        Err(error) => Ok(HttpResponse::Ok().json(GenericAnswer::fail(error.to_string())))
     }
 }
 
@@ -567,7 +567,7 @@ pub mod tests {
             }))
             .to_request();
 
-        let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+        let res: Answer = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
 
         let req = test::TestRequest::post().uri("/v1/query")

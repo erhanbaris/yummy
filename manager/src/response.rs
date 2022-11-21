@@ -4,7 +4,7 @@ use general::auth::{UserJwt};
 use serde::Serialize;
 use serde::Deserialize;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum Response {
     None,
     Auth(String, UserJwt),

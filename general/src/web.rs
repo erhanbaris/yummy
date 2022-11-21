@@ -5,6 +5,21 @@ pub struct Answer {
     pub status: bool,
 }
 
+
+impl Answer {
+    pub fn success() -> Self {
+        Self { status: true }
+    }
+    
+    pub fn fail() -> Self {
+        Self { status: false }
+    }
+    
+    pub fn new(status: bool) -> Self {
+        Self { status }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GenericAnswer<T> {
     pub status: bool,

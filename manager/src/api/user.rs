@@ -208,10 +208,21 @@ mod tests {
         let (user_manager, auth_manager, config) = create_actor()?;
 
         let token = auth_manager.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
-        let user = validate_auth(config, token.0).unwrap();
+        let token = match token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
+
+        let user = validate_auth(config, token).unwrap();
         let user = user_manager.send(GetDetailedUserInfo {
             user: user.user.id
         }).await??;
+
+        let user = match user {
+            Response::UserPrivateInfo(model) => model,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPrivateInfo'")); }
+        };
+
         assert_eq!(user.device_id, Some("1234567890".to_string()));
         Ok(())
     }
@@ -232,7 +243,12 @@ mod tests {
         let (user_manager, auth_manager, config) = create_actor()?;
 
         let token = auth_manager.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
-        let user = validate_auth(config, token.0).unwrap();
+        let token = match token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
+
+        let user = validate_auth(config, token).unwrap();
         let result = user_manager.send(UpdateUser {
             user: user.user.id,
             ..Default::default()
@@ -250,7 +266,13 @@ mod tests {
             password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
-        let user = validate_auth(config, token.0).unwrap();
+        
+        let token = match token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
+
+        let user = validate_auth(config, token).unwrap();
         let result = user_manager.send(UpdateUser {
             user: user.user.id,
             email: Some("erhanbaris@gmail.com".to_string()),
@@ -274,7 +296,13 @@ mod tests {
             password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
-        let user = validate_auth(config, token.0).unwrap();
+        
+        let token = match token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
+
+        let user = validate_auth(config, token).unwrap();
         let result = user_manager.send(UpdateUser {
             user: user.user.id,
             ..Default::default()
@@ -297,8 +325,13 @@ mod tests {
             password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
-        let user_id = validate_auth(config, token.0).unwrap().user.id;
 
+        let token = match token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
+
+        let user_id = validate_auth(config, token).unwrap().user.id;
         
         let result = user_manager.send(UpdateUser {
             user: user_id,
@@ -323,7 +356,13 @@ mod tests {
             password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
-        let user_id = validate_auth(config, token.0).unwrap().user.id;
+
+        let token = match token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
+
+        let user_id = validate_auth(config, token).unwrap().user.id;
 
         
         let result = user_manager.send(UpdateUser {
@@ -349,11 +388,22 @@ mod tests {
             password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
-        let user_id = validate_auth(config, token.0).unwrap().user.id;
+
+        let token = match token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
+
+        let user_id = validate_auth(config, token).unwrap().user.id;
 
         let user = user_manager.send(GetPublicUserInfo {
             user: user_id
         }).await??;
+
+        let user = match user {
+            Response::UserPublicInfo(model) => model,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPublicInfo'")); }
+        };
         
         assert_eq!(user.name, None);
         
@@ -366,6 +416,11 @@ mod tests {
         let user = user_manager.send(GetPublicUserInfo {
             user: user_id
         }).await??;
+
+        let user = match user {
+            Response::UserPublicInfo(model) => model,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPublicInfo'")); }
+        };
 
         assert_eq!(user.name, Some("Erhan".to_string()));
 
@@ -381,11 +436,22 @@ mod tests {
             password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
-        let user_id = validate_auth(config, token.0).unwrap().user.id;
+
+        let token = match token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
+
+        let user_id = validate_auth(config, token).unwrap().user.id;
 
         let user = user_manager.send(GetPublicUserInfo {
             user: user_id
         }).await??;
+
+        let user = match user {
+            Response::UserPublicInfo(model) => model,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPublicInfo'")); }
+        };
         
         assert_eq!(user.name, None);
         
@@ -399,6 +465,11 @@ mod tests {
             user: user_id
         }).await??;
 
+        let user = match user {
+            Response::UserPublicInfo(model) => model,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPublicInfo'")); }
+        };
+
         assert_eq!(user.name, Some("Erhan".to_string()));
 
         /* Cleanup fields */
@@ -411,6 +482,11 @@ mod tests {
         let user = user_manager.send(GetPublicUserInfo {
             user: user_id
         }).await??;
+
+        let user = match user {
+            Response::UserPublicInfo(model) => model,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPublicInfo'")); }
+        };
 
         assert_eq!(user.name, Some("Erhan".to_string()));
 
@@ -426,11 +502,22 @@ mod tests {
             password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
-        let user_id = validate_auth(config, token.0).unwrap().user.id;
+
+        let token = match token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
+
+        let user_id = validate_auth(config, token).unwrap().user.id;
 
         let user = user_manager.send(GetDetailedUserInfo {
             user: user_id
         }).await??;
+
+        let user = match user {
+            Response::UserPrivateInfo(model) => model,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPrivateInfo'")); }
+        };
         
         assert_eq!(user.name, None);
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
@@ -444,6 +531,11 @@ mod tests {
         let user = user_manager.send(GetDetailedUserInfo {
             user: user_id
         }).await??;
+
+        let user = match user {
+            Response::UserPrivateInfo(model) => model,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPrivateInfo'")); }
+        };
 
         assert_eq!(user.name, Some("Erhan".to_string()));
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
@@ -460,11 +552,22 @@ mod tests {
             password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
-        let user_id = validate_auth(config, token.0).unwrap().user.id;
+
+        let token = match token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
+
+        let user_id = validate_auth(config, token).unwrap().user.id;
 
         let user = user_manager.send(GetDetailedUserInfo {
             user: user_id
         }).await??;
+
+        let user = match user {
+            Response::UserPrivateInfo(model) => model,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPrivateInfo'")); }
+        };
         
         assert_eq!(user.name, None);
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
@@ -479,6 +582,11 @@ mod tests {
             user: user_id
         }).await??;
 
+        let user = match user {
+            Response::UserPrivateInfo(model) => model,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPrivateInfo'")); }
+        };
+
         assert_eq!(user.name, Some("Erhan".to_string()));
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
 
@@ -492,6 +600,11 @@ mod tests {
         let user = user_manager.send(GetDetailedUserInfo {
             user: user_id
         }).await??;
+
+        let user = match user {
+            Response::UserPrivateInfo(model) => model,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPrivateInfo'")); }
+        };
 
         assert_eq!(user.name, Some("Erhan".to_string()));
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));

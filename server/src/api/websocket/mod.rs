@@ -82,8 +82,6 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
         let actor_future = future
             .into_actor(self)
             .then(move |result, actor, ctx| {
-                actor.user_auth = Arc::new(None);
-
                 match result {
                     Ok(response) => match response {
                         Response::Auth(token, auth) => {
@@ -92,7 +90,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
                                 session: auth.session
                             }));
 
-                            ctx.text(token);
+                            ctx.text(serde_json::to_string(&GenericAnswer::success(token)).unwrap_or_default())
                         },
                         Response::UserPrivateInfo(model) => ctx.text(serde_json::to_string(&GenericAnswer::success(model)).unwrap_or_default()),
                         Response::UserPublicInfo(model) => ctx.text(serde_json::to_string(&GenericAnswer::success(model)).unwrap_or_default()),
@@ -100,7 +98,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
                     },
                     Err(error) => {
                         tracing::error!("{:?}", error);
-                        ctx.text("{\"status\":false,\"result\":\"Internel error\"}")
+                        ctx.text(serde_json::to_string(&GenericAnswer::fail(error.to_string())).unwrap_or_default())
                     }
                 }
                 fut::ready(())

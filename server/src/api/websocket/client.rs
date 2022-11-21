@@ -38,7 +38,8 @@ where
     RES: Debug + Send + Serialize + DeserializeOwned,
 {
     pub async fn new(url: String, query_param_name: String, key: String) -> Self {
-        let client = Client::default().ws(format!("{0}?{1}={2}", url, query_param_name, key));
+        let url_with_query_param = format!("{0}?{1}={2}", url, query_param_name, key);
+        let client = Client::default().ws(url_with_query_param);
         let (_, socket) = client.connect().await.unwrap();
         Self {
             socket,
