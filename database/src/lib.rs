@@ -69,6 +69,45 @@ impl From<String> for RowId {
     }
 }
 
+#[derive(SqlType)]
+#[derive(Debug, PartialEq, Eq)]
+pub enum Visibility {
+    Anonymous = 0,
+    User = 1,
+    Friend = 2,
+    Mod = 3,
+    Admin = 4,
+    System = 5
+}
+
+impl ToSql<Integer, diesel::sqlite::Sqlite> for Visibility where i32: ToSql<Integer, diesel::sqlite::Sqlite> {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, diesel::sqlite::Sqlite>) -> serialize::Result {
+        out.set_value(match self {
+            Visibility::Anonymous => 0,
+            Visibility::User => 1,
+            Visibility::Friend => 2,
+            Visibility::Mod => 3,
+            Visibility::Admin => 4,
+            Visibility::System => 5,
+        });
+        Ok(IsNull::No)
+    }
+}
+
+impl FromSql<Integer, diesel::sqlite::Sqlite> for Visibility where i32: FromSql<Integer, diesel::sqlite::Sqlite> {
+    fn from_sql(bytes: backend::RawValue<diesel::sqlite::Sqlite>) -> deserialize::Result<Self> {
+        let value = i32::from_ne_bytes(<Vec<u8>>::from_sql(bytes)?[..4].try_into().unwrap());
+        Ok(match value {
+            0 => Visibility::Anonymous,
+            1 => Visibility::User,
+            2 => Visibility::Friend,
+            3 => Visibility::Mod,
+            4 => Visibility::Admin,
+            _ => Visibility::System
+        })
+    }
+}
+
 pub fn create_connection(database_url: &str) -> anyhow::Result<Pool> {
     Ok(r2d2::Pool::builder().build(Connection::new(database_url))?)
 }
@@ -117,4 +156,10 @@ mod tests {
 
         Ok(())
     }
+}
+
+
+pub mod exports {
+    // we will use that a bit later
+    pub use super::Visibility;
 }

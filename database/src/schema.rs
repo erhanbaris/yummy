@@ -1,3 +1,4 @@
+
 table! {
     user (id) {
         id -> Text,
@@ -12,11 +13,15 @@ table! {
 }
 
 table! {
+    use diesel::sql_types::*;
+    use crate::exports::Visibility;
+
     user_metadata (id) {
         id -> Text,
         user_id ->  Text,
         key -> Text,
         value -> Text,
+        visibility -> Visibility,
     }
 }
 
