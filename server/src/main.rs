@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 mod api;
 
 use general::config::{get_configuration, get_env_var};

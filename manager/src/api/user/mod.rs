@@ -1,6 +1,6 @@
 pub mod model;
 
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::Deref};
 use std::sync::Arc;
 use database::model::UserUpdate;
 
@@ -8,6 +8,7 @@ use actix::{Context, Actor, Handler};
 use database::{Pool, DatabaseTrait, RowId};
 
 use crate::response::Response;
+use crate::api::auth::model::AuthError;
 
 use self::model::*;
 
@@ -34,7 +35,13 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetDetai
 
     #[tracing::instrument(name="User::GetPrivateUser", skip(self, _ctx))]
     fn handle(&mut self, model: GetDetailedUserInfo, _ctx: &mut Context<Self>) -> Self::Result {
-        let user = DB::get_private_user_info(&mut self.database.get()?, model.user.0.into())?;
+
+        let user_id = match model.user.deref() {
+            Some(user) => user.user.0,
+            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
+        };
+
+        let user = DB::get_private_user_info(&mut self.database.get()?, user_id.into())?;
 
         match user {
             Some(user) => Ok(Response::UserPrivateInfo(user)),
@@ -48,7 +55,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetPubli
 
     #[tracing::instrument(name="User::GetPublicUser", skip(self, _ctx))]
     fn handle(&mut self, model: GetPublicUserInfo, _ctx: &mut Context<Self>) -> Self::Result {
-        let user = DB::get_public_user_info(&mut self.database.get()?, model.user.0.into())?;
+        let user = DB::get_public_user_info(&mut self.database.get()?, model.target_user.0.into())?;
 
         match user {
             Some(user) => Ok(Response::UserPublicInfo(user)),
@@ -63,12 +70,17 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
     #[tracing::instrument(name="User::UpdateUser", skip(self, _ctx))]
     fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
 
+        let user_id = match model.user.deref() {
+            Some(user) => user.user.0,
+            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
+        };
+
         if model.custom_id.is_none() && model.device_id.is_none() && model.email.is_none() && model.name.is_none() && model.password.is_none() {
             return Err(anyhow::anyhow!(UserError::UpdateInformationMissing));
         }
 
         let mut updates = UserUpdate::default();
-        let user_id = RowId(model.user.0);
+        let user_id = RowId(user_id);
 
         let mut connection = self.database.get()?;
         let user = match DB::get_private_user_info(&mut connection, user_id)? {
@@ -103,6 +115,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
 
 #[cfg(test)]
 mod tests {
+    use general::auth::UserAuth;
     use general::auth::validate_auth;
     use general::config::YummyConfig;
     use general::config::get_configuration;
@@ -129,7 +142,7 @@ mod tests {
     async fn get_private_user_1() -> anyhow::Result<()> {
         let (user_manager, _, _) = create_actor()?;
         let user = user_manager.send(GetDetailedUserInfo {
-            user: UserId::default()
+            user: Arc::new(None)
         }).await?;
         assert!(user.is_err());
         Ok(())
@@ -147,7 +160,10 @@ mod tests {
 
         let user = validate_auth(config, token).unwrap();
         let user = user_manager.send(GetDetailedUserInfo {
-            user: user.user.id
+            user: Arc::new(Some(UserAuth {
+                user: user.user.id,
+                session: user.user.session
+            }))
         }).await??;
 
         let user = match user {
@@ -163,7 +179,7 @@ mod tests {
     async fn fail_update_get_user_1() -> anyhow::Result<()> {
         let (user_manager, _, _) = create_actor()?;
         let result = user_manager.send(UpdateUser {
-            user: UserId::default(),
+            user: Arc::new(None),
             ..Default::default()
         }).await?;
         assert!(result.is_err());
@@ -182,7 +198,10 @@ mod tests {
 
         let user = validate_auth(config, token).unwrap();
         let result = user_manager.send(UpdateUser {
-            user: user.user.id,
+            user: Arc::new(Some(UserAuth {
+                user: user.user.id,
+                session: user.user.session
+            })),
             ..Default::default()
         }).await?;
         assert!(result.is_err());
@@ -206,7 +225,10 @@ mod tests {
 
         let user = validate_auth(config, token).unwrap();
         let result = user_manager.send(UpdateUser {
-            user: user.user.id,
+            user: Arc::new(Some(UserAuth {
+                user: user.user.id,
+                session: user.user.session
+            })),
             email: Some("erhanbaris@gmail.com".to_string()),
             ..Default::default()
         }).await?;
@@ -236,7 +258,10 @@ mod tests {
 
         let user = validate_auth(config, token).unwrap();
         let result = user_manager.send(UpdateUser {
-            user: user.user.id,
+            user: Arc::new(Some(UserAuth {
+                user: user.user.id,
+                session: user.user.session
+            })),
             ..Default::default()
         }).await?;
 
@@ -263,10 +288,14 @@ mod tests {
             _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
         };
 
-        let user_id = validate_auth(config, token).unwrap().user.id;
+        let user_jwt = validate_auth(config, token).unwrap().user;
+        let user_auth = Arc::new(Some(UserAuth {
+            user: user_jwt.id,
+            session: user_jwt.session
+        }));
         
         let result = user_manager.send(UpdateUser {
-            user: user_id,
+            user: user_auth.clone(),
             password: Some("123".to_string()),
             ..Default::default()
         }).await?;
@@ -294,11 +323,14 @@ mod tests {
             _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
         };
 
-        let user_id = validate_auth(config, token).unwrap().user.id;
+        let user_jwt = validate_auth(config, token).unwrap().user;
+        let user_auth = Arc::new(Some(UserAuth {
+            user: user_jwt.id,
+            session: user_jwt.session
+        }));
 
-        
         let result = user_manager.send(UpdateUser {
-            user: user_id,
+            user: user_auth.clone(),
             email: Some("erhanbaris@gmail.com".to_string()),
             ..Default::default()
         }).await?;
@@ -326,10 +358,15 @@ mod tests {
             _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
         };
 
-        let user_id = validate_auth(config, token).unwrap().user.id;
+        let user_jwt = validate_auth(config, token).unwrap().user;
+        let user_auth = Arc::new(Some(UserAuth {
+            user: user_jwt.id,
+            session: user_jwt.session
+        }));
 
         let user = user_manager.send(GetPublicUserInfo {
-            user: user_id
+            user: user_auth.clone(),
+            target_user: user_jwt.id
         }).await??;
 
         let user = match user {
@@ -340,13 +377,14 @@ mod tests {
         assert_eq!(user.name, None);
         
         user_manager.send(UpdateUser {
-            user: user_id,
+            user: user_auth.clone(),
             name: Some("Erhan".to_string()),
             ..Default::default()
         }).await??;
 
         let user = user_manager.send(GetPublicUserInfo {
-            user: user_id
+            user: user_auth.clone(),
+            target_user: user_jwt.id
         }).await??;
 
         let user = match user {
@@ -374,10 +412,15 @@ mod tests {
             _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
         };
 
-        let user_id = validate_auth(config, token).unwrap().user.id;
+        let user_jwt = validate_auth(config, token).unwrap().user;
+        let user_auth = Arc::new(Some(UserAuth {
+            user: user_jwt.id,
+            session: user_jwt.session
+        }));
 
         let user = user_manager.send(GetPublicUserInfo {
-            user: user_id
+            user: user_auth.clone(),
+            target_user: user_jwt.id
         }).await??;
 
         let user = match user {
@@ -388,13 +431,14 @@ mod tests {
         assert_eq!(user.name, None);
         
         user_manager.send(UpdateUser {
-            user: user_id,
+            user: user_auth.clone(),
             name: Some("Erhan".to_string()),
             ..Default::default()
         }).await??;
 
         let user = user_manager.send(GetPublicUserInfo {
-            user: user_id
+            user: user_auth.clone(),
+            target_user: user_jwt.id
         }).await??;
 
         let user = match user {
@@ -406,13 +450,14 @@ mod tests {
 
         /* Cleanup fields */
         user_manager.send(UpdateUser {
-            user: user_id,
+            user: user_auth.clone(),
             name: Some("Erhan".to_string()),
             ..Default::default()
         }).await??;
 
         let user = user_manager.send(GetPublicUserInfo {
-            user: user_id
+            user: user_auth.clone(),
+            target_user: user_jwt.id
         }).await??;
 
         let user = match user {
@@ -440,10 +485,14 @@ mod tests {
             _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
         };
 
-        let user_id = validate_auth(config, token).unwrap().user.id;
+        let user_jwt = validate_auth(config, token).unwrap().user;
+        let user_auth = Arc::new(Some(UserAuth {
+            user: user_jwt.id,
+            session: user_jwt.session
+        }));
 
         let user = user_manager.send(GetDetailedUserInfo {
-            user: user_id
+            user: user_auth.clone()
         }).await??;
 
         let user = match user {
@@ -455,13 +504,13 @@ mod tests {
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
         
         user_manager.send(UpdateUser {
-            user: user_id,
+            user: user_auth.clone(),
             name: Some("Erhan".to_string()),
             ..Default::default()
         }).await??;
 
         let user = user_manager.send(GetDetailedUserInfo {
-            user: user_id
+            user: user_auth.clone()
         }).await??;
 
         let user = match user {
@@ -490,10 +539,14 @@ mod tests {
             _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
         };
 
-        let user_id = validate_auth(config, token).unwrap().user.id;
+        let user_jwt = validate_auth(config, token).unwrap().user;
+        let user_auth = Arc::new(Some(UserAuth {
+            user: user_jwt.id,
+            session: user_jwt.session
+        }));
 
         let user = user_manager.send(GetDetailedUserInfo {
-            user: user_id
+            user: user_auth.clone()
         }).await??;
 
         let user = match user {
@@ -505,13 +558,13 @@ mod tests {
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
         
         user_manager.send(UpdateUser {
-            user: user_id,
+            user: user_auth.clone(),
             name: Some("Erhan".to_string()),
             ..Default::default()
         }).await??;
 
         let user = user_manager.send(GetDetailedUserInfo {
-            user: user_id
+            user: user_auth.clone()
         }).await??;
 
         let user = match user {
@@ -524,13 +577,13 @@ mod tests {
 
         /* Cleanup fields */
         user_manager.send(UpdateUser {
-            user: user_id,
+            user: user_auth.clone(),
             name: Some("Erhan".to_string()),
             ..Default::default()
         }).await??;
 
         let user = user_manager.send(GetDetailedUserInfo {
-            user: user_id
+            user: user_auth.clone()
         }).await??;
 
         let user = match user {

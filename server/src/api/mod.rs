@@ -41,14 +41,8 @@ pub(crate) async fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type:
 #[tracing::instrument(name="process_user", skip(user_manager))]
 pub(crate) async fn process_user<DB: DatabaseTrait + Unpin + 'static>(user_type: UserType, user_manager: Addr<UserManager<DB>>, user: Arc<Option<UserAuth>>) -> anyhow::Result<Response> {
      match user_type {
-        UserType::Me => match &*user {
-            Some(auth) => as_response!(user_manager, GetDetailedUserInfo { user: auth.user }),
-            None => Err(anyhow::anyhow!(AuthError::TokenNotValid))
-        },
-        UserType::Get { user } => as_response!(user_manager, GetPublicUserInfo { user }),
-        UserType::Update { name, email, password, device_id, custom_id } => match &*user {
-            Some(auth) => as_response!(user_manager, UpdateUser { user: auth.user, name, email, password, device_id, custom_id }),
-            None => Err(anyhow::anyhow!(AuthError::TokenNotValid))
-        },
+        UserType::Me => as_response!(user_manager, GetDetailedUserInfo { user }),
+        UserType::Get { user: user_id } => as_response!(user_manager, GetPublicUserInfo { user, target_user: user_id }),
+        UserType::Update { name, email, password, device_id, custom_id } => as_response!(user_manager, UpdateUser { user, name, email, password, device_id, custom_id }),
     }
 }

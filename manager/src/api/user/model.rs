@@ -1,30 +1,31 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use actix::prelude::Message;
 use validator::Validate;
 
-use general::model::UserId;
+use general::{model::UserId, auth::UserAuth};
 
 use crate::response::Response;
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<Response>")]
 pub struct GetDetailedUserInfo {
-    pub user: UserId
+    pub user: Arc<Option<UserAuth>>
 }
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<Response>")]
 pub struct GetPublicUserInfo {
-    pub user: UserId
+    pub user: Arc<Option<UserAuth>>,
+    pub target_user: UserId
 }
 
 #[derive(Message, Validate, Debug, Default)]
 #[rtype(result = "anyhow::Result<Response>")]
 pub struct UpdateUser {
-    pub user: UserId,
+    pub user: Arc<Option<UserAuth>>,
     pub name: Option<String>,
     #[validate(email)]
     pub email: Option<String>,
