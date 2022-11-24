@@ -47,6 +47,8 @@ tracing-opentelemetry = "0.18.0"
 validator = { version = "0.16", features = ["derive"] }
 serde_trim = "0.4.0"
 
+moka = { version = "0.9.6", features = ["future"] }
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
 actix-test-server = "0.2.2"

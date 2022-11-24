@@ -1,11 +1,15 @@
 pub mod model;
 
+use std::time::Duration;
 use std::{marker::PhantomData, ops::Deref};
 use std::sync::Arc;
-use database::model::UserUpdate;
+use database::model::{UserUpdate, PublicUserModel, PrivateUserModel};
 
 use actix::{Context, Actor, Handler};
 use database::{Pool, DatabaseTrait, RowId};
+
+use moka::sync::Cache;
+use uuid::Uuid;
 
 use crate::response::Response;
 use crate::api::auth::model::AuthError;
@@ -14,20 +18,33 @@ use self::model::*;
 
 pub struct UserManager<DB: DatabaseTrait + ?Sized> {
     database: Arc<Pool>,
-    _marker: PhantomData<DB>
+    _marker: PhantomData<DB>,
+
+    // Caches
+    cache_public_user_info: Cache<Uuid, PublicUserModel>,
+    cache_private_user_info: Cache<Uuid, PrivateUserModel>
 }
 
 impl<DB: DatabaseTrait + ?Sized> UserManager<DB> {
     pub fn new(database: Arc<Pool>) -> Self {
         Self {
             database,
-            _marker: PhantomData
+            _marker: PhantomData,
+            cache_public_user_info: Cache::builder().time_to_idle(Duration::from_secs(5*60)).build(),
+            cache_private_user_info: Cache::builder().time_to_idle(Duration::from_secs(5*60)).build()
         }
     }
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for UserManager<DB> {
     type Context = Context<Self>;
+}
+
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static>  UserManager<DB> {
+    fn cleanup_user_cache(&self, user_id: &Uuid) {
+        self.cache_public_user_info.invalidate(user_id);
+        self.cache_private_user_info.invalidate(user_id);
+    }
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetDetailedUserInfo> for UserManager<DB> {
@@ -55,11 +72,21 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetPubli
 
     #[tracing::instrument(name="User::GetPublicUser", skip(self, _ctx))]
     fn handle(&mut self, model: GetPublicUserInfo, _ctx: &mut Context<Self>) -> Self::Result {
-        let user = DB::get_public_user_info(&mut self.database.get()?, model.target_user.0.into())?;
+        let user_id = model.target_user.0.into();
 
-        match user {
+        match self.cache_public_user_info.get(&user_id) {
             Some(user) => Ok(Response::UserPublicInfo(user)),
-            None => Err(anyhow::anyhow!(UserError::UserNotFound))
+            None => {
+                let user = DB::get_public_user_info(&mut self.database.get()?, model.target_user.0.into())?;
+
+                match user {
+                    Some(user) => {
+                        self.cache_public_user_info.insert(user_id, user.clone());
+                        Ok(Response::UserPublicInfo(user))
+                    },
+                    None => Err(anyhow::anyhow!(UserError::UserNotFound))
+                }
+            }
         }
     }
 }
@@ -70,7 +97,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
     #[tracing::instrument(name="User::UpdateUser", skip(self, _ctx))]
     fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
 
-        let user_id = match model.user.deref() {
+        let original_user_id = match model.user.deref() {
             Some(user) => user.user.0,
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
@@ -80,7 +107,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
         }
 
         let mut updates = UserUpdate::default();
-        let user_id = RowId(user_id);
+        let user_id = RowId(original_user_id);
 
         let mut connection = self.database.get()?;
         let user = match DB::get_private_user_info(&mut connection, user_id)? {
@@ -108,7 +135,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
 
         match DB::update_user(&mut connection, user_id, updates)? {
             0 => Err(anyhow::anyhow!(UserError::UserNotFound)),
-            _ => Ok(Response::None)
+            _ => {
+                self.cleanup_user_cache(&original_user_id);
+                Ok(Response::None)
+            }
         }
     }
 }
@@ -119,7 +149,6 @@ mod tests {
     use general::auth::validate_auth;
     use general::config::YummyConfig;
     use general::config::get_configuration;
-    use general::model::UserId;
     use std::sync::Arc;
 
     use actix::Actor;

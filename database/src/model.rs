@@ -26,7 +26,7 @@ pub struct UserUpdate {
     pub custom_id: Option<Option<String>>,
 }
 
-#[derive(Default, Debug, Queryable, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Clone, Debug, Queryable, Serialize, Deserialize, PartialEq)]
 #[diesel(table_name = user)]
 pub struct PrivateUserModel {
     pub id: RowId,
@@ -38,7 +38,7 @@ pub struct PrivateUserModel {
     pub last_login_date: i32,
 }
 
-#[derive(Default, Debug, Queryable, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Clone, Debug, Queryable, Serialize, Deserialize, PartialEq)]
 #[diesel(table_name = user)]
 pub struct PublicUserModel {
     pub id: RowId,
