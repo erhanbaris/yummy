@@ -26,13 +26,10 @@ pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::
 #[cfg(not(test))]
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    use general::model::YummyState;
+
     let server_bind = get_env_var("SERVER_BIND", "0.0.0.0:9090".to_string());
     let rust_log_level = get_env_var("RUST_LOG", "debug,backend,actix_web=debug".to_string());
-    let message = crate::api::request::Request::User {
-        user_type: crate::api::request::UserType::Me
-    };
-
-    print!("{:}", serde_json::to_string(&message).unwrap());
     
     tracing_subscriber::fmt::init();
     std::env::set_var("RUST_LOG", &rust_log_level);
@@ -45,7 +42,10 @@ async fn main() -> std::io::Result<()> {
     let database = Arc::new(database::create_connection(&config.database_url).unwrap());
     let mut connection = database.clone().get().unwrap();
     database::create_database(&mut connection).unwrap_or_default();
-    let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), database.clone()).start());
+
+    let states = Arc::new(YummyState::default());
+
+    let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
     let user_manager = Data::new(UserManager::<database::SqliteStore>::new(database.clone()).start());
         
     HttpServer::new(move || {

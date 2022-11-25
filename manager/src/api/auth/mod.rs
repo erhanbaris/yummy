@@ -1,11 +1,11 @@
 pub mod model;
 
-use general::auth::{generate_auth, UserJwt, validate_auth};
-use std::marker::PhantomData;
+use general::{auth::{generate_auth, UserJwt, validate_auth}, model::YummyState};
+use std::{marker::PhantomData, time::Duration};
 use std::sync::Arc;
 use general::config::YummyConfig;
 
-use actix::{Context, Handler, Actor};
+use actix::{Context, Handler, Actor, AsyncContext};
 use database::{RowId, Pool, DatabaseTrait};
 use anyhow::anyhow;
 
@@ -18,14 +18,16 @@ use self::model::*;
 pub struct AuthManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
+    states: Arc<YummyState>,
     _auth: PhantomData<DB>
 }
 
 impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
-    pub fn new(config: Arc<YummyConfig>, database: Arc<Pool>) -> Self {
+    pub fn new(config: Arc<YummyConfig>, states: Arc<YummyState>, database: Arc<Pool>) -> Self {
         Self {
             config,
             database,
+            states,
             _auth: PhantomData
         }
     }
@@ -72,7 +74,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
             _ => return Err(anyhow!(AuthError::EmailOrPasswordNotValid))
         };
         
-        self.generate_token(UserId(user_id.0), name, Some(auth.email.to_string()), None)
+        let session_id = self.states.new_session(UserId(user_id.0));
+        self.generate_token(UserId(user_id.0), name, Some(auth.email.to_string()), Some(session_id))
     }
 }
 
@@ -90,7 +93,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
             None => (DB::create_user_via_device_id(&mut connection, &auth.id)?, None, None)
         };
         
-        self.generate_token(UserId(user_id.0), name, email, None)
+        let session_id = self.states.new_session(UserId(user_id.0));
+        self.generate_token(UserId(user_id.0), name, email, Some(session_id))
     }
 }
 
@@ -108,6 +112,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
             None => (DB::create_user_via_custom_id(&mut connection, &auth.id)?, None, None)
         };
         
+        let session_id = self.states.new_session(UserId(user_id.0));
         self.generate_token(UserId(user_id.0), name, email, None)
     }
 }
@@ -136,11 +141,25 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
     }
 }
 
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUserTimeout> for AuthManager<DB> {
+    type Result = anyhow::Result<Response>;
+
+    #[tracing::instrument(name="Auth::StartTimer", skip(self, ctx))]
+    fn handle(&mut self, token: StartUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
+        let _spawn = ctx.run_later(Duration::from_secs(10), move |_manager, _ctx| {
+            println!("User connection '{:?}' timed out", token.session_id);
+        });
+
+        Ok(Response::None)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use general::config::YummyConfig;
     use general::config::get_configuration;
     use general::auth::validate_auth;
+    use general::model::YummyState;
     use std::sync::Arc;
 
     use actix::Actor;
@@ -159,8 +178,9 @@ mod tests {
     fn create_actor() -> anyhow::Result<(Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>)> {
         let config = get_configuration();
         let connection = create_connection(":memory:")?;
+        let states = Arc::new(YummyState::default());
         create_database(&mut connection.clone().get()?)?;
-        Ok((AuthManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection)).start(), config))
+        Ok((AuthManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start(), config))
     }
 
     /* email unit tests */

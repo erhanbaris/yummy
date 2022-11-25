@@ -185,6 +185,7 @@ mod tests {
     use actix_web::web::{QueryConfig, JsonConfig};
     use actix_web::{web::Data, App};
     use database::{create_database, create_connection};
+    use general::model::YummyState;
     use general::web::Answer;
     use manager::api::auth::AuthManager;
     use serde_json::json;
@@ -200,7 +201,9 @@ mod tests {
             let config = ::general::config::get_configuration();
             let connection = create_connection(":memory:").unwrap();
             create_database(&mut connection.clone().get().unwrap()).unwrap();
-            let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection.clone())).start());
+            
+            let states = Arc::new(YummyState::default());
+            let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection.clone())).start());
             let user_manager = Data::new(UserManager::<database::SqliteStore>::new(Arc::new(connection)).start());
 
             let query_cfg = QueryConfig::default()

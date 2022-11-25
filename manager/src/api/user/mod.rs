@@ -149,6 +149,7 @@ mod tests {
     use general::auth::validate_auth;
     use general::config::YummyConfig;
     use general::config::get_configuration;
+    use general::model::YummyState;
     use std::sync::Arc;
 
     use actix::Actor;
@@ -163,8 +164,9 @@ mod tests {
     fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>)> {
         let config = get_configuration();
         let connection = create_connection(":memory:")?;
+        let states = Arc::new(YummyState::default());
         create_database(&mut connection.clone().get()?)?;
-        Ok((UserManager::<database::SqliteStore>::new(Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection)).start(), config))
+        Ok((UserManager::<database::SqliteStore>::new(Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config))
     }
     
     #[actix::test]

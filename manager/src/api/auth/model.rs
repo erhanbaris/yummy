@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use actix::prelude::Message;
 use thiserror::Error;
+use uuid::Uuid;
 use validator::Validate;
 
 use crate::response::Response;
@@ -38,6 +39,15 @@ pub struct RestoreTokenRequest {
 
 unsafe impl Send for RefreshTokenRequest {}
 unsafe impl Sync for RefreshTokenRequest {}
+
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<Response>")]
+pub struct StartUserTimeout {
+    pub session_id: Uuid
+}
+
+unsafe impl Send for StartUserTimeout {}
+unsafe impl Sync for StartUserTimeout {}
 
 #[derive(Message, Debug, Validate)]
 #[rtype(result = "anyhow::Result<Response>")]

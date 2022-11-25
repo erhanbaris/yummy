@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use actix::Addr;
 use actix_web::{HttpResponse, HttpRequest};
@@ -10,6 +11,7 @@ use manager::api::{auth::AuthManager, user::UserManager};
 use manager::response::Response;
 
 use crate::api::request::Request;
+use super::request::AuthType;
 use super::{process_auth, process_user};
 
 #[tracing::instrument(name="http_query", skip(req, auth_manager, user_manager, _integration))]
@@ -24,7 +26,12 @@ pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, a
     match response {
         Ok(response) => {
             let message = match response {
-                Response::Auth(token, _) => HttpResponse::Ok().json(GenericAnswer::success(token)),
+                Response::Auth(token, auth) => {
+                    process_auth(AuthType::StartUserTimeout {
+                        session_id: auth.session.0
+                    }, auth_manager.as_ref().clone()).await;
+                    HttpResponse::Ok().json(GenericAnswer::success(token))
+                },
                 Response::UserPrivateInfo(model) => HttpResponse::Ok().json(GenericAnswer::success(model)),
                 Response::UserPublicInfo(model) => HttpResponse::Ok().json(GenericAnswer::success(model)),
                 Response::None => HttpResponse::Ok().json(Answer::success()),
@@ -47,6 +54,7 @@ pub mod tests {
     use database::model::PrivateUserModel;
     use database::model::PublicUserModel;
     use database::{create_database, create_connection};
+    use general::model::YummyState;
     use general::web::Answer;
     use general::web::GenericAnswer;
     use manager::api::auth::AuthManager;
@@ -62,7 +70,8 @@ pub mod tests {
         let config = ::general::config::get_configuration();
         let connection = create_connection(":memory:").unwrap();
         create_database(&mut connection.clone().get().unwrap()).unwrap();
-        let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection.clone())).start());
+        let states = Arc::new(YummyState::default());
+        let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection.clone())).start());
         let user_manager = Data::new(UserManager::<database::SqliteStore>::new(Arc::new(connection)).start());
 
         let query_cfg = QueryConfig::default()
