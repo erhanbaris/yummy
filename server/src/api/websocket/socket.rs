@@ -46,19 +46,17 @@ pub struct GameWebsocket<M: Actor + GameManagerTrait> {
     connection_id: ConnectionId,
     manager: Addr<M>,
     hb: Instant,
-    valid_user: bool,
     config: Arc<YummyConfig>
 }
 
 impl<M: Actor + GameManagerTrait> GameWebsocket<M>
 {
-    pub fn new(config: Arc<YummyConfig>, connection_id: usize, user: UserJwt, manager: Addr<M>, valid_user: bool) -> Self {
+    pub fn new(config: Arc<YummyConfig>, connection_id: usize, user: UserJwt, manager: Addr<M>) -> Self {
         Self {
             connection_id: ConnectionId(connection_id),
             user,
             hb: Instant::now(),
             manager,
-            valid_user,
             config
         }
     }
@@ -79,24 +77,16 @@ impl<M: Actor + GameManagerTrait> GameWebsocket<M>
 impl<M: Actor + GameManagerTrait> Actor for GameWebsocket<M> {
     type Context = ws::WebsocketContext<Self>;
 
+    #[tracing::instrument(name="started", skip(self, ctx))]
     fn started(&mut self, ctx: &mut Self::Context) {
         log::debug!("New socket started");
-        if !self.valid_user {
-            log::debug!("Invalid user");
-            ctx.close(Some(actix_web_actors::ws::CloseReason::from(actix_web_actors::ws::CloseCode::Invalid)));
-            ctx.stop();
-            return;
-        }
-
         if cfg!(not(feature="test")) {
             self.hb(ctx);
         }
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
-        if self.valid_user {
-            log::debug!("Stopping socket ({:?})", self.connection_id);
-        }
+        log::debug!("Stopping socket ({:?})", self.connection_id);
         Running::Stop
     }
 }

@@ -1,6 +1,5 @@
-use general::model::UserId;
+use general::model::{UserId, SessionId};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "auth_type")]
@@ -24,8 +23,9 @@ pub enum AuthType {
     Restore {
         token: String
     },
+    Logout,
     StartUserTimeout {
-        session_id: Uuid
+        session_id: SessionId
     }
 }
 

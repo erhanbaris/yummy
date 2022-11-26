@@ -1,7 +1,7 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 use actix::prelude::Message;
+use general::{model::SessionId, auth::UserAuth};
 use thiserror::Error;
-use uuid::Uuid;
 use validator::Validate;
 
 use crate::response::Response;
@@ -42,12 +42,30 @@ unsafe impl Sync for RefreshTokenRequest {}
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<Response>")]
+pub struct LogoutRequest {
+    pub user: Arc<Option<UserAuth>>
+}
+
+unsafe impl Send for LogoutRequest {}
+unsafe impl Sync for LogoutRequest {}
+
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<Response>")]
 pub struct StartUserTimeout {
-    pub session_id: Uuid
+    pub session_id: SessionId
 }
 
 unsafe impl Send for StartUserTimeout {}
 unsafe impl Sync for StartUserTimeout {}
+
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<Response>")]
+pub struct StopUserTimeout {
+    pub session_id: SessionId
+}
+
+unsafe impl Send for StopUserTimeout {}
+unsafe impl Sync for StopUserTimeout {}
 
 #[derive(Message, Debug, Validate)]
 #[rtype(result = "anyhow::Result<Response>")]
@@ -90,5 +108,8 @@ pub enum AuthError {
     TokenCouldNotGenerated,
     
     #[error("User token is not valid")]
-    TokenNotValid
+    TokenNotValid,
+
+    #[error("Only one connection allowed per user")]
+    OnlyOneConnectionAllowedPerUser
 }

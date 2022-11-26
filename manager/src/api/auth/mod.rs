@@ -1,14 +1,15 @@
 pub mod model;
 
+use std::ops::Deref;
 use general::{auth::{generate_auth, UserJwt, validate_auth}, model::YummyState};
-use std::{marker::PhantomData, time::Duration};
+use std::marker::PhantomData;
 use std::sync::Arc;
+use std::collections::HashMap;
 use general::config::YummyConfig;
 
-use actix::{Context, Handler, Actor, AsyncContext};
+use actix::{Context, Handler, Actor, AsyncContext, SpawnHandle};
 use database::{RowId, Pool, DatabaseTrait};
 use anyhow::anyhow;
-
 use general::model::{UserId, SessionId};
 
 use crate::response::Response;
@@ -19,6 +20,7 @@ pub struct AuthManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
     states: Arc<YummyState>,
+    timeout_timers: HashMap<SessionId, SpawnHandle>,
     _auth: PhantomData<DB>
 }
 
@@ -28,6 +30,7 @@ impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
             config,
             database,
             states,
+            timeout_timers: HashMap::new(),
             _auth: PhantomData
         }
     }
@@ -74,6 +77,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
             _ => return Err(anyhow!(AuthError::EmailOrPasswordNotValid))
         };
         
+        if self.states.is_user_online(&UserId(user_id.0)) {
+            return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
+        }
+
         let session_id = self.states.new_session(UserId(user_id.0));
         self.generate_token(UserId(user_id.0), name, Some(auth.email.to_string()), Some(session_id))
     }
@@ -92,6 +99,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
             Some((user_id, name, email)) => (user_id, name, email),
             None => (DB::create_user_via_device_id(&mut connection, &auth.id)?, None, None)
         };
+        
+        if self.states.is_user_online(&UserId(user_id.0)) {
+            return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
+        }
         
         let session_id = self.states.new_session(UserId(user_id.0));
         self.generate_token(UserId(user_id.0), name, email, Some(session_id))
@@ -112,8 +123,27 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
             None => (DB::create_user_via_custom_id(&mut connection, &auth.id)?, None, None)
         };
         
+        if self.states.is_user_online(&UserId(user_id.0)) {
+            return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
+        }
+        
         let session_id = self.states.new_session(UserId(user_id.0));
-        self.generate_token(UserId(user_id.0), name, email, None)
+        self.generate_token(UserId(user_id.0), name, email, Some(session_id))
+    }
+}
+
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRequest> for AuthManager<DB> {
+    type Result = anyhow::Result<Response>;
+
+    #[tracing::instrument(name="Auth::Logout", skip(self, _ctx))]
+    fn handle(&mut self, model: LogoutRequest, _ctx: &mut Context<Self>) -> Self::Result {
+        match model.user.deref() {
+            Some(user) => {
+                self.states.as_ref().close_session(&user.session);
+                Ok(Response::None)
+            },
+            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
+        }
     }
 }
 
@@ -145,10 +175,27 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUse
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::StartTimer", skip(self, ctx))]
-    fn handle(&mut self, token: StartUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
-        let _spawn = ctx.run_later(Duration::from_secs(10), move |_manager, _ctx| {
-            println!("User connection '{:?}' timed out", token.session_id);
+    fn handle(&mut self, model: StartUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
+        let session_id = model.session_id.clone();
+        let timer = ctx.run_later(self.config.connection_restore_wait_timeout, move |manager, _ctx| {
+            println!("User connection '{:?}' timed out", model.session_id);
+            manager.states.close_session(model.session_id);
         });
+
+        self.timeout_timers.insert(session_id, timer);
+
+        Ok(Response::None)
+    }
+}
+
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StopUserTimeout> for AuthManager<DB> {
+    type Result = anyhow::Result<Response>;
+
+    #[tracing::instrument(name="Auth::StopTimer", skip(self, ctx))]
+    fn handle(&mut self, model: StopUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
+        if let Some(handle) = self.timeout_timers.remove(&model.session_id) {
+            ctx.cancel_future(handle);
+        }
 
         Ok(Response::None)
     }
@@ -168,10 +215,7 @@ mod tests {
     use database::{create_database, create_connection};
     
     use super::AuthManager;
-    use super::DeviceIdAuthRequest;
-    use super::EmailAuthRequest;
-    use super::RefreshTokenRequest;
-    use super::CustomIdAuthRequest;
+    use super::*;
 
     use crate::response::Response;
 
@@ -197,20 +241,34 @@ mod tests {
 
     #[actix::test]
     async fn login_user_via_email() -> anyhow::Result<()> {
+        std::env::set_var("CLIENT_TIMEOUT", "1");
+        std::env::set_var("HEARTBEAT_INTERVAL", "1");
+        std::env::set_var("CONNECTION_RESTORE_WAIT_TIMEOUT", "1");
+        
         let (address, _) = create_actor()?;
-        address.send(EmailAuthRequest {
+        let response = address.send(EmailAuthRequest {
             email: "erhanbaris@gmail.com".to_string(),
             password: "erhan".to_string(),
             if_not_exist_create: true
         }).await??;
 
-        address.send(EmailAuthRequest {
-            email: "erhanbaris@gmail.com".to_string(),
-            password: "erhan".to_string(),
-            if_not_exist_create: false
-        }).await??;
+        if let Response::Auth(_, auth) = response.clone() {
+            address.send(StartUserTimeout {
+                session_id: auth.session.clone()
+            }).await??;
 
-        Ok(())
+            actix::clock::sleep(std::time::Duration::new(3, 0)).await;
+
+            address.send(EmailAuthRequest {
+                email: "erhanbaris@gmail.com".to_string(),
+                password: "erhan".to_string(),
+                if_not_exist_create: false
+            }).await??;
+
+            return Ok(());
+        }
+
+        return Err(anyhow::anyhow!("Unexpected response"));
     }
 
     #[actix::test]
@@ -255,12 +313,27 @@ mod tests {
 
     #[actix::test]
     async fn login_user_via_device_id() -> anyhow::Result<()> {
+        std::env::set_var("CLIENT_TIMEOUT", "1");
+        std::env::set_var("HEARTBEAT_INTERVAL", "1");
+        std::env::set_var("CONNECTION_RESTORE_WAIT_TIMEOUT", "1");
+        
         let (address, _) = create_actor()?;
         let created_token = address.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
-        let logged_in_token = address.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
-        assert_ne!(created_token, logged_in_token);
 
-        Ok(())
+        if let Response::Auth(_, auth) = created_token.clone() {
+            address.send(StartUserTimeout {
+                session_id: auth.session.clone()
+            }).await??;
+
+            actix::clock::sleep(std::time::Duration::new(3, 0)).await;
+
+            let logged_in_token = address.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
+            assert_ne!(created_token, logged_in_token);
+    
+            return Ok(());
+        }
+
+        return Err(anyhow::anyhow!("Unexpected response"));
     }
 
     #[actix::test]
@@ -283,12 +356,27 @@ mod tests {
 
     #[actix::test]
     async fn login_user_via_custom_id() -> anyhow::Result<()> {
+        std::env::set_var("CLIENT_TIMEOUT", "1");
+        std::env::set_var("HEARTBEAT_INTERVAL", "1");
+        std::env::set_var("CONNECTION_RESTORE_WAIT_TIMEOUT", "1");
+        
         let (address, _) = create_actor()?;
         let created_token = address.send(CustomIdAuthRequest::new("1234567890".to_string())).await??;
-        let logged_in_token = address.send(CustomIdAuthRequest::new("1234567890".to_string())).await??;
-        assert_ne!(created_token, logged_in_token);
 
-        Ok(())
+        if let Response::Auth(_, auth) = created_token.clone() {
+            address.send(StartUserTimeout {
+                session_id: auth.session.clone()
+            }).await??;
+
+            actix::clock::sleep(std::time::Duration::new(3, 0)).await;
+
+            let logged_in_token = address.send(CustomIdAuthRequest::new("1234567890".to_string())).await??;
+            assert_ne!(created_token, logged_in_token);
+    
+            return Ok(());
+        }
+
+        return Err(anyhow::anyhow!("Unexpected response"));
     }
 
     #[actix::test]

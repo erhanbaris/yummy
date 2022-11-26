@@ -28,13 +28,14 @@ macro_rules! as_response {
 }
 
 #[tracing::instrument(name="process_auth", skip(auth_manager))]
-pub(crate) async fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type: AuthType, auth_manager: Addr<AuthManager<DB>>) -> anyhow::Result<Response> {
+pub(crate) async fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type: AuthType, auth_manager: Addr<AuthManager<DB>>, user: Arc<Option<UserAuth>>) -> anyhow::Result<Response> {
     match auth_type {
         AuthType::Email { email, password, if_not_exist_create } => as_response!(auth_manager, EmailAuthRequest { email, password, if_not_exist_create }),
         AuthType::DeviceId { id } => as_response!(auth_manager, DeviceIdAuthRequest::new(id)),
         AuthType::CustomId { id } => as_response!(auth_manager, CustomIdAuthRequest::new(id)),
         AuthType::Refresh { token } => as_response!(auth_manager, RefreshTokenRequest { token }),
         AuthType::Restore { token } => as_response!(auth_manager, RestoreTokenRequest { token }),
+        AuthType::Logout => as_response!(auth_manager, LogoutRequest { user }),
         AuthType::StartUserTimeout { session_id } => as_response!(auth_manager, StartUserTimeout { session_id }),
     }
 }

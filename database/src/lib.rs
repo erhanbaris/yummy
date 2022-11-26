@@ -36,9 +36,15 @@ impl DatabaseTrait for SqliteStore { }
 #[diesel(sql_type = Text)]
 pub struct RowId(pub uuid::Uuid);
 
+impl RowId {
+    pub fn get(&self) -> Uuid {
+        self.0
+    }
+}
+
 impl ToString for RowId {
     fn to_string(&self) -> String {
-        self.0.to_string()
+        self.get().to_string()
     }
 }
 
@@ -50,7 +56,7 @@ impl From<Uuid> for RowId {
 
 impl ToSql<Text, diesel::sqlite::Sqlite> for RowId where String: ToSql<Text, diesel::sqlite::Sqlite> {
     fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, diesel::sqlite::Sqlite>) -> serialize::Result {
-        out.set_value(self.0.to_string());
+        out.set_value(self.get().to_string());
         Ok(IsNull::No)
     }
 }
@@ -143,10 +149,10 @@ mod tests {
     #[test]
     fn row_id() -> anyhow::Result<()> {
         let row_id = RowId::default();
-        assert!(row_id.0.is_nil());
+        assert!(row_id.get().is_nil());
 
         let row_id = RowId(uuid::Uuid::new_v4());
-        assert!(!row_id.0.is_nil());
+        assert!(!row_id.get().is_nil());
 
         let uuid_data = "85fc32fe-eaa5-46c3-b8e8-60bb658b5de7";
         let row_id: RowId = uuid_data.to_string().into();

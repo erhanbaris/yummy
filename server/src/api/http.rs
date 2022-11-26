@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use actix::Addr;
 use actix_web::{HttpResponse, HttpRequest};
@@ -19,8 +18,8 @@ pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, a
     let user = Arc::new(UserAuth::parse(&req));
     
     let response = match request?.0 {
-        Request::Auth { auth_type } => process_auth(auth_type, auth_manager.as_ref().clone()).await,
-        Request::User { user_type } => process_user(user_type, user_manager.as_ref().clone(), user).await,
+        Request::Auth { auth_type } => process_auth(auth_type, auth_manager.as_ref().clone(), user.clone()).await,
+        Request::User { user_type } => process_user(user_type, user_manager.as_ref().clone(), user.clone()).await,
     };
 
     match response {
@@ -28,8 +27,8 @@ pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, a
             let message = match response {
                 Response::Auth(token, auth) => {
                     process_auth(AuthType::StartUserTimeout {
-                        session_id: auth.session.0
-                    }, auth_manager.as_ref().clone()).await;
+                        session_id: auth.session
+                    }, auth_manager.as_ref().clone(), user).await;
                     HttpResponse::Ok().json(GenericAnswer::success(token))
                 },
                 Response::UserPrivateInfo(model) => HttpResponse::Ok().json(GenericAnswer::success(model)),
@@ -492,15 +491,26 @@ pub mod tests {
         assert_eq!(res.status, true);
 
         let req = test::TestRequest::post().uri("/v1/query")
-        .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
-        .set_json(json!({
-            "type": "Auth",
-            "auth_type": "Email",
-            "email": "erhanbaris@gmail.com",
-            "password": "baris",
-            "create": false
-        }))
-        .to_request();
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .set_json(json!({
+                "type": "Auth",
+                "auth_type": "Logout"
+            }))
+            .to_request();
+        let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
+        assert_eq!(res.status, true);
+
+        let req = test::TestRequest::post().uri("/v1/query")
+            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .set_json(json!({
+                "type": "Auth",
+                "auth_type": "Email",
+                "email": "erhanbaris@gmail.com",
+                "password": "baris",
+                "create": false
+            }))
+            .to_request();
 
     let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
     assert_eq!(res.status, true);

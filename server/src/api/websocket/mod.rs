@@ -10,6 +10,7 @@ use general::auth::UserAuth;
 use general::error::YummyError;
 use general::model::WebsocketMessage;
 use general::web::GenericAnswer;
+use manager::api::auth::model::StartUserTimeout;
 use manager::api::user::UserManager;
 use manager::response::Response;
 use std::sync::Arc;
@@ -39,8 +40,8 @@ pub async fn websocket_endpoint<DB: DatabaseTrait + Unpin + 'static>(req: HttpRe
 }
 
 pub struct GameWebsocket<DB: DatabaseTrait + ?Sized + Unpin + 'static> {
-    auth: Addr<AuthManager<DB>>,
-    user: Addr<UserManager<DB>>,
+    auth_manager: Addr<AuthManager<DB>>,
+    user_manager: Addr<UserManager<DB>>,
     hb: Instant,
     user_auth: Arc<Option<UserAuth>>,
     config: Arc<YummyConfig>,
@@ -54,26 +55,27 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
     ) -> Self {
         Self {
             hb: Instant::now(),
-            auth,
-            user,
+            auth_manager: auth,
+            user_manager: user,
             config,
             user_auth: Arc::new(None)
         }
     }
 
+    #[tracing::instrument(name="execute_message", skip(self, ctx))]
     fn execute_message(&mut self, message: String, ctx: &mut ws::WebsocketContext<Self>) -> anyhow::Result<()> {
         let message = match serde_json::from_str::<Request>(&message) {
             Ok(message) => message,
             Err(_) => return Err(anyhow::anyhow!("Wrong message format"))
         };
 
-        let auth_manager = self.auth.clone();
-        let user_manager = self.user.clone();
+        let auth_manager = self.auth_manager.clone();
+        let user_manager = self.user_manager.clone();
         let user_info = self.user_auth.clone();
 
         let future = Box::pin(async {
             let result = match message {
-                Request::Auth { auth_type } => process_auth(auth_type, auth_manager).await,
+                Request::Auth { auth_type } => process_auth(auth_type, auth_manager, user_info).await,
                 Request::User { user_type } => process_user(user_type, user_manager, user_info).await
             };
             result
@@ -109,14 +111,14 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
         Ok(())
     }
 
+    #[tracing::instrument(name="HB", skip(self, ctx))]
     fn hb(&self, ctx: &mut ws::WebsocketContext<Self>) {
         ctx.run_interval(self.config.heartbeat_interval, |act, ctx| {
             if Instant::now().duration_since(act.hb) > act.config.client_timeout {
-                log::debug!("Disconnecting failed heartbeat, {:?}", act.hb);
+                println!("Disconnecting failed heartbeat, {:?}", act.hb);
                 ctx.stop();
                 return;
             }
-
             ctx.ping(b"PING");
         });
     }
@@ -131,6 +133,12 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Actor for GameWebsocket<DB> {
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
+        if let Some(auth) = self.user_auth.as_ref() {
+            self.auth_manager.do_send(StartUserTimeout {
+                session_id: auth.session.clone()
+            });
+        }
+
         Running::Stop
     }
 }
@@ -138,6 +146,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Actor for GameWebsocket<DB> {
 impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> StreamHandler<Result<ws::Message, ws::ProtocolError>>
     for GameWebsocket<DB>
 {
+    #[tracing::instrument(name="handle", skip(self, ctx))]
     fn handle(&mut self, message: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         let result = match message {
             Ok(ws::Message::Close(reason)) => {
@@ -167,7 +176,8 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> StreamHandler<Result<ws::Mess
 
 impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Handler<WebsocketMessage> for GameWebsocket<DB> {
     type Result = ();
-
+    
+    #[tracing::instrument(name="handle", skip(self, ctx))]
     fn handle(&mut self, message: WebsocketMessage, ctx: &mut Self::Context) {
         log::info!("SEND:{:?}", message.0);
         ctx.text(message.0);
@@ -551,6 +561,10 @@ mod tests {
 
     #[actix_web::test]
     async fn auth_via_email_5() -> anyhow::Result<()> {
+        std::env::set_var("CLIENT_TIMEOUT", "1");
+        std::env::set_var("HEARTBEAT_INTERVAL", "1");
+        std::env::set_var("CONNECTION_RESTORE_WAIT_TIMEOUT", "1");
+
         let server = create_websocket_server();
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
@@ -584,6 +598,12 @@ mod tests {
         let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
         assert!(response.status);
 
+        client.disconnect().await;
+        actix::clock::sleep(std::time::Duration::new(3, 0)).await;
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+        
+        // Login again
         let request = json!({
             "type": "Auth",
             "auth_type": "Email",
@@ -602,6 +622,10 @@ mod tests {
 
     #[actix_web::test]
     async fn auth_via_email_6() -> anyhow::Result<()> {
+        std::env::set_var("CLIENT_TIMEOUT", "1");
+        std::env::set_var("HEARTBEAT_INTERVAL", "1");
+        std::env::set_var("CONNECTION_RESTORE_WAIT_TIMEOUT", "1");
+
         let server = create_websocket_server();
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
@@ -634,6 +658,11 @@ mod tests {
 
         let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
         assert!(response.status);
+
+        client.disconnect().await;
+        actix::clock::sleep(std::time::Duration::new(3, 0)).await;
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
         let request = json!({
             "type": "Auth",

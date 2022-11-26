@@ -4,6 +4,7 @@ use std::time::Duration;
 use std::env;
 
 pub const DEFAULT_CLIENT_TIMEOUT: u64 = 20; // in seconds
+pub const DEFAULT_CONNECTION_RESTORE_WAIT_TIMEOUT: u64 = 10; // in seconds
 pub const DEFAULT_HEARTBEAT_INTERVAL: u64 = 10; // in seconds
 pub const DEFAULT_TOKEN_LIFETIME: i64 = 24; // in seconds
 pub const DEFAULT_API_KEY_NAME: &str = "x-yummy-api";
@@ -19,6 +20,7 @@ pub struct YummyConfig {
     pub user_auth_key_name: String,
     pub heartbeat_interval: Duration,
     pub client_timeout: Duration,
+    pub connection_restore_wait_timeout: Duration,
     pub salt_key: String,
     pub integration_key: String,
     pub database_url: String,
@@ -34,6 +36,7 @@ pub fn get_env_var<R: Clone + FromStr>(key: &str, default: R) -> R {
 pub fn get_configuration() -> Arc<YummyConfig> {
     let mut yummy_config = YummyConfig::default();
     yummy_config.client_timeout = Duration::from_secs(get_env_var("CLIENT_TIMEOUT", DEFAULT_CLIENT_TIMEOUT));
+    yummy_config.connection_restore_wait_timeout = Duration::from_secs(get_env_var("CONNECTION_RESTORE_WAIT_TIMEOUT", DEFAULT_CONNECTION_RESTORE_WAIT_TIMEOUT));
     yummy_config.heartbeat_interval = Duration::from_secs(get_env_var("HEARTBEAT_INTERVAL", DEFAULT_HEARTBEAT_INTERVAL));
     yummy_config.token_lifetime = get_env_var("TOKEN_LIFETIME", DEFAULT_TOKEN_LIFETIME);
     yummy_config.api_key_name = get_env_var("API_KEY_NAME", DEFAULT_API_KEY_NAME.to_string());

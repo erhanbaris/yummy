@@ -1,4 +1,4 @@
-use std::{fmt::Debug, cell::RefCell};
+use std::{fmt::Debug, borrow::Borrow};
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
@@ -22,6 +22,10 @@ impl SessionId {
     }
     
     pub fn empty(&self) -> bool { self.0.is_nil() }
+
+    pub fn get(&self) -> Uuid {
+        self.0
+    }
 }
 
 #[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash)]
@@ -41,32 +45,36 @@ unsafe impl Sync for RoomId {}
 unsafe impl Send for UserId {}
 unsafe impl Sync for UserId {}
 
-#[derive(Message)]
+#[derive(Message, Debug)]
 #[rtype(result = "()")]
 pub struct WebsocketMessage(pub String);
 
 #[derive(Default, Debug)]
 pub struct YummyState {
-    user_sessions: Map<UserId, RefCell<Vec<SessionId>>>,
-    session_user_id: Map<SessionId, UserId>
+    user_to_session: Map<UserId, SessionId>,
+    session_to_user: Map<SessionId, UserId>
 }
 
 impl YummyState {
-    pub fn is_user_online(&self, user_id: UserId) -> bool {
-        self.user_sessions.get(&user_id).is_some()
+    #[tracing::instrument(name="is_user_online", skip(self))]
+    pub fn is_user_online(&self, user_id: &UserId) -> bool {
+        self.user_to_session.get(user_id).is_some()
     }
 
+    #[tracing::instrument(name="new_session", skip(self))]
     pub fn new_session(&self, user_id: UserId) -> SessionId {
         let session_id = SessionId::new();
-        self.session_user_id.insert(session_id.clone(), user_id);
-        
-        match self.user_sessions.get(&user_id) {
-            Some(sessions) => sessions.1.borrow_mut().push(session_id.clone()),
-            None => {
-                self.user_sessions.insert(user_id.clone(), RefCell::new(vec![session_id.clone()]));
-            }
-        };
-
+        self.session_to_user.insert(session_id.clone(), user_id);
+        self.user_to_session.insert(user_id, session_id.clone());
         session_id
+    }
+
+    #[tracing::instrument(name="close_session", skip(self))]
+    pub fn close_session<T: Borrow<SessionId> + std::fmt::Debug>(&self, session_id: T) {
+        let removed = self.session_to_user.remove(session_id.borrow());
+
+        if let Some(removed) = removed {
+            self.user_to_session.remove(removed.val());
+        }
     }
 }

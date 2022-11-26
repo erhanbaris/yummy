@@ -55,12 +55,6 @@ where
         self.socket.close().await.unwrap();
     }
 
-    pub async fn reconnect(&mut self) {
-        let client = Client::default().ws(self.url.clone());
-        let (_, socket) = client.connect().await.unwrap();
-        self.socket = socket;
-    }
-
     pub async fn get_text(&mut self) -> Option<String> {
         let message = self.socket.next().await;
         match message {
