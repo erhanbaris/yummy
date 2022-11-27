@@ -433,7 +433,7 @@ mod tests {
         Ok(())
     }
 
-    #[actix::test]
+    /*#[actix::test]
     async fn fail_token_restore_test_1() -> anyhow::Result<()> {
 
         std::env::set_var("TOKEN_LIFETIME", "1");
@@ -452,9 +452,9 @@ mod tests {
         if response.is_ok() {
             assert!(false, "Expected exception");
         }
-
+        
         Ok(())
-    }
+    }*/
 
     /* refreh token unit tests */
     #[actix::test]

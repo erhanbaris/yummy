@@ -758,4 +758,84 @@ mod tests {
 
         Ok(())
     }
+
+    #[actix_web::test]
+    async fn token_restore_1() -> anyhow::Result<()> {
+        let server = create_websocket_server();
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "DeviceId",
+            "id": "1234567890"
+        });
+        client.send(request).await;
+
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let token = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?.result.unwrap();
+
+        client.disconnect().await;
+        
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "Restore",
+            "token": token
+        });
+        client.send(request).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+        assert!(response.status);
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn fail_token_restore_1() -> anyhow::Result<()> {
+        std::env::set_var("TOKEN_LIFETIME", "1");
+
+        let server = create_websocket_server();
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "DeviceId",
+            "id": "1234567890"
+        });
+        client.send(request).await;
+
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let token = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?.result.unwrap();
+
+        client.disconnect().await;
+
+        // Wait 3 seconds
+        actix::clock::sleep(std::time::Duration::new(3, 0)).await;
+        
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+
+        // Not valid
+        let request = json!({
+            "type": "Auth",
+            "auth_type": "Restore",
+            "token": token
+        });
+        client.send(request).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+        assert_eq!(response.status, false);
+
+        Ok(())
+    }
 }
