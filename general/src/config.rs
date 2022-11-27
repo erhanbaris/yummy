@@ -6,7 +6,7 @@ use std::env;
 pub const DEFAULT_CLIENT_TIMEOUT: u64 = 20; // in seconds
 pub const DEFAULT_CONNECTION_RESTORE_WAIT_TIMEOUT: u64 = 10; // in seconds
 pub const DEFAULT_HEARTBEAT_INTERVAL: u64 = 10; // in seconds
-pub const DEFAULT_TOKEN_LIFETIME: i64 = 24; // in seconds
+pub const DEFAULT_TOKEN_LIFETIME: i64 = 24 * 60 * 60; // in seconds
 pub const DEFAULT_API_KEY_NAME: &str = "x-yummy-api";
 pub const DEFAULT_USER_AUTH_KEY_NAME: &str = "x-yummy-auth";
 pub const DEFAULT_SALT_KEY: &str = "YUMMY-SALT";

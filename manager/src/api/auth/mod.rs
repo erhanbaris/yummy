@@ -162,10 +162,21 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreTokenRequest> for AuthManager<DB> {
     type Result = anyhow::Result<Response>;
 
-    #[tracing::instrument(name="Auth::Restore", skip(self, _ctx))]
-    fn handle(&mut self, token: RestoreTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
+    #[tracing::instrument(name="Auth::Restore", skip(self, ctx))]
+    fn handle(&mut self, token: RestoreTokenRequest, ctx: &mut Context<Self>) -> Self::Result {
         match validate_auth(self.config.clone(), token.token) {
-            Some(_) => Ok(Response::None),
+            Some(auth) => {
+                let session_id = if self.states.is_session_online(&auth.user.session) {
+                    if let Some(handle) = self.timeout_timers.remove(&auth.user.session) {
+                        ctx.cancel_future(handle);
+                    }
+                    auth.user.session
+                } else {
+                    self.states.new_session(auth.user.id)
+                };
+
+                self.generate_token(auth.user.id, None, None, Some(session_id))
+            },
             None => Err(anyhow!(AuthError::TokenNotValid))
         }
     }
@@ -385,6 +396,62 @@ mod tests {
         let login_1 = address.send(CustomIdAuthRequest::new("1234567890".to_string())).await??;
         let login_2 = address.send(CustomIdAuthRequest::new("abcdef".to_string())).await??;
         assert_ne!(login_1, login_2);
+
+        Ok(())
+    }
+
+    /* restore token unit tests */
+    #[actix::test]
+    async fn token_restore_test_1() -> anyhow::Result<()> {
+        let (address, config) = create_actor()?;
+        let old_token: Response = address.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
+        let old_token = match old_token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
+
+        // Wait 1 second
+        actix::clock::sleep(std::time::Duration::new(1, 0)).await;
+        let new_token: Response = address.send(RestoreTokenRequest { token: old_token.to_string() }).await??;
+        let new_token = match new_token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
+       
+        assert_ne!(old_token.clone(), new_token.clone());
+
+        let old_claims =  validate_auth(config.clone(), old_token).unwrap();
+        let new_claims =  validate_auth(config.clone(), new_token).unwrap();
+
+        assert_eq!(old_claims.user.id.clone(), new_claims.user.id.clone());
+        assert_eq!(old_claims.user.name.clone(), new_claims.user.name.clone());
+        assert_eq!(old_claims.user.email.clone(), new_claims.user.email.clone());
+        assert_eq!(old_claims.user.session.clone(), new_claims.user.session.clone());
+
+        assert!(old_claims.exp < new_claims.exp);
+
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn fail_token_restore_test_1() -> anyhow::Result<()> {
+
+        std::env::set_var("TOKEN_LIFETIME", "1");
+
+        let (address, _) = create_actor()?;
+        let old_token: Response = address.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
+        let old_token = match old_token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
+
+        // Wait 3 seconds
+        actix::clock::sleep(std::time::Duration::new(3, 0)).await;
+        let response = address.send(RestoreTokenRequest { token: old_token.to_string() }).await?;
+        
+        if response.is_ok() {
+            assert!(false, "Expected exception");
+        }
 
         Ok(())
     }

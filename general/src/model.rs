@@ -57,8 +57,13 @@ pub struct YummyState {
 
 impl YummyState {
     #[tracing::instrument(name="is_user_online", skip(self))]
-    pub fn is_user_online(&self, user_id: &UserId) -> bool {
-        self.user_to_session.get(user_id).is_some()
+    pub fn is_user_online<T: Borrow<UserId> + std::fmt::Debug>(&self, user_id: T) -> bool {
+        self.user_to_session.get(user_id.borrow()).is_some()
+    }
+
+    #[tracing::instrument(name="is_session_online", skip(self))]
+    pub fn is_session_online<T: Borrow<SessionId> + std::fmt::Debug>(&self, session_id: T) -> bool {
+        self.session_to_user.get(session_id.borrow()).is_some()
     }
 
     #[tracing::instrument(name="new_session", skip(self))]
