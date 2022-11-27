@@ -838,4 +838,82 @@ mod tests {
 
         Ok(())
     }
+
+    /* User test cases */
+
+    #[actix_web::test]
+    async fn user_me_1() -> anyhow::Result<()> {
+        let server = create_websocket_server();
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+
+        client.send(json!({
+            "type": "Auth",
+            "auth_type": "CustomId",
+            "id": "1234567890"
+        })).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
+        assert!(response.status);
+
+        client.send(json!({
+            "type": "User",
+            "user_type": "Me"
+        })).await;
+
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<GenericAnswer<serde_json::Value>>(&receive.unwrap())?;
+        assert!(response.status);
+        assert!(response.result.is_some());
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn user_get_1() -> anyhow::Result<()> {
+        let server = create_websocket_server();
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+
+        client.send(json!({
+            "type": "Auth",
+            "auth_type": "CustomId",
+            "id": "1234567890"
+        })).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
+        assert!(response.status);
+
+        client.send(json!({
+            "type": "User",
+            "user_type": "Me"
+        })).await;
+
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<GenericAnswer<serde_json::Value>>(&receive.unwrap())?;
+        assert!(response.status);
+
+        let id = response.result.as_ref().unwrap().as_object().unwrap().get("id").unwrap().as_str().unwrap();
+
+        client.send(json!({
+            "type": "User",
+            "user_type": "Get",
+            "user": id
+        })).await;
+
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+        let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
+        assert!(response.status);
+        
+        Ok(())
+    }
 }
