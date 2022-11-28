@@ -83,3 +83,37 @@ impl YummyState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::model::*;
+    use anyhow::Ok;
+
+    #[test]
+    fn state_1() -> anyhow::Result<()> {
+        let state = YummyState::default();
+        let user_id = UserId(Uuid::new_v4());
+        let session_id = state.new_session(user_id);
+
+        assert!(state.is_session_online(session_id.clone()));
+        assert!(state.is_user_online(user_id.clone()));
+
+        state.close_session(session_id.clone());
+
+        assert!(!state.is_session_online(session_id.clone()));
+        assert!(!state.is_user_online(user_id.clone()));
+
+        Ok(())
+    }
+    #[test]
+    fn state_2() -> anyhow::Result<()> {
+        let state = YummyState::default();
+
+        state.close_session(SessionId(Uuid::new_v4()));
+
+        assert!(!state.is_session_online(SessionId(Uuid::new_v4())));
+        assert!(!state.is_user_online(UserId(Uuid::new_v4())));
+
+        Ok(())
+    }
+}
