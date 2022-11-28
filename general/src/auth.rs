@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use std::{borrow::Borrow, sync::Arc};
 use std::future::Future;
 use std::pin::Pin;
@@ -8,7 +9,6 @@ use actix_web::web::{Data, self};
 use actix_web::{HttpRequest, FromRequest};
 use actix_web::Error;
 use actix_web::dev::Payload;
-use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::*;
 
@@ -30,10 +30,10 @@ pub struct Claims {
 
 pub fn generate_auth<T: Borrow<UserJwt>>(config: Arc<YummyConfig>, user: T) -> Option<String> {
     let user = user.borrow();
-    let iat = Utc::now();
-    let exp = iat + Duration::seconds(config.token_lifetime);
+    let iat = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or(Duration::from_secs(0));
+    let exp = iat + config.token_lifetime;
     let claims = Claims {
-        exp: exp.timestamp() as usize,
+        exp: exp.as_secs() as usize,
         user: user.clone(),
     };
 
@@ -45,9 +45,10 @@ pub fn generate_auth<T: Borrow<UserJwt>>(config: Arc<YummyConfig>, user: T) -> O
 
 pub fn validate_auth<T: Borrow<str>>(config: Arc<YummyConfig>, token: T) -> Option<Claims> {
     let token = token.borrow();
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as usize).unwrap_or_default();
     let validation = Validation::default();
     match decode::<Claims>(token, &DecodingKey::from_secret(config.salt_key.as_ref()), &validation) {
-        Ok(c) => match c.claims.exp > Utc::now().timestamp() as usize {
+        Ok(c) => match c.claims.exp > now {
             true =>  Some(c.claims),
             false => None
         },

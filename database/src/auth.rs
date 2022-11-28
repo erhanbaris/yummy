@@ -1,6 +1,6 @@
-use chrono::Utc;
 use diesel::*;
 use uuid::Uuid;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::SqliteStore;
 use crate::{PooledConnection, schema::user, RowId, model::UserInsert};
@@ -56,7 +56,7 @@ impl AuthStoreTrait for SqliteStore {
         let row_id = RowId(Uuid::new_v4());
         let mut model = UserInsert::default();
         model.id = row_id;
-        model.insert_date = Utc::now().timestamp() as i32;
+        model.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
         model.password = Some(password);
         model.email = Some(email);
         diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
@@ -69,7 +69,7 @@ impl AuthStoreTrait for SqliteStore {
         let row_id = RowId(Uuid::new_v4());
         let mut model = UserInsert::default();
         model.id = row_id;
-        model.insert_date = Utc::now().timestamp() as i32;
+        model.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
         model.device_id = Some(device_id);
         diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
 
@@ -81,7 +81,7 @@ impl AuthStoreTrait for SqliteStore {
         let row_id = RowId(Uuid::new_v4());
         let mut model = UserInsert::default();
         model.id = row_id;
-        model.insert_date = Utc::now().timestamp() as i32;
+        model.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
         model.custom_id = Some(custom_id);
         diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
 
