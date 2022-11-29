@@ -1,11 +1,11 @@
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, sync::Arc, collections::HashMap};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use actix::prelude::Message;
 use validator::Validate;
 
-use general::{model::UserId, auth::UserAuth};
+use general::{model::UserId, auth::UserAuth, meta::MetaType};
 
 use crate::response::Response;
 
@@ -32,6 +32,7 @@ pub struct UpdateUser {
     pub password: Option<String>,
     pub device_id: Option<String>,
     pub custom_id: Option<String>,
+    pub meta: Option<HashMap<String, MetaType>>
 }
 
 #[derive(Debug, Serialize, Deserialize)]

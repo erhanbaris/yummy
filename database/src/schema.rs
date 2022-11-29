@@ -21,6 +21,7 @@ table! {
         user_id ->  Text,
         key -> Text,
         value -> Text,
+        meta_type -> Integer,
         visibility -> Visibility,
     }
 }

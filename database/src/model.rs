@@ -3,6 +3,8 @@ use diesel::*;
 use serde::Serialize;
 use serde::Deserialize;
 
+
+
 #[derive(Default, Debug, Insertable)]
 #[diesel(table_name = user)]
 pub struct UserInsert<'a> {

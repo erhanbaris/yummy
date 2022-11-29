@@ -102,7 +102,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
-        if model.custom_id.is_none() && model.device_id.is_none() && model.email.is_none() && model.name.is_none() && model.password.is_none() {
+        if model.custom_id.is_none() && model.device_id.is_none() && model.email.is_none() && model.name.is_none() && model.password.is_none() && model.meta.as_ref().map(|dict| dict.len()).unwrap_or_default() == 0 {
             return Err(anyhow::anyhow!(UserError::UpdateInformationMissing));
         }
 
@@ -131,6 +131,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
                 return Err(anyhow::anyhow!(UserError::CannotChangeEmail));
             }
             updates.email = Some(email)
+        }
+
+        if let Some(meta) = model.meta {
         }
 
         match DB::update_user(&mut connection, user_id, updates)? {

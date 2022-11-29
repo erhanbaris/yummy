@@ -135,6 +135,7 @@ pub fn create_database(connection: &mut PooledConnection) -> anyhow::Result<()> 
             user_id TEXT NOT NULL,
             key TEXT NOT NULL,
             value TEXT,
+            meta_type INTEGER NOT NULL,
             insert_date INTEGER NOT NULL
         );"#,
     )

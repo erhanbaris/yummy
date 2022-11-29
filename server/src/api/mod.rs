@@ -45,6 +45,6 @@ pub(crate) async fn process_user<DB: DatabaseTrait + Unpin + 'static>(user_type:
      match user_type {
         UserType::Me => as_response!(user_manager, GetDetailedUserInfo { user }),
         UserType::Get { user: user_id } => as_response!(user_manager, GetPublicUserInfo { user, target_user: user_id }),
-        UserType::Update { name, email, password, device_id, custom_id } => as_response!(user_manager, UpdateUser { user, name, email, password, device_id, custom_id }),
+        UserType::Update { name, email, password, device_id, custom_id, meta } => as_response!(user_manager, UpdateUser { user, name, email, password, device_id, custom_id, meta }),
     }
 }

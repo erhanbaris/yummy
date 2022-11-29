@@ -1,5 +1,7 @@
-use general::model::{UserId, SessionId};
-use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+use general::{model::{UserId, SessionId}, meta::MetaType};
+use serde::{Deserialize, Serialize, Deserializer};
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "auth_type")]
@@ -42,6 +44,8 @@ pub enum UserType {
         password: Option<String>,
         device_id: Option<String>,
         custom_id: Option<String>,
+
+        meta: Option<HashMap<String, MetaType>>
     }
 }
 

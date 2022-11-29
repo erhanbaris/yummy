@@ -9,6 +9,7 @@ use general::auth::ApiIntegration;
 use general::auth::UserAuth;
 use general::error::YummyError;
 use general::model::WebsocketMessage;
+use general::web::Answer;
 use general::web::GenericAnswer;
 use manager::api::auth::model::StartUserTimeout;
 use manager::api::user::UserManager;
@@ -96,7 +97,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
                         },
                         Response::UserPrivateInfo(model) => ctx.text(serde_json::to_string(&GenericAnswer::success(model)).unwrap_or_default()),
                         Response::UserPublicInfo(model) => ctx.text(serde_json::to_string(&GenericAnswer::success(model)).unwrap_or_default()),
-                        Response::None => ()
+                        Response::None => ctx.text(serde_json::to_string(&Answer::success()).unwrap_or_default()),
                     },
                     Err(error) => {
                         tracing::error!("{:?}", error);
@@ -922,6 +923,101 @@ mod tests {
         let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
         assert!(response.status);
         
+        Ok(())
+    }
+
+    macro_rules! custom_id_auth {
+        ($client: expr, $custom_id: expr) => {
+            $client.send(json!({
+                "type": "Auth",
+                "auth_type": "CustomId",
+                "id": $custom_id
+            })).await;
+            let auth_receive = $client.get_text().await;
+            assert!(auth_receive.is_some());
+        };
+        ($client: expr) => {
+            $client.send(json!({
+                "type": "Auth",
+                "auth_type": "CustomId",
+                "id": "1234567890"
+            })).await;
+            let auth_receive = $client.get_text().await;
+            assert!(auth_receive.is_some());
+        };
+    }
+
+    #[actix_web::test]
+    async fn user_update_1() -> anyhow::Result<()> {
+        let server = create_websocket_server(::general::config::get_configuration());
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+
+        custom_id_auth!(client);
+
+        client.send(json!({
+            "type": "User",
+            "user_type": "Update",
+            "name": "Erhan BARIS",
+            "custom_id": "1234567890",
+            "device_id": "987654321",
+            "email": "erhanbaris@gmail.com"
+        })).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
+        assert!(response.status);
+
+        client.send(json!({
+            "type": "User",
+            "user_type": "Me"
+        })).await;
+
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<GenericAnswer<serde_json::Value>>(&receive.unwrap())?;
+        assert!(response.status);
+
+        let custom_id = response.result.as_ref().unwrap().as_object().unwrap().get("custom_id").unwrap().as_str().unwrap();
+        let device_id = response.result.as_ref().unwrap().as_object().unwrap().get("device_id").unwrap().as_str().unwrap();
+        let name = response.result.as_ref().unwrap().as_object().unwrap().get("name").unwrap().as_str().unwrap();
+        let email = response.result.as_ref().unwrap().as_object().unwrap().get("email").unwrap().as_str().unwrap();
+
+        assert_eq!(custom_id, "1234567890");
+        assert_eq!(device_id, "987654321");
+        assert_eq!(name, "Erhan BARIS");
+        assert_eq!(email, "erhanbaris@gmail.com");
+
+        Ok(())
+    }
+    
+    #[actix_web::test]
+    async fn user_update_2() -> anyhow::Result<()> {
+        let server = create_websocket_server(::general::config::get_configuration());
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+
+        client.send(json!({
+            "type": "Auth",
+            "auth_type": "CustomId",
+            "id": "1234567890"
+        })).await;
+        let auth_receive = client.get_text().await;
+        assert!(auth_receive.is_some());
+
+        client.send(json!({
+            "type": "User",
+            "user_type": "Update",
+            "meta": {}
+        })).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
+        assert!(!response.status);
+
         Ok(())
     }
 }
