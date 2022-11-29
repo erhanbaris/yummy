@@ -1020,4 +1020,39 @@ mod tests {
 
         Ok(())
     }
+    
+    #[actix_web::test]
+    async fn user_update_3() -> anyhow::Result<()> {
+        let server = create_websocket_server(::general::config::get_configuration());
+
+        let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+
+        client.send(json!({
+            "type": "Auth",
+            "auth_type": "CustomId",
+            "id": "1234567890"
+        })).await;
+        let auth_receive = client.get_text().await;
+        assert!(auth_receive.is_some());
+
+        client.send(json!({
+            "type": "User",
+            "user_type": "Update",
+            "meta": {
+                "lat": 3.11133,
+                "lon": 5.444,
+                "gender": {
+                    "access": 4,
+                    "value": "Male"
+                }
+            }
+        })).await;
+        let receive = client.get_text().await;
+        assert!(receive.is_some());
+
+        let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
+        assert!(!response.status);
+
+        Ok(())
+    }
 }
