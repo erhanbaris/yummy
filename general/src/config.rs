@@ -16,13 +16,14 @@ pub const DEFAULT_DEFAULT_INTEGRATION_KEY: &str = "YummyYummy";
 #[derive(Debug, Default, Clone)]
 pub struct YummyConfig {
     pub token_lifetime: Duration,
-    pub api_key_name: String,
-    pub user_auth_key_name: String,
     pub heartbeat_interval: Duration,
     pub client_timeout: Duration,
     pub connection_restore_wait_timeout: Duration,
-    pub salt_key: String,
+
     pub integration_key: String,
+    pub api_key_name: String,
+    pub user_auth_key_name: String,
+    pub salt_key: String,
     pub database_url: String,
 }
 

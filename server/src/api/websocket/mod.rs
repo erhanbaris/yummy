@@ -199,16 +199,17 @@ mod tests {
     use general::web::Answer;
     use manager::api::auth::AuthManager;
     use serde_json::json;
+    use std::ops::Deref;
     use std::sync::Arc;
+    use std::time::Duration;
     
     use super::*;
     use super::client::*;
     use crate::json_error_handler;
 
-    pub fn create_websocket_server() -> TestServer {
+    pub fn create_websocket_server(config: Arc<YummyConfig>) -> TestServer {
+        let config = config.clone();
         actix_test::start(move || {
-    
-            let config = ::general::config::get_configuration();
             let connection = create_connection(":memory:").unwrap();
             create_database(&mut connection.clone().get().unwrap()).unwrap();
             
@@ -227,14 +228,14 @@ mod tests {
             .app_data(user_manager)
             .app_data(query_cfg)
                 .app_data(JsonConfig::default().error_handler(json_error_handler))
-                .app_data(Data::new(config))
+                .app_data(Data::new(config.clone()))
                 .route("/v1/socket", get().to(websocket_endpoint::<database::SqliteStore>))
         })
     }
 
     #[actix_web::test]
     async fn message_format_validate_1() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket"), general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -251,7 +252,7 @@ mod tests {
 
     #[actix_web::test]
     async fn message_format_validate_2() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket"), general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -269,7 +270,7 @@ mod tests {
 
     #[actix_web::test]
     async fn message_format_validate_3() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -287,7 +288,7 @@ mod tests {
 
     #[actix_web::test]
     async fn message_format_validate_4() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -305,7 +306,7 @@ mod tests {
 
     #[actix_web::test]
     async fn auth_via_device_id() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -325,7 +326,7 @@ mod tests {
 
     #[actix_web::test]
     async fn fail_auth_via_device_id_1() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -344,7 +345,7 @@ mod tests {
 
     #[actix_web::test]
     async fn fail_auth_via_device_id_2() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -365,7 +366,7 @@ mod tests {
 
     #[actix_web::test]
     async fn fail_auth_via_device_id_3() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -387,7 +388,7 @@ mod tests {
 
     #[actix_web::test]
     async fn auth_via_custom_id() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -407,7 +408,7 @@ mod tests {
 
     #[actix_web::test]
     async fn fail_auth_via_custom_id_1() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -426,7 +427,7 @@ mod tests {
 
     #[actix_web::test]
     async fn fail_auth_via_custom_id_2() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -447,7 +448,7 @@ mod tests {
 
     #[actix_web::test]
     async fn fail_auth_via_custom_id_3() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -467,7 +468,7 @@ mod tests {
 
     #[actix_web::test]
     async fn auth_via_email_1() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -490,7 +491,7 @@ mod tests {
 
     #[actix_web::test]
     async fn auth_via_email_2() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -512,7 +513,7 @@ mod tests {
 
     #[actix_web::test]
     async fn auth_via_email_3() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -535,7 +536,7 @@ mod tests {
 
     #[actix_web::test]
     async fn auth_via_email_4() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -561,11 +562,12 @@ mod tests {
 
     #[actix_web::test]
     async fn auth_via_email_5() -> anyhow::Result<()> {
-        std::env::set_var("CLIENT_TIMEOUT", "1");
-        std::env::set_var("HEARTBEAT_INTERVAL", "1");
-        std::env::set_var("CONNECTION_RESTORE_WAIT_TIMEOUT", "1");
+        let mut config = ::general::config::get_configuration().deref().clone();
+        config.connection_restore_wait_timeout = Duration::from_secs(1);
+        config.heartbeat_interval = Duration::from_secs(1);
+        config.client_timeout = Duration::from_secs(1);
 
-        let server = create_websocket_server();
+        let server = create_websocket_server(Arc::new(config));
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -622,11 +624,12 @@ mod tests {
 
     #[actix_web::test]
     async fn auth_via_email_6() -> anyhow::Result<()> {
-        std::env::set_var("CLIENT_TIMEOUT", "1");
-        std::env::set_var("HEARTBEAT_INTERVAL", "1");
-        std::env::set_var("CONNECTION_RESTORE_WAIT_TIMEOUT", "1");
+        let mut config = ::general::config::get_configuration().deref().clone();
+        config.connection_restore_wait_timeout = Duration::from_secs(1);
+        config.heartbeat_interval = Duration::from_secs(1);
+        config.client_timeout = Duration::from_secs(1);
 
-        let server = create_websocket_server();
+        let server = create_websocket_server(Arc::new(config));
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -682,7 +685,7 @@ mod tests {
 
     #[actix_web::test]
     async fn fail_token_refresh_1() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -705,7 +708,7 @@ mod tests {
 
     #[actix_web::test]
     async fn fail_token_refresh_2() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -727,7 +730,7 @@ mod tests {
 
     #[actix_web::test]
     async fn token_refresh_1() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -761,7 +764,11 @@ mod tests {
 
     #[actix_web::test]
     async fn token_restore_1() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let mut config = ::general::config::get_configuration().deref().clone();
+        config.connection_restore_wait_timeout = Duration::from_secs(60);
+        config.token_lifetime = Duration::from_secs(60);
+
+        let server = create_websocket_server(Arc::new(config));
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -798,9 +805,10 @@ mod tests {
 
     #[actix_web::test]
     async fn fail_token_restore_1() -> anyhow::Result<()> {
-        std::env::set_var("TOKEN_LIFETIME", "1");
+        let mut config = ::general::config::get_configuration().deref().clone();
+        config.token_lifetime = Duration::from_secs(1);
 
-        let server = create_websocket_server();
+        let server = create_websocket_server(Arc::new(config));
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -843,7 +851,7 @@ mod tests {
 
     #[actix_web::test]
     async fn user_me_1() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
@@ -875,7 +883,7 @@ mod tests {
 
     #[actix_web::test]
     async fn user_get_1() -> anyhow::Result<()> {
-        let server = create_websocket_server();
+        let server = create_websocket_server(::general::config::get_configuration());
 
         let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
