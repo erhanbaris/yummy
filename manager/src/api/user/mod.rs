@@ -630,11 +630,11 @@ mod tests {
             user: user_auth.clone(),
             name: Some("Erhan".to_string()),
             meta: Some(HashMap::from([
-                /*("gender".to_string(), MetaType::String("Male".to_string(), Visibility::Friend)),
+                ("gender".to_string(), MetaType::String("Male".to_string(), Visibility::Friend)),
                 ("location".to_string(), MetaType::String("Copenhagen".to_string(), Visibility::Friend)),
                 ("postcode".to_string(), MetaType::Integer(1000, Visibility::Mod)),
                 ("score".to_string(), MetaType::Float(15.3, Visibility::Anonymous)),
-                ("temp_admin".to_string(), MetaType::Bool(true, Visibility::Admin)),*/
+                ("temp_admin".to_string(), MetaType::Bool(true, Visibility::Admin)),
             ])),
             ..Default::default()
         }).await??;

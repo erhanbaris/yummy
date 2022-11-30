@@ -100,7 +100,11 @@ pub fn create_database(connection: &mut PooledConnection) -> anyhow::Result<()> 
             password TEXT,
             insert_date INTEGER NOT NULL,
             last_login_date INTEGER NOT NULL
-        );
+        );"#,
+    )
+    .execute(connection)?;
+    sql_query(
+        r#"
         CREATE TABLE user_meta (
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL,
