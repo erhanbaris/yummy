@@ -14,6 +14,7 @@ use diesel::serialize::IsNull;
 use diesel::r2d2::ConnectionManager;
 use diesel::SqliteConnection;
 use diesel::*;
+use diesel::Connection;
 use diesel::serialize::{ToSql, Output};
 use diesel::sql_types::*;
 use diesel::expression::AsExpression;
@@ -22,11 +23,20 @@ use serde::{Deserialize, Serialize};
 use user::UserStoreTrait;
 use uuid::Uuid;
 
-pub type Connection = ConnectionManager<SqliteConnection>;
-pub type Pool = r2d2::Pool<Connection>;
-pub type PooledConnection = ::r2d2::PooledConnection<Connection>;
+pub type ConnectionType = SqliteConnection;
+pub type Pool = r2d2::Pool<ConnectionManager<ConnectionType>>;
+pub type PooledConnection = ::r2d2::PooledConnection<ConnectionManager<ConnectionType>>;
 
-pub trait DatabaseTrait: AuthStoreTrait + UserStoreTrait + Sized { }
+pub trait DatabaseTrait: AuthStoreTrait + UserStoreTrait + Sized {
+    fn transaction<T, E, F>(connection: &mut PooledConnection, f: F) -> Result<T, E>
+    where
+        F: FnOnce(&mut PooledConnection) -> Result<T, E>,
+        E: From<anyhow::Error> + std::convert::From<diesel::result::Error>,
+    {
+        connection.transaction(f)
+    }
+}
+
 pub struct SqliteStore;
 
 impl DatabaseTrait for SqliteStore { }
@@ -75,47 +85,8 @@ impl From<String> for RowId {
     }
 }
 
-#[derive(SqlType)]
-#[derive(Debug, PartialEq, Eq)]
-pub enum Visibility {
-    Anonymous = 0,
-    User = 1,
-    Friend = 2,
-    Mod = 3,
-    Admin = 4,
-    System = 5
-}
-
-impl ToSql<Integer, diesel::sqlite::Sqlite> for Visibility where i32: ToSql<Integer, diesel::sqlite::Sqlite> {
-    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, diesel::sqlite::Sqlite>) -> serialize::Result {
-        out.set_value(match self {
-            Visibility::Anonymous => 0,
-            Visibility::User => 1,
-            Visibility::Friend => 2,
-            Visibility::Mod => 3,
-            Visibility::Admin => 4,
-            Visibility::System => 5,
-        });
-        Ok(IsNull::No)
-    }
-}
-
-impl FromSql<Integer, diesel::sqlite::Sqlite> for Visibility where i32: FromSql<Integer, diesel::sqlite::Sqlite> {
-    fn from_sql(bytes: backend::RawValue<diesel::sqlite::Sqlite>) -> deserialize::Result<Self> {
-        let value = i32::from_ne_bytes(<Vec<u8>>::from_sql(bytes)?[..4].try_into().unwrap());
-        Ok(match value {
-            0 => Visibility::Anonymous,
-            1 => Visibility::User,
-            2 => Visibility::Friend,
-            3 => Visibility::Mod,
-            4 => Visibility::Admin,
-            _ => Visibility::System
-        })
-    }
-}
-
 pub fn create_connection(database_url: &str) -> anyhow::Result<Pool> {
-    Ok(r2d2::Pool::builder().build(Connection::new(database_url))?)
+    Ok(r2d2::Pool::builder().build(ConnectionManager::<ConnectionType>::new(database_url))?)
 }
 
 pub fn create_database(connection: &mut PooledConnection) -> anyhow::Result<()> {
@@ -130,12 +101,13 @@ pub fn create_database(connection: &mut PooledConnection) -> anyhow::Result<()> 
             insert_date INTEGER NOT NULL,
             last_login_date INTEGER NOT NULL
         );
-        CREATE TABLE user_metadata (
+        CREATE TABLE user_meta (
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL,
             key TEXT NOT NULL,
-            value TEXT,
+            value TEXT NOT NULL,
             meta_type INTEGER NOT NULL,
+            access INTEGER NOT NULL,
             insert_date INTEGER NOT NULL
         );"#,
     )
@@ -163,10 +135,4 @@ mod tests {
 
         Ok(())
     }
-}
-
-
-pub mod exports {
-    // we will use that a bit later
-    pub use super::Visibility;
 }

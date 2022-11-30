@@ -200,6 +200,8 @@ mod tests {
     use general::web::Answer;
     use manager::api::auth::AuthManager;
     use serde_json::json;
+    use uuid::Uuid;
+    use std::env::temp_dir;
     use std::ops::Deref;
     use std::sync::Arc;
     use std::time::Duration;
@@ -210,8 +212,12 @@ mod tests {
 
     pub fn create_websocket_server(config: Arc<YummyConfig>) -> TestServer {
         let config = config.clone();
+        
         actix_test::start(move || {
-            let connection = create_connection(":memory:").unwrap();
+            let mut db_location = temp_dir();
+            db_location.push(format!("{}.db", Uuid::new_v4()));
+
+            let connection = create_connection(db_location.to_str().unwrap()).unwrap();
             create_database(&mut connection.clone().get().unwrap()).unwrap();
             
             let states = Arc::new(YummyState::default());
@@ -966,7 +972,7 @@ mod tests {
         let receive = client.get_text().await;
         assert!(receive.is_some());
 
-        let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
+        let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
         assert!(response.status);
 
         client.send(json!({

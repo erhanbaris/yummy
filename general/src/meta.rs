@@ -1,7 +1,5 @@
-use serde::ser::SerializeMap;
-use serde::{Serialize, Serializer, de::Visitor, de::MapAccess, Deserialize, Deserializer};
+use serde::{Serialize, de::Visitor, de::MapAccess, Deserialize, Deserializer};
 use serde_json::Value;
-use std::collections::HashMap;
 use std::fmt;
 use serde::de::{self};
 
@@ -17,6 +15,7 @@ pub enum Visibility {
 
 #[derive(Debug, Serialize, PartialEq)]
 pub enum MetaType {
+    Null,
     Integer(i64, Visibility),
     Float(f64, Visibility),
     String(String, Visibility),
@@ -39,7 +38,11 @@ impl<'de> Visitor<'de> for MetaVisitor {
     type Value = MetaType;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("an integer between -2^31 and 2^31")
+        formatter.write_str("meta type")
+    }
+
+    fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: Deserializer<'de> {
+        Ok(deserializer.deserialize_any(MetaVisitor)?)
     }
 
     fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> where E: de::Error {
@@ -62,28 +65,32 @@ impl<'de> Visitor<'de> for MetaVisitor {
         Ok(MetaType::Bool(value, Visibility::Anonymous))
     }
 
+    fn visit_unit<E>(self) -> Result<Self::Value, E> where E: de::Error { 
+        Ok(MetaType::Null)
+    }
+
     fn visit_map<E>(self, mut access: E) -> Result<Self::Value, E::Error> where E: MapAccess<'de> {
         let mut visibility: Option<Visibility> = None;
         let mut value: Option<serde_json::Value> = None;
         while let Some(key) = access.next_key::<&str>()? {
             match key {
-                "access" => visibility = Some(match access.next_value::<usize>()? {
-                    0 => Visibility::Anonymous,
-                    1 => Visibility::User,
-                    2 => Visibility::Friend,
-                    3 => Visibility::Mod,
-                    4 => Visibility::Admin,
-                    5 => Visibility::System,
-                    _ => return Err(de::Error::custom("Invalid visibility type"))
+                "access" => visibility = Some(match access.next_value::<usize>() {
+                    Ok(0) => Visibility::Anonymous,
+                    Ok(1) => Visibility::User,
+                    Ok(2) => Visibility::Friend,
+                    Ok(3) => Visibility::Mod,
+                    Ok(4) => Visibility::Admin,
+                    Ok(5) => Visibility::System,
+                    _ => return Err(de::Error::custom(r#"Invalid "access" type"#))
                 }),
                 "value" => value = Some(access.next_value::<serde_json::Value>()?),
-                _ => return Err(de::Error::custom("Invalid information"))
+                _ => return Err(de::Error::custom(format!(r#""{}" is not valid"#, key)))
             }
         }
 
         let visibility = match visibility {
             Some(visibility) => visibility,
-            None => return Err(de::Error::custom("Access information is missing"))
+            None => return Err(de::Error::custom(r#""access" key is missing"#))
         };
         
         match value {
@@ -98,12 +105,12 @@ impl<'de> Visitor<'de> for MetaVisitor {
                     } else if number.is_u64() {
                         Ok(MetaType::Integer(number.as_u64().unwrap_or_default() as i64, visibility))
                     } else {
-                        Err(de::Error::custom("Value not valid"))
+                        Err(de::Error::custom(r#"Only, number, string and bool types are valid for "value""#))
                     }
                 },
-                _ => Err(de::Error::custom("Value information is missing"))
+                _ => Err(de::Error::custom(r#"Only, number, string and bool types are valid for "value""#))
             },
-            None => Err(de::Error::custom("Value information is missing"))
+            None => Err(de::Error::custom(r#""value" key is missing"#))
         }
     }
 }
@@ -134,6 +141,10 @@ mod tests {
         let s = "10.5";
         let deserialized: MetaType = serde_json::from_str(s).unwrap();
         assert_eq!(deserialized, MetaType::Float(10.5, Visibility::Anonymous));
+
+        let s = "null";
+        let deserialized: MetaType = serde_json::from_str(s).unwrap();
+        assert_eq!(deserialized, MetaType::Null);
     }
 
     #[test]
@@ -149,5 +160,23 @@ mod tests {
         let s = r#"{"access": 0, "value": true}"#;
         let deserialized: MetaType = serde_json::from_str(s).unwrap();
         assert_eq!(deserialized, serde_json::from_str("true").unwrap());
+    }
+
+    #[test]
+    fn wrong_deserialization() {
+        let s = r#"{"access": 3}"#;
+        assert_eq!(serde_json::from_str::<MetaType>(s).err().unwrap().to_string(), r#""value" key is missing at line 1 column 13"#);
+
+        let s = r#"{"value": true}"#;
+        assert_eq!(serde_json::from_str::<MetaType>(s).err().unwrap().to_string(), r#""access" key is missing at line 1 column 15"#);
+
+        let s = r#"{"access": 0, "value": true, "wrong": 1}"#;
+        assert_eq!(serde_json::from_str::<MetaType>(s).err().unwrap().to_string(), r#""wrong" is not valid at line 1 column 36"#);
+
+        let s = r#"{"access": "0", "value": true}"#;
+        assert_eq!(serde_json::from_str::<MetaType>(s).err().unwrap().to_string(), r#"Invalid "access" type at line 1 column 14"#);
+
+        let s = r#"{"access": 0, "value": {}}"#;
+        assert_eq!(serde_json::from_str::<MetaType>(s).err().unwrap().to_string(), r#"Only, number, string and bool types are valid for "value" at line 1 column 26"#);
     }
 }

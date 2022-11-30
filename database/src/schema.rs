@@ -13,17 +13,15 @@ table! {
 }
 
 table! {
-    use diesel::sql_types::*;
-    use crate::exports::Visibility;
-
-    user_metadata (id) {
+    user_meta (id) {
         id -> Text,
         user_id ->  Text,
         key -> Text,
         value -> Text,
         meta_type -> Integer,
-        visibility -> Visibility,
+        access -> Integer,
+        insert_date -> Integer,
     }
 }
 
-allow_tables_to_appear_in_same_query!(user, user_metadata,);
+allow_tables_to_appear_in_same_query!(user, user_meta,);

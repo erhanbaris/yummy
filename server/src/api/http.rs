@@ -59,6 +59,8 @@ pub mod tests {
     use manager::api::auth::AuthManager;
     use manager::api::user::UserManager;
     use serde_json::json;
+    use uuid::Uuid;
+    use std::env::temp_dir;
     use std::sync::Arc;
 
     use crate::json_error_handler;
@@ -66,8 +68,11 @@ pub mod tests {
 
 
     fn config(cfg: &mut web::ServiceConfig) {
+        let mut db_location = temp_dir();
+        db_location.push(format!("{}.db", Uuid::new_v4()));
+
         let config = ::general::config::get_configuration();
-        let connection = create_connection(":memory:").unwrap();
+        let connection = create_connection(db_location.to_str().unwrap()).unwrap();
         create_database(&mut connection.clone().get().unwrap()).unwrap();
         let states = Arc::new(YummyState::default());
         let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection.clone())).start());

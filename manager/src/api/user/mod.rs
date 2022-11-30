@@ -8,6 +8,7 @@ use database::model::{UserUpdate, PublicUserModel, PrivateUserModel};
 use actix::{Context, Actor, Handler};
 use database::{Pool, DatabaseTrait, RowId};
 
+use general::meta::MetaType;
 use moka::sync::Cache;
 use uuid::Uuid;
 
@@ -133,16 +134,44 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
             updates.email = Some(email)
         }
 
-        if let Some(meta) = model.meta {
-        }
+        let mut connection = self.database.get()?;
 
-        match DB::update_user(&mut connection, user_id, updates)? {
-            0 => Err(anyhow::anyhow!(UserError::UserNotFound)),
-            _ => {
-                self.cleanup_user_cache(&original_user_id);
-                Ok(Response::None)
+        DB::transaction::<_, anyhow::Error, _>(&mut connection, |connection| {
+            if let Some(meta) = model.meta {
+                if meta.len() > 0 {
+                    let user_old_metas = DB::get_user_meta(connection, user_id.into())?;
+                    let mut remove_list = Vec::new();
+                    let mut insert_list = Vec::new();
+
+                    for (key, value) in meta.into_iter() {
+                        let row= user_old_metas.iter().find(|item| item.1 == key).map(|item| item.0);
+
+                        /* Remove the key if exists in the database */
+                        if let Some(row_id) = row {
+                            remove_list.push(row_id);
+                        }
+
+                        /* Remove meta */
+                        if let MetaType::Null = value {
+                            continue;
+                        }
+
+                        insert_list.push((key, value));
+                    }
+
+                    DB::remove_user_metas(connection, remove_list)?;
+                    DB::insert_user_metas(connection, user_id, insert_list)?;
+                }
             }
-        }
+
+            match DB::update_user(connection, user_id, updates)? {
+                0 => Err(anyhow::anyhow!(UserError::UserNotFound)),
+                _ => {
+                    self.cleanup_user_cache(&original_user_id);
+                    Ok(Response::None)
+                }
+            }
+        })
     }
 }
 
@@ -152,7 +181,10 @@ mod tests {
     use general::auth::validate_auth;
     use general::config::YummyConfig;
     use general::config::get_configuration;
+    use general::meta::Visibility;
     use general::model::YummyState;
+    use std::collections::HashMap;
+    use std::env::temp_dir;
     use std::sync::Arc;
 
     use actix::Actor;
@@ -165,9 +197,12 @@ mod tests {
     use crate::api::auth::model::*;
 
     fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>)> {
+        let mut db_location = temp_dir();
+        db_location.push(format!("{}.db", Uuid::new_v4()));
+        
         let config = get_configuration();
-        let connection = create_connection(":memory:")?;
         let states = Arc::new(YummyState::default());
+        let connection = create_connection(db_location.to_str().unwrap())?;
         create_database(&mut connection.clone().get()?)?;
         Ok((UserManager::<database::SqliteStore>::new(Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config))
     }
@@ -594,6 +629,13 @@ mod tests {
         user_manager.send(UpdateUser {
             user: user_auth.clone(),
             name: Some("Erhan".to_string()),
+            meta: Some(HashMap::from([
+                /*("gender".to_string(), MetaType::String("Male".to_string(), Visibility::Friend)),
+                ("location".to_string(), MetaType::String("Copenhagen".to_string(), Visibility::Friend)),
+                ("postcode".to_string(), MetaType::Integer(1000, Visibility::Mod)),
+                ("score".to_string(), MetaType::Float(15.3, Visibility::Anonymous)),
+                ("temp_admin".to_string(), MetaType::Bool(true, Visibility::Admin)),*/
+            ])),
             ..Default::default()
         }).await??;
 
