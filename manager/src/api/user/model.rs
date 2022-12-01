@@ -11,15 +11,9 @@ use crate::response::Response;
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<Response>")]
-pub struct GetDetailedUserInfo {
-    pub user: Arc<Option<UserAuth>>
-}
-
-#[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<Response>")]
-pub struct GetPublicUserInfo {
-    pub user: Arc<Option<UserAuth>>,
-    pub target_user: UserId
+pub struct GetUserInformation {
+    pub requester_user: Arc<Option<UserAuth>>,
+    pub target_user: Option<UserId>
 }
 
 #[derive(Message, Validate, Debug, Default)]

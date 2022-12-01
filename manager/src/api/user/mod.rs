@@ -3,7 +3,7 @@ pub mod model;
 use std::time::Duration;
 use std::{marker::PhantomData, ops::Deref};
 use std::sync::Arc;
-use database::model::{UserUpdate, PublicUserModel, PrivateUserModel};
+use database::model::{UserUpdate, PrivateUserModel};
 
 use actix::{Context, Actor, Handler};
 use database::{Pool, DatabaseTrait, RowId};
@@ -22,7 +22,6 @@ pub struct UserManager<DB: DatabaseTrait + ?Sized> {
     _marker: PhantomData<DB>,
 
     // Caches
-    cache_public_user_info: Cache<Uuid, PublicUserModel>,
     cache_private_user_info: Cache<Uuid, PrivateUserModel>
 }
 
@@ -31,7 +30,6 @@ impl<DB: DatabaseTrait + ?Sized> UserManager<DB> {
         Self {
             database,
             _marker: PhantomData,
-            cache_public_user_info: Cache::builder().time_to_idle(Duration::from_secs(5*60)).build(),
             cache_private_user_info: Cache::builder().time_to_idle(Duration::from_secs(5*60)).build()
         }
     }
@@ -43,18 +41,17 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for UserMa
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static>  UserManager<DB> {
     fn cleanup_user_cache(&self, user_id: &Uuid) {
-        self.cache_public_user_info.invalidate(user_id);
         self.cache_private_user_info.invalidate(user_id);
     }
 }
 
-impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetDetailedUserInfo> for UserManager<DB> {
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserInformation> for UserManager<DB> {
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="User::GetPrivateUser", skip(self, _ctx))]
-    fn handle(&mut self, model: GetDetailedUserInfo, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, model: GetUserInformation, _ctx: &mut Context<Self>) -> Self::Result {
 
-        let user_id = match model.user.deref() {
+        let user_id = match model.requester_user.deref() {
             Some(user) => user.user.0,
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
@@ -64,30 +61,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetDetai
         match user {
             Some(user) => Ok(Response::UserPrivateInfo(user)),
             None => Err(anyhow::anyhow!(UserError::UserNotFound))
-        }
-    }
-}
-
-impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetPublicUserInfo> for UserManager<DB> {
-    type Result = anyhow::Result<Response>;
-
-    #[tracing::instrument(name="User::GetPublicUser", skip(self, _ctx))]
-    fn handle(&mut self, model: GetPublicUserInfo, _ctx: &mut Context<Self>) -> Self::Result {
-        let user_id = model.target_user.0.into();
-
-        match self.cache_public_user_info.get(&user_id) {
-            Some(user) => Ok(Response::UserPublicInfo(user)),
-            None => {
-                let user = DB::get_public_user_info(&mut self.database.get()?, model.target_user.0.into())?;
-
-                match user {
-                    Some(user) => {
-                        self.cache_public_user_info.insert(user_id, user.clone());
-                        Ok(Response::UserPublicInfo(user))
-                    },
-                    None => Err(anyhow::anyhow!(UserError::UserNotFound))
-                }
-            }
         }
     }
 }
@@ -210,8 +183,9 @@ mod tests {
     #[actix::test]
     async fn get_private_user_1() -> anyhow::Result<()> {
         let (user_manager, _, _) = create_actor()?;
-        let user = user_manager.send(GetDetailedUserInfo {
-            user: Arc::new(None)
+        let user = user_manager.send(GetUserInformation {
+            requester_user: Arc::new(None),
+            target_user: None
         }).await?;
         assert!(user.is_err());
         Ok(())
@@ -228,11 +202,12 @@ mod tests {
         };
 
         let user = validate_auth(config, token).unwrap();
-        let user = user_manager.send(GetDetailedUserInfo {
-            user: Arc::new(Some(UserAuth {
+        let user = user_manager.send(GetUserInformation {
+            requester_user: Arc::new(Some(UserAuth {
                 user: user.user.id,
                 session: user.user.session
-            }))
+            })),
+            target_user: None
         }).await??;
 
         let user = match user {
@@ -413,133 +388,6 @@ mod tests {
     }
 
     #[actix::test]
-    async fn update_get_public_user_1() -> anyhow::Result<()> {
-        let (user_manager, auth_manager, config) = create_actor()?;
-
-        let token = auth_manager.send(EmailAuthRequest {
-            email: "erhanbaris@gmail.com".to_string(),
-            password: "erhan".to_string(),
-            if_not_exist_create: true
-        }).await??;
-
-        let token = match token {
-            Response::Auth(token, _) => token,
-            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
-        };
-
-        let user_jwt = validate_auth(config, token).unwrap().user;
-        let user_auth = Arc::new(Some(UserAuth {
-            user: user_jwt.id,
-            session: user_jwt.session
-        }));
-
-        let user = user_manager.send(GetPublicUserInfo {
-            user: user_auth.clone(),
-            target_user: user_jwt.id
-        }).await??;
-
-        let user = match user {
-            Response::UserPublicInfo(model) => model,
-            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPublicInfo'")); }
-        };
-        
-        assert_eq!(user.name, None);
-        
-        user_manager.send(UpdateUser {
-            user: user_auth.clone(),
-            name: Some("Erhan".to_string()),
-            ..Default::default()
-        }).await??;
-
-        let user = user_manager.send(GetPublicUserInfo {
-            user: user_auth.clone(),
-            target_user: user_jwt.id
-        }).await??;
-
-        let user = match user {
-            Response::UserPublicInfo(model) => model,
-            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPublicInfo'")); }
-        };
-
-        assert_eq!(user.name, Some("Erhan".to_string()));
-
-        Ok(())
-    }
-
-    #[actix::test]
-    async fn update_get_public_user_2() -> anyhow::Result<()> {
-        let (user_manager, auth_manager, config) = create_actor()?;
-
-        let token = auth_manager.send(EmailAuthRequest {
-            email: "erhanbaris@gmail.com".to_string(),
-            password: "erhan".to_string(),
-            if_not_exist_create: true
-        }).await??;
-
-        let token = match token {
-            Response::Auth(token, _) => token,
-            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
-        };
-
-        let user_jwt = validate_auth(config, token).unwrap().user;
-        let user_auth = Arc::new(Some(UserAuth {
-            user: user_jwt.id,
-            session: user_jwt.session
-        }));
-
-        let user = user_manager.send(GetPublicUserInfo {
-            user: user_auth.clone(),
-            target_user: user_jwt.id
-        }).await??;
-
-        let user = match user {
-            Response::UserPublicInfo(model) => model,
-            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPublicInfo'")); }
-        };
-        
-        assert_eq!(user.name, None);
-        
-        user_manager.send(UpdateUser {
-            user: user_auth.clone(),
-            name: Some("Erhan".to_string()),
-            ..Default::default()
-        }).await??;
-
-        let user = user_manager.send(GetPublicUserInfo {
-            user: user_auth.clone(),
-            target_user: user_jwt.id
-        }).await??;
-
-        let user = match user {
-            Response::UserPublicInfo(model) => model,
-            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPublicInfo'")); }
-        };
-
-        assert_eq!(user.name, Some("Erhan".to_string()));
-
-        /* Cleanup fields */
-        user_manager.send(UpdateUser {
-            user: user_auth.clone(),
-            name: Some("Erhan".to_string()),
-            ..Default::default()
-        }).await??;
-
-        let user = user_manager.send(GetPublicUserInfo {
-            user: user_auth.clone(),
-            target_user: user_jwt.id
-        }).await??;
-
-        let user = match user {
-            Response::UserPublicInfo(model) => model,
-            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPublicInfo'")); }
-        };
-
-        assert_eq!(user.name, Some("Erhan".to_string()));
-
-        Ok(())
-    }
-
-    #[actix::test]
     async fn update_get_private_user_1() -> anyhow::Result<()> {
         let (user_manager, auth_manager, config) = create_actor()?;
 
@@ -560,8 +408,9 @@ mod tests {
             session: user_jwt.session
         }));
 
-        let user = user_manager.send(GetDetailedUserInfo {
-            user: user_auth.clone()
+        let user = user_manager.send(GetUserInformation {
+            requester_user: user_auth.clone(),
+            target_user: None
         }).await??;
 
         let user = match user {
@@ -578,8 +427,9 @@ mod tests {
             ..Default::default()
         }).await??;
 
-        let user = user_manager.send(GetDetailedUserInfo {
-            user: user_auth.clone()
+        let user = user_manager.send(GetUserInformation {
+            requester_user: user_auth.clone(),
+            target_user: None
         }).await??;
 
         let user = match user {
@@ -614,8 +464,9 @@ mod tests {
             session: user_jwt.session
         }));
 
-        let user = user_manager.send(GetDetailedUserInfo {
-            user: user_auth.clone()
+        let user = user_manager.send(GetUserInformation {
+            requester_user: user_auth.clone(),
+            target_user: None
         }).await??;
 
         let user = match user {
@@ -639,8 +490,9 @@ mod tests {
             ..Default::default()
         }).await??;
 
-        let user = user_manager.send(GetDetailedUserInfo {
-            user: user_auth.clone()
+        let user = user_manager.send(GetUserInformation {
+            requester_user: user_auth.clone(),
+            target_user: None
         }).await??;
 
         let user = match user {
@@ -658,8 +510,9 @@ mod tests {
             ..Default::default()
         }).await??;
 
-        let user = user_manager.send(GetDetailedUserInfo {
-            user: user_auth.clone()
+        let user = user_manager.send(GetUserInformation {
+            requester_user: user_auth.clone(),
+            target_user: None
         }).await??;
 
         let user = match user {

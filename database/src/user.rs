@@ -12,7 +12,6 @@ use uuid::Uuid;
 
 use crate::SqliteStore;
 use crate::model::PrivateUserModel;
-use crate::model::PublicUserModel;
 use crate::model::UserMetaInsert;
 use crate::model::UserMetaModel;
 use crate::model::UserUpdate;
@@ -25,7 +24,6 @@ pub trait UserStoreTrait: Sized {
     fn remove_user_metas(connection: &mut PooledConnection, meta_ids: Vec<RowId>) -> anyhow::Result<()>;
     fn insert_user_metas(connection: &mut PooledConnection, user_id: RowId, metas: Vec<(String, MetaType)>) -> anyhow::Result<()>;
     fn get_my_information(connection: &mut PooledConnection, user_id: RowId) -> anyhow::Result<Option<PrivateUserModel>>;
-    fn get_public_user_info(connection: &mut PooledConnection, user_id: RowId) -> anyhow::Result<Option<PublicUserModel>>;
 }
 
 impl UserStoreTrait for SqliteStore {
@@ -54,15 +52,6 @@ impl UserStoreTrait for SqliteStore {
             },
             None => Ok(None)
         }
-    }
-
-    #[tracing::instrument(name="Get user", skip(connection))]
-    fn get_public_user_info<'a>(connection: &mut PooledConnection, user_id: RowId) -> anyhow::Result<Option<PublicUserModel>> {
-        Ok(user::table
-            .select((user::id, user::name, user::last_login_date))
-            .filter(user::id.eq(user_id))
-            .get_result::<PublicUserModel>(connection)
-            .optional()?)
     }
 
     #[tracing::instrument(name="Get user meta", skip(connection))]
@@ -147,62 +136,6 @@ mod tests {
         let mut connection = create_connection(db_location.to_str().unwrap())?.get()?;
         create_database(&mut connection)?;
         Ok(connection)
-    }
-
-    /* get user tests */
-    #[test]
-    fn fail_get_public_user_info_1() -> anyhow::Result<()> {
-        let mut connection = db_conection()?;
-
-        assert!(SqliteStore::get_public_user_info(&mut connection, RowId(uuid::Uuid::nil()))?.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn fail_get_public_user_info_2() -> anyhow::Result<()> {
-        let mut connection = db_conection()?;
-
-        assert!(SqliteStore::get_public_user_info(&mut connection, RowId(uuid::Uuid::new_v4()))?.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn get_public_user_info_1() -> anyhow::Result<()> {
-        let mut connection = db_conection()?;
-
-        let user_id = SqliteStore::create_user_via_email(&mut connection, "erhanbaris@gmail.com", "erhan")?;
-        let user = SqliteStore::get_public_user_info(&mut connection, user_id)?.unwrap();
-        assert_eq!(user.id, user_id);
-        assert_eq!(user.last_login_date, 0);
-        assert!(user.name.is_none());
-
-        Ok(())
-    }
-
-    #[test]
-    fn get_public_user_info_2() -> anyhow::Result<()> {
-        let mut connection = db_conection()?;
-
-        let user_id = SqliteStore::create_user_via_device_id(&mut connection, "123456789")?;
-        let user = SqliteStore::get_public_user_info(&mut connection, user_id)?.unwrap();
-        assert_eq!(user.id, user_id);
-        assert_eq!(user.last_login_date, 0);
-        assert!(user.name.is_none());
-
-        Ok(())
-    }
-
-    #[test]
-    fn get_public_user_info_3() -> anyhow::Result<()> {
-        let mut connection = db_conection()?;
-
-        let user_id = SqliteStore::create_user_via_custom_id(&mut connection, "123456789")?;
-        let user = SqliteStore::get_public_user_info(&mut connection, user_id)?.unwrap();
-        assert_eq!(user.id, user_id);
-        assert_eq!(user.last_login_date, 0);
-        assert!(user.name.is_none());
-
-        Ok(())
     }
 
     #[test]

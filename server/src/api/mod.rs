@@ -43,8 +43,8 @@ pub(crate) async fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type:
 #[tracing::instrument(name="process_user", skip(user_manager))]
 pub(crate) async fn process_user<DB: DatabaseTrait + Unpin + 'static>(user_type: UserType, user_manager: Addr<UserManager<DB>>, user: Arc<Option<UserAuth>>) -> anyhow::Result<Response> {
      match user_type {
-        UserType::Me => as_response!(user_manager, GetDetailedUserInfo { user }),
-        UserType::Get { user: user_id } => as_response!(user_manager, GetPublicUserInfo { user, target_user: user_id }),
+        UserType::Me => as_response!(user_manager, GetUserInformation { requester_user: user, target_user: None }),
+        UserType::Get { user: user_id } => as_response!(user_manager, GetUserInformation { requester_user: user, target_user: Some(user_id) }),
         UserType::Update { name, email, password, device_id, custom_id, meta } => as_response!(user_manager, UpdateUser { user, name, email, password, device_id, custom_id, meta, access_level: MetaAccess::Me }),
     }
 }

@@ -1,5 +1,6 @@
 use diesel::*;
 use uuid::Uuid;
+use std::borrow::Borrow;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::SqliteStore;
@@ -9,6 +10,8 @@ pub trait AuthStoreTrait: Sized {
     fn user_login_via_email(connection: &mut PooledConnection, email: &str) -> anyhow::Result<Option<(RowId, Option<String>, String)>>;
     fn user_login_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<Option<(RowId, Option<String>, Option<String>)>>;
     fn user_login_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<Option<(RowId, Option<String>, Option<String>)>>;
+
+    fn update_last_login<T: Borrow<RowId> + std::fmt::Debug>(connection: &mut PooledConnection, user_id: T) -> anyhow::Result<()>;
 
     fn create_user_via_email(connection: &mut PooledConnection, email: &str, password: &str) -> anyhow::Result<RowId>;
     fn create_user_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<RowId>;
@@ -36,6 +39,10 @@ impl AuthStoreTrait for SqliteStore {
             .first::<(RowId, Option<String>, Option<String>)>(connection)
             .optional()?;
 
+        if let Some((user, _, _)) = result {
+            Self::update_last_login(connection, user)?
+        }
+
         Ok(result)
     }
 
@@ -47,7 +54,18 @@ impl AuthStoreTrait for SqliteStore {
             .first::<(RowId, Option<String>, Option<String>)>(connection)
             .optional()?;
 
+        if let Some((user, _, _)) = result {
+            Self::update_last_login(connection, user)?;
+        }
+
         Ok(result)
+    }
+
+    #[tracing::instrument(name="Update last login", skip(connection))]
+    fn update_last_login<T: Borrow<RowId> + std::fmt::Debug>(connection: &mut PooledConnection, user_id: T) -> anyhow::Result<()> {
+        diesel::update(user::table.filter(user::id.eq(user_id.borrow())))
+        .set(user::last_login_date.eq(SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default())).execute(connection)?;
+        Ok(())
     }
 
     #[tracing::instrument(name="User create via email", skip(connection))]
@@ -57,6 +75,7 @@ impl AuthStoreTrait for SqliteStore {
         let mut model = UserInsert::default();
         model.id = row_id;
         model.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
+        model.last_login_date = model.insert_date;
         model.password = Some(password);
         model.email = Some(email);
         diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
@@ -70,6 +89,7 @@ impl AuthStoreTrait for SqliteStore {
         let mut model = UserInsert::default();
         model.id = row_id;
         model.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
+        model.last_login_date = model.insert_date;
         model.device_id = Some(device_id);
         diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
 
@@ -82,6 +102,7 @@ impl AuthStoreTrait for SqliteStore {
         let mut model = UserInsert::default();
         model.id = row_id;
         model.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
+        model.last_login_date = model.insert_date;
         model.custom_id = Some(custom_id);
         diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
 

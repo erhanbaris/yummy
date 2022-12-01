@@ -71,6 +71,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
                     return Err(anyhow!(AuthError::EmailOrPasswordNotValid));
                 }
 
+                DB::update_last_login(&mut connection, user_id)?;
                 (user_id, name)
             },
             (None, true) => (DB::create_user_via_email(&mut connection, &auth.email, &auth.password)?, None),

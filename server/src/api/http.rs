@@ -32,7 +32,6 @@ pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, a
                     HttpResponse::Ok().json(GenericAnswer::success(token))
                 },
                 Response::UserPrivateInfo(model) => HttpResponse::Ok().json(GenericAnswer::success(model)),
-                Response::UserPublicInfo(model) => HttpResponse::Ok().json(GenericAnswer::success(model)),
                 Response::None => HttpResponse::Ok().json(Answer::success()),
             };
 
@@ -51,7 +50,6 @@ pub mod tests {
     use actix_web::web::{QueryConfig, JsonConfig};
     use actix_web::{web, web::Data, App};
     use database::model::PrivateUserModel;
-    use database::model::PublicUserModel;
     use database::{create_database, create_connection};
     use general::model::YummyState;
     use general::web::Answer;
@@ -370,7 +368,7 @@ pub mod tests {
             }))
             .to_request();
 
-        let res: GenericAnswer<PublicUserModel> = test::call_and_read_body_json(&app, req).await;
+        let res: GenericAnswer<PrivateUserModel> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
         let fetched_user_model = res.result.unwrap();
 

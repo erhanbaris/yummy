@@ -57,14 +57,6 @@ pub struct PrivateUserModel {
 }
 
 #[derive(Default, Clone, Debug, Queryable, Serialize, Deserialize, PartialEq)]
-#[diesel(table_name = user)]
-pub struct PublicUserModel {
-    pub id: RowId,
-    pub name: Option<String>,
-    pub last_login_date: i32,
-}
-
-#[derive(Default, Clone, Debug, Queryable, Serialize, Deserialize, PartialEq)]
 #[diesel(table_name = user_meta)]
 pub struct UserMetaModel {
     pub id: RowId,
