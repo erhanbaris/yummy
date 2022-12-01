@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
@@ -6,7 +7,7 @@ use diesel::ExpressionMethods;
 use diesel::RunQueryDsl;
 use diesel::result::OptionalExtension;
 use general::meta::MetaType;
-use general::meta::Visibility;
+use general::meta::MetaAccess;
 use uuid::Uuid;
 
 use crate::SqliteStore;
@@ -20,10 +21,10 @@ use crate::{PooledConnection, RowId, schema::user};
 
 pub trait UserStoreTrait: Sized {
     fn update_user(connection: &mut PooledConnection, user_id: RowId, update_request: UserUpdate) -> anyhow::Result<usize>;
-    fn get_user_meta(connection: &mut PooledConnection, user_id: RowId) -> anyhow::Result<Vec<(RowId, String, MetaType)>>;
+    fn get_user_meta(connection: &mut PooledConnection, user_id: RowId, filter: MetaAccess) -> anyhow::Result<Vec<(RowId, String, MetaType)>>;
     fn remove_user_metas(connection: &mut PooledConnection, meta_ids: Vec<RowId>) -> anyhow::Result<()>;
     fn insert_user_metas(connection: &mut PooledConnection, user_id: RowId, metas: Vec<(String, MetaType)>) -> anyhow::Result<()>;
-    fn get_private_user_info(connection: &mut PooledConnection, user_id: RowId) -> anyhow::Result<Option<PrivateUserModel>>;
+    fn get_my_information(connection: &mut PooledConnection, user_id: RowId) -> anyhow::Result<Option<PrivateUserModel>>;
     fn get_public_user_info(connection: &mut PooledConnection, user_id: RowId) -> anyhow::Result<Option<PublicUserModel>>;
 }
 
@@ -35,12 +36,24 @@ impl UserStoreTrait for SqliteStore {
     }
 
     #[tracing::instrument(name="Get user", skip(connection))]
-    fn get_private_user_info<'a>(connection: &mut PooledConnection, user_id: RowId) -> anyhow::Result<Option<PrivateUserModel>> {
-        Ok(user::table
+    fn get_my_information<'a>(connection: &mut PooledConnection, user_id: RowId) -> anyhow::Result<Option<PrivateUserModel>> {
+        let result = user::table
             .select((user::id, user::name, user::email, user::device_id, user::custom_id, user::insert_date, user::last_login_date))
             .filter(user::id.eq(user_id))
-            .get_result::<PrivateUserModel>(connection)
-            .optional()?)
+            .get_result::<(RowId, Option<String>, Option<String>, Option<String>, Option<String>, i32, i32)>(connection)
+            .optional()?;
+
+        match result {
+            Some((id, name, email, device_id, custom_id, insert_date, last_login_date)) => {
+                let meta: HashMap<_, _> = Self::get_user_meta(connection, user_id, MetaAccess::Me)?.into_iter().map(|(_, key, value)| (key, value)).collect();
+                let meta = match meta.is_empty() {
+                    true => None,
+                    false => Some(meta)
+                };
+                Ok(Some(PrivateUserModel { id, name, email, device_id, custom_id, meta, insert_date, last_login_date }))
+            },
+            None => Ok(None)
+        }
     }
 
     #[tracing::instrument(name="Get user", skip(connection))]
@@ -53,31 +66,22 @@ impl UserStoreTrait for SqliteStore {
     }
 
     #[tracing::instrument(name="Get user meta", skip(connection))]
-    fn get_user_meta(connection: &mut PooledConnection, user_id: RowId) -> anyhow::Result<Vec<(RowId, String, MetaType)>> {
+    fn get_user_meta(connection: &mut PooledConnection, user_id: RowId, filter: MetaAccess) -> anyhow::Result<Vec<(RowId, String, MetaType)>> {
         let records: Vec<UserMetaModel> = user_meta::table
             .select((user_meta::id, user_meta::key, user_meta::value, user_meta::meta_type, user_meta::access))
             .filter(user_meta::user_id.eq(user_id))
+            .filter(user_meta::access.le(i32::from(filter)))
             .load::<UserMetaModel>(connection)?;
 
             let records = records.into_iter().map(|record| {
                 let UserMetaModel { id, key, value, meta_type, access } = record;
 
-                let access = match access {
-                    0 => Visibility::Anonymous,
-                    1 => Visibility::User,
-                    2 => Visibility::Friend,
-                    3 => Visibility::Mod,
-                    4 => Visibility::Admin,
-                    5 => Visibility::System,
-                    _ => Visibility::Anonymous
-                };
-
                 let meta = match meta_type {
-                    1 => MetaType::Integer(value.parse::<i64>().unwrap_or_default(), access),
-                    2 => MetaType::Float(value.parse::<f64>().unwrap_or_default(), access),
-                    3 => MetaType::String(value, access),
-                    4 => MetaType::Bool(value.parse::<bool>().unwrap_or_default(), access),
-                    _ => MetaType::String("".to_string(), access),
+                    1 => MetaType::Integer(value.parse::<i64>().unwrap_or_default(), access.into()),
+                    2 => MetaType::Float(value.parse::<f64>().unwrap_or_default(), access.into()),
+                    3 => MetaType::String(value, access.into()),
+                    4 => MetaType::Bool(value.parse::<bool>().unwrap_or_default(), access.into()),
+                    _ => MetaType::String("".to_string(), access.into()),
                 };
 
                 (id, key, meta)
@@ -112,14 +116,7 @@ impl UserStoreTrait for SqliteStore {
                 user_id: &user_id,
                 key,
                 value,
-                access: match access {
-                    Visibility::Anonymous => 0,
-                    Visibility::User => 1,
-                    Visibility::Friend => 2,
-                    Visibility::Mod => 3,
-                    Visibility::Admin => 4,
-                    Visibility::System => 5,
-                },
+                access: access.into(),
                 meta_type,
                 insert_date
             };
@@ -209,27 +206,27 @@ mod tests {
     }
 
     #[test]
-    fn fail_get_private_user_info_1() -> anyhow::Result<()> {
+    fn fail_get_my_information_1() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
-        assert!(SqliteStore::get_private_user_info(&mut connection, RowId(uuid::Uuid::nil()))?.is_none());
+        assert!(SqliteStore::get_my_information(&mut connection, RowId(uuid::Uuid::nil()))?.is_none());
         Ok(())
     }
 
     #[test]
-    fn fail_get_private_user_info_2() -> anyhow::Result<()> {
+    fn fail_get_my_information_2() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
-        assert!(SqliteStore::get_private_user_info(&mut connection, RowId(uuid::Uuid::new_v4()))?.is_none());
+        assert!(SqliteStore::get_my_information(&mut connection, RowId(uuid::Uuid::new_v4()))?.is_none());
         Ok(())
     }
 
     #[test]
-    fn get_private_user_info_1() -> anyhow::Result<()> {
+    fn get_my_information_1() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
         let user_id = SqliteStore::create_user_via_email(&mut connection, "erhanbaris@gmail.com", "erhan")?;
-        let user = SqliteStore::get_private_user_info(&mut connection, user_id)?.unwrap();
+        let user = SqliteStore::get_my_information(&mut connection, user_id)?.unwrap();
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
         assert!(user.custom_id.is_none());
         assert!(user.device_id.is_none());
@@ -239,11 +236,11 @@ mod tests {
     }
 
     #[test]
-    fn get_private_user_info_2() -> anyhow::Result<()> {
+    fn get_my_information_2() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
         let user_id = SqliteStore::create_user_via_device_id(&mut connection, "123456789")?;
-        let user = SqliteStore::get_private_user_info(&mut connection, user_id)?.unwrap();
+        let user = SqliteStore::get_my_information(&mut connection, user_id)?.unwrap();
         assert_eq!(user.device_id, Some("123456789".to_string()));
         assert!(user.email.is_none());
         assert!(user.custom_id.is_none());
@@ -253,11 +250,11 @@ mod tests {
     }
 
     #[test]
-    fn get_private_user_info_3() -> anyhow::Result<()> {
+    fn get_my_information_3() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
         let user_id = SqliteStore::create_user_via_custom_id(&mut connection, "123456789")?;
-        let user = SqliteStore::get_private_user_info(&mut connection, user_id)?.unwrap();
+        let user = SqliteStore::get_my_information(&mut connection, user_id)?.unwrap();
         assert_eq!(user.custom_id, Some("123456789".to_string()));
         assert!(user.email.is_none());
         assert!(user.device_id.is_none());
@@ -313,6 +310,51 @@ mod tests {
             name: Some(Some("123456".to_string())),
             ..Default::default()
         })?, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn meta() -> anyhow::Result<()> {
+        let mut connection = db_conection()?;
+
+        let user_id = SqliteStore::create_user_via_custom_id(&mut connection, "123456789")?;
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, MetaAccess::System)?.len(), 0);
+
+        // New meta
+        SqliteStore::insert_user_metas(&mut connection, user_id, vec![("gender".to_string(), MetaType::String("male".to_string(), MetaAccess::Friend))])?;
+
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, MetaAccess::Friend)?.len(), 1);
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, MetaAccess::Anonymous)?.len(), 0);
+
+        let meta = SqliteStore::get_user_meta(&mut connection, user_id, MetaAccess::System)?;
+        assert_eq!(meta.len(), 1);
+
+        // Remove meta
+        SqliteStore::remove_user_metas(&mut connection, vec![meta[0].0])?;
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, MetaAccess::Friend)?.len(), 0);
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, MetaAccess::Anonymous)?.len(), 0);
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, MetaAccess::System)?.len(), 0);
+
+        SqliteStore::insert_user_metas(&mut connection, user_id, vec![
+            ("location".to_string(), MetaType::String("copenhagen".to_string(), MetaAccess::Anonymous)),
+            ("score".to_string(), MetaType::Integer(123, MetaAccess::Friend))])?;
+
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, MetaAccess::Friend)?.len(), 2);
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, MetaAccess::System)?.len(), 2);
+
+        // Filter with anonymous
+        let meta = SqliteStore::get_user_meta(&mut connection, user_id, MetaAccess::Anonymous)?;
+        assert_eq!(meta.len(), 1);
+        assert_eq!(meta.into_iter().map(|(_, key, value)| (key, value)).collect::<Vec<(String, MetaType)>>(), vec![
+            ("location".to_string(), MetaType::String("copenhagen".to_string(), MetaAccess::Anonymous))]);
+
+        // Filter with system
+        let meta = SqliteStore::get_user_meta(&mut connection, user_id, MetaAccess::System)?;
+        assert_eq!(meta.len(), 2);
+        assert_eq!(meta.into_iter().map(|(_, key, value)| (key, value)).collect::<Vec<(String, MetaType)>>(), vec![
+            ("location".to_string(), MetaType::String("copenhagen".to_string(), MetaAccess::Anonymous)),
+            ("score".to_string(), MetaType::Integer(123, MetaAccess::Friend))]);
+
         Ok(())
     }
 

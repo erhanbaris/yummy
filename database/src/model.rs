@@ -1,5 +1,8 @@
+use std::collections::HashMap;
+
 use crate::{schema::user, schema::user_meta, RowId};
 use diesel::*;
+use general::meta::MetaType;
 use serde::Serialize;
 use serde::Deserialize;
 
@@ -48,6 +51,7 @@ pub struct PrivateUserModel {
     pub email: Option<String>,
     pub device_id: Option<String>,
     pub custom_id: Option<String>,
+    pub meta: Option<HashMap<String, MetaType>>,
     pub insert_date: i32,
     pub last_login_date: i32,
 }

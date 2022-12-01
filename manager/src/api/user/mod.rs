@@ -59,7 +59,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetDetai
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
-        let user = DB::get_private_user_info(&mut self.database.get()?, user_id.into())?;
+        let user = DB::get_my_information(&mut self.database.get()?, user_id.into())?;
 
         match user {
             Some(user) => Ok(Response::UserPrivateInfo(user)),
@@ -111,7 +111,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
         let user_id = RowId(original_user_id);
 
         let mut connection = self.database.get()?;
-        let user = match DB::get_private_user_info(&mut connection, user_id)? {
+        let user = match DB::get_my_information(&mut connection, user_id)? {
             Some(user) => user,
             None => return Err(anyhow::anyhow!(UserError::UserNotFound))
         };
@@ -139,7 +139,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
         DB::transaction::<_, anyhow::Error, _>(&mut connection, |connection| {
             if let Some(meta) = model.meta {
                 if meta.len() > 0 {
-                    let user_old_metas = DB::get_user_meta(connection, user_id.into())?;
+                    let user_old_metas = DB::get_user_meta(connection, user_id.into(), model.access_level)?;
                     let mut remove_list = Vec::new();
                     let mut insert_list = Vec::new();
 
@@ -181,7 +181,7 @@ mod tests {
     use general::auth::validate_auth;
     use general::config::YummyConfig;
     use general::config::get_configuration;
-    use general::meta::Visibility;
+    use general::meta::MetaAccess;
     use general::model::YummyState;
     use std::collections::HashMap;
     use std::env::temp_dir;
@@ -630,11 +630,11 @@ mod tests {
             user: user_auth.clone(),
             name: Some("Erhan".to_string()),
             meta: Some(HashMap::from([
-                ("gender".to_string(), MetaType::String("Male".to_string(), Visibility::Friend)),
-                ("location".to_string(), MetaType::String("Copenhagen".to_string(), Visibility::Friend)),
-                ("postcode".to_string(), MetaType::Integer(1000, Visibility::Mod)),
-                ("score".to_string(), MetaType::Float(15.3, Visibility::Anonymous)),
-                ("temp_admin".to_string(), MetaType::Bool(true, Visibility::Admin)),
+                ("gender".to_string(), MetaType::String("Male".to_string(), MetaAccess::Friend)),
+                ("location".to_string(), MetaType::String("Copenhagen".to_string(), MetaAccess::Friend)),
+                ("postcode".to_string(), MetaType::Integer(1000, MetaAccess::Mod)),
+                ("score".to_string(), MetaType::Float(15.3, MetaAccess::Anonymous)),
+                ("temp_admin".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
             ])),
             ..Default::default()
         }).await??;

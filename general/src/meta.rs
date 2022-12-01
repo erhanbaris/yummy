@@ -3,23 +3,55 @@ use serde_json::Value;
 use std::fmt;
 use serde::de::{self};
 
-#[derive(Debug, PartialEq, Eq, Serialize)]
-pub enum Visibility {
+#[derive(Debug, PartialEq, Eq, Serialize, Clone, Default)]
+pub enum MetaAccess {
     Anonymous = 0,
     User = 1,
     Friend = 2,
-    Mod = 3,
-    Admin = 4,
-    System = 5
+    Me = 3,
+
+    #[default]
+    Mod = 4,
+    Admin = 5,
+    System = 6
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+impl From<MetaAccess> for i32 {
+    fn from(access: MetaAccess) -> Self {
+        match access {
+            MetaAccess::Anonymous => 0,
+            MetaAccess::User => 1,
+            MetaAccess::Friend => 2,
+            MetaAccess::Me => 3,
+            MetaAccess::Mod => 4,
+            MetaAccess::Admin => 5,
+            MetaAccess::System => 6,
+        }
+    }
+}
+
+impl From<i32> for MetaAccess {
+    fn from(access: i32) -> Self {
+        match access {
+            0 => MetaAccess::Anonymous,
+            1 => MetaAccess::User,
+            2 => MetaAccess::Friend,
+            3 => MetaAccess::Me,
+            4 => MetaAccess::Mod,
+            5 => MetaAccess::Admin,
+            6 => MetaAccess::System,
+            _ => MetaAccess::Anonymous
+        }
+    }
+}
+
+#[derive(Debug, Serialize, PartialEq, Clone)]
 pub enum MetaType {
     Null,
-    Integer(i64, Visibility),
-    Float(f64, Visibility),
-    String(String, Visibility),
-    Bool(bool, Visibility)
+    Integer(i64, MetaAccess),
+    Float(f64, MetaAccess),
+    String(String, MetaAccess),
+    Bool(bool, MetaAccess)
 }
 
 impl<'de> Deserialize<'de> for MetaType {
@@ -46,23 +78,23 @@ impl<'de> Visitor<'de> for MetaVisitor {
     }
 
     fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> where E: de::Error {
-        Ok(MetaType::Integer(value, Visibility::Anonymous))
+        Ok(MetaType::Integer(value, MetaAccess::Anonymous))
     }
 
     fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> where E: de::Error {
-        Ok(MetaType::Integer(value as i64, Visibility::Anonymous))
+        Ok(MetaType::Integer(value as i64, MetaAccess::Anonymous))
     }
 
     fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> where E: de::Error {
-        Ok(MetaType::Float(value, Visibility::Anonymous))
+        Ok(MetaType::Float(value, MetaAccess::Anonymous))
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> where E: de::Error {
-        Ok(MetaType::String(value.to_string(), Visibility::Anonymous))
+        Ok(MetaType::String(value.to_string(), MetaAccess::Anonymous))
     }
 
     fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E> where E: de::Error {
-        Ok(MetaType::Bool(value, Visibility::Anonymous))
+        Ok(MetaType::Bool(value, MetaAccess::Anonymous))
     }
 
     fn visit_unit<E>(self) -> Result<Self::Value, E> where E: de::Error { 
@@ -70,17 +102,18 @@ impl<'de> Visitor<'de> for MetaVisitor {
     }
 
     fn visit_map<E>(self, mut access: E) -> Result<Self::Value, E::Error> where E: MapAccess<'de> {
-        let mut visibility: Option<Visibility> = None;
+        let mut visibility: Option<MetaAccess> = None;
         let mut value: Option<serde_json::Value> = None;
         while let Some(key) = access.next_key::<&str>()? {
             match key {
                 "access" => visibility = Some(match access.next_value::<usize>() {
-                    Ok(0) => Visibility::Anonymous,
-                    Ok(1) => Visibility::User,
-                    Ok(2) => Visibility::Friend,
-                    Ok(3) => Visibility::Mod,
-                    Ok(4) => Visibility::Admin,
-                    Ok(5) => Visibility::System,
+                    Ok(0) => MetaAccess::Anonymous,
+                    Ok(1) => MetaAccess::User,
+                    Ok(2) => MetaAccess::Friend,
+                    Ok(3) => MetaAccess::Me,
+                    Ok(4) => MetaAccess::Mod,
+                    Ok(5) => MetaAccess::Admin,
+                    Ok(6) => MetaAccess::System,
                     _ => return Err(de::Error::custom(r#"Invalid "access" type"#))
                 }),
                 "value" => value = Some(access.next_value::<serde_json::Value>()?),
@@ -124,23 +157,23 @@ mod tests {
     fn basic_deserialization() {
         let s = "2";
         let deserialized: MetaType = serde_json::from_str(s).unwrap();
-        assert_eq!(deserialized, MetaType::Integer(2, Visibility::Anonymous));
+        assert_eq!(deserialized, MetaType::Integer(2, MetaAccess::Anonymous));
 
         let s = "\"erhan\"";
         let deserialized: MetaType = serde_json::from_str(s).unwrap();
-        assert_eq!(deserialized, MetaType::String("erhan".to_string(), Visibility::Anonymous));
+        assert_eq!(deserialized, MetaType::String("erhan".to_string(), MetaAccess::Anonymous));
 
         let s = "true";
         let deserialized: MetaType = serde_json::from_str(s).unwrap();
-        assert_eq!(deserialized, MetaType::Bool(true, Visibility::Anonymous));
+        assert_eq!(deserialized, MetaType::Bool(true, MetaAccess::Anonymous));
 
         let s = "false";
         let deserialized: MetaType = serde_json::from_str(s).unwrap();
-        assert_eq!(deserialized, MetaType::Bool(false, Visibility::Anonymous));
+        assert_eq!(deserialized, MetaType::Bool(false, MetaAccess::Anonymous));
 
         let s = "10.5";
         let deserialized: MetaType = serde_json::from_str(s).unwrap();
-        assert_eq!(deserialized, MetaType::Float(10.5, Visibility::Anonymous));
+        assert_eq!(deserialized, MetaType::Float(10.5, MetaAccess::Anonymous));
 
         let s = "null";
         let deserialized: MetaType = serde_json::from_str(s).unwrap();
@@ -151,11 +184,11 @@ mod tests {
     fn dict_deserialization() {
         let s = r#"{"access": 3, "value": true}"#;
         let deserialized: MetaType = serde_json::from_str(s).unwrap();
-        assert_eq!(deserialized, MetaType::Bool(true, Visibility::Mod));
+        assert_eq!(deserialized, MetaType::Bool(true, MetaAccess::Me));
 
-        let s = r#"{"access": 3, "value": "erhan"}"#;
+        let s = r#"{"access": 4, "value": "erhan"}"#;
         let deserialized: MetaType = serde_json::from_str(s).unwrap();
-        assert_eq!(deserialized, MetaType::String("erhan".to_string(), Visibility::Mod));
+        assert_eq!(deserialized, MetaType::String("erhan".to_string(), MetaAccess::Mod));
 
         let s = r#"{"access": 0, "value": true}"#;
         let deserialized: MetaType = serde_json::from_str(s).unwrap();

@@ -5,7 +5,7 @@ use thiserror::Error;
 use actix::prelude::Message;
 use validator::Validate;
 
-use general::{model::UserId, auth::UserAuth, meta::MetaType};
+use general::{model::UserId, auth::UserAuth, meta::{MetaType, MetaAccess}};
 
 use crate::response::Response;
 
@@ -27,12 +27,14 @@ pub struct GetPublicUserInfo {
 pub struct UpdateUser {
     pub user: Arc<Option<UserAuth>>,
     pub name: Option<String>,
+
     #[validate(email)]
     pub email: Option<String>,
     pub password: Option<String>,
     pub device_id: Option<String>,
     pub custom_id: Option<String>,
-    pub meta: Option<HashMap<String, MetaType>>
+    pub meta: Option<HashMap<String, MetaType>>,
+    pub access_level: MetaAccess
 }
 
 #[derive(Debug, Serialize, Deserialize)]

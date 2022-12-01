@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use actix::Addr;
 use database::DatabaseTrait;
-use general::auth::UserAuth;
+use general::{auth::UserAuth, meta::MetaAccess};
 use manager::{api::{auth::AuthManager, user::UserManager}, response::Response};
 use manager::api::auth::model::*;
 use manager::api::user::model::*;
@@ -45,6 +45,6 @@ pub(crate) async fn process_user<DB: DatabaseTrait + Unpin + 'static>(user_type:
      match user_type {
         UserType::Me => as_response!(user_manager, GetDetailedUserInfo { user }),
         UserType::Get { user: user_id } => as_response!(user_manager, GetPublicUserInfo { user, target_user: user_id }),
-        UserType::Update { name, email, password, device_id, custom_id, meta } => as_response!(user_manager, UpdateUser { user, name, email, password, device_id, custom_id, meta }),
+        UserType::Update { name, email, password, device_id, custom_id, meta } => as_response!(user_manager, UpdateUser { user, name, email, password, device_id, custom_id, meta, access_level: MetaAccess::Me }),
     }
 }
