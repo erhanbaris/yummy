@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use general::config::YummyConfig;
 
 use actix::{Context, Handler, Actor, AsyncContext, SpawnHandle};
-use database::{RowId, Pool, DatabaseTrait};
+use database::{Pool, DatabaseTrait};
 use anyhow::anyhow;
 use general::model::{UserId, SessionId};
 
@@ -63,16 +63,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
     fn handle(&mut self, auth: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
-        let user_info: Option<(RowId, Option<String>, String)> = DB::user_login_via_email(&mut connection, &auth.email)?;
+        let user_info = DB::user_login_via_email(&mut connection, &auth.email)?;
 
         let (user_id, name) = match (user_info, auth.if_not_exist_create) {
-            (Some((user_id, name, password)), _) => {
-                if auth.password != password {
+            (Some(user_info), _) => {
+                if auth.password != user_info.password.unwrap_or_default() {
                     return Err(anyhow!(AuthError::EmailOrPasswordNotValid));
                 }
 
-                DB::update_last_login(&mut connection, user_id)?;
-                (user_id, name)
+                DB::update_last_login(&mut connection, &user_info.user_id)?;
+                (user_info.user_id, user_info.name)
             },
             (None, true) => (DB::create_user_via_email(&mut connection, &auth.email, &auth.password)?, None),
             _ => return Err(anyhow!(AuthError::EmailOrPasswordNotValid))
@@ -94,10 +94,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
     fn handle(&mut self, auth: DeviceIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
-        let user_info: Option<(RowId, Option<String>, Option<String>)> = DB::user_login_via_device_id(&mut connection, &auth.id)?;
+        let user_info = DB::user_login_via_device_id(&mut connection, &auth.id)?;
 
         let (user_id, name, email) = match user_info {
-            Some((user_id, name, email)) => (user_id, name, email),
+            Some(user_info) => (user_info.user_id, user_info.name, user_info.email),
             None => (DB::create_user_via_device_id(&mut connection, &auth.id)?, None, None)
         };
         
@@ -117,10 +117,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
     fn handle(&mut self, auth: CustomIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
-        let user_info: Option<(RowId, Option<String>, Option<String>)> = DB::user_login_via_custom_id(&mut connection, &auth.id)?;
+        let user_info = DB::user_login_via_custom_id(&mut connection, &auth.id)?;
 
         let (user_id, name, email) = match user_info {
-            Some((user_id, name, email)) => (user_id, name, email),
+            Some(user_info) => (user_info.user_id, user_info.name, user_info.email),
             None => (DB::create_user_via_custom_id(&mut connection, &auth.id)?, None, None)
         };
         
@@ -143,7 +143,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRe
                 self.states.as_ref().close_session(&user.session);
                 Ok(Response::None)
             },
-            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
+            None => Err(anyhow::anyhow!(AuthError::TokenNotValid))
         }
     }
 }

@@ -4,12 +4,13 @@ use std::borrow::Borrow;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::SqliteStore;
+use crate::model::LoginInfo;
 use crate::{PooledConnection, schema::user, RowId, model::UserInsert};
 
 pub trait AuthStoreTrait: Sized {
-    fn user_login_via_email(connection: &mut PooledConnection, email: &str) -> anyhow::Result<Option<(RowId, Option<String>, String)>>;
-    fn user_login_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<Option<(RowId, Option<String>, Option<String>)>>;
-    fn user_login_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<Option<(RowId, Option<String>, Option<String>)>>;
+    fn user_login_via_email(connection: &mut PooledConnection, email: &str) -> anyhow::Result<Option<LoginInfo>>;
+    fn user_login_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<Option<LoginInfo>>;
+    fn user_login_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<Option<LoginInfo>>;
 
     fn update_last_login<T: Borrow<RowId> + std::fmt::Debug>(connection: &mut PooledConnection, user_id: T) -> anyhow::Result<()>;
 
@@ -20,7 +21,7 @@ pub trait AuthStoreTrait: Sized {
 
 impl AuthStoreTrait for SqliteStore {
     #[tracing::instrument(name="User login via email", skip(connection))]
-    fn user_login_via_email(connection: &mut PooledConnection, email: &str) -> anyhow::Result<Option<(RowId, Option<String>, String)>> {
+    fn user_login_via_email(connection: &mut PooledConnection, email: &str) -> anyhow::Result<Option<LoginInfo>> {
         let result = user::table
             .filter(user::email.eq(email))
             .select((user::id, user::name, user::password))
@@ -28,37 +29,59 @@ impl AuthStoreTrait for SqliteStore {
             .optional()?
             .map(|(id, name, password)| (id, name, password.unwrap_or_default()));
 
-        Ok(result)
+        match result {
+            Some((user_id, name, password)) => Ok(Some(LoginInfo {
+                user_id,
+                name,
+                email: None,
+                password: Some(password)
+            })),
+            None => Ok(None)
+        }
     }
 
     #[tracing::instrument(name="User login via device id", skip(connection))]
-    fn user_login_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<Option<(RowId, Option<String>, Option<String>)>> {
+    fn user_login_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<Option<LoginInfo>> {
         let result = user::table
             .filter(user::device_id.eq(device_id))
             .select((user::id, user::name, user::email))
             .first::<(RowId, Option<String>, Option<String>)>(connection)
             .optional()?;
 
-        if let Some((user, _, _)) = result {
-            Self::update_last_login(connection, user)?
+        match result {
+            Some((user_id, name, email)) => {
+                Self::update_last_login(connection, &user_id)?;
+                Ok(Some(LoginInfo {
+                    user_id,
+                    name,
+                    password: None,
+                    email
+                }))
+            },
+            None => Ok(None)
         }
-
-        Ok(result)
     }
 
     #[tracing::instrument(name="User login via custom id", skip(connection))]
-    fn user_login_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<Option<(RowId, Option<String>, Option<String>)>> {
+    fn user_login_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<Option<LoginInfo>> {
         let result = user::table
             .filter(user::custom_id.eq(custom_id))
             .select((user::id, user::name, user::email))
             .first::<(RowId, Option<String>, Option<String>)>(connection)
             .optional()?;
 
-        if let Some((user, _, _)) = result {
-            Self::update_last_login(connection, user)?;
+        match result {
+            Some((user_id, name, email)) => {
+                Self::update_last_login(connection, &user_id)?;
+                Ok(Some(LoginInfo {
+                    user_id,
+                    name,
+                    password: None,
+                    email
+                }))
+            },
+            None => Ok(None)
         }
-
-        Ok(result)
     }
 
     #[tracing::instrument(name="Update last login", skip(connection))]
@@ -138,11 +161,11 @@ mod tests {
         let mut connection = db_conection()?;
 
         let created_user_id = SqliteStore::create_user_via_email(&mut connection, "erhanbaris@gmail.com", "erhan")?;
-        let (logged_user_id, name, password) = SqliteStore::user_login_via_email(&mut connection, "erhanbaris@gmail.com")?.unwrap();
+        let result = SqliteStore::user_login_via_email(&mut connection, "erhanbaris@gmail.com")?.unwrap();
 
-        assert_eq!(created_user_id, logged_user_id);
-        assert!(name.is_none());
-        assert_eq!(password.as_str(), "erhan");
+        assert_eq!(created_user_id, result.user_id);
+        assert!(result.name.is_none());
+        assert_eq!(result.password.unwrap_or_default().as_str(), "erhan");
 
         Ok(())
     }
@@ -171,11 +194,11 @@ mod tests {
 
 
         let created_user_id = SqliteStore::create_user_via_device_id(&mut connection, "1234567890")?;
-        let (logged_user_id, name, email) = SqliteStore::user_login_via_device_id(&mut connection, "1234567890")?.unwrap();
+        let result = SqliteStore::user_login_via_device_id(&mut connection, "1234567890")?.unwrap();
 
-        assert_eq!(created_user_id, logged_user_id);
-        assert!(name.is_none());
-        assert!(email.is_none());
+        assert_eq!(created_user_id, result.user_id);
+        assert!(result.name.is_none());
+        assert!(result.email.is_none());
 
         Ok(())
     }
@@ -203,11 +226,11 @@ mod tests {
 
 
         let created_user_id = SqliteStore::create_user_via_custom_id(&mut connection, "1234567890")?;
-        let (logged_user_id, name, email) = SqliteStore::user_login_via_custom_id(&mut connection, "1234567890")?.unwrap();
+        let result = SqliteStore::user_login_via_custom_id(&mut connection, "1234567890")?.unwrap();
 
-        assert_eq!(created_user_id, logged_user_id);
-        assert!(name.is_none());
-        assert!(email.is_none());
+        assert_eq!(created_user_id, result.user_id);
+        assert!(result.name.is_none());
+        assert!(result.email.is_none());
 
         Ok(())
     }

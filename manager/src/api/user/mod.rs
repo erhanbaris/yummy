@@ -8,6 +8,7 @@ use database::model::{UserUpdate, PrivateUserModel};
 use actix::{Context, Actor, Handler};
 use database::{Pool, DatabaseTrait, RowId};
 
+use general::config::YummyConfig;
 use general::meta::MetaType;
 use moka::sync::Cache;
 use uuid::Uuid;
@@ -18,6 +19,7 @@ use crate::api::auth::model::AuthError;
 use self::model::*;
 
 pub struct UserManager<DB: DatabaseTrait + ?Sized> {
+    config: Arc<YummyConfig>,
     database: Arc<Pool>,
     _marker: PhantomData<DB>,
 
@@ -26,8 +28,9 @@ pub struct UserManager<DB: DatabaseTrait + ?Sized> {
 }
 
 impl<DB: DatabaseTrait + ?Sized> UserManager<DB> {
-    pub fn new(database: Arc<Pool>) -> Self {
+    pub fn new(config: Arc<YummyConfig>, database: Arc<Pool>) -> Self {
         Self {
+            config,
             database,
             _marker: PhantomData,
             cache_private_user_info: Cache::builder().time_to_idle(Duration::from_secs(5*60)).build()
@@ -89,9 +92,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
             None => return Err(anyhow::anyhow!(UserError::UserNotFound))
         };
 
-        updates.custom_id = model.custom_id.map(|item| match item.trim().len() == 0 { true => None, false => Some(item)} );
-        updates.device_id = model.device_id.map(|item| match item.trim().len() == 0 { true => None, false => Some(item)} );
-        updates.name = model.name.map(|item| match item.trim().len() == 0 { true => None, false => Some(item)} );
+        updates.custom_id = model.custom_id.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
+        updates.device_id = model.device_id.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
+        updates.name = model.name.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
 
         if let Some(password) = model.password {
             if password.trim().len() < 4 {
@@ -108,33 +111,39 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
         }
 
         let mut connection = self.database.get()?;
+        let config = self.config.clone();
 
-        DB::transaction::<_, anyhow::Error, _>(&mut connection, |connection| {
+        DB::transaction::<_, anyhow::Error, _>(&mut connection, move |connection| {
             if let Some(meta) = model.meta {
-                if meta.len() > 0 {
-                    let user_old_metas = DB::get_user_meta(connection, user_id.into(), model.access_level)?;
-                    let mut remove_list = Vec::new();
-                    let mut insert_list = Vec::new();
 
-                    for (key, value) in meta.into_iter() {
-                        let row= user_old_metas.iter().find(|item| item.1 == key).map(|item| item.0);
+                match meta.len() {
+                    0 => (),
+                    n if n > config.max_user_meta => return Err(anyhow::anyhow!(UserError::MetaLimitOverToMaximum)),
+                    _ => {
+                        let user_old_metas = DB::get_user_meta(connection, user_id, model.access_level)?;
+                        let mut remove_list = Vec::new();
+                        let mut insert_list = Vec::new();
 
-                        /* Remove the key if exists in the database */
-                        if let Some(row_id) = row {
-                            remove_list.push(row_id);
+                        for (key, value) in meta.into_iter() {
+                            let row= user_old_metas.iter().find(|item| item.1 == key).map(|item| item.0);
+
+                            /* Remove the key if exists in the database */
+                            if let Some(row_id) = row {
+                                remove_list.push(row_id);
+                            }
+
+                            /* Remove meta */
+                            if let MetaType::Null = value {
+                                continue;
+                            }
+
+                            insert_list.push((key, value));
                         }
 
-                        /* Remove meta */
-                        if let MetaType::Null = value {
-                            continue;
-                        }
-
-                        insert_list.push((key, value));
+                        DB::remove_user_metas(connection, remove_list)?;
+                        DB::insert_user_metas(connection, user_id, insert_list)?;
                     }
-
-                    DB::remove_user_metas(connection, remove_list)?;
-                    DB::insert_user_metas(connection, user_id, insert_list)?;
-                }
+                };
             }
 
             match DB::update_user(connection, user_id, updates)? {
@@ -177,7 +186,7 @@ mod tests {
         let states = Arc::new(YummyState::default());
         let connection = create_connection(db_location.to_str().unwrap())?;
         create_database(&mut connection.clone().get()?)?;
-        Ok((UserManager::<database::SqliteStore>::new(Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config))
+        Ok((UserManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config))
     }
     
     #[actix::test]
@@ -522,6 +531,84 @@ mod tests {
 
         assert_eq!(user.name, Some("Erhan".to_string()));
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
+
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn update_get_private_user_3() -> anyhow::Result<()> {
+        let (user_manager, auth_manager, config) = create_actor()?;
+
+        let token = auth_manager.send(EmailAuthRequest {
+            email: "erhanbaris@gmail.com".to_string(),
+            password: "erhan".to_string(),
+            if_not_exist_create: true
+        }).await??;
+
+        let token = match token {
+            Response::Auth(token, _) => token,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
+        };
+
+        let user_jwt = validate_auth(config, token).unwrap().user;
+        let user_auth = Arc::new(Some(UserAuth {
+            user: user_jwt.id,
+            session: user_jwt.session
+        }));
+
+        let user = user_manager.send(GetUserInformation {
+            requester_user: user_auth.clone(),
+            target_user: None
+        }).await??;
+
+        let user = match user {
+            Response::UserPrivateInfo(model) => model,
+            _ => { return Err(anyhow::anyhow!("Expected 'Response::UserPrivateInfo'")); }
+        };
+        
+        assert_eq!(user.name, None);
+        assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
+
+        /*Max meta must be 10, this request is valid */
+        user_manager.send(UpdateUser {
+            user: user_auth.clone(),
+            name: Some("Erhan".to_string()),
+            meta: Some(HashMap::from([
+                ("1".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("2".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("3".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("4".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("5".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("6".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("7".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("8".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("9".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("10".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+            ])),
+            ..Default::default()
+        }).await??;
+        
+        /*Max meta must be 10, this request is NOT valid */
+        let response = user_manager.send(UpdateUser {
+            user: user_auth.clone(),
+            name: Some("Erhan".to_string()),
+            meta: Some(HashMap::from([
+                ("1".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("2".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("3".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("4".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("5".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("6".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("7".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("8".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("9".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("10".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+                ("11".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+            ])),
+            ..Default::default()
+        }).await?;
+
+        assert!(response.is_err());
 
         Ok(())
     }

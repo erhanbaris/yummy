@@ -7,6 +7,7 @@ pub const DEFAULT_CLIENT_TIMEOUT: u64 = 20; // in seconds
 pub const DEFAULT_CONNECTION_RESTORE_WAIT_TIMEOUT: u64 = 10; // in seconds
 pub const DEFAULT_HEARTBEAT_INTERVAL: u64 = 10; // in seconds
 pub const DEFAULT_TOKEN_LIFETIME: u64 = 24 * 60 * 60; // in seconds
+pub const DEFAULT_MAX_USER_META: usize = 10;
 pub const DEFAULT_API_KEY_NAME: &str = "x-yummy-api";
 pub const DEFAULT_USER_AUTH_KEY_NAME: &str = "x-yummy-auth";
 pub const DEFAULT_SALT_KEY: &str = "YUMMY-SALT";
@@ -19,6 +20,8 @@ pub struct YummyConfig {
     pub heartbeat_interval: Duration,
     pub client_timeout: Duration,
     pub connection_restore_wait_timeout: Duration,
+
+    pub max_user_meta: usize,
 
     pub integration_key: String,
     pub api_key_name: String,
@@ -34,15 +37,16 @@ pub fn get_env_var<R: Clone + FromStr>(key: &str, default: R) -> R {
 }
 
 pub fn get_configuration() -> Arc<YummyConfig> {
-    let mut yummy_config = YummyConfig::default();
-    yummy_config.client_timeout = Duration::from_secs(get_env_var("CLIENT_TIMEOUT", DEFAULT_CLIENT_TIMEOUT));
-    yummy_config.connection_restore_wait_timeout = Duration::from_secs(get_env_var("CONNECTION_RESTORE_WAIT_TIMEOUT", DEFAULT_CONNECTION_RESTORE_WAIT_TIMEOUT));
-    yummy_config.heartbeat_interval = Duration::from_secs(get_env_var("HEARTBEAT_INTERVAL", DEFAULT_HEARTBEAT_INTERVAL));
-    yummy_config.token_lifetime = Duration::from_secs(get_env_var("TOKEN_LIFETIME", DEFAULT_TOKEN_LIFETIME));
-    yummy_config.api_key_name = get_env_var("API_KEY_NAME", DEFAULT_API_KEY_NAME.to_string());
-    yummy_config.user_auth_key_name = get_env_var("USER_AUTH_KEY_NAME", DEFAULT_USER_AUTH_KEY_NAME.to_string());
-    yummy_config.salt_key = get_env_var("SALT_KEY", DEFAULT_SALT_KEY.to_string());
-    yummy_config.integration_key = get_env_var("INTEGRATION_KEY", DEFAULT_DEFAULT_INTEGRATION_KEY.to_string());
-    yummy_config.database_url = get_env_var("DATABASE_URL", DEFAULT_DATABASE_URL.to_string());
-    Arc::new(yummy_config)
+    Arc::new(YummyConfig {
+        client_timeout: Duration::from_secs(get_env_var("CLIENT_TIMEOUT", DEFAULT_CLIENT_TIMEOUT)),
+        connection_restore_wait_timeout: Duration::from_secs(get_env_var("CONNECTION_RESTORE_WAIT_TIMEOUT", DEFAULT_CONNECTION_RESTORE_WAIT_TIMEOUT)),
+        heartbeat_interval: Duration::from_secs(get_env_var("HEARTBEAT_INTERVAL", DEFAULT_HEARTBEAT_INTERVAL)),
+        token_lifetime: Duration::from_secs(get_env_var("TOKEN_LIFETIME", DEFAULT_TOKEN_LIFETIME)),
+        api_key_name: get_env_var("API_KEY_NAME", DEFAULT_API_KEY_NAME.to_string()),
+        user_auth_key_name: get_env_var("USER_AUTH_KEY_NAME", DEFAULT_USER_AUTH_KEY_NAME.to_string()),
+        salt_key: get_env_var("SALT_KEY", DEFAULT_SALT_KEY.to_string()),
+        integration_key: get_env_var("INTEGRATION_KEY", DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()),
+        database_url: get_env_var("DATABASE_URL", DEFAULT_DATABASE_URL.to_string()),
+        max_user_meta: get_env_var("MAX_USER_META", DEFAULT_MAX_USER_META)
+    })
 }

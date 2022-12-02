@@ -28,7 +28,7 @@ pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, a
                 Response::Auth(token, auth) => {
                     process_auth(AuthType::StartUserTimeout {
                         session_id: auth.session
-                    }, auth_manager.as_ref().clone(), user).await;
+                    }, auth_manager.as_ref().clone(), user).await?;
                     HttpResponse::Ok().json(GenericAnswer::success(token))
                 },
                 Response::UserPrivateInfo(model) => HttpResponse::Ok().json(GenericAnswer::success(model)),
@@ -74,7 +74,7 @@ pub mod tests {
         create_database(&mut connection.clone().get().unwrap()).unwrap();
         let states = Arc::new(YummyState::default());
         let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection.clone())).start());
-        let user_manager = Data::new(UserManager::<database::SqliteStore>::new(Arc::new(connection)).start());
+        let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection)).start());
 
         let query_cfg = QueryConfig::default()
             .error_handler(|err, _| {

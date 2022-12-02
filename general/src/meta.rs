@@ -74,7 +74,7 @@ impl<'de> Visitor<'de> for MetaVisitor {
     }
 
     fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: Deserializer<'de> {
-        Ok(deserializer.deserialize_any(MetaVisitor)?)
+        deserializer.deserialize_any(MetaVisitor)
     }
 
     fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> where E: de::Error {

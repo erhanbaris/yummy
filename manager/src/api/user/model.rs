@@ -56,7 +56,7 @@ pub struct UpdateUserField {
     value: Option<String>
 }
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum UserError {
     #[error("User not found")]
     UserNotFound,
@@ -68,5 +68,8 @@ pub enum UserError {
     PasswordIsTooSmall,
 
     #[error("Update information missing")]
-    UpdateInformationMissing
+    UpdateInformationMissing,
+
+    #[error("Meta limit over to maximum")]
+    MetaLimitOverToMaximum
 }

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use general::{model::{UserId, SessionId}, meta::MetaType};
-use serde::{Deserialize, Serialize, Deserializer};
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "auth_type")]
