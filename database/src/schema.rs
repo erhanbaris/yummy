@@ -7,6 +7,7 @@ table! {
         device_id -> Nullable<Text>,
         custom_id -> Nullable<Text>,
         password -> Nullable<Text>,
+        user_type -> Integer,
         insert_date -> Integer,
         last_login_date -> Integer,
     }

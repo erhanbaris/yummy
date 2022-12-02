@@ -3,7 +3,7 @@ pub mod model;
 use std::time::Duration;
 use std::{marker::PhantomData, ops::Deref};
 use std::sync::Arc;
-use database::model::{UserUpdate, PrivateUserModel};
+use database::model::{UserUpdate, UserInformationModel};
 
 use actix::{Context, Actor, Handler};
 use database::{Pool, DatabaseTrait, RowId};
@@ -24,7 +24,7 @@ pub struct UserManager<DB: DatabaseTrait + ?Sized> {
     _marker: PhantomData<DB>,
 
     // Caches
-    cache_private_user_info: Cache<Uuid, PrivateUserModel>
+    cache_private_user_info: Cache<Uuid, UserInformationModel>
 }
 
 impl<DB: DatabaseTrait + ?Sized> UserManager<DB> {
@@ -59,7 +59,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
-        let user = DB::get_my_information(&mut self.database.get()?, user_id.into())?;
+        let user = DB::get_user_information(&mut self.database.get()?, user_id.into())?;
 
         match user {
             Some(user) => Ok(Response::UserPrivateInfo(user)),
@@ -79,7 +79,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
-        if model.custom_id.is_none() && model.device_id.is_none() && model.email.is_none() && model.name.is_none() && model.password.is_none() && model.meta.as_ref().map(|dict| dict.len()).unwrap_or_default() == 0 {
+        if model.custom_id.is_none() && model.device_id.is_none() && model.email.is_none() && model.name.is_none() && model.password.is_none() && model.user_type.is_none() && model.meta.as_ref().map(|dict| dict.len()).unwrap_or_default() == 0 {
             return Err(anyhow::anyhow!(UserError::UpdateInformationMissing));
         }
 
@@ -87,7 +87,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
         let user_id = RowId(original_user_id);
 
         let mut connection = self.database.get()?;
-        let user = match DB::get_my_information(&mut connection, user_id)? {
+        let user = match DB::get_user_information(&mut connection, user_id)? {
             Some(user) => user,
             None => return Err(anyhow::anyhow!(UserError::UserNotFound))
         };
@@ -95,6 +95,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
         updates.custom_id = model.custom_id.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
         updates.device_id = model.device_id.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
         updates.name = model.name.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
+        updates.user_type = model.user_type.map(|item| item.into());
 
         if let Some(password) = model.password {
             if password.trim().len() < 4 {

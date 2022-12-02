@@ -5,7 +5,7 @@ use thiserror::Error;
 use actix::prelude::Message;
 use validator::Validate;
 
-use general::{model::UserId, auth::UserAuth, meta::{MetaType, MetaAccess}};
+use general::{model::{UserId, UserType}, auth::UserAuth, meta::{MetaType, MetaAccess}};
 
 use crate::response::Response;
 
@@ -27,6 +27,7 @@ pub struct UpdateUser {
     pub password: Option<String>,
     pub device_id: Option<String>,
     pub custom_id: Option<String>,
+    pub user_type: Option<UserType>,
     pub meta: Option<HashMap<String, MetaType>>,
     pub access_level: MetaAccess
 }

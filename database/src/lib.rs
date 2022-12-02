@@ -98,6 +98,7 @@ pub fn create_database(connection: &mut PooledConnection) -> anyhow::Result<()> 
             custom_id TEXT UNIQUE,
             email TEXT UNIQUE,
             password TEXT,
+            user_type INTEGER,
             insert_date INTEGER NOT NULL,
             last_login_date INTEGER NOT NULL
         );"#,

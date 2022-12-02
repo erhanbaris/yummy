@@ -1,4 +1,5 @@
 use diesel::*;
+use general::model::UserType;
 use uuid::Uuid;
 use std::borrow::Borrow;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -87,7 +88,7 @@ impl AuthStoreTrait for SqliteStore {
     #[tracing::instrument(name="Update last login", skip(connection))]
     fn update_last_login<T: Borrow<RowId> + std::fmt::Debug>(connection: &mut PooledConnection, user_id: T) -> anyhow::Result<()> {
         diesel::update(user::table.filter(user::id.eq(user_id.borrow())))
-        .set(user::last_login_date.eq(SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default())).execute(connection)?;
+            .set(user::last_login_date.eq(SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default())).execute(connection)?;
         Ok(())
     }
 
@@ -101,6 +102,7 @@ impl AuthStoreTrait for SqliteStore {
         model.last_login_date = model.insert_date;
         model.password = Some(password);
         model.email = Some(email);
+        model.user_type = UserType::default().into();
         diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
 
         Ok(row_id)
@@ -114,6 +116,7 @@ impl AuthStoreTrait for SqliteStore {
         model.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
         model.last_login_date = model.insert_date;
         model.device_id = Some(device_id);
+        model.user_type = UserType::default().into();
         diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
 
         Ok(row_id)
@@ -127,6 +130,7 @@ impl AuthStoreTrait for SqliteStore {
         model.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
         model.last_login_date = model.insert_date;
         model.custom_id = Some(custom_id);
+        model.user_type = UserType::default().into();
         diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
 
         Ok(row_id)

@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
@@ -8,10 +9,11 @@ use diesel::RunQueryDsl;
 use diesel::result::OptionalExtension;
 use general::meta::MetaType;
 use general::meta::MetaAccess;
+use general::model::UserType;
 use uuid::Uuid;
 
 use crate::SqliteStore;
-use crate::model::PrivateUserModel;
+use crate::model::UserInformationModel;
 use crate::model::UserMetaInsert;
 use crate::model::UserMetaModel;
 use crate::model::UserUpdate;
@@ -23,32 +25,32 @@ pub trait UserStoreTrait: Sized {
     fn get_user_meta(connection: &mut PooledConnection, user_id: RowId, filter: MetaAccess) -> anyhow::Result<Vec<(RowId, String, MetaType)>>;
     fn remove_user_metas(connection: &mut PooledConnection, meta_ids: Vec<RowId>) -> anyhow::Result<()>;
     fn insert_user_metas(connection: &mut PooledConnection, user_id: RowId, metas: Vec<(String, MetaType)>) -> anyhow::Result<()>;
-    fn get_my_information(connection: &mut PooledConnection, user_id: RowId) -> anyhow::Result<Option<PrivateUserModel>>;
+    fn get_user_information(connection: &mut PooledConnection, user_id: RowId) -> anyhow::Result<Option<UserInformationModel>>;
+    fn set_user_type<T: Borrow<RowId> + std::fmt::Debug>(connection: &mut PooledConnection, user_id: T, user_type: UserType) -> anyhow::Result<()>;
 }
 
 impl UserStoreTrait for SqliteStore {
     #[tracing::instrument(name="Update user", skip(connection))]
     fn update_user<'a>(connection: &mut PooledConnection, user_id: RowId, update_request: UserUpdate) -> anyhow::Result<usize> {
-        Ok(diesel::update(user::table.filter(user::id.eq(user_id)))
-            .set(&update_request).execute(connection)?)
+        Ok(diesel::update(user::table.filter(user::id.eq(user_id))).set(&update_request).execute(connection)?)
     }
 
     #[tracing::instrument(name="Get user", skip(connection))]
-    fn get_my_information<'a>(connection: &mut PooledConnection, user_id: RowId) -> anyhow::Result<Option<PrivateUserModel>> {
+    fn get_user_information<'a>(connection: &mut PooledConnection, user_id: RowId) -> anyhow::Result<Option<UserInformationModel>> {
         let result = user::table
-            .select((user::id, user::name, user::email, user::device_id, user::custom_id, user::insert_date, user::last_login_date))
+            .select((user::id, user::name, user::email, user::device_id, user::custom_id, user::user_type, user::insert_date, user::last_login_date))
             .filter(user::id.eq(user_id))
-            .get_result::<(RowId, Option<String>, Option<String>, Option<String>, Option<String>, i32, i32)>(connection)
+            .get_result::<(RowId, Option<String>, Option<String>, Option<String>, Option<String>, i32, i32, i32)>(connection)
             .optional()?;
 
         match result {
-            Some((id, name, email, device_id, custom_id, insert_date, last_login_date)) => {
+            Some((id, name, email, device_id, custom_id, user_type, insert_date, last_login_date)) => {
                 let meta: HashMap<_, _> = Self::get_user_meta(connection, user_id, MetaAccess::Me)?.into_iter().map(|(_, key, value)| (key, value)).collect();
                 let meta = match meta.is_empty() {
                     true => None,
                     false => Some(meta)
                 };
-                Ok(Some(PrivateUserModel { id, name, email, device_id, custom_id, meta, insert_date, last_login_date }))
+                Ok(Some(UserInformationModel { id, name, email, device_id, custom_id, meta, user_type: user_type.into(), insert_date, last_login_date }))
             },
             None => Ok(None)
         }
@@ -115,6 +117,12 @@ impl UserStoreTrait for SqliteStore {
         diesel::insert_into(user_meta::table).values(&inserts).execute(connection)?;
         Ok(())
     }
+
+    #[tracing::instrument(name="Set user type", skip(connection))]
+    fn set_user_type<T: Borrow<RowId> + std::fmt::Debug>(connection: &mut PooledConnection, user_id: T, user_type: UserType) -> anyhow::Result<()> {
+        diesel::update(user::table.filter(user::id.eq(user_id.borrow()))).set(user::user_type.eq::<i32>(user_type.into())).execute(connection)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -139,27 +147,27 @@ mod tests {
     }
 
     #[test]
-    fn fail_get_my_information_1() -> anyhow::Result<()> {
+    fn fail_get_user_information_1() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
-        assert!(SqliteStore::get_my_information(&mut connection, RowId(uuid::Uuid::nil()))?.is_none());
+        assert!(SqliteStore::get_user_information(&mut connection, RowId(uuid::Uuid::nil()))?.is_none());
         Ok(())
     }
 
     #[test]
-    fn fail_get_my_information_2() -> anyhow::Result<()> {
+    fn fail_get_user_information_2() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
-        assert!(SqliteStore::get_my_information(&mut connection, RowId(uuid::Uuid::new_v4()))?.is_none());
+        assert!(SqliteStore::get_user_information(&mut connection, RowId(uuid::Uuid::new_v4()))?.is_none());
         Ok(())
     }
 
     #[test]
-    fn get_my_information_1() -> anyhow::Result<()> {
+    fn get_user_information_1() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
         let user_id = SqliteStore::create_user_via_email(&mut connection, "erhanbaris@gmail.com", "erhan")?;
-        let user = SqliteStore::get_my_information(&mut connection, user_id)?.unwrap();
+        let user = SqliteStore::get_user_information(&mut connection, user_id)?.unwrap();
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
         assert!(user.custom_id.is_none());
         assert!(user.device_id.is_none());
@@ -169,11 +177,11 @@ mod tests {
     }
 
     #[test]
-    fn get_my_information_2() -> anyhow::Result<()> {
+    fn get_user_information_2() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
         let user_id = SqliteStore::create_user_via_device_id(&mut connection, "123456789")?;
-        let user = SqliteStore::get_my_information(&mut connection, user_id)?.unwrap();
+        let user = SqliteStore::get_user_information(&mut connection, user_id)?.unwrap();
         assert_eq!(user.device_id, Some("123456789".to_string()));
         assert!(user.email.is_none());
         assert!(user.custom_id.is_none());
@@ -183,11 +191,11 @@ mod tests {
     }
 
     #[test]
-    fn get_my_information_3() -> anyhow::Result<()> {
+    fn get_user_information_3() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
         let user_id = SqliteStore::create_user_via_custom_id(&mut connection, "123456789")?;
-        let user = SqliteStore::get_my_information(&mut connection, user_id)?.unwrap();
+        let user = SqliteStore::get_user_information(&mut connection, user_id)?.unwrap();
         assert_eq!(user.custom_id, Some("123456789".to_string()));
         assert!(user.email.is_none());
         assert!(user.device_id.is_none());

@@ -1,4 +1,4 @@
-use database::model::PrivateUserModel;
+use database::model::UserInformationModel;
 use general::auth::{UserJwt};
 use serde::Serialize;
 use serde::Deserialize;
@@ -7,5 +7,5 @@ use serde::Deserialize;
 pub enum Response {
     None,
     Auth(String, UserJwt),
-    UserPrivateInfo(PrivateUserModel),
+    UserPrivateInfo(UserInformationModel),
 }

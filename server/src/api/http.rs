@@ -10,7 +10,7 @@ use manager::api::{auth::AuthManager, user::UserManager};
 use manager::response::Response;
 
 use crate::api::request::Request;
-use super::request::AuthType;
+use super::request::RequestAuthType;
 use super::{process_auth, process_user};
 
 #[tracing::instrument(name="http_query", skip(req, auth_manager, user_manager, _integration))]
@@ -26,7 +26,7 @@ pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, a
         Ok(response) => {
             let message = match response {
                 Response::Auth(token, auth) => {
-                    process_auth(AuthType::StartUserTimeout {
+                    process_auth(RequestAuthType::StartUserTimeout {
                         session_id: auth.session
                     }, auth_manager.as_ref().clone(), user).await?;
                     HttpResponse::Ok().json(GenericAnswer::success(token))
@@ -49,7 +49,7 @@ pub mod tests {
     use actix_web::error::InternalError;
     use actix_web::web::{QueryConfig, JsonConfig};
     use actix_web::{web, web::Data, App};
-    use database::model::PrivateUserModel;
+    use database::model::UserInformationModel;
     use database::{create_database, create_connection};
     use general::model::YummyState;
     use general::web::Answer;
@@ -354,7 +354,7 @@ pub mod tests {
             }))
             .to_request();
 
-        let res: GenericAnswer<PrivateUserModel> = test::call_and_read_body_json(&app, req).await;
+        let res: GenericAnswer<UserInformationModel> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
         let original_user_model = res.result.unwrap();
 
@@ -368,7 +368,7 @@ pub mod tests {
             }))
             .to_request();
 
-        let res: GenericAnswer<PrivateUserModel> = test::call_and_read_body_json(&app, req).await;
+        let res: GenericAnswer<UserInformationModel> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
         let fetched_user_model = res.result.unwrap();
 
@@ -566,7 +566,7 @@ pub mod tests {
         }))
         .to_request();
 
-        let res: GenericAnswer<PrivateUserModel> = test::call_and_read_body_json(&app, req).await;
+        let res: GenericAnswer<UserInformationModel> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
         assert!(res.result.is_some());
 
@@ -600,7 +600,7 @@ pub mod tests {
         }))
         .to_request();
 
-        let res: GenericAnswer<PrivateUserModel> = test::call_and_read_body_json(&app, req).await;
+        let res: GenericAnswer<UserInformationModel> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
         assert!(res.result.is_some());
 

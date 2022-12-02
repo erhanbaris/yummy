@@ -2,11 +2,12 @@ use std::{fmt::Debug, borrow::Borrow};
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
+use serde_repr::{Serialize_repr, Deserialize_repr};
 
 use actix::MessageResponse;
-use uuid::Uuid;
-
 use actix::prelude::Message;
+
+use uuid::Uuid;
 
 use lockfree::prelude::Map;
 
@@ -44,6 +45,39 @@ unsafe impl Sync for RoomId {}
 
 unsafe impl Send for UserId {}
 unsafe impl Sync for UserId {}
+
+#[derive(Debug, PartialEq, Eq, Serialize_repr, Deserialize_repr, Clone, Default)]
+#[repr(u8)]
+pub enum UserType {
+    #[default]
+    User = 1,
+    Mod = 2,
+    Admin = 3
+}
+
+impl From<UserType> for i32 {
+    fn from(user_type: UserType) -> Self {
+        match user_type {
+            UserType::User => 1,
+            UserType::Mod => 2,
+            UserType::Admin => 3,
+        }
+    }
+}
+
+impl From<i32> for UserType {
+    fn from(user_type: i32) -> Self {
+        match user_type {
+            1 => UserType::User,
+            2 => UserType::Mod,
+            3 => UserType::Admin,
+            _ => UserType::default()
+        }
+    }
+}
+
+unsafe impl Send for UserType {}
+unsafe impl Sync for UserType {}
 
 #[derive(Message, Debug)]
 #[rtype(result = "()")]

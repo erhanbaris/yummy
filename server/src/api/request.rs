@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use general::{model::{UserId, SessionId}, meta::MetaType};
+use general::{model::{UserId, SessionId, UserType}, meta::MetaType};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "auth_type")]
-pub enum AuthType {
+pub enum RequestAuthType {
     Email {
         email: String,
         password: String,
@@ -33,7 +33,7 @@ pub enum AuthType {
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "user_type")]
-pub enum UserType {
+pub enum RequestUserType {
     Me,
     Get {
         user: UserId
@@ -45,6 +45,9 @@ pub enum UserType {
         device_id: Option<String>,
         custom_id: Option<String>,
 
+        #[serde(rename = "type")]
+        user_type: Option<UserType>,
+
         meta: Option<HashMap<String, MetaType>>
     }
 }
@@ -54,10 +57,10 @@ pub enum UserType {
 pub enum Request {
     Auth {
         #[serde(flatten)]
-        auth_type: AuthType
+        auth_type: RequestAuthType
     },
     User {
         #[serde(flatten)]
-        user_type: UserType
+        user_type: RequestUserType
     }
 }
