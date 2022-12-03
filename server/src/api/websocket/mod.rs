@@ -1137,9 +1137,9 @@ mod tests {
 
         let me = me.meta.unwrap();
         assert!(me.get("admin type").is_none());
-        assert!(me.get("me type").is_some());
-        assert!(me.get("user type").is_some());
-
+        assert_eq!(me.get("me type"), Some(&serde_json::Value::Number(serde_json::Number::from_f64(9.0).unwrap())));
+        assert_eq!(me.get("user type"), Some(&serde_json::Value::Number(serde_json::Number::from_f64(8.0).unwrap())));
+        
         Ok(())
     }
 }

@@ -1,4 +1,4 @@
-use serde::{Serialize, de::Visitor, de::MapAccess, Deserialize, Deserializer};
+use serde::{Serialize, de::Visitor, de::MapAccess, Deserialize, Deserializer, Serializer};
 use serde_json::Value;
 use std::fmt;
 use serde::de::{self};
@@ -45,7 +45,7 @@ impl From<i32> for MetaAccess {
     }
 }
 
-#[derive(Debug, Serialize, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum MetaType {
     Null,
     Number(f64, MetaAccess),
@@ -59,6 +59,20 @@ impl<'de> Deserialize<'de> for MetaType {
         D: Deserializer<'de>,
     {
         deserializer.deserialize_any(MetaVisitor)
+    }
+}
+
+impl Serialize for MetaType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            MetaType::Null => serializer.serialize_none(),
+            MetaType::Number(number, _) => serializer.serialize_f64(*number),
+            MetaType::String(string, _) => serializer.serialize_str(string.as_str()),
+            MetaType::Bool(boolean, _) => serializer.serialize_bool(*boolean),
+        }
     }
 }
 
