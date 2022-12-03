@@ -48,8 +48,7 @@ impl From<i32> for MetaAccess {
 #[derive(Debug, Serialize, PartialEq, Clone)]
 pub enum MetaType {
     Null,
-    Integer(i64, MetaAccess),
-    Float(f64, MetaAccess),
+    Number(f64, MetaAccess),
     String(String, MetaAccess),
     Bool(bool, MetaAccess)
 }
@@ -78,15 +77,19 @@ impl<'de> Visitor<'de> for MetaVisitor {
     }
 
     fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> where E: de::Error {
-        Ok(MetaType::Integer(value, MetaAccess::Anonymous))
+        Ok(MetaType::Number(value as f64, MetaAccess::Anonymous))
     }
 
     fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> where E: de::Error {
-        Ok(MetaType::Integer(value as i64, MetaAccess::Anonymous))
+        Ok(MetaType::Number(value as f64, MetaAccess::Anonymous))
     }
 
     fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> where E: de::Error {
-        Ok(MetaType::Float(value, MetaAccess::Anonymous))
+        Ok(MetaType::Number(value, MetaAccess::Anonymous))
+    }
+
+    fn visit_f32<E>(self, value: f32) -> Result<Self::Value, E> where E: de::Error {
+        Ok(MetaType::Number(value as f64, MetaAccess::Anonymous))
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> where E: de::Error {
@@ -132,11 +135,11 @@ impl<'de> Visitor<'de> for MetaVisitor {
                 Value::String(string) => Ok(MetaType::String(string, visibility)),
                 Value::Number(number) => {
                     if number.is_f64() {
-                        Ok(MetaType::Float(number.as_f64().unwrap_or_default(), visibility))
+                        Ok(MetaType::Number(number.as_f64().unwrap_or_default(), visibility))
                     } else if number.is_i64() {
-                        Ok(MetaType::Integer(number.as_i64().unwrap_or_default(), visibility))
+                        Ok(MetaType::Number(number.as_i64().unwrap_or_default() as f64, visibility))
                     } else if number.is_u64() {
-                        Ok(MetaType::Integer(number.as_u64().unwrap_or_default() as i64, visibility))
+                        Ok(MetaType::Number(number.as_u64().unwrap_or_default() as f64, visibility))
                     } else {
                         Err(de::Error::custom(r#"Only, number, string and bool types are valid for "value""#))
                     }
@@ -157,7 +160,7 @@ mod tests {
     fn basic_deserialization() {
         let s = "2";
         let deserialized: MetaType = serde_json::from_str(s).unwrap();
-        assert_eq!(deserialized, MetaType::Integer(2, MetaAccess::Anonymous));
+        assert_eq!(deserialized, MetaType::Number(2.0, MetaAccess::Anonymous));
 
         let s = "\"erhan\"";
         let deserialized: MetaType = serde_json::from_str(s).unwrap();
@@ -173,7 +176,7 @@ mod tests {
 
         let s = "10.5";
         let deserialized: MetaType = serde_json::from_str(s).unwrap();
-        assert_eq!(deserialized, MetaType::Float(10.5, MetaAccess::Anonymous));
+        assert_eq!(deserialized, MetaType::Number(10.5, MetaAccess::Anonymous));
 
         let s = "null";
         let deserialized: MetaType = serde_json::from_str(s).unwrap();

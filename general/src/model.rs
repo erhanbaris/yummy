@@ -109,11 +109,12 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="close_session", skip(self))]
-    pub fn close_session<T: Borrow<SessionId> + std::fmt::Debug>(&self, session_id: T) {
+    pub fn close_session<T: Borrow<SessionId> + std::fmt::Debug>(&self, session_id: T) -> Option<UserId> {
         let removed = self.session_to_user.remove(session_id.borrow());
 
-        if let Some(removed) = removed {
-            self.user_to_session.remove(removed.val());
+        match removed {
+            Some(removed) => self.user_to_session.remove(removed.val()).map(|item| item.0),
+            None => None
         }
     }
 }

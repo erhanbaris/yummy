@@ -86,7 +86,7 @@ unsafe impl Sync for DeviceIdAuthRequest {}
 #[derive(Message, Debug, Validate)]
 #[rtype(result = "anyhow::Result<Response>")]
 pub struct CustomIdAuthRequest {
-    #[validate(length(min = 8, max = 128, message = "Length should be between 3 to 128 chars"))]
+    #[validate(length(min = 8, max = 128, message = "Length should be between 8 to 128 chars"))]
     pub id: String
 }
 

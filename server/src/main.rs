@@ -46,7 +46,7 @@ async fn main() -> std::io::Result<()> {
     let states = Arc::new(YummyState::default());
 
     let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
-    let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), database.clone()).start());
+    let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states, database.clone()).start());
         
     HttpServer::new(move || {
         let config = get_configuration();

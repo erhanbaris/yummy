@@ -9,7 +9,8 @@ use actix::{Context, Actor, Handler};
 use database::{Pool, DatabaseTrait, RowId};
 
 use general::config::YummyConfig;
-use general::meta::MetaType;
+use general::meta::{MetaType, MetaAccess};
+use general::model::{UserType, YummyState, UserId};
 use moka::sync::Cache;
 use uuid::Uuid;
 
@@ -21,6 +22,7 @@ use self::model::*;
 pub struct UserManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
+    states: Arc<YummyState>,
     _marker: PhantomData<DB>,
 
     // Caches
@@ -28,10 +30,11 @@ pub struct UserManager<DB: DatabaseTrait + ?Sized> {
 }
 
 impl<DB: DatabaseTrait + ?Sized> UserManager<DB> {
-    pub fn new(config: Arc<YummyConfig>, database: Arc<Pool>) -> Self {
+    pub fn new(config: Arc<YummyConfig>, states: Arc<YummyState>, database: Arc<Pool>) -> Self {
         Self {
             config,
             database,
+            states,
             _marker: PhantomData,
             cache_private_user_info: Cache::builder().time_to_idle(Duration::from_secs(5*60)).build()
         }
@@ -51,18 +54,38 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static>  UserManager<DB>
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserInformation> for UserManager<DB> {
     type Result = anyhow::Result<Response>;
 
-    #[tracing::instrument(name="User::GetPrivateUser", skip(self, _ctx))]
+    #[tracing::instrument(name="User::get user info", skip(self, _ctx))]
     fn handle(&mut self, model: GetUserInformation, _ctx: &mut Context<Self>) -> Self::Result {
 
-        let user_id = match model.requester_user.deref() {
-            Some(user) => user.user.0,
-            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
+        let mut connection = self.database.get()?;
+
+        let (user_id, access_type) = match model.query {
+            GetUserInformationEnum::Me(user) => match user.deref() {
+                Some(user) => (user.user.0, MetaAccess::Me),
+                None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
+            },
+            GetUserInformationEnum::User { user, requester } => {
+
+                let requester = match requester.deref() {
+                    Some(requester) => requester.user.0,
+                    None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
+                };
+
+                let user_type = DB::get_user_type(&mut connection, RowId(requester))?;
+                (user.0, match user_type {
+                    UserType::Admin => MetaAccess::Admin,
+                    UserType::Mod => MetaAccess::Mod,
+                    UserType::User => MetaAccess::User
+                })
+            }
         };
 
-        let user = DB::get_user_information(&mut self.database.get()?, user_id.into())?;
-
+        let user = DB::get_user_information(&mut connection, user_id.into(), access_type)?;
         match user {
-            Some(user) => Ok(Response::UserPrivateInfo(user)),
+            Some(mut user) => {
+                user.online = self.states.is_user_online(UserId(user_id));
+                Ok(Response::UserPrivateInfo(user))
+            },
             None => Err(anyhow::anyhow!(UserError::UserNotFound))
         }
     }
@@ -79,7 +102,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
-        if model.custom_id.is_none() && model.device_id.is_none() && model.email.is_none() && model.name.is_none() && model.password.is_none() && model.user_type.is_none() && model.meta.as_ref().map(|dict| dict.len()).unwrap_or_default() == 0 {
+        let user_updated = model.custom_id.is_some() || model.device_id.is_some() || model.email.is_some() || model.name.is_some() || model.password.is_some() || model.user_type.is_some();
+
+        if !user_updated && model.meta.as_ref().map(|dict| dict.len()).unwrap_or_default() == 0 {
             return Err(anyhow::anyhow!(UserError::UpdateInformationMissing));
         }
 
@@ -87,7 +112,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
         let user_id = RowId(original_user_id);
 
         let mut connection = self.database.get()?;
-        let user = match DB::get_user_information(&mut connection, user_id)? {
+        let user = match DB::get_user_information(&mut connection, user_id, MetaAccess::Admin)? {
             Some(user) => user,
             None => return Err(anyhow::anyhow!(UserError::UserNotFound))
         };
@@ -147,12 +172,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
                 };
             }
 
-            match DB::update_user(connection, user_id, updates)? {
-                0 => Err(anyhow::anyhow!(UserError::UserNotFound)),
-                _ => {
-                    self.cleanup_user_cache(&original_user_id);
-                    Ok(Response::None)
-                }
+            // Update user
+            match user_updated {
+                true => match DB::update_user(connection, user_id, updates)? {
+                    0 => Err(anyhow::anyhow!(UserError::UserNotFound)),
+                    _ => {
+                        self.cleanup_user_cache(&original_user_id);
+                        Ok(Response::None)
+                    }
+                },
+                false => Ok(Response::None)
             }
         })
     }
@@ -187,16 +216,13 @@ mod tests {
         let states = Arc::new(YummyState::default());
         let connection = create_connection(db_location.to_str().unwrap())?;
         create_database(&mut connection.clone().get()?)?;
-        Ok((UserManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config))
+        Ok((UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config))
     }
     
     #[actix::test]
     async fn get_private_user_1() -> anyhow::Result<()> {
         let (user_manager, _, _) = create_actor()?;
-        let user = user_manager.send(GetUserInformation {
-            requester_user: Arc::new(None),
-            target_user: None
-        }).await?;
+        let user = user_manager.send(GetUserInformation::me(Arc::new(None))).await?;
         assert!(user.is_err());
         Ok(())
     }
@@ -212,13 +238,10 @@ mod tests {
         };
 
         let user = validate_auth(config, token).unwrap();
-        let user = user_manager.send(GetUserInformation {
-            requester_user: Arc::new(Some(UserAuth {
-                user: user.user.id,
-                session: user.user.session
-            })),
-            target_user: None
-        }).await??;
+        let user = user_manager.send(GetUserInformation::me(Arc::new(Some(UserAuth {
+            user: user.user.id,
+            session: user.user.session
+        })))).await??;
 
         let user = match user {
             Response::UserPrivateInfo(model) => model,
@@ -418,10 +441,7 @@ mod tests {
             session: user_jwt.session
         }));
 
-        let user = user_manager.send(GetUserInformation {
-            requester_user: user_auth.clone(),
-            target_user: None
-        }).await??;
+        let user = user_manager.send(GetUserInformation::me(user_auth.clone())).await??;
 
         let user = match user {
             Response::UserPrivateInfo(model) => model,
@@ -437,10 +457,7 @@ mod tests {
             ..Default::default()
         }).await??;
 
-        let user = user_manager.send(GetUserInformation {
-            requester_user: user_auth.clone(),
-            target_user: None
-        }).await??;
+        let user = user_manager.send(GetUserInformation::me(user_auth.clone())).await??;
 
         let user = match user {
             Response::UserPrivateInfo(model) => model,
@@ -474,10 +491,7 @@ mod tests {
             session: user_jwt.session
         }));
 
-        let user = user_manager.send(GetUserInformation {
-            requester_user: user_auth.clone(),
-            target_user: None
-        }).await??;
+        let user = user_manager.send(GetUserInformation::me(user_auth.clone())).await??;
 
         let user = match user {
             Response::UserPrivateInfo(model) => model,
@@ -493,17 +507,14 @@ mod tests {
             meta: Some(HashMap::from([
                 ("gender".to_string(), MetaType::String("Male".to_string(), MetaAccess::Friend)),
                 ("location".to_string(), MetaType::String("Copenhagen".to_string(), MetaAccess::Friend)),
-                ("postcode".to_string(), MetaType::Integer(1000, MetaAccess::Mod)),
-                ("score".to_string(), MetaType::Float(15.3, MetaAccess::Anonymous)),
+                ("postcode".to_string(), MetaType::Number(1000.0, MetaAccess::Mod)),
+                ("score".to_string(), MetaType::Number(15.3, MetaAccess::Anonymous)),
                 ("temp_admin".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
             ])),
             ..Default::default()
         }).await??;
 
-        let user = user_manager.send(GetUserInformation {
-            requester_user: user_auth.clone(),
-            target_user: None
-        }).await??;
+        let user = user_manager.send(GetUserInformation::me(user_auth.clone())).await??;
 
         let user = match user {
             Response::UserPrivateInfo(model) => model,
@@ -520,10 +531,7 @@ mod tests {
             ..Default::default()
         }).await??;
 
-        let user = user_manager.send(GetUserInformation {
-            requester_user: user_auth.clone(),
-            target_user: None
-        }).await??;
+        let user = user_manager.send(GetUserInformation::me(user_auth.clone())).await??;
 
         let user = match user {
             Response::UserPrivateInfo(model) => model,
@@ -557,10 +565,7 @@ mod tests {
             session: user_jwt.session
         }));
 
-        let user = user_manager.send(GetUserInformation {
-            requester_user: user_auth.clone(),
-            target_user: None
-        }).await??;
+        let user = user_manager.send(GetUserInformation::me(user_auth.clone())).await??;
 
         let user = match user {
             Response::UserPrivateInfo(model) => model,

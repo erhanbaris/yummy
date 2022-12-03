@@ -51,7 +51,7 @@ impl AuthStoreTrait for SqliteStore {
 
         match result {
             Some((user_id, name, email)) => {
-                Self::update_last_login(connection, &user_id)?;
+                Self::update_last_login(connection, user_id)?;
                 Ok(Some(LoginInfo {
                     user_id,
                     name,
@@ -73,7 +73,7 @@ impl AuthStoreTrait for SqliteStore {
 
         match result {
             Some((user_id, name, email)) => {
-                Self::update_last_login(connection, &user_id)?;
+                Self::update_last_login(connection, user_id)?;
                 Ok(Some(LoginInfo {
                     user_id,
                     name,

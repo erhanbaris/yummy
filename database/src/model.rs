@@ -56,6 +56,7 @@ pub struct UserInformationModel {
     pub custom_id: Option<String>,
     pub meta: Option<HashMap<String, MetaType>>,
     pub user_type: UserType,
+    pub online: bool,
     pub insert_date: i32,
     pub last_login_date: i32,
 }

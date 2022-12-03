@@ -12,8 +12,29 @@ use crate::response::Response;
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<Response>")]
 pub struct GetUserInformation {
-    pub requester_user: Arc<Option<UserAuth>>,
-    pub target_user: Option<UserId>
+    pub query: GetUserInformationEnum
+}
+
+impl GetUserInformation {
+    pub fn me(me: Arc<Option<UserAuth>>) -> Self {
+        Self {
+            query: GetUserInformationEnum::Me(me)
+        }
+    }
+    pub fn user(user: UserId, requester: Arc<Option<UserAuth>>) -> Self {
+        Self {
+            query: GetUserInformationEnum::User {
+                user,
+                requester
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum GetUserInformationEnum {
+    Me(Arc<Option<UserAuth>>),
+    User { user: UserId, requester: Arc<Option<UserAuth>> }
 }
 
 #[derive(Message, Validate, Debug, Default)]

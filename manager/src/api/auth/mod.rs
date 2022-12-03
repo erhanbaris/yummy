@@ -20,7 +20,7 @@ pub struct AuthManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
     states: Arc<YummyState>,
-    timeout_timers: HashMap<SessionId, SpawnHandle>,
+    session_timeout_timers: HashMap<SessionId, SpawnHandle>,
     _auth: PhantomData<DB>
 }
 
@@ -30,7 +30,7 @@ impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
             config,
             database,
             states,
-            timeout_timers: HashMap::new(),
+            session_timeout_timers: HashMap::new(),
             _auth: PhantomData
         }
     }
@@ -71,14 +71,14 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
                     return Err(anyhow!(AuthError::EmailOrPasswordNotValid));
                 }
 
-                DB::update_last_login(&mut connection, &user_info.user_id)?;
+                DB::update_last_login(&mut connection, user_info.user_id)?;
                 (user_info.user_id, user_info.name)
             },
             (None, true) => (DB::create_user_via_email(&mut connection, &auth.email, &auth.password)?, None),
             _ => return Err(anyhow!(AuthError::EmailOrPasswordNotValid))
         };
         
-        if self.states.is_user_online(&UserId(user_id.0)) {
+        if self.states.is_user_online(UserId(user_id.0)) {
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
 
@@ -101,7 +101,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
             None => (DB::create_user_via_device_id(&mut connection, &auth.id)?, None, None)
         };
         
-        if self.states.is_user_online(&UserId(user_id.0)) {
+        if self.states.is_user_online(UserId(user_id.0)) {
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
         
@@ -124,7 +124,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
             None => (DB::create_user_via_custom_id(&mut connection, &auth.id)?, None, None)
         };
         
-        if self.states.is_user_online(&UserId(user_id.0)) {
+        if self.states.is_user_online(UserId(user_id.0)) {
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
         
@@ -168,7 +168,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
         match validate_auth(self.config.clone(), token.token) {
             Some(auth) => {
                 let session_id = if self.states.is_session_online(&auth.user.session) {
-                    if let Some(handle) = self.timeout_timers.remove(&auth.user.session) {
+                    if let Some(handle) = self.session_timeout_timers.remove(&auth.user.session) {
                         ctx.cancel_future(handle);
                     }
                     auth.user.session
@@ -190,11 +190,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUse
     fn handle(&mut self, model: StartUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
         let session_id = model.session_id.clone();
         let timer = ctx.run_later(self.config.connection_restore_wait_timeout, move |manager, _ctx| {
-            println!("User connection '{:?}' timed out", model.session_id);
-            manager.states.close_session(model.session_id);
+            manager.states.close_session(&model.session_id);
         });
 
-        self.timeout_timers.insert(session_id, timer);
+        self.session_timeout_timers.insert(session_id, timer);
 
         Ok(Response::None)
     }
@@ -205,7 +204,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StopUser
 
     #[tracing::instrument(name="Auth::StopTimer", skip(self, ctx))]
     fn handle(&mut self, model: StopUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
-        if let Some(handle) = self.timeout_timers.remove(&model.session_id) {
+        if let Some(handle) = self.session_timeout_timers.remove(&model.session_id) {
             ctx.cancel_future(handle);
         }
 

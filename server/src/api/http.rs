@@ -73,8 +73,8 @@ pub mod tests {
         let connection = create_connection(db_location.to_str().unwrap()).unwrap();
         create_database(&mut connection.clone().get().unwrap()).unwrap();
         let states = Arc::new(YummyState::default());
-        let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection.clone())).start());
-        let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), Arc::new(connection)).start());
+        let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
+        let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start());
 
         let query_cfg = QueryConfig::default()
             .error_handler(|err, _| {
