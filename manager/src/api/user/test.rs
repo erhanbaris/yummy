@@ -25,7 +25,8 @@ macro_rules! email_auth {
             let token = $auth_manager.send(EmailAuthRequest {
                 email: $email,
                 password: $password,
-                if_not_exist_create: $create
+                if_not_exist_create: $create,
+                socket: None
             }).await??;
         
             let token = match token {
@@ -66,7 +67,7 @@ async fn get_private_user_1() -> anyhow::Result<()> {
 async fn get_private_user_2() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config) = create_actor()?;
 
-    let token = auth_manager.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
+    let token = auth_manager.send(DeviceIdAuthRequest::new("1234567890".to_string(), None)).await??;
     let token = match token {
         Response::Auth(token, _) => token,
         _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
@@ -102,7 +103,7 @@ async fn fail_update_get_user_1() -> anyhow::Result<()> {
 async fn fail_update_get_user_2() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config) = create_actor()?;
 
-    let token = auth_manager.send(DeviceIdAuthRequest::new("1234567890".to_string())).await??;
+    let token = auth_manager.send(DeviceIdAuthRequest::new("1234567890".to_string(), None)).await??;
     let token = match token {
         Response::Auth(token, _) => token,
         _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
@@ -127,7 +128,8 @@ async fn fail_update_get_user_3() -> anyhow::Result<()> {
     let token = auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
         password: "erhan".to_string(),
-        if_not_exist_create: true
+        if_not_exist_create: true,
+        socket: None
     }).await??;
     
     let token = match token {
@@ -160,7 +162,8 @@ async fn fail_update_get_user_4() -> anyhow::Result<()> {
     let token = auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
         password: "erhan".to_string(),
-        if_not_exist_create: true
+        if_not_exist_create: true,
+        socket: None
     }).await??;
     
     let token = match token {
@@ -192,7 +195,8 @@ async fn fail_update_password() -> anyhow::Result<()> {
     let token = auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
         password: "erhan".to_string(),
-        if_not_exist_create: true
+        if_not_exist_create: true,
+        socket: None
     }).await??;
 
     let token = match token {
@@ -227,7 +231,8 @@ async fn fail_update_email() -> anyhow::Result<()> {
     let token = auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
         password: "erhan".to_string(),
-        if_not_exist_create: true
+        if_not_exist_create: true,
+        socket: None
     }).await??;
 
     let token = match token {
@@ -262,7 +267,8 @@ async fn update_user_1() -> anyhow::Result<()> {
     let token = auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
         password: "erhan".to_string(),
-        if_not_exist_create: true
+        if_not_exist_create: true,
+        socket: None
     }).await??;
 
     let token = match token {
@@ -312,7 +318,8 @@ async fn update_user_2() -> anyhow::Result<()> {
     let token = auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
         password: "erhan".to_string(),
-        if_not_exist_create: true
+        if_not_exist_create: true,
+        socket: None
     }).await??;
 
     let token = match token {
@@ -386,7 +393,8 @@ async fn update_user_3() -> anyhow::Result<()> {
     let token = auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
         password: "erhan".to_string(),
-        if_not_exist_create: true
+        if_not_exist_create: true,
+        socket: None
     }).await??;
 
     let token = match token {

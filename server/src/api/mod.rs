@@ -4,9 +4,9 @@ pub(crate) mod websocket;
 
 use std::sync::Arc;
 
-use actix::Addr;
+use actix::{Addr, Recipient};
 use database::DatabaseTrait;
-use general::{auth::UserAuth, meta::MetaAccess};
+use general::{auth::UserAuth, meta::MetaAccess, model::WebsocketMessage};
 use manager::{api::{auth::AuthManager, user::UserManager}, response::Response};
 use manager::api::auth::model::*;
 use manager::api::user::model::*;
@@ -28,13 +28,13 @@ macro_rules! as_response {
 }
 
 #[tracing::instrument(name="process_auth", skip(auth_manager))]
-pub(crate) async fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type: RequestAuthType, auth_manager: Addr<AuthManager<DB>>, me: Arc<Option<UserAuth>>) -> anyhow::Result<Response> {
+pub(crate) async fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type: RequestAuthType, auth_manager: Addr<AuthManager<DB>>, me: Arc<Option<UserAuth>>, socket: Option<Recipient<WebsocketMessage>>) -> anyhow::Result<Response> {
     match auth_type {
-        RequestAuthType::Email { email, password, if_not_exist_create } => as_response!(auth_manager, EmailAuthRequest { email, password, if_not_exist_create }),
-        RequestAuthType::DeviceId { id } => as_response!(auth_manager, DeviceIdAuthRequest::new(id)),
-        RequestAuthType::CustomId { id } => as_response!(auth_manager, CustomIdAuthRequest::new(id)),
-        RequestAuthType::Refresh { token } => as_response!(auth_manager, RefreshTokenRequest { token }),
-        RequestAuthType::Restore { token } => as_response!(auth_manager, RestoreTokenRequest { token }),
+        RequestAuthType::Email { email, password, if_not_exist_create } => as_response!(auth_manager, EmailAuthRequest { email, password, if_not_exist_create, socket }),
+        RequestAuthType::DeviceId { id } => as_response!(auth_manager, DeviceIdAuthRequest::new(id, socket)),
+        RequestAuthType::CustomId { id } => as_response!(auth_manager, CustomIdAuthRequest::new(id, socket)),
+        RequestAuthType::Refresh { token } => as_response!(auth_manager, RefreshTokenRequest { token, socket }),
+        RequestAuthType::Restore { token } => as_response!(auth_manager, RestoreTokenRequest { token, socket }),
         RequestAuthType::Logout => as_response!(auth_manager, LogoutRequest { user: me }),
         RequestAuthType::StartUserTimeout { session_id } => as_response!(auth_manager, StartUserTimeout { session_id }),
     }

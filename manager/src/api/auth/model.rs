@@ -1,6 +1,6 @@
 use std::{fmt::Debug, sync::Arc};
-use actix::prelude::Message;
-use general::{model::SessionId, auth::UserAuth};
+use actix::{prelude::Message, Recipient};
+use general::{model::{SessionId, WebsocketMessage}, auth::UserAuth};
 use thiserror::Error;
 use validator::Validate;
 
@@ -16,6 +16,8 @@ pub struct EmailAuthRequest {
     pub password: String,
 
     pub if_not_exist_create: bool,
+
+    pub socket: Option<Recipient<WebsocketMessage>>
 }
 
 unsafe impl Send for EmailAuthRequest {}
@@ -26,7 +28,9 @@ unsafe impl Sync for EmailAuthRequest {}
 pub struct RefreshTokenRequest {
 
     #[validate(length(min = 275, max = 1024, message = "Length should be between 275 to 1024 chars"))]
-    pub token: String
+    pub token: String,
+
+    pub socket: Option<Recipient<WebsocketMessage>>
 }
 
 #[derive(Message, Validate, Debug)]
@@ -34,7 +38,9 @@ pub struct RefreshTokenRequest {
 pub struct RestoreTokenRequest {
 
     #[validate(length(min = 275, max = 1024, message = "Length should be between 275 to 1024 chars"))]
-    pub token: String
+    pub token: String,
+
+    pub socket: Option<Recipient<WebsocketMessage>>
 }
 
 unsafe impl Send for RefreshTokenRequest {}
@@ -71,12 +77,14 @@ unsafe impl Sync for StopUserTimeout {}
 #[rtype(result = "anyhow::Result<Response>")]
 pub struct DeviceIdAuthRequest {
     #[validate(length(min = 8, max = 128, message = "Length should be between 8 to 128 chars"))]
-    pub id: String
+    pub id: String,
+
+    pub socket: Option<Recipient<WebsocketMessage>>
 }
 
 impl DeviceIdAuthRequest {
-    pub fn new(id: String) -> Self {
-        Self { id }
+    pub fn new(id: String, socket: Option<Recipient<WebsocketMessage>>) -> Self {
+        Self { id, socket }
     }
 }
 
@@ -87,12 +95,14 @@ unsafe impl Sync for DeviceIdAuthRequest {}
 #[rtype(result = "anyhow::Result<Response>")]
 pub struct CustomIdAuthRequest {
     #[validate(length(min = 8, max = 128, message = "Length should be between 8 to 128 chars"))]
-    pub id: String
+    pub id: String,
+
+    pub socket: Option<Recipient<WebsocketMessage>>
 }
 
 impl CustomIdAuthRequest {
-    pub fn new(id: String) -> Self {
-        Self { id }
+    pub fn new(id: String, socket: Option<Recipient<WebsocketMessage>>) -> Self {
+        Self { id, socket }
     }
 }
 

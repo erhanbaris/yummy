@@ -18,7 +18,7 @@ pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, a
     let user = Arc::new(UserAuth::parse(&req));
     
     let response = match request?.0 {
-        Request::Auth { auth_type } => process_auth(auth_type, auth_manager.as_ref().clone(), user.clone()).await,
+        Request::Auth { auth_type } => process_auth(auth_type, auth_manager.as_ref().clone(), user.clone(), None).await,
         Request::User { user_type } => process_user(user_type, user_manager.as_ref().clone(), user.clone()).await,
     };
 
@@ -28,7 +28,7 @@ pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, a
                 Response::Auth(token, auth) => {
                     process_auth(RequestAuthType::StartUserTimeout {
                         session_id: auth.session
-                    }, auth_manager.as_ref().clone(), user).await?;
+                    }, auth_manager.as_ref().clone(), user, None).await?;
                     HttpResponse::Ok().json(GenericAnswer::success(token))
                 },
                 Response::UserInformation(model) => HttpResponse::Ok().json(GenericAnswer::success(model)),

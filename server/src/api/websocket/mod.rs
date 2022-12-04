@@ -73,10 +73,12 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
         let auth_manager = self.auth_manager.clone();
         let user_manager = self.user_manager.clone();
         let user_info = self.user_auth.clone();
+        let socket = ctx.address().recipient();
+        
 
         let future = Box::pin(async {
             match message {
-                Request::Auth { auth_type } => process_auth(auth_type, auth_manager, user_info).await,
+                Request::Auth { auth_type } => process_auth(auth_type, auth_manager, user_info, Some(socket)).await,
                 Request::User { user_type } => process_user(user_type, user_manager, user_info).await
             }
         });
