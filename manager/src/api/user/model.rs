@@ -29,11 +29,17 @@ impl GetUserInformation {
             }
         }
     }
+    pub fn user_via_system(user: UserId) -> Self {
+        Self {
+            query: GetUserInformationEnum::UserViaSystem(user)
+        }
+    }
 }
 
 #[derive(Debug)]
 pub enum GetUserInformationEnum {
     Me(Arc<Option<UserAuth>>),
+    UserViaSystem(UserId),
     User { user: UserId, requester: Arc<Option<UserAuth>> }
 }
 

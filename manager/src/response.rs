@@ -7,5 +7,5 @@ use serde::Deserialize;
 pub enum Response {
     None,
     Auth(String, UserJwt),
-    UserPrivateInfo(UserInformationModel),
+    UserInformation(UserInformationModel),
 }

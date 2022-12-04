@@ -31,7 +31,7 @@ pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, a
                     }, auth_manager.as_ref().clone(), user).await?;
                     HttpResponse::Ok().json(GenericAnswer::success(token))
                 },
-                Response::UserPrivateInfo(model) => HttpResponse::Ok().json(GenericAnswer::success(model)),
+                Response::UserInformation(model) => HttpResponse::Ok().json(GenericAnswer::success(model)),
                 Response::None => HttpResponse::Ok().json(Answer::success()),
             };
 
