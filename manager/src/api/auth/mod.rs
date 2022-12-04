@@ -81,12 +81,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
             _ => return Err(anyhow!(AuthError::EmailOrPasswordNotValid))
         };
         
-        if self.states.is_user_online(UserId(user_id.0)) {
+        if self.states.is_user_online(UserId::from(user_id.get())) {
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
 
-        let session_id = self.states.new_session(UserId(user_id.0));
-        self.generate_token(UserId(user_id.0), name, Some(auth.email.to_string()), Some(session_id))
+        let session_id = self.states.new_session(UserId::from(user_id.get()));
+        self.generate_token(UserId::from(user_id.get()), name, Some(auth.email.to_string()), Some(session_id))
     }
 }
 
@@ -104,12 +104,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
             None => (DB::create_user_via_device_id(&mut connection, &auth.id)?, None, None)
         };
         
-        if self.states.is_user_online(UserId(user_id.0)) {
+        if self.states.is_user_online(UserId::from(user_id.get())) {
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
         
-        let session_id = self.states.new_session(UserId(user_id.0));
-        self.generate_token(UserId(user_id.0), name, email, Some(session_id))
+        let session_id = self.states.new_session(UserId::from(user_id.get()));
+        self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))
     }
 }
 
@@ -127,12 +127,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
             None => (DB::create_user_via_custom_id(&mut connection, &auth.id)?, None, None)
         };
         
-        if self.states.is_user_online(UserId(user_id.0)) {
+        if self.states.is_user_online(UserId::from(user_id.get())) {
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
         
-        let session_id = self.states.new_session(UserId(user_id.0));
-        self.generate_token(UserId(user_id.0), name, email, Some(session_id))
+        let session_id = self.states.new_session(UserId::from(user_id.get()));
+        self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))
     }
 }
 

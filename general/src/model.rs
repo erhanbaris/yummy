@@ -12,18 +12,34 @@ use uuid::Uuid;
 use lockfree::prelude::Map;
 
 #[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash, Ord, PartialOrd)]
-pub struct UserId(pub Uuid);
+pub struct UserId(Uuid);
+
+impl UserId {
+    pub fn new() -> Self {
+        Self(uuid::Uuid::new_v4())
+    }
+
+    pub fn from(uuid: Uuid) -> Self {
+        Self(uuid)
+    }
+    
+    pub fn get(&self) -> Uuid {
+        self.0
+    }
+}
 
 #[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Clone, Hash, Ord, PartialOrd)]
-pub struct SessionId(pub Uuid);
+pub struct SessionId(Uuid);
 
 impl SessionId {
     pub fn new() -> Self {
         Self(uuid::Uuid::new_v4())
     }
     
-    pub fn empty(&self) -> bool { self.0.is_nil() }
-
+    pub fn from(uuid: Uuid) -> Self {
+        Self(uuid)
+    }
+    
     pub fn get(&self) -> Uuid {
         self.0
     }
@@ -127,7 +143,7 @@ mod tests {
     #[test]
     fn state_1() -> anyhow::Result<()> {
         let state = YummyState::default();
-        let user_id = UserId(Uuid::new_v4());
+        let user_id = UserId::new();
         let session_id = state.new_session(user_id);
 
         assert!(state.is_session_online(session_id.clone()));
@@ -144,10 +160,10 @@ mod tests {
     fn state_2() -> anyhow::Result<()> {
         let state = YummyState::default();
 
-        state.close_session(SessionId(Uuid::new_v4()));
+        state.close_session(SessionId::new());
 
-        assert!(!state.is_session_online(SessionId(Uuid::new_v4())));
-        assert!(!state.is_user_online(UserId(Uuid::new_v4())));
+        assert!(!state.is_session_online(SessionId::new()));
+        assert!(!state.is_user_online(UserId::new()));
 
         Ok(())
     }

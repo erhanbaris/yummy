@@ -64,21 +64,21 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
 
         let (user_id, access_type) = match model.query {
             GetUserInformationEnum::Me(user) => match user.deref() {
-                Some(user) => (user.user.0, MetaAccess::Me),
+                Some(user) => (user.user.get(), MetaAccess::Me),
                 None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
             },
-            GetUserInformationEnum::UserViaSystem(user) => (user.0, MetaAccess::System),
+            GetUserInformationEnum::UserViaSystem(user) => (user.get(), MetaAccess::System),
             GetUserInformationEnum::User { user, requester } => {
                 match requester.deref() {
                     Some(requester) => {
-                        let user_type = DB::get_user_type(&mut connection, RowId(requester.user.0))?;
-                        (user.0, match user_type {
+                        let user_type = DB::get_user_type(&mut connection, RowId(requester.user.get()))?;
+                        (user.get(), match user_type {
                             UserType::Admin => MetaAccess::Admin,
                             UserType::Mod => MetaAccess::Mod,
                             UserType::User => MetaAccess::User
                         })
                     },
-                    None => (user.0, MetaAccess::Anonymous)
+                    None => (user.get(), MetaAccess::Anonymous)
                 }
             }
         };
@@ -86,7 +86,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
         let user = DB::get_user_information(&mut connection, user_id.into(), access_type)?;
         match user {
             Some(mut user) => {
-                user.online = self.states.is_user_online(UserId(user_id));
+                user.online = self.states.is_user_online(UserId::from(user_id));
                 Ok(Response::UserInformation(user))
             },
             None => Err(anyhow::anyhow!(UserError::UserNotFound))
@@ -101,7 +101,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
     fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
 
         let original_user_id = match model.user.deref() {
-            Some(user) => user.user.0,
+            Some(user) => user.user.get(),
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
