@@ -32,6 +32,7 @@ pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, a
                     HttpResponse::Ok().json(GenericAnswer::success(token))
                 },
                 Response::UserInformation(model) => HttpResponse::Ok().json(GenericAnswer::success(model)),
+                Response::RoomInformation(room_id) => HttpResponse::Ok().json(GenericAnswer::success(room_id)),
                 Response::None => HttpResponse::Ok().json(Answer::success()),
             };
 

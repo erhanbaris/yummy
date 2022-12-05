@@ -4,6 +4,7 @@ pub mod model;
 mod test;
 
 use std::ops::Deref;
+use actix_broker::BrokerIssue;
 use general::{auth::{generate_auth, UserJwt, validate_auth}, model::YummyState};
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -193,11 +194,14 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUse
     fn handle(&mut self, model: StartUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
         let session_id = model.session_id.clone();
         let timer = ctx.run_later(self.config.connection_restore_wait_timeout, move |manager, _ctx| {
-            manager.states.close_session(&model.session_id);
+            if let Some(user_id) = manager.states.close_session(&model.session_id) {
+                manager.issue_system_async(UserDisconnectRequest {
+                    user_id
+                });
+            }
         });
 
         self.session_timeout_timers.insert(session_id, timer);
-
         Ok(Response::None)
     }
 }

@@ -1,6 +1,6 @@
 use std::{fmt::Debug, sync::Arc};
 use actix::{prelude::Message, Recipient};
-use general::{model::{SessionId, WebsocketMessage}, auth::UserAuth};
+use general::{model::{SessionId, WebsocketMessage, UserId}, auth::UserAuth};
 use thiserror::Error;
 use validator::Validate;
 
@@ -19,9 +19,6 @@ pub struct EmailAuthRequest {
 
     pub socket: Option<Recipient<WebsocketMessage>>
 }
-
-unsafe impl Send for EmailAuthRequest {}
-unsafe impl Sync for EmailAuthRequest {}
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<Response>")]
@@ -43,17 +40,11 @@ pub struct RestoreTokenRequest {
     pub socket: Option<Recipient<WebsocketMessage>>
 }
 
-unsafe impl Send for RefreshTokenRequest {}
-unsafe impl Sync for RefreshTokenRequest {}
-
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<Response>")]
 pub struct LogoutRequest {
     pub user: Arc<Option<UserAuth>>
 }
-
-unsafe impl Send for LogoutRequest {}
-unsafe impl Sync for LogoutRequest {}
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<Response>")]
@@ -61,17 +52,11 @@ pub struct StartUserTimeout {
     pub session_id: SessionId
 }
 
-unsafe impl Send for StartUserTimeout {}
-unsafe impl Sync for StartUserTimeout {}
-
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<Response>")]
 pub struct StopUserTimeout {
     pub session_id: SessionId
 }
-
-unsafe impl Send for StopUserTimeout {}
-unsafe impl Sync for StopUserTimeout {}
 
 #[derive(Message, Debug, Validate)]
 #[rtype(result = "anyhow::Result<Response>")]
@@ -88,9 +73,6 @@ impl DeviceIdAuthRequest {
     }
 }
 
-unsafe impl Send for DeviceIdAuthRequest {}
-unsafe impl Sync for DeviceIdAuthRequest {}
-
 #[derive(Message, Debug, Validate)]
 #[rtype(result = "anyhow::Result<Response>")]
 pub struct CustomIdAuthRequest {
@@ -106,8 +88,12 @@ impl CustomIdAuthRequest {
     }
 }
 
-unsafe impl Send for CustomIdAuthRequest {}
-unsafe impl Sync for CustomIdAuthRequest {}
+#[derive(Message, Validate, Debug)]
+#[derive(Clone)]
+#[rtype(result = "()")]
+pub struct UserDisconnectRequest {
+    pub user_id: UserId,
+}
 
 #[derive(Error, Debug)]
 pub enum AuthError {

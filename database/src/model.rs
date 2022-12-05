@@ -1,13 +1,11 @@
 use std::collections::HashMap;
 
-use crate::{schema::user, schema::user_meta, RowId};
+use crate::{schema::user, schema::user_meta, schema::room, schema::room_tag, RowId};
 use diesel::*;
 use general::meta::MetaType;
 use general::model::UserType;
 use serde::Serialize;
 use serde::Deserialize;
-
-
 
 #[derive(Default, Debug, Insertable)]
 #[diesel(table_name = user)]
@@ -32,6 +30,27 @@ pub struct UserMetaInsert<'a> {
     pub value: String,
     pub meta_type: i32,
     pub access: i32,
+    pub insert_date: i32,
+}
+
+#[derive(Default, Debug, Insertable)]
+#[diesel(table_name = room)]
+pub struct RoomInsert<'a> {
+    pub id: RowId,
+    pub name: Option<String>,
+    pub access_type: i32,
+    pub access_supplementary: Option<String>,
+    pub password: Option<&'a str>,
+    pub max_user: i32,
+    pub insert_date: i32,
+}
+
+#[derive(Default, Debug, Insertable)]
+#[diesel(table_name = room_tag)]
+pub struct RoomTagInsert<'a> {
+    pub id: RowId,
+    pub room_id: RowId,
+    pub tag: &'a str,
     pub insert_date: i32,
 }
 

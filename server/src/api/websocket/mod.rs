@@ -97,6 +97,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
                             ctx.text(serde_json::to_string(&GenericAnswer::success(token)).unwrap_or_default());
                         },
                         Response::UserInformation(model) => ctx.text(serde_json::to_string(&GenericAnswer::success(model)).unwrap_or_default()),
+                        Response::RoomInformation(room_id) => ctx.text(serde_json::to_string(&GenericAnswer::success(room_id)).unwrap_or_default()),
                         Response::None => ctx.text(serde_json::to_string(&Answer::success()).unwrap_or_default()),
                     },
                     Err(error) => {

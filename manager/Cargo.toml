@@ -12,6 +12,7 @@ database = { path = "../database" }
 actix = "0.13"
 actix-web-actors = "4.1.0"
 actix-web = { version = "4", features = ["rustls"] }
+actix-broker = "0.4.3"
 
 thiserror = "1.0.37"
 anyhow = "1.0.66"
@@ -29,3 +30,4 @@ validator = { version = "0.16", features = ["derive"] }
 serde_trim = "0.4.0"
 
 moka = { version = "0.9.6", features = ["future"] }
+rand = "0.8.5"

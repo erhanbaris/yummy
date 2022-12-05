@@ -13,6 +13,8 @@ pub const DEFAULT_USER_AUTH_KEY_NAME: &str = "x-yummy-auth";
 pub const DEFAULT_SALT_KEY: &str = "YUMMY-SALT";
 pub const DEFAULT_DATABASE_URL: &str = "yummy.db";
 pub const DEFAULT_DEFAULT_INTEGRATION_KEY: &str = "YummyYummy";
+pub const DEFAULT_ROOM_PASSWORD_CHARSET: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+pub const DEFAULT_ROOM_PASSWORD_LENGTH: usize = 4;
 
 #[derive(Debug, Default, Clone)]
 pub struct YummyConfig {
@@ -22,6 +24,8 @@ pub struct YummyConfig {
     pub connection_restore_wait_timeout: Duration,
 
     pub max_user_meta: usize,
+    pub room_password_charset: Vec<u8>,
+    pub room_password_length: usize,
 
     pub integration_key: String,
     pub api_key_name: String,
@@ -47,6 +51,8 @@ pub fn get_configuration() -> Arc<YummyConfig> {
         salt_key: get_env_var("SALT_KEY", DEFAULT_SALT_KEY.to_string()),
         integration_key: get_env_var("INTEGRATION_KEY", DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()),
         database_url: get_env_var("DATABASE_URL", DEFAULT_DATABASE_URL.to_string()),
-        max_user_meta: get_env_var("MAX_USER_META", DEFAULT_MAX_USER_META)
+        max_user_meta: get_env_var("MAX_USER_META", DEFAULT_MAX_USER_META),
+        room_password_charset: get_env_var("ROOM_PASSWORD_CHARSET", DEFAULT_ROOM_PASSWORD_CHARSET.to_string()).as_bytes().to_vec(),
+        room_password_length: get_env_var("ROOM_PASSWORD_LENGTH", DEFAULT_ROOM_PASSWORD_LENGTH),
     })
 }

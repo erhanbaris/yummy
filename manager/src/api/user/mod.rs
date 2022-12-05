@@ -9,6 +9,7 @@ use std::sync::Arc;
 use database::model::{UserUpdate, UserInformationModel};
 
 use actix::{Context, Actor, Handler};
+use actix_broker::BrokerSubscribe;
 use database::{Pool, DatabaseTrait, RowId};
 
 use general::config::YummyConfig;
@@ -21,6 +22,8 @@ use crate::response::Response;
 use crate::api::auth::model::AuthError;
 
 use self::model::*;
+
+use super::auth::model::UserDisconnectRequest;
 
 pub struct UserManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
@@ -46,6 +49,19 @@ impl<DB: DatabaseTrait + ?Sized> UserManager<DB> {
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for UserManager<DB> {
     type Context = Context<Self>;
+
+    fn started(&mut self,ctx: &mut Self::Context) {
+        self.subscribe_system_async::<UserDisconnectRequest>(ctx);
+    }
+}
+
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisconnectRequest> for UserManager<DB> {
+    type Result = ();
+
+    #[tracing::instrument(name="User disconnected", skip(self, _ctx))]
+    fn handle(&mut self, user: UserDisconnectRequest, _ctx: &mut Self::Context) -> Self::Result {
+        println!("user:UserDisconnectRequest {:?}", user);
+    }
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static>  UserManager<DB> {

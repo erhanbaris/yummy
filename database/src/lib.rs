@@ -4,6 +4,7 @@ extern crate diesel;
 pub mod auth;
 pub mod model;
 pub mod user;
+pub mod room;
 pub(crate) mod schema;
 
 use std::str::FromStr;
@@ -21,13 +22,14 @@ use diesel::expression::AsExpression;
 
 use serde::{Deserialize, Serialize};
 use user::UserStoreTrait;
+use room::RoomStoreTrait;
 use uuid::Uuid;
 
 pub type ConnectionType = SqliteConnection;
 pub type Pool = r2d2::Pool<ConnectionManager<ConnectionType>>;
 pub type PooledConnection = ::r2d2::PooledConnection<ConnectionManager<ConnectionType>>;
 
-pub trait DatabaseTrait: AuthStoreTrait + UserStoreTrait + Sized {
+pub trait DatabaseTrait: AuthStoreTrait + UserStoreTrait + RoomStoreTrait + Sized {
     fn transaction<T, E, F>(connection: &mut PooledConnection, f: F) -> Result<T, E>
     where
         F: FnOnce(&mut PooledConnection) -> Result<T, E>,
@@ -41,10 +43,16 @@ pub struct SqliteStore;
 
 impl DatabaseTrait for SqliteStore { }
 
-#[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[derive(AsExpression, Copy, Clone, FromSqlRow)]
 #[diesel(sql_type = Text)]
 pub struct RowId(pub uuid::Uuid);
+
+impl Default for RowId {
+    fn default() -> Self {
+        Self(uuid::Uuid::new_v4())
+    }
+}
 
 impl RowId {
     pub fn get(&self) -> Uuid {
@@ -117,6 +125,29 @@ pub fn create_database(connection: &mut PooledConnection) -> anyhow::Result<()> 
         );"#,
     )
     .execute(connection)?;
+    sql_query(
+        r#"
+        CREATE TABLE room (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            max_user INTEGER NOT NULL,
+            password TEXT,
+            access_type INTEGER NOT NULL,
+            access_supplementary TEXT,
+            insert_date INTEGER NOT NULL
+        );"#,
+    )
+    .execute(connection)?;
+    sql_query(
+        r#"
+        CREATE TABLE room_tag (
+            id TEXT PRIMARY KEY,
+            room_id TEXT NOT NULL,
+            tag name TEXT,
+            insert_date INTEGER NOT NULL
+        );"#,
+    )
+    .execute(connection)?;
     Ok(())
 }
 
@@ -127,7 +158,7 @@ mod tests {
     #[test]
     fn row_id() -> anyhow::Result<()> {
         let row_id = RowId::default();
-        assert!(row_id.get().is_nil());
+        assert!(!row_id.get().is_nil());
 
         let row_id = RowId(uuid::Uuid::new_v4());
         assert!(!row_id.get().is_nil());

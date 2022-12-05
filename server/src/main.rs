@@ -27,6 +27,7 @@ pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     use general::model::YummyState;
+    use manager::api::room::RoomManager;
 
     let server_bind = get_env_var("SERVER_BIND", "0.0.0.0:9090".to_string());
     let rust_log_level = get_env_var("RUST_LOG", "debug,backend,actix_web=debug".to_string());
@@ -46,7 +47,8 @@ async fn main() -> std::io::Result<()> {
     let states = Arc::new(YummyState::default());
 
     let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
-    let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states, database.clone()).start());
+    let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
+    let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, database.clone()).start());
         
     HttpServer::new(move || {
         let config = get_configuration();
@@ -63,6 +65,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(Data::new(config))
             .app_data(auth_manager.clone())
             .app_data(user_manager.clone())
+            .app_data(room_manager.clone())
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
             

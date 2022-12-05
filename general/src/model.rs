@@ -1,5 +1,4 @@
 use std::{fmt::Debug, borrow::Borrow};
-use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use serde_repr::{Serialize_repr, Deserialize_repr};
@@ -46,21 +45,21 @@ impl SessionId {
 }
 
 #[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash)]
-pub struct RoomId(pub Uuid);
+pub struct RoomId(Uuid);
 
-impl FromStr for RoomId {
-    type Err = uuid::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Uuid::parse_str(s).map(RoomId)
+impl RoomId {
+    pub fn new() -> Self {
+        Self(uuid::Uuid::new_v4())
+    }
+    
+    pub fn from(uuid: Uuid) -> Self {
+        Self(uuid)
+    }
+    
+    pub fn get(&self) -> Uuid {
+        self.0
     }
 }
-
-unsafe impl Send for RoomId {}
-unsafe impl Sync for RoomId {}
-
-unsafe impl Send for UserId {}
-unsafe impl Sync for UserId {}
 
 #[derive(Debug, PartialEq, Eq, Serialize_repr, Deserialize_repr, Clone, Default)]
 #[repr(u8)]
@@ -91,9 +90,6 @@ impl From<i32> for UserType {
         }
     }
 }
-
-unsafe impl Send for UserType {}
-unsafe impl Sync for UserType {}
 
 #[derive(Message, Debug)]
 #[rtype(result = "()")]
@@ -133,6 +129,22 @@ impl YummyState {
             None => None
         }
     }
+}
+
+#[derive(Debug)]
+pub enum CreateRoomAccessType {
+    Public,
+    Private,
+    Friend,
+    Tag(String)
+}
+
+#[derive(Debug, Default)]
+#[repr(u8)]
+pub enum RoomUserType {
+    #[default]
+    User = 1,
+    Owner = 2
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 
 table! {
-    user (id) {
+    user {
         id -> Text,
         name ->  Nullable<Text>,
         email -> Nullable<Text>,
@@ -14,7 +14,7 @@ table! {
 }
 
 table! {
-    user_meta (id) {
+    user_meta {
         id -> Text,
         user_id ->  Text,
         key -> Text,
@@ -25,4 +25,35 @@ table! {
     }
 }
 
-allow_tables_to_appear_in_same_query!(user, user_meta,);
+table! {
+    room {
+        id -> Text,
+        name ->  Nullable<Text>,
+        max_user -> Integer,
+        password -> Nullable<Text>,
+        access_type -> Integer,
+        access_supplementary -> Nullable<Text>,
+        insert_date -> Integer,
+    }
+}
+
+table! {
+    room_tag {
+        id -> Text,
+        room_id -> Text,
+        tag -> Text,
+        insert_date -> Integer,
+    }
+}
+
+table! {
+    room_user {
+        id -> Text,
+        room_id -> Text,
+        user_id -> Text,
+        room_user_type -> Integer,
+        insert_date -> Integer,
+    }
+}
+
+allow_tables_to_appear_in_same_query!(user, user_meta, room, room_tag, room_user,);

@@ -1,5 +1,6 @@
 use database::model::UserInformationModel;
 use general::auth::{UserJwt};
+use general::model::RoomId;
 use serde::Serialize;
 use serde::Deserialize;
 
@@ -8,4 +9,5 @@ pub enum Response {
     None,
     Auth(String, UserJwt),
     UserInformation(UserInformationModel),
+    RoomInformation(RoomId),
 }
