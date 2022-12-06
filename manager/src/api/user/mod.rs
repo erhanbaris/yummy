@@ -58,7 +58,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for UserMa
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisconnectRequest> for UserManager<DB> {
     type Result = ();
 
-    #[tracing::instrument(name="User disconnected", skip(self, _ctx))]
+    #[tracing::instrument(name="User::User disconnected", skip(self, _ctx))]
     fn handle(&mut self, user: UserDisconnectRequest, _ctx: &mut Self::Context) -> Self::Result {
         println!("user:UserDisconnectRequest {:?}", user);
     }

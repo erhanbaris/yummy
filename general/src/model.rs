@@ -1,5 +1,9 @@
+use std::cell::Cell;
+use std::collections::{HashMap, HashSet};
 use std::{fmt::Debug, borrow::Borrow};
 
+
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Serialize_repr, Deserialize_repr};
 
@@ -7,8 +11,6 @@ use actix::MessageResponse;
 use actix::prelude::Message;
 
 use uuid::Uuid;
-
-use lockfree::prelude::Map;
 
 #[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash, Ord, PartialOrd)]
 pub struct UserId(Uuid);
@@ -96,37 +98,64 @@ impl From<i32> for UserType {
 pub struct WebsocketMessage(pub String);
 
 #[derive(Default, Debug)]
+pub struct UserState {
+    pub user_id: UserId,
+    pub session: SessionId,
+    pub room: Cell<Option<RoomId>>
+}
+
+#[derive(Default, Debug)]
+pub struct RoomState {
+    max_user: usize,
+    pub room_id: RoomId,
+    pub users: Mutex<HashSet<UserId>>
+}
+
+#[derive(Default, Debug)]
 pub struct YummyState {
-    user_to_session: Map<UserId, SessionId>,
-    session_to_user: Map<SessionId, UserId>
+    user: Mutex<HashMap<UserId, UserState>>,
+    room: Mutex<HashMap<RoomId, RoomState>>,
+    session_to_user: Mutex<HashMap<SessionId, UserId>>,
 }
 
 impl YummyState {
     #[tracing::instrument(name="is_user_online", skip(self))]
     pub fn is_user_online<T: Borrow<UserId> + std::fmt::Debug>(&self, user_id: T) -> bool {
-        self.user_to_session.get(user_id.borrow()).is_some()
+        self.user.lock().contains_key(user_id.borrow())
     }
 
     #[tracing::instrument(name="is_session_online", skip(self))]
     pub fn is_session_online<T: Borrow<SessionId> + std::fmt::Debug>(&self, session_id: T) -> bool {
-        self.session_to_user.get(session_id.borrow()).is_some()
+        self.session_to_user.lock().contains_key(session_id.borrow())
     }
 
     #[tracing::instrument(name="new_session", skip(self))]
     pub fn new_session(&self, user_id: UserId) -> SessionId {
         let session_id = SessionId::new();
-        self.session_to_user.insert(session_id.clone(), user_id);
-        self.user_to_session.insert(user_id, session_id.clone());
+        self.session_to_user.lock().insert(session_id.clone(), user_id);
+        self.user.lock().insert(user_id.clone(), UserState { user_id: user_id, session: session_id.clone(), room: Cell::new(None) });
         session_id
     }
 
     #[tracing::instrument(name="close_session", skip(self))]
-    pub fn close_session<T: Borrow<SessionId> + std::fmt::Debug>(&self, session_id: T) -> Option<UserId> {
-        let removed = self.session_to_user.remove(session_id.borrow());
+    pub fn close_session<T: Borrow<SessionId> + std::fmt::Debug>(&self, session_id: T) -> Option<UserState> {
+        let removed = self.session_to_user.lock().remove(session_id.borrow());
 
         match removed {
-            Some(removed) => self.user_to_session.remove(removed.val()).map(|item| item.0),
+            Some(removed) => self.user.lock().remove(&removed),
             None => None
+        }
+    }
+
+    #[tracing::instrument(name="get_user_room", skip(self))]
+    pub fn get_user_room<T: Borrow<UserId> + std::fmt::Debug>(&self, user_id: T) -> Option<RoomId> {
+        self.user.lock().get(user_id.borrow()).and_then(|user| user.room.get())
+    }
+
+    #[tracing::instrument(name="set_user_room", skip(self))]
+    pub fn set_user_room<T: Borrow<UserId> + std::fmt::Debug>(&self, user_id: T, room_id: RoomId){
+        if let Some(user) = self.user.lock().get(user_id.borrow()) {
+            user.room.set(Some(room_id));
         }
     }
 }

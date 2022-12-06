@@ -13,7 +13,7 @@ use database::{Pool, DatabaseTrait};
 use database::RowId;
 
 use general::config::YummyConfig;
-use general::model::{YummyState, RoomUserType, RoomId};
+use general::model::{YummyState, RoomUserType, RoomId, UserId};
 use rand::Rng;
 
 use crate::response::Response;
@@ -52,23 +52,38 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for RoomMa
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisconnectRequest> for RoomManager<DB> {
     type Result = ();
 
-    #[tracing::instrument(name="User disconnected", skip(self, _ctx))]
+    #[tracing::instrument(name="Room::User disconnected", skip(self, _ctx))]
     fn handle(&mut self, user: UserDisconnectRequest, _ctx: &mut Self::Context) -> Self::Result {
         println!("room:UserDisconnectRequest {:?}", user);
+    }
+}
+
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> {
+    pub fn disconnect_from_room(&self, user_id: UserId) {
+
     }
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRoomRequest> for RoomManager<DB> {
     type Result = anyhow::Result<Response>;
 
-    #[tracing::instrument(name="Auth::ViaEmail", skip(self, _ctx))]
+    #[tracing::instrument(name="Room::Create room", skip(self, _ctx))]
     fn handle(&mut self, model: CreateRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
         let CreateRoomRequest { access_type, disconnect_from_other_room, max_user, name, tags, user } = model;
         
+        // Check user information
         let user_id = match user.deref() {
             Some(user) => user.user.get(),
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
+
+        // User already joined to room
+        if let Some(_) = self.states.get_user_room(UserId::from(user_id)) {
+            match disconnect_from_other_room {
+                true => self.disconnect_from_room(UserId::from(user_id)),
+                false => return Err(anyhow::anyhow!(RoomError::UserJoinedOtherRoom))
+            }
+        }
 
         let mut connection = self.database.get()?;
 
@@ -85,6 +100,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
             DB::join_to_room(connection, room_id, RowId(user_id), RoomUserType::Owner)?;
             Ok(RoomId::from(room_id.get()))
         })?;
+        
+        self.states.set_user_room(UserId::from(user_id), room_id);
 
         Ok(Response::RoomInformation(room_id))
     }

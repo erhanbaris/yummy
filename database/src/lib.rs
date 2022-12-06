@@ -148,6 +148,17 @@ pub fn create_database(connection: &mut PooledConnection) -> anyhow::Result<()> 
         );"#,
     )
     .execute(connection)?;
+    sql_query(
+        r#"
+        CREATE TABLE room_user (
+            id TEXT PRIMARY KEY,
+            room_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            room_user_type TEXT NOT NULL,
+            insert_date INTEGER NOT NULL
+        );"#,
+    )
+    .execute(connection)?;
     Ok(())
 }
 

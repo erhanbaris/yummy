@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{schema::user, schema::user_meta, schema::room, schema::room_tag, RowId};
+use crate::{schema::user, schema::user_meta, schema::room, schema::room_tag, schema::room_user, RowId};
 use diesel::*;
 use general::meta::MetaType;
 use general::model::UserType;
@@ -51,6 +51,16 @@ pub struct RoomTagInsert<'a> {
     pub id: RowId,
     pub room_id: RowId,
     pub tag: &'a str,
+    pub insert_date: i32,
+}
+
+#[derive(Default, Debug, Insertable)]
+#[diesel(table_name = room_user)]
+pub struct RoomUserInsert {
+    pub id: RowId,
+    pub room_id: RowId,
+    pub user_id: RowId,
+    pub room_user_type: i32,
     pub insert_date: i32,
 }
 

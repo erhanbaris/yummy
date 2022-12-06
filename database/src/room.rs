@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use diesel::RunQueryDsl;
 use general::model::{CreateRoomAccessType, RoomUserType};
 
-use crate::{SqliteStore, PooledConnection, RowId, model::{RoomInsert, RoomTagInsert}, schema::{room::{self}, room_tag}};
+use crate::{SqliteStore, PooledConnection, RowId, model::{RoomInsert, RoomTagInsert, RoomUserInsert}, schema::{room::{self}, room_tag, room_user}};
 
 pub trait RoomStoreTrait: Sized {
     fn create_room<'a>(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, password: Option<&'a str>, max_user: usize, tags: Vec<String>) -> anyhow::Result<RowId>;
@@ -51,6 +51,13 @@ impl RoomStoreTrait for SqliteStore {
 
     #[tracing::instrument(name="Join to room", skip(connection))]
     fn join_to_room(connection: &mut PooledConnection, room_id: RowId, user_id: RowId, user_type: RoomUserType) -> anyhow::Result<()> {
+        let mut insert = RoomUserInsert::default();
+        insert.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
+        insert.room_id = room_id;
+        insert.user_id = user_id;
+        insert.room_user_type = user_type as i32;
+        diesel::insert_into(room_user::table).values(&vec![insert]).execute(connection)?;
+
         Ok(())
     }
 }
@@ -79,7 +86,18 @@ mod tests {
     #[test]
     fn create_room_2() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
-        SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Tag("LEVEL 1000".to_string()), None, 2, Vec::new())?;
+        let room_1 = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Tag("LEVEL 1000".to_string()), None, 2, Vec::new())?;
+        let room_2 = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Public, None, 20, Vec::new())?;
+
+        assert_ne!(room_1, room_2);
+        Ok(())
+    }
+
+    #[test]
+    fn join_to_room() -> anyhow::Result<()> {
+        let mut connection = db_conection()?;
+        let room = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Tag("LEVEL 1000".to_string()), None, 2, Vec::new())?;
+        SqliteStore::join_to_room(&mut connection, room, RowId::default(), RoomUserType::User)?;
         Ok(())
     }
 }
