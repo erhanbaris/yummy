@@ -36,7 +36,6 @@ pub(crate) async fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type:
         RequestAuthType::Refresh { token } => as_response!(auth_manager, RefreshTokenRequest { token, socket }),
         RequestAuthType::Restore { token } => as_response!(auth_manager, RestoreTokenRequest { token, socket }),
         RequestAuthType::Logout => as_response!(auth_manager, LogoutRequest { user: me }),
-        RequestAuthType::StartUserTimeout { session_id } => as_response!(auth_manager, StartUserTimeout { session_id }),
     }
 }
 

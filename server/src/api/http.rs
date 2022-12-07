@@ -10,7 +10,6 @@ use manager::api::{auth::AuthManager, user::UserManager};
 use manager::response::Response;
 
 use crate::api::request::Request;
-use super::request::RequestAuthType;
 use super::{process_auth, process_user};
 
 #[tracing::instrument(name="http_query", skip(req, auth_manager, user_manager, _integration))]
@@ -25,12 +24,7 @@ pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, a
     match response {
         Ok(response) => {
             let message = match response {
-                Response::Auth(token, auth) => {
-                    process_auth(RequestAuthType::StartUserTimeout {
-                        session_id: auth.session
-                    }, auth_manager.as_ref().clone(), user, None).await?;
-                    HttpResponse::Ok().json(GenericAnswer::success(token))
-                },
+                Response::Auth(token, _) => HttpResponse::Ok().json(GenericAnswer::success(token)),
                 Response::UserInformation(model) => HttpResponse::Ok().json(GenericAnswer::success(model)),
                 Response::RoomInformation(room_id) => HttpResponse::Ok().json(GenericAnswer::success(room_id)),
                 Response::None => HttpResponse::Ok().json(Answer::success()),

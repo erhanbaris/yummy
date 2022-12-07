@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use general::{model::{UserId, SessionId, UserType}, meta::MetaType};
+use general::{model::{UserId, UserType}, meta::MetaType};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -25,10 +25,7 @@ pub enum RequestAuthType {
     Restore {
         token: String
     },
-    Logout,
-    StartUserTimeout {
-        session_id: SessionId
-    }
+    Logout
 }
 
 #[derive(Deserialize, Serialize, Debug)]
