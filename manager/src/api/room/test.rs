@@ -43,7 +43,7 @@ macro_rules! email_auth {
 }
 
 
-fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>)> {
+fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>, Arc<YummyState>)> {
     let mut db_location = temp_dir();
     db_location.push(format!("{}.db", Uuid::new_v4()));
     
@@ -51,16 +51,16 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
     let states = Arc::new(YummyState::default());
     let connection = create_connection(db_location.to_str().unwrap())?;
     create_database(&mut connection.clone().get()?)?;
-    Ok((RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config))
+    Ok((RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config, states.clone()))
 }
 
 #[actix::test]
 async fn create_room_1() -> anyhow::Result<()> {
-    let (room_manager, auth_manager, config) = create_actor()?;
+    let (room_manager, auth_manager, config, states) = create_actor()?;
     let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".to_string(), true);
 
     let response = room_manager.send(CreateRoomRequest {
-        user,
+        user: user.clone(),
         disconnect_from_other_room: false,
         name: None,
         access_type: general::model::CreateRoomAccessType::Friend,
@@ -72,18 +72,25 @@ async fn create_room_1() -> anyhow::Result<()> {
         Response::RoomInformation(room_id) => room_id,
         _ => { return Err(anyhow::anyhow!("Expected 'Response::RoomInformation'")); }
     };
+
+    let user_id = match user.as_ref() {
+        Some(user) => user.user.clone(),
+        None => return Err(anyhow::anyhow!("UserId not found"))
+    };
+
     assert!(room_id.get() != uuid::Uuid::nil());
+    assert!(states.get_user_room(user_id).is_some());
     
     Ok(())
 }
 
 #[actix::test]
 async fn create_room_2() -> anyhow::Result<()> {
-    let (room_manager, auth_manager, config) = create_actor()?;
+    let (room_manager, auth_manager, config, states) = create_actor()?;
     let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".to_string(), true);
 
     let response = room_manager.send(CreateRoomRequest {
-        user,
+        user: user.clone(),
         disconnect_from_other_room: false,
         name: None,
         access_type: general::model::CreateRoomAccessType::Tag("123456".to_string()),
@@ -95,7 +102,14 @@ async fn create_room_2() -> anyhow::Result<()> {
         Response::RoomInformation(room_id) => room_id,
         _ => { return Err(anyhow::anyhow!("Expected 'Response::RoomInformation'")); }
     };
+
+    let user_id = match user.as_ref() {
+        Some(user) => user.user.clone(),
+        None => return Err(anyhow::anyhow!("UserId not found"))
+    };
+
     assert!(room_id.get() != uuid::Uuid::nil());
+    assert!(states.get_user_room(user_id).is_some());
     
     Ok(())
 }
