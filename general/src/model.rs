@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::{fmt::Debug, borrow::Borrow};
 
+use serde::de::DeserializeOwned;
 use thiserror::Error;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -97,6 +98,44 @@ impl From<i32> for UserType {
 #[derive(Message, Debug)]
 #[rtype(result = "()")]
 pub struct WebsocketMessage(pub String);
+
+
+#[derive(Message, Debug)]
+#[rtype(result = "()")]
+pub struct NewWebsocketMessage<T: Debug + Serialize + DeserializeOwned> {
+    pub message: Option<T>,
+    pub status: bool
+}
+
+impl<T: Debug + Serialize + DeserializeOwned> NewWebsocketMessage<T> {
+    pub fn empty_success() -> Self {
+        Self {
+            message: None,
+            status: true
+        }
+    }
+    
+    pub fn empty_fail() -> Self {
+        Self {
+            message: None,
+            status: true
+        }
+    }
+
+    pub fn success(message: T) -> Self {
+        Self {
+            message: Some(message),
+            status: true
+        }
+    }
+    
+    pub fn fail(message: T) -> Self {
+        Self {
+            message: Some(message),
+            status: true
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct UserState {

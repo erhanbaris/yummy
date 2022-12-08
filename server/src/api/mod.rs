@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use actix::{Addr, Recipient};
 use database::DatabaseTrait;
-use general::{auth::UserAuth, meta::MetaAccess, model::WebsocketMessage};
+use general::{meta::MetaAccess, model::WebsocketMessage, auth::UserAuth};
 use manager::{api::{auth::AuthManager, user::UserManager, room::RoomManager}, response::Response};
 use manager::api::auth::model::*;
 use manager::api::user::model::*;
@@ -49,8 +49,8 @@ pub(crate) async fn process_user<DB: DatabaseTrait + Unpin + 'static>(user_type:
     }
 }
 
-#[tracing::instrument(name="process_room", skip(room_manager))]
-pub(crate) async fn process_room<DB: DatabaseTrait + Unpin + 'static>(room_type: RequestRoomType, room_manager: Addr<RoomManager<DB>>, me: Arc<Option<UserAuth>>) -> anyhow::Result<Response> {
+#[tracing::instrument(name="process_room", skip(_room_manager))]
+pub(crate) async fn process_room<DB: DatabaseTrait + Unpin + 'static>(room_type: RequestRoomType, _room_manager: Addr<RoomManager<DB>>, me: Arc<Option<UserAuth>>) -> anyhow::Result<Response> {
      match room_type {
         RequestRoomType::Create {  } => todo!(),
     }
