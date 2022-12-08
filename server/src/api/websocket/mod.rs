@@ -12,6 +12,7 @@ use general::model::WebsocketMessage;
 use general::web::Answer;
 use general::web::GenericAnswer;
 use manager::api::auth::model::StartUserTimeout;
+use manager::api::room::RoomManager;
 use manager::api::user::UserManager;
 use manager::response::Response;
 use std::sync::Arc;
@@ -33,16 +34,19 @@ use crate::api::process_auth;
 use crate::api::process_user;
 use crate::api::request::*;
 
-pub async fn websocket_endpoint<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, stream: Payload, config: Data<Arc<YummyConfig>>, auth_manager: Data<Addr<AuthManager<DB>>>, user_manager: Data<Addr<UserManager<DB>>>, _: ApiIntegration) -> Result<actix_web::HttpResponse, YummyError> {
+use super::process_room;
+
+pub async fn websocket_endpoint<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, stream: Payload, config: Data<Arc<YummyConfig>>, auth_manager: Data<Addr<AuthManager<DB>>>, user_manager: Data<Addr<UserManager<DB>>>, room_manager: Data<Addr<RoomManager<DB>>>, _: ApiIntegration) -> Result<actix_web::HttpResponse, YummyError> {
     let config = config.get_ref();
 
-    ws::start(GameWebsocket::new(config.clone(), auth_manager.get_ref().clone(), user_manager.get_ref().clone()), &req, stream)
+    ws::start(GameWebsocket::new(config.clone(), auth_manager.get_ref().clone(), user_manager.get_ref().clone(), room_manager.get_ref().clone()), &req, stream)
         .map_err(YummyError::from)
 }
 
 pub struct GameWebsocket<DB: DatabaseTrait + ?Sized + Unpin + 'static> {
     auth_manager: Addr<AuthManager<DB>>,
     user_manager: Addr<UserManager<DB>>,
+    room_manager: Addr<RoomManager<DB>>,
     hb: Instant,
     user_auth: Arc<Option<UserAuth>>,
     config: Arc<YummyConfig>,
@@ -53,11 +57,13 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
         config: Arc<YummyConfig>,
         auth: Addr<AuthManager<DB>>,
         user: Addr<UserManager<DB>>,
+        room: Addr<RoomManager<DB>>,
     ) -> Self {
         Self {
             hb: Instant::now(),
             auth_manager: auth,
             user_manager: user,
+            room_manager: room,
             config,
             user_auth: Arc::new(None)
         }
@@ -72,14 +78,16 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
 
         let auth_manager = self.auth_manager.clone();
         let user_manager = self.user_manager.clone();
+        let room_manager = self.room_manager.clone();
         let user_info = self.user_auth.clone();
         let socket = ctx.address().recipient();
         
 
         let future = Box::pin(async {
             match message {
-                Request::Auth { auth_type } => process_auth(auth_type, auth_manager, user_info, Some(socket)).await,
-                Request::User { user_type } => process_user(user_type, user_manager, user_info).await
+                Request::Auth { auth_type } => process_auth(auth_type, auth_manager, user_info, socket).await,
+                Request::User { user_type } => process_user(user_type, user_manager, user_info).await,
+                Request::Room { room_type } => process_room(room_type, room_manager, user_info).await,
             }
         });
 
@@ -318,7 +326,8 @@ mod tests {
             
             let states = Arc::new(YummyState::default());
             let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
-            let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start());
+            let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
+            let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start());
 
             let query_cfg = QueryConfig::default()
                 .error_handler(|err, _| {
@@ -329,6 +338,7 @@ mod tests {
             App::new()
             .app_data(auth_manager)
             .app_data(user_manager)
+            .app_data(room_manager)
             .app_data(query_cfg)
                 .app_data(JsonConfig::default().error_handler(json_error_handler))
                 .app_data(Data::new(config.clone()))

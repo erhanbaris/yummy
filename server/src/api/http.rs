@@ -6,19 +6,21 @@ use actix_web::{web::{Data, Json}};
 use database::DatabaseTrait;
 use general::web::{GenericAnswer, Answer};
 use general::{auth::{UserAuth, ApiIntegration}, error::YummyError};
+use manager::api::room::RoomManager;
 use manager::api::{auth::AuthManager, user::UserManager};
 use manager::response::Response;
 
 use crate::api::request::Request;
-use super::{process_auth, process_user};
+use super::{process_auth, process_user, process_room};
 
 #[tracing::instrument(name="http_query", skip(req, auth_manager, user_manager, _integration))]
-pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, auth_manager: Data<Addr<AuthManager<DB>>>, user_manager: Data<Addr<UserManager<DB>>>, request: Result<Json<Request>, actix_web::Error>, _integration: ApiIntegration) -> Result<HttpResponse, YummyError> {
+pub async fn http_query<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, auth_manager: Data<Addr<AuthManager<DB>>>, user_manager: Data<Addr<UserManager<DB>>>, room_manager: Data<Addr<RoomManager<DB>>>, request: Result<Json<Request>, actix_web::Error>, _integration: ApiIntegration) -> Result<HttpResponse, YummyError> {
     let user = Arc::new(UserAuth::parse(&req));
     
     let response = match request?.0 {
         Request::Auth { auth_type } => process_auth(auth_type, auth_manager.as_ref().clone(), user.clone(), None).await,
         Request::User { user_type } => process_user(user_type, user_manager.as_ref().clone(), user.clone()).await,
+        Request::Room { room_type } => process_room(room_type, room_manager.as_ref().clone(), user.clone()).await,
     };
 
     match response {
@@ -50,6 +52,7 @@ pub mod tests {
     use general::web::Answer;
     use general::web::GenericAnswer;
     use manager::api::auth::AuthManager;
+    use manager::api::room::RoomManager;
     use manager::api::user::UserManager;
     use serde_json::json;
     use uuid::Uuid;
@@ -69,7 +72,8 @@ pub mod tests {
         create_database(&mut connection.clone().get().unwrap()).unwrap();
         let states = Arc::new(YummyState::default());
         let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
-        let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start());
+        let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
+        let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start());
 
         let query_cfg = QueryConfig::default()
             .error_handler(|err, _| {
@@ -82,6 +86,7 @@ pub mod tests {
             .app_data(Data::new(config))
             .app_data(auth_manager.clone())
             .app_data(user_manager.clone())
+            .app_data(room_manager.clone())
 
             .route("/v1/query", web::post().to(http_query::<database::SqliteStore>));
     }

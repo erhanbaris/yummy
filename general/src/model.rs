@@ -98,12 +98,12 @@ impl From<i32> for UserType {
 #[rtype(result = "()")]
 pub struct WebsocketMessage(pub String);
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct UserState {
     pub user_id: UserId,
     pub session: SessionId,
     pub room: Cell<Option<RoomId>>,
-    pub socket: Option<Recipient<WebsocketMessage>>
+    pub socket: Recipient<WebsocketMessage>
 }
 
 #[derive(Default, Debug)]
@@ -162,7 +162,7 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="new_session", skip(self))]
-    pub fn new_session(&self, user_id: UserId, socket: Option<Recipient<WebsocketMessage>>) -> SessionId {
+    pub fn new_session(&self, user_id: UserId, socket: Recipient<WebsocketMessage>) -> SessionId {
         let session_id = SessionId::new();
         self.session_to_user.lock().insert(session_id.clone(), user_id);
         self.user.lock().insert(user_id.clone(), UserState { user_id: user_id, session: session_id.clone(), room: Cell::new(None), socket });
@@ -186,7 +186,7 @@ impl YummyState {
 
     #[tracing::instrument(name="get_user_socket", skip(self))]
     pub fn get_user_socket<T: Borrow<UserId> + std::fmt::Debug>(&self, user_id: T) -> Option<Recipient<WebsocketMessage>> {
-        self.user.lock().get(user_id.borrow()).and_then(|user| user.socket.clone())
+        self.user.lock().get(user_id.borrow()).map(|user| user.socket.clone())
     }
 
     #[tracing::instrument(name="set_user_room", skip(self))]
@@ -254,13 +254,26 @@ pub enum RoomUserType {
 #[cfg(test)]
 mod tests {
     use crate::model::*;
+    use actix::{Actor, Context, Handler};
     use anyhow::Ok;
+    struct dummy_actor;
 
-    #[test]
-    fn state_1() -> anyhow::Result<()> {
+    impl Actor for dummy_actor {
+        type Context = Context<Self>;
+    }
+
+    impl Handler<WebsocketMessage> for dummy_actor {
+        type Result = ();
+        
+        fn handle(&mut self, _: WebsocketMessage, _: &mut Self::Context) { }
+    }
+
+    #[actix::test]
+    async fn state_1() -> anyhow::Result<()> {
+        let actor = dummy_actor {}.start();
         let state = YummyState::default();
         let user_id = UserId::new();
-        let session_id = state.new_session(user_id, None);
+        let session_id = state.new_session(user_id, actor.recipient());
 
         assert!(state.is_session_online(session_id.clone()));
         assert!(state.is_user_online(user_id.clone()));
@@ -273,8 +286,8 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn state_2() -> anyhow::Result<()> {
+    #[actix::test]
+    async fn state_2() -> anyhow::Result<()> {
         let state = YummyState::default();
 
         state.close_session(SessionId::new());
@@ -285,8 +298,8 @@ mod tests {
         Ok(())
     }
     
-    #[test]
-    fn room_tests() -> anyhow::Result<()> {
+    #[actix::test]
+    async fn room_tests() -> anyhow::Result<()> {
         let state = YummyState::default();
         let room_1 = RoomId::new();
         state.create_room(room_1, 2);
@@ -307,8 +320,8 @@ mod tests {
         Ok(())
     }
     
-    #[test]
-    fn room_unlimited_users_tests() -> anyhow::Result<()> {
+    #[actix::test]
+    async fn room_unlimited_users_tests() -> anyhow::Result<()> {
         let state = YummyState::default();
         let room = RoomId::new();
         state.create_room(room, 0);

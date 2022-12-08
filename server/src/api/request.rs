@@ -50,6 +50,12 @@ pub enum RequestUserType {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+#[serde(tag = "room_type")]
+pub enum RequestRoomType {
+    Create { }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "type")]
 pub enum Request {
     Auth {
@@ -59,5 +65,9 @@ pub enum Request {
     User {
         #[serde(flatten)]
         user_type: RequestUserType
+    },
+    Room {
+        #[serde(flatten)]
+        room_type: RequestRoomType
     }
 }

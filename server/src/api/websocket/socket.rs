@@ -24,7 +24,7 @@ pub trait SocketTrait {
 
 pub struct RealSocket<R> {
     pub _marker: std::marker::PhantomData<R>,
-    pub socket: Option<Recipient<WebsocketMessage>>,
+    pub socket: Recipient<WebsocketMessage>,
 }
 
 impl<R> SocketTrait for RealSocket<R>

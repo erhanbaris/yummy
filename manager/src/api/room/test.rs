@@ -1,3 +1,4 @@
+use actix::Recipient;
 use uuid::Uuid;
 
 use general::auth::UserAuth;
@@ -17,15 +18,27 @@ use super::*;
 use crate::api::auth::AuthManager;
 use crate::api::auth::model::*;
 
+use actix::{Context, Handler};
+struct dummy_actor;
+
+impl Actor for dummy_actor {
+    type Context = Context<Self>;
+}
+
+impl Handler<WebsocketMessage> for dummy_actor {
+    type Result = ();
+    
+    fn handle(&mut self, _: WebsocketMessage, _: &mut Self::Context) { }
+}
 
 macro_rules! email_auth {
-    ($auth_manager: expr, $config: expr, $email: expr, $password: expr, $create: expr) => {
+    ($auth_manager: expr, $config: expr, $email: expr, $password: expr, $create: expr, $recipient: expr) => {
         {
             let token = $auth_manager.send(EmailAuthRequest {
                 email: $email,
                 password: $password,
                 if_not_exist_create: $create,
-                socket: None
+                socket: $recipient.clone()
             }).await??;
         
             let token = match token {
@@ -43,7 +56,7 @@ macro_rules! email_auth {
 }
 
 
-fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>, Arc<YummyState>)> {
+fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>, Arc<YummyState>, Recipient<WebsocketMessage>)> {
     let mut db_location = temp_dir();
     db_location.push(format!("{}.db", Uuid::new_v4()));
     
@@ -51,13 +64,13 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
     let states = Arc::new(YummyState::default());
     let connection = create_connection(db_location.to_str().unwrap())?;
     create_database(&mut connection.clone().get()?)?;
-    Ok((RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config, states.clone()))
+    Ok((RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config, states.clone(), dummy_actor {}.start().recipient()))
 }
 
 #[actix::test]
 async fn create_room_1() -> anyhow::Result<()> {
-    let (room_manager, auth_manager, config, states) = create_actor()?;
-    let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".to_string(), true);
+    let (room_manager, auth_manager, config, states, recipient) = create_actor()?;
+    let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".to_string(), true, recipient);
 
     let response = room_manager.send(CreateRoomRequest {
         user: user.clone(),
@@ -86,8 +99,8 @@ async fn create_room_1() -> anyhow::Result<()> {
 
 #[actix::test]
 async fn create_room_2() -> anyhow::Result<()> {
-    let (room_manager, auth_manager, config, states) = create_actor()?;
-    let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".to_string(), true);
+    let (room_manager, auth_manager, config, states, recipient) = create_actor()?;
+    let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".to_string(), true, recipient);
 
     let response = room_manager.send(CreateRoomRequest {
         user: user.clone(),

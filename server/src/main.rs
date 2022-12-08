@@ -71,7 +71,6 @@ async fn main() -> std::io::Result<()> {
             
             //Websocket
             .route("/v1/socket", web::get().to(crate::api::websocket::websocket_endpoint::<database::SqliteStore>))
-            .route("/v1/query", web::post().to(crate::api::http::http_query::<database::SqliteStore>))
     })
     .bind(server_bind)?
     .run()
