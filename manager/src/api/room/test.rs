@@ -1,4 +1,5 @@
 use actix::Recipient;
+use general::model::WebsocketMessage;
 use uuid::Uuid;
 
 use general::auth::UserAuth;
@@ -62,9 +63,10 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
     
     let config = get_configuration();
     let states = Arc::new(YummyState::default());
+    let communication_manager = CommunicationManager::new(config.clone(), states.clone()).start();
     let connection = create_connection(db_location.to_str().unwrap())?;
     create_database(&mut connection.clone().get()?)?;
-    Ok((RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config, states.clone(), dummy_actor {}.start().recipient()))
+    Ok((RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), communication_manager.recipient::<SendMessage>()).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config, states.clone(), dummy_actor {}.start().recipient()))
 }
 
 #[actix::test]

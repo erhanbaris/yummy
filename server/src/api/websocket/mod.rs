@@ -8,7 +8,6 @@ use database::DatabaseTrait;
 use general::auth::ApiIntegration;
 use general::auth::UserAuth;
 use general::error::YummyError;
-use general::model::NewWebsocketMessage;
 use general::model::WebsocketMessage;
 use general::web::Answer;
 use general::web::GenericAnswer;
@@ -16,9 +15,6 @@ use manager::api::auth::model::StartUserTimeout;
 use manager::api::room::RoomManager;
 use manager::api::user::UserManager;
 use manager::response::Response;
-use serde::Serialize;
-use serde::de::DeserializeOwned;
-use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -198,28 +194,6 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Handler<WebsocketMessage> for
     }
 }
 
-impl<DB: DatabaseTrait + ?Sized + Unpin + 'static, T: Debug + Serialize + DeserializeOwned> Handler<NewWebsocketMessage<T>> for GameWebsocket<DB> {
-    type Result = ();
-    
-    #[tracing::instrument(name="handle", skip(self, ctx))]
-    fn handle(&mut self, message: NewWebsocketMessage<T>, ctx: &mut Self::Context) {
-        log::info!("SEND:{:?}", message);
-
-        let message = match message.status {
-            true => match message.message {
-                Some(message) => serde_json::to_string(&GenericAnswer::success(message)),
-                None => serde_json::to_string(&Answer::success())
-            }
-            false => match message.message {
-                Some(message) => serde_json::to_string(&GenericAnswer::fail(message)),
-                None => serde_json::to_string(&Answer::fail())
-            }
-        };
-
-        ctx.text(message.unwrap_or_default());
-    }
-}
-
 #[cfg(test)]
 mod tests {
     
@@ -236,6 +210,8 @@ mod tests {
     use general::model::{YummyState, UserType};
     use general::web::Answer;
     use manager::api::auth::AuthManager;
+    use manager::api::comm::CommunicationManager;
+    use manager::api::comm::model::SendMessage;
     use serde::Deserialize;
     use serde_json::json;
     use uuid::Uuid;
@@ -351,9 +327,10 @@ mod tests {
             create_database(&mut connection.clone().get().unwrap()).unwrap();
             
             let states = Arc::new(YummyState::default());
+            let communication_manager = CommunicationManager::new(config.clone(), states.clone()).start();
             let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
             let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
-            let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start());
+            let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection), communication_manager.recipient::<SendMessage>()).start());
 
             let query_cfg = QueryConfig::default()
                 .error_handler(|err, _| {

@@ -6,15 +6,16 @@ mod test;
 use std::borrow::Borrow;
 use std::{marker::PhantomData, ops::Deref};
 use std::sync::Arc;
+use actix_web::web::Data;
 use anyhow::Ok;
 
-use actix::{Context, Actor, Handler};
-use actix_broker::BrokerSubscribe;
+use actix::{Context, Actor, Handler, Addr, Recipient};
+use actix_broker::{BrokerSubscribe, BrokerIssue};
 use database::{Pool, DatabaseTrait};
 use database::RowId;
 
 use general::config::YummyConfig;
-use general::model::{YummyState, RoomUserType, RoomId, UserId, WebsocketMessage};
+use general::model::{YummyState, RoomUserType, RoomId, UserId};
 use rand::Rng;
 
 use crate::response::Response;
@@ -23,21 +24,25 @@ use crate::api::auth::model::AuthError;
 use self::model::*;
 
 use super::auth::model::UserDisconnectRequest;
+use super::comm::CommunicationManager;
+use super::comm::model::SendMessage;
 
 pub struct RoomManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
     states: Arc<YummyState>,
     _marker: PhantomData<DB>,
+    communication: Recipient<SendMessage>
 }
 
 impl<DB: DatabaseTrait + ?Sized> RoomManager<DB> {
-    pub fn new(config: Arc<YummyConfig>, states: Arc<YummyState>, database: Arc<Pool>) -> Self {
+    pub fn new(config: Arc<YummyConfig>, states: Arc<YummyState>, database: Arc<Pool>, communication: Recipient<SendMessage>) -> Self {
         Self {
             config,
             database,
             states,
             _marker: PhantomData,
+            communication
         }
     }
 }
@@ -61,7 +66,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisc
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> {
     pub fn disconnect_from_room<T: Borrow<UserId> + std::fmt::Debug>(&self, _: T) {
-
     }
 }
 
@@ -117,8 +121,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRoomRequest> for RoomManager<DB> {
     type Result = anyhow::Result<Response>;
 
-    #[tracing::instrument(name="Room::Join to room", skip(self, _ctx))]
-    fn handle(&mut self, model: JoinToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
+    #[tracing::instrument(name="Room::Join to room", skip(self, ctx))]
+    fn handle(&mut self, model: JoinToRoomRequest, ctx: &mut Context<Self>) -> Self::Result {        
         // Check user information
         let user_id = match model.user.deref() {
             Some(user) => UserId::from(user.user.get()),
@@ -132,10 +136,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
         DB::join_to_room(&mut connection, RowId(model.room.get()), RowId(user_id.get()), model.room_user_type)?;
 
         for user in users.into_iter() {
-            match self.states.get_user_socket(user) {
-                Some(socket) => socket.do_send(WebsocketMessage("{}".to_string())),
-                None => ()
-            }
+            self.communication.do_send(SendMessage::create(user.clone(), "merhaba dünya".to_string()));
         }
 
         Ok(Response::None)

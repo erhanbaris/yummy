@@ -64,21 +64,22 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::ViaEmail", skip(self, _ctx))]
-    fn handle(&mut self, auth: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
+    #[macros::api(name="ViaEmail")]
+    fn handle(&mut self, model: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
-        let user_info = DB::user_login_via_email(&mut connection, &auth.email)?;
+        let user_info = DB::user_login_via_email(&mut connection, &model.email)?;
 
-        let (user_id, name) = match (user_info, auth.if_not_exist_create) {
+        let (user_id, name) = match (user_info, model.if_not_exist_create) {
             (Some(user_info), _) => {
-                if auth.password != user_info.password.unwrap_or_default() {
+                if model.password != user_info.password.unwrap_or_default() {
                     return Err(anyhow!(AuthError::EmailOrPasswordNotValid));
                 }
 
                 DB::update_last_login(&mut connection, user_info.user_id)?;
                 (user_info.user_id, user_info.name)
             },
-            (None, true) => (DB::create_user_via_email(&mut connection, &auth.email, &auth.password)?, None),
+            (None, true) => (DB::create_user_via_email(&mut connection, &model.email, &model.password)?, None),
             _ => return Err(anyhow!(AuthError::EmailOrPasswordNotValid))
         };
         
@@ -86,8 +87,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
 
-        let session_id = self.states.new_session(UserId::from(user_id.get()), auth.socket.clone());
-        self.generate_token(UserId::from(user_id.get()), name, Some(auth.email.to_string()), Some(session_id))
+        let session_id = self.states.new_session(UserId::from(user_id.get()), model.socket.clone());
+        self.generate_token(UserId::from(user_id.get()), name, Some(model.email.to_string()), Some(session_id))
     }
 }
 
@@ -95,6 +96,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::ViaDeviceId", skip(self, _ctx))]
+    #[macros::api(name="ViaEmail")]
     fn handle(&mut self, auth: DeviceIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
@@ -118,6 +120,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::ViaCustomId", skip(self, _ctx))]
+    #[macros::api(name="ViaEmail")]
     fn handle(&mut self, auth: CustomIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
@@ -141,6 +144,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRe
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::Logout", skip(self, _ctx))]
+    #[macros::api(name="ViaEmail")]
     fn handle(&mut self, model: LogoutRequest, _ctx: &mut Context<Self>) -> Self::Result {
         match model.user.deref() {
             Some(user) => {
@@ -156,6 +160,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::Refresh", skip(self, _ctx))]
+    #[macros::api(name="ViaEmail")]
     fn handle(&mut self, token: RefreshTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
         match validate_auth(self.config.clone(), token.token) {
             Some(claims) => self.generate_token(claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session)),
@@ -168,6 +173,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::Restore", skip(self, ctx))]
+    #[macros::api(name="ViaEmail")]
     fn handle(&mut self, token: RestoreTokenRequest, ctx: &mut Context<Self>) -> Self::Result {
         match validate_auth(self.config.clone(), token.token) {
             Some(auth) => {
@@ -191,6 +197,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUse
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::StartTimer", skip(self, ctx))]
+    #[macros::api(name="ViaEmail")]
     fn handle(&mut self, model: StartUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
         let session_id = model.session_id.clone();
         let timer = ctx.run_later(self.config.connection_restore_wait_timeout, move |manager, _ctx| {
@@ -210,6 +217,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StopUser
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::StopTimer", skip(self, ctx))]
+    #[macros::api(name="ViaEmail")]
     fn handle(&mut self, model: StopUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
         if let Some(handle) = self.session_timeout_timers.remove(&model.session_id) {
             ctx.cancel_future(handle);

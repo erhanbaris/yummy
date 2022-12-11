@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 general = { path = "../general" }
 database = { path = "../database" }
+macros = { path = "../macros" }
 
 actix = "0.13"
 actix-web-actors = "4.1.0"

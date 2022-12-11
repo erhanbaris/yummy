@@ -14,6 +14,8 @@ use actix::prelude::Message;
 
 use uuid::Uuid;
 
+use crate::web::GenericAnswer;
+
 #[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash, Ord, PartialOrd)]
 pub struct UserId(Uuid);
 
@@ -99,41 +101,15 @@ impl From<i32> for UserType {
 #[rtype(result = "()")]
 pub struct WebsocketMessage(pub String);
 
-
-#[derive(Message, Debug)]
-#[rtype(result = "()")]
-pub struct NewWebsocketMessage<T: Debug + Serialize + DeserializeOwned> {
-    pub message: Option<T>,
-    pub status: bool
-}
-
-impl<T: Debug + Serialize + DeserializeOwned> NewWebsocketMessage<T> {
-    pub fn empty_success() -> Self {
-        Self {
-            message: None,
-            status: true
-        }
+impl WebsocketMessage {
+    pub fn success<T: Debug + Serialize + DeserializeOwned>(message: T) -> WebsocketMessage {
+        let message = serde_json::to_string(&GenericAnswer::success(message));
+        WebsocketMessage(message.unwrap_or_default())
     }
     
-    pub fn empty_fail() -> Self {
-        Self {
-            message: None,
-            status: true
-        }
-    }
-
-    pub fn success(message: T) -> Self {
-        Self {
-            message: Some(message),
-            status: true
-        }
-    }
-    
-    pub fn fail(message: T) -> Self {
-        Self {
-            message: Some(message),
-            status: true
-        }
+    pub fn fail<T: Debug + Serialize + DeserializeOwned>(message: T) -> WebsocketMessage {
+        let message = serde_json::to_string(&GenericAnswer::fail(message));
+        WebsocketMessage(message.unwrap_or_default())
     }
 }
 
