@@ -3,6 +3,7 @@ use actix::{prelude::Message, Recipient};
 use general::{model::{SessionId, WebsocketMessage, UserId}, auth::UserAuth};
 use thiserror::Error;
 use validator::Validate;
+use general::client::ClientTrait;
 
 use crate::response::Response;
 
@@ -17,7 +18,7 @@ pub struct EmailAuthRequest {
 
     pub if_not_exist_create: bool,
 
-    pub socket: Recipient<WebsocketMessage>
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
 #[derive(Message, Validate, Debug)]
@@ -27,7 +28,7 @@ pub struct RefreshTokenRequest {
     #[validate(length(min = 275, max = 1024, message = "Length should be between 275 to 1024 chars"))]
     pub token: String,
 
-    pub socket: Recipient<WebsocketMessage>
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
 #[derive(Message, Validate, Debug)]
@@ -37,7 +38,7 @@ pub struct RestoreTokenRequest {
     #[validate(length(min = 275, max = 1024, message = "Length should be between 275 to 1024 chars"))]
     pub token: String,
 
-    pub socket: Recipient<WebsocketMessage>
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
 #[derive(Message, Validate, Debug)]
@@ -64,11 +65,11 @@ pub struct DeviceIdAuthRequest {
     #[validate(length(min = 8, max = 128, message = "Length should be between 8 to 128 chars"))]
     pub id: String,
 
-    pub socket: Recipient<WebsocketMessage>
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
 impl DeviceIdAuthRequest {
-    pub fn new(id: String, socket: Recipient<WebsocketMessage>) -> Self {
+    pub fn new(id: String, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
         Self { id, socket }
     }
 }
@@ -79,11 +80,11 @@ pub struct CustomIdAuthRequest {
     #[validate(length(min = 8, max = 128, message = "Length should be between 8 to 128 chars"))]
     pub id: String,
 
-    pub socket: Recipient<WebsocketMessage>
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
 impl CustomIdAuthRequest {
-    pub fn new(id: String, socket: Recipient<WebsocketMessage>) -> Self {
+    pub fn new(id: String, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
         Self { id, socket }
     }
 }

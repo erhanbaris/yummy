@@ -35,10 +35,9 @@ pub fn api(args: TokenStream, input: TokenStream) -> TokenStream {
         true => {
             (quote! { let __socket__ = model.socket.clone(); },
              quote! {
-                match response.as_ref() {
-                    Ok(result) =>  __socket__.do_send(general::model::WebsocketMessage::success(result.clone())),
-                    Err(result) =>  __socket__.do_send(general::model::WebsocketMessage::fail(result.to_string()))
-                };
+                if let Err(result) = response.as_ref() {
+                    __socket__.send(general::model::WebsocketMessage::fail(result.to_string()).0)
+                }
             })
         },
         false => (quote! { }, quote! { }),

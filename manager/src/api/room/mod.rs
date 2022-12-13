@@ -113,6 +113,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
 
             Ok(room_id)
         })?;
+        
 
         Ok(Response::RoomInformation(room_id))
     }

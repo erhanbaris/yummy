@@ -62,7 +62,7 @@ impl Handler<SendMessage> for CommunicationManager {
         println!("connection:SendMessage {:?}", model);
 
         match self.states.get_user_socket(model.user_id) {
-            Some(socket) => socket.do_send(WebsocketMessage(model.message)),
+            Some(socket) => socket.send(model.message),
             None => ()
         }
     }

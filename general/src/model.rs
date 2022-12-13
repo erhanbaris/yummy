@@ -1,6 +1,7 @@
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
+use std::sync::Arc;
 use std::{fmt::Debug, borrow::Borrow};
 
 use serde::de::DeserializeOwned;
@@ -9,11 +10,13 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Serialize_repr, Deserialize_repr};
 
-use actix::{MessageResponse, Recipient};
+use actix::MessageResponse;
 use actix::prelude::Message;
 
 use uuid::Uuid;
 
+use crate::auth::UserJwt;
+use crate::client::ClientTrait;
 use crate::web::GenericAnswer;
 
 #[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash, Ord, PartialOrd)]
@@ -99,6 +102,10 @@ impl From<i32> for UserType {
 
 #[derive(Message, Debug)]
 #[rtype(result = "()")]
+pub struct UserAuthenticated(pub UserJwt);
+
+#[derive(Message, Debug)]
+#[rtype(result = "()")]
 pub struct WebsocketMessage(pub String);
 
 impl WebsocketMessage {
@@ -118,7 +125,7 @@ pub struct UserState {
     pub user_id: UserId,
     pub session: SessionId,
     pub room: Cell<Option<RoomId>>,
-    pub socket: Recipient<WebsocketMessage>
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
 #[derive(Default, Debug)]
@@ -177,7 +184,7 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="new_session", skip(self))]
-    pub fn new_session(&self, user_id: UserId, socket: Recipient<WebsocketMessage>) -> SessionId {
+    pub fn new_session(&self, user_id: UserId, socket: Arc<dyn ClientTrait + Sync + Send>) -> SessionId {
         let session_id = SessionId::new();
         self.session_to_user.lock().insert(session_id.clone(), user_id);
         self.user.lock().insert(user_id.clone(), UserState { user_id: user_id, session: session_id.clone(), room: Cell::new(None), socket });
@@ -200,7 +207,7 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="get_user_socket", skip(self))]
-    pub fn get_user_socket<T: Borrow<UserId> + std::fmt::Debug>(&self, user_id: T) -> Option<Recipient<WebsocketMessage>> {
+    pub fn get_user_socket<T: Borrow<UserId> + std::fmt::Debug>(&self, user_id: T) -> Option<Arc<dyn ClientTrait + Sync + Send>> {
         self.user.lock().get(user_id.borrow()).map(|user| user.socket.clone())
     }
 
@@ -268,27 +275,14 @@ pub enum RoomUserType {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::*;
-    use actix::{Actor, Context, Handler};
+    use crate::{model::*, client::EmptyClient};
     use anyhow::Ok;
-    struct dummy_actor;
-
-    impl Actor for dummy_actor {
-        type Context = Context<Self>;
-    }
-
-    impl Handler<WebsocketMessage> for dummy_actor {
-        type Result = ();
-        
-        fn handle(&mut self, _: WebsocketMessage, _: &mut Self::Context) { }
-    }
 
     #[actix::test]
     async fn state_1() -> anyhow::Result<()> {
-        let actor = dummy_actor {}.start();
         let state = YummyState::default();
         let user_id = UserId::new();
-        let session_id = state.new_session(user_id, actor.recipient());
+        let session_id = state.new_session(user_id, Arc::new(EmptyClient::default()));
 
         assert!(state.is_session_online(session_id.clone()));
         assert!(state.is_user_online(user_id.clone()));

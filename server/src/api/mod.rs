@@ -3,9 +3,9 @@ pub(crate) mod websocket;
 
 use std::sync::Arc;
 
-use actix::{Addr, Recipient};
+use actix::Addr;
 use database::DatabaseTrait;
-use general::{meta::MetaAccess, model::WebsocketMessage, auth::UserAuth};
+use general::{meta::MetaAccess, auth::UserAuth, client::ClientTrait};
 use manager::{api::{auth::AuthManager, user::UserManager, room::RoomManager}, response::Response};
 use manager::api::auth::model::*;
 use manager::api::user::model::*;
@@ -29,7 +29,7 @@ macro_rules! as_response {
 }
 
 #[tracing::instrument(name="process_auth", skip(auth_manager))]
-pub(crate) async fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type: RequestAuthType, auth_manager: Addr<AuthManager<DB>>, me: Arc<Option<UserAuth>>, socket: Recipient<WebsocketMessage>) -> anyhow::Result<Response> {
+pub(crate) async fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type: RequestAuthType, auth_manager: Addr<AuthManager<DB>>, me: Arc<Option<UserAuth>>, socket: Arc<dyn ClientTrait + Sync + Send>) -> anyhow::Result<Response> {
     match auth_type {
         RequestAuthType::Email { email, password, if_not_exist_create } => as_response!(auth_manager, EmailAuthRequest { email, password, if_not_exist_create, socket }),
         RequestAuthType::DeviceId { id } => as_response!(auth_manager, DeviceIdAuthRequest::new(id, socket)),

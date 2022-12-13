@@ -101,6 +101,17 @@ pub struct UserAuth {
 }
 
 impl UserAuth {
+    pub fn empty() -> Self {
+        Self {
+            user: UserId::from(uuid::Uuid::nil()),
+            session: SessionId::from(uuid::Uuid::nil())
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.user.get() == uuid::Uuid::nil()
+    }
+    
     pub fn parse(req: &HttpRequest) -> Option<Self> {
         let config = match req.app_data::<Data<Arc<YummyConfig>>>() {
             Some(config) => config,

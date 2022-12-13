@@ -1,8 +1,11 @@
+use std::cell::Cell;
+use std::collections::VecDeque;
+use std::sync::Mutex;
 use std::time::Duration;
 use actix::Recipient;
+use general::client::ClientTrait;
 use general::config::YummyConfig;
 use general::auth::validate_auth;
-use general::model::WebsocketMessage;
 use general::model::YummyState;
 use std::sync::Arc;
 
@@ -15,25 +18,13 @@ use super::AuthManager;
 use super::*;
 
 use crate::response::Response;
+use crate::test::DummyClient;
 
-use actix::{Context, Handler};
-struct dummy_actor;
-
-impl Actor for dummy_actor {
-    type Context = Context<Self>;
-}
-
-impl Handler<WebsocketMessage> for dummy_actor {
-    type Result = ();
-    
-    fn handle(&mut self, _: WebsocketMessage, _: &mut Self::Context) { }
-}
-
-fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<database::SqliteStore>>, Recipient<WebsocketMessage>)> {
+fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<database::SqliteStore>>, Arc<DummyClient>)> {
     let connection = create_connection(":memory:")?;
     let states = Arc::new(YummyState::default());
     create_database(&mut connection.clone().get()?)?;
-    Ok((AuthManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start(), dummy_actor.start().recipient()))
+    Ok((AuthManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start(), Arc::new(DummyClient::default())))
 }
 
 /* email unit tests */
@@ -57,31 +48,28 @@ async fn login_user_via_email() -> anyhow::Result<()> {
     config.client_timeout = Duration::from_secs(1);
     
     let (address, socket) = create_actor(Arc::new(config))?;
-    let response = address.send(EmailAuthRequest {
+    address.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
         password: "erhan".to_string(),
         if_not_exist_create: true,
         socket: socket.clone()
     }).await??;
 
-    if let Response::Auth(_, auth) = response.clone() {
-        address.send(StartUserTimeout {
-            session_id: auth.session.clone()
-        }).await??;
+    let auth = socket.clone().auth.lock().unwrap().clone();
+    address.send(StartUserTimeout {
+        session_id: auth.session.clone()
+    }).await??;
 
-        actix::clock::sleep(std::time::Duration::new(3, 0)).await;
+    actix::clock::sleep(std::time::Duration::new(3, 0)).await;
 
-        address.send(EmailAuthRequest {
-            email: "erhanbaris@gmail.com".to_string(),
-            password: "erhan".to_string(),
-            if_not_exist_create: false,
-            socket
-        }).await??;
+    address.send(EmailAuthRequest {
+        email: "erhanbaris@gmail.com".to_string(),
+        password: "erhan".to_string(),
+        if_not_exist_create: false,
+        socket
+    }).await??;
 
-        return Ok(());
-    }
-
-    return Err(anyhow::anyhow!("Unexpected response"));
+    return Ok(());
 }
 
 #[actix::test]
@@ -135,29 +123,33 @@ async fn login_user_via_device_id() -> anyhow::Result<()> {
     config.client_timeout = Duration::from_secs(1);
     
     let (address, socket) = create_actor(Arc::new(config))?;
-    let created_token = address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
+    address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
 
-    if let Response::Auth(_, auth) = created_token.clone() {
-        address.send(StartUserTimeout {
-            session_id: auth.session.clone()
-        }).await??;
+    let created_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
+    let auth = socket.clone().auth.lock().unwrap().clone();
+    
+    address.send(StartUserTimeout {
+        session_id: auth.session.clone()
+    }).await??;
 
-        actix::clock::sleep(std::time::Duration::new(3, 0)).await;
+    actix::clock::sleep(std::time::Duration::new(3, 0)).await;
 
-        let logged_in_token = address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
-        assert_ne!(created_token, logged_in_token);
+    address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
+    let logged_in_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
 
-        return Ok(());
-    }
+    assert_ne!(created_token, logged_in_token);
 
-    return Err(anyhow::anyhow!("Unexpected response"));
+    return Ok(());
 }
 
 #[actix::test]
 async fn login_users_via_device_id() -> anyhow::Result<()> {
     let (address, socket) = create_actor(::general::config::get_configuration())?;
-    let login_1 = address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
-    let login_2 = address.send(DeviceIdAuthRequest::new("abcdef".to_string(), socket)).await??;
+    address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
+    let login_1 = socket.clone().auth.lock().unwrap().clone();
+
+    address.send(DeviceIdAuthRequest::new("abcdef".to_string(), socket.clone())).await??;
+    let login_2 = socket.clone().auth.lock().unwrap().clone();
     assert_ne!(login_1, login_2);
 
     Ok(())
@@ -179,29 +171,32 @@ async fn login_user_via_custom_id() -> anyhow::Result<()> {
     config.client_timeout = Duration::from_secs(1);
     
     let (address, socket) = create_actor(Arc::new(config))?;
-    let created_token = address.send(CustomIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
+    address.send(CustomIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
 
-    if let Response::Auth(_, auth) = created_token.clone() {
-        address.send(StartUserTimeout {
-            session_id: auth.session.clone()
-        }).await??;
+    let created_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
+    let auth = socket.clone().auth.lock().unwrap().clone();
 
-        actix::clock::sleep(std::time::Duration::new(3, 0)).await;
+    address.send(StartUserTimeout {
+        session_id: auth.session.clone()
+    }).await??;
 
-        let logged_in_token = address.send(CustomIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
-        assert_ne!(created_token, logged_in_token);
+    actix::clock::sleep(std::time::Duration::new(3, 0)).await;
 
-        return Ok(());
-    }
+    address.send(CustomIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
+    let logged_in_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
+    assert_ne!(created_token, logged_in_token);
 
-    return Err(anyhow::anyhow!("Unexpected response"));
+    return Ok(());
 }
 
 #[actix::test]
 async fn login_users_via_custom_id() -> anyhow::Result<()> {
     let (address, socket) = create_actor(::general::config::get_configuration())?;
-    let login_1 = address.send(CustomIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
-    let login_2 = address.send(CustomIdAuthRequest::new("abcdef".to_string(), socket.clone())).await??;
+    address.send(CustomIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
+    let login_1 = socket.clone().messages.lock().unwrap().pop_back().unwrap();
+    
+    address.send(CustomIdAuthRequest::new("abcdef".to_string(), socket.clone())).await??;
+    let login_2 = socket.clone().messages.lock().unwrap().pop_back().unwrap();
     assert_ne!(login_1, login_2);
 
     Ok(())
@@ -212,19 +207,15 @@ async fn login_users_via_custom_id() -> anyhow::Result<()> {
 async fn token_restore_test_1() -> anyhow::Result<()> {
     let config = ::general::config::get_configuration();
     let (address, socket) = create_actor(config.clone())?;
-    let old_token: Response = address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
-    let old_token = match old_token {
-        Response::Auth(token, _) => token,
-        _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
-    };
+    address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
+    let old_token: GenericAnswer<String> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let old_token = old_token.result.unwrap_or_default();
 
     // Wait 1 second
     actix::clock::sleep(std::time::Duration::new(1, 0)).await;
-    let new_token: Response = address.send(RestoreTokenRequest { token: old_token.to_string(), socket }).await??;
-    let new_token = match new_token {
-        Response::Auth(token, _) => token,
-        _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
-    };
+    address.send(RestoreTokenRequest { token: old_token.to_string(), socket: socket.clone() }).await??;
+    let new_token: GenericAnswer<String> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let new_token = new_token.result.unwrap_or_default();
     
     assert_ne!(old_token.clone(), new_token.clone());
 
@@ -247,20 +238,17 @@ async fn fail_token_restore_test_1() -> anyhow::Result<()> {
     config.token_lifetime = Duration::from_secs(1);
 
     let (address, socket) = create_actor(Arc::new(config))?;
-    let old_token: Response = address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
-    let old_token = match old_token {
-        Response::Auth(token, _) => token,
-        _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
-    };
+    address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
+    
+    let old_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
+    let old_token: GenericAnswer<String> = old_token.into();
+    let old_token = old_token.result.unwrap_or_default();
 
     // Wait 3 seconds
     actix::clock::sleep(std::time::Duration::new(3, 0)).await;
-    let response = address.send(RestoreTokenRequest { token: old_token.to_string(), socket: socket.clone() }).await?;
-    
-    if response.is_ok() {
-        assert!(false, "Expected exception, received: {:?}", response);
-    }
-    
+    assert!(address.send(RestoreTokenRequest { token: old_token.to_string(), socket: socket.clone() }).await?.is_err());
+    let message = socket.clone().messages.lock().unwrap().pop_back().unwrap();
+    assert!(message.contains("User token is not valid"));
     Ok(())
 }
 
@@ -269,20 +257,19 @@ async fn fail_token_restore_test_1() -> anyhow::Result<()> {
 async fn token_refresh_test_1() -> anyhow::Result<()> {
     let config = ::general::config::get_configuration();
     let (address, socket) = create_actor(config.clone())?;
-    let old_token: Response = address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
-    let old_token = match old_token {
-        Response::Auth(token, _) => token,
-        _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
-    };
+    address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
+    let old_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
+    let old_token: GenericAnswer<String> = old_token.into();
+    let old_token = old_token.result.unwrap_or_default();
 
     // Wait 1 second
     actix::clock::sleep(std::time::Duration::new(1, 0)).await;
-    let new_token: Response = address.send(RefreshTokenRequest { token: old_token.to_string(), socket: socket.clone() }).await??;
-    let new_token = match new_token {
-        Response::Auth(token, _) => token,
-        _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
-    };
-    
+    address.send(RefreshTokenRequest { token: old_token.to_string(), socket: socket.clone() }).await??;
+
+    let new_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
+    let new_token: GenericAnswer<String> = new_token.into();
+    let new_token = new_token.result.unwrap_or_default();
+
     assert_ne!(old_token.clone(), new_token.clone());
 
     let old_claims =  validate_auth(config.clone(), old_token).unwrap();
@@ -302,24 +289,23 @@ async fn token_refresh_test_1() -> anyhow::Result<()> {
 async fn token_refresh_test_2() -> anyhow::Result<()> {
     let config = ::general::config::get_configuration();
     let (address, socket) = create_actor(config.clone())?;
-    let old_token: Response = address.send(EmailAuthRequest {
+    address.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
         password: "erhan".to_string(),
         if_not_exist_create: true, socket: socket.clone()
     }).await??;
 
-    let old_token = match old_token {
-        Response::Auth(token, _) => token,
-        _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
-    };
 
+    let old_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
+    let old_token: GenericAnswer<String> = old_token.into();
+    let old_token = old_token.result.unwrap_or_default();
+    
     // Wait 1 second
     actix::clock::sleep(std::time::Duration::new(1, 0)).await;
-    let new_token: Response = address.send(RefreshTokenRequest{ token: old_token.clone(), socket: socket.clone() }).await??;
-    let new_token = match new_token {
-        Response::Auth(token, _) => token,
-        _ => { return Err(anyhow::anyhow!("Expected 'Response::Auth'")); }
-    };
+    address.send(RefreshTokenRequest{ token: old_token.clone(), socket: socket.clone() }).await??;
+    let new_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
+    let new_token: GenericAnswer<String> = new_token.into();
+    let new_token = new_token.result.unwrap_or_default();
     
     assert_ne!(old_token.clone(), new_token.clone());
 

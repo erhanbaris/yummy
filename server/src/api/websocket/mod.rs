@@ -1,13 +1,16 @@
 #[cfg(test)]
 mod client;
 
+use actix::Recipient;
 use actix_web::HttpRequest;
 use actix_web::web::Data;
 use actix_web::web::Payload;
 use database::DatabaseTrait;
 use general::auth::ApiIntegration;
 use general::auth::UserAuth;
+use general::client::ClientTrait;
 use general::error::YummyError;
+use general::model::UserAuthenticated;
 use general::model::WebsocketMessage;
 use general::web::Answer;
 use general::web::GenericAnswer;
@@ -18,7 +21,7 @@ use manager::response::Response;
 use std::sync::Arc;
 use std::time::Instant;
 
-
+use general::client::EmptyClient;
 use actix::Actor;
 use actix::AsyncContext;
 use actix::ActorFutureExt;
@@ -50,6 +53,7 @@ pub struct GameWebsocket<DB: DatabaseTrait + ?Sized + Unpin + 'static> {
     hb: Instant,
     user_auth: Arc<Option<UserAuth>>,
     config: Arc<YummyConfig>,
+    client: Arc<dyn ClientTrait + Sync + Send>
 }
 
 impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
@@ -65,7 +69,8 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
             user_manager: user,
             room_manager: room,
             config,
-            user_auth: Arc::new(None)
+            user_auth: Arc::new(None),
+            client: Arc::new(EmptyClient::default())
         }
     }
 
@@ -80,8 +85,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
         let user_manager = self.user_manager.clone();
         let room_manager = self.room_manager.clone();
         let user_info = self.user_auth.clone();
-        let socket = ctx.address().recipient();
-        
+        let socket = self.client.clone();
 
         let future = Box::pin(async {
             match message {
@@ -93,23 +97,15 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
 
         let actor_future = future
             .into_actor(self)
-            .then(move |result, actor, ctx| {
+            .then(move |result, _, ctx| {
                 match result {
                     Ok(response) => match response {
-                        Response::Auth(token, auth) => {
-                            actor.user_auth = Arc::new(Some(UserAuth {
-                                user: auth.id,
-                                session: auth.session
-                            }));
-
-                            ctx.text(serde_json::to_string(&GenericAnswer::success(token)).unwrap_or_default());
-                        },
                         Response::UserInformation(model) => ctx.text(serde_json::to_string(&GenericAnswer::success(model)).unwrap_or_default()),
                         Response::RoomInformation(room_id) => ctx.text(serde_json::to_string(&GenericAnswer::success(room_id)).unwrap_or_default()),
                         Response::None => ctx.text(serde_json::to_string(&Answer::success()).unwrap_or_default()),
                     },
                     Err(error) => {
-                        tracing::error!("{:?}", error);
+                        println!("{:?}", error);
                         ctx.text(serde_json::to_string(&GenericAnswer::fail(error.to_string())).unwrap_or_default())
                     }
                 }
@@ -139,6 +135,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Actor for GameWebsocket<DB> {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         log::debug!("New socket started");
+        self.client = Arc::new(GameWebsocketClient::new(ctx.address()));
         self.hb(ctx);
     }
 
@@ -158,6 +155,8 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> StreamHandler<Result<ws::Mess
 {
     #[tracing::instrument(name="handle", skip(self, ctx))]
     fn handle(&mut self, message: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+        println!("Message received, {:?}", message);
+
         let result = match message {
             Ok(ws::Message::Close(reason)) => {
                 log::debug!("Stop: {:?}", reason);
@@ -189,8 +188,48 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Handler<WebsocketMessage> for
     
     #[tracing::instrument(name="handle", skip(self, ctx))]
     fn handle(&mut self, message: WebsocketMessage, ctx: &mut Self::Context) {
-        log::info!("SEND:{:?}", message.0);
+        println!("SEND:{:?}", message.0);
         ctx.text(message.0);
+    }
+}
+
+impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Handler<UserAuthenticated> for GameWebsocket<DB> {
+    type Result = ();
+    
+    #[tracing::instrument(name="handle", skip(self, _ctx))]
+    fn handle(&mut self, model: UserAuthenticated, _ctx: &mut Self::Context) {
+        log::info!("AUTH:{:?}", model.0);
+        self.user_auth = Arc::new(Some(UserAuth {
+            user: model.0.id,
+            session: model.0.session
+        }));
+    }
+}
+
+#[derive(Debug)]
+struct GameWebsocketClient {
+    sender: Recipient<WebsocketMessage>,
+    auth: Recipient<UserAuthenticated>
+}
+
+impl GameWebsocketClient {
+    pub fn new<DB: DatabaseTrait + ?Sized + Unpin + 'static>(address: Addr<GameWebsocket<DB>>) -> Self {
+        Self {
+            sender: address.clone().recipient(),
+            auth: address.recipient()
+        }
+    }
+}
+
+impl ClientTrait for GameWebsocketClient {
+    fn send(&self, message: String) {
+        println!("Send message, {}", message);
+        self.sender.do_send(WebsocketMessage(message));
+    }
+
+    fn authenticated(&self, user: general::auth::UserJwt) {
+        self.auth.do_send(UserAuthenticated(user));
+        println!("authenticated");
     }
 }
 
@@ -339,10 +378,10 @@ mod tests {
                 });
 
             App::new()
-            .app_data(auth_manager)
-            .app_data(user_manager)
-            .app_data(room_manager)
-            .app_data(query_cfg)
+                .app_data(auth_manager)
+                .app_data(user_manager)
+                .app_data(room_manager)
+                .app_data(query_cfg)
                 .app_data(JsonConfig::default().error_handler(json_error_handler))
                 .app_data(Data::new(config.clone()))
                 .route("/v1/socket", get().to(websocket_endpoint::<database::SqliteStore>))

@@ -3,9 +3,10 @@ pub mod model;
 #[cfg(test)]
 mod test;
 
-use std::ops::Deref;
+use std::{ops::Deref, fmt::Debug};
 use actix_broker::BrokerIssue;
-use general::{auth::{generate_auth, UserJwt, validate_auth}, model::YummyState};
+use general::{auth::{generate_auth, UserJwt, validate_auth}, model::YummyState, web::GenericAnswer};
+use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -13,12 +14,16 @@ use general::config::YummyConfig;
 
 use actix::{Context, Handler, Actor, AsyncContext, SpawnHandle};
 use database::{Pool, DatabaseTrait};
-use anyhow::anyhow;
+use anyhow::{anyhow, Ok};
 use general::model::{UserId, SessionId};
 
 use crate::response::Response;
 
 use self::model::*;
+
+pub fn generate_response<T: Debug + Serialize + DeserializeOwned>(model: T) -> String {
+    serde_json::to_string(&model).unwrap_or_default()
+}
 
 pub struct AuthManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
@@ -39,7 +44,7 @@ impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
         }
     }
 
-    pub fn generate_token(&self, id: UserId, name: Option<String>, email: Option<String>, session: Option<SessionId>) -> anyhow::Result<Response> {
+    pub fn generate_token(&self, id: UserId, name: Option<String>, email: Option<String>, session: Option<SessionId>) -> anyhow::Result<(String, UserJwt)> {
         let user_jwt = UserJwt {
             id,
             session: session.unwrap_or_else(SessionId::new) ,
@@ -52,7 +57,7 @@ impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
             _ => return Err(anyhow::anyhow!(AuthError::TokenCouldNotGenerated))
         };
 
-        Ok(Response::Auth(token, user_jwt))
+        Ok((token, user_jwt))
     }
 }
 
@@ -64,8 +69,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::ViaEmail", skip(self, _ctx))]
-    #[macros::api(name="ViaEmail")]
+    #[macros::api(name="ViaEmail", socket=true)]
     fn handle(&mut self, model: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
+        println!("{:?}", model);
 
         let mut connection = self.database.get()?;
         let user_info = DB::user_login_via_email(&mut connection, &model.email)?;
@@ -88,7 +94,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
         }
 
         let session_id = self.states.new_session(UserId::from(user_id.get()), model.socket.clone());
-        self.generate_token(UserId::from(user_id.get()), name, Some(model.email.to_string()), Some(session_id))
+        let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, Some(model.email.to_string()), Some(session_id))?;
+
+        model.socket.authenticated(auth);
+        model.socket.send(GenericAnswer::success(token).into());
+        Ok(Response::None)
     }
 }
 
@@ -96,23 +106,27 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::ViaDeviceId", skip(self, _ctx))]
-    #[macros::api(name="ViaEmail")]
-    fn handle(&mut self, auth: DeviceIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
+    #[macros::api(name="ViaEmail", socket=true)]
+    fn handle(&mut self, model: DeviceIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
-        let user_info = DB::user_login_via_device_id(&mut connection, &auth.id)?;
+        let user_info = DB::user_login_via_device_id(&mut connection, &model.id)?;
 
         let (user_id, name, email) = match user_info {
             Some(user_info) => (user_info.user_id, user_info.name, user_info.email),
-            None => (DB::create_user_via_device_id(&mut connection, &auth.id)?, None, None)
+            None => (DB::create_user_via_device_id(&mut connection, &model.id)?, None, None)
         };
         
         if self.states.is_user_online(UserId::from(user_id.get())) {
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
         
-        let session_id = self.states.new_session(UserId::from(user_id.get()), auth.socket.clone());
-        self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))
+        let session_id = self.states.new_session(UserId::from(user_id.get()), model.socket.clone());
+        let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))?;
+
+        model.socket.authenticated(auth);
+        model.socket.send(GenericAnswer::success(token).into());
+        Ok(Response::None)
     }
 }
 
@@ -120,23 +134,27 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::ViaCustomId", skip(self, _ctx))]
-    #[macros::api(name="ViaEmail")]
-    fn handle(&mut self, auth: CustomIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
+    #[macros::api(name="ViaEmail", socket=true)]
+    fn handle(&mut self, model: CustomIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
-        let user_info = DB::user_login_via_custom_id(&mut connection, &auth.id)?;
+        let user_info = DB::user_login_via_custom_id(&mut connection, &model.id)?;
 
         let (user_id, name, email) = match user_info {
             Some(user_info) => (user_info.user_id, user_info.name, user_info.email),
-            None => (DB::create_user_via_custom_id(&mut connection, &auth.id)?, None, None)
+            None => (DB::create_user_via_custom_id(&mut connection, &model.id)?, None, None)
         };
         
         if self.states.is_user_online(UserId::from(user_id.get())) {
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
         
-        let session_id = self.states.new_session(UserId::from(user_id.get()), auth.socket.clone());
-        self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))
+        let session_id = self.states.new_session(UserId::from(user_id.get()), model.socket.clone());
+        let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))?;
+
+        model.socket.authenticated(auth);
+        model.socket.send(GenericAnswer::success(token).into());
+        Ok(Response::None)
     }
 }
 
@@ -160,10 +178,15 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::Refresh", skip(self, _ctx))]
-    #[macros::api(name="ViaEmail")]
-    fn handle(&mut self, token: RefreshTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
-        match validate_auth(self.config.clone(), token.token) {
-            Some(claims) => self.generate_token(claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session)),
+    #[macros::api(name="ViaEmail", socket=true)]
+    fn handle(&mut self, model: RefreshTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
+        match validate_auth(self.config.clone(), model.token) {
+            Some(claims) => {
+                let (token, auth) = self.generate_token(claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session))?;
+                model.socket.authenticated(auth);
+                model.socket.send(GenericAnswer::success(token).into());
+                Ok(Response::None)
+            },
             None => Err(anyhow!(AuthError::TokenNotValid))
         }
     }
@@ -173,9 +196,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="Auth::Restore", skip(self, ctx))]
-    #[macros::api(name="ViaEmail")]
-    fn handle(&mut self, token: RestoreTokenRequest, ctx: &mut Context<Self>) -> Self::Result {
-        match validate_auth(self.config.clone(), token.token) {
+    #[macros::api(name="ViaEmail", socket=true)]
+    fn handle(&mut self, model: RestoreTokenRequest, ctx: &mut Context<Self>) -> Self::Result {
+        match validate_auth(self.config.clone(), model.token) {
             Some(auth) => {
                 let session_id = if self.states.is_session_online(&auth.user.session) {
                     if let Some(handle) = self.session_timeout_timers.remove(&auth.user.session) {
@@ -183,10 +206,13 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
                     }
                     auth.user.session
                 } else {
-                    self.states.new_session(auth.user.id, token.socket.clone())
+                    self.states.new_session(auth.user.id, model.socket.clone())
                 };
 
-                self.generate_token(auth.user.id, None, None, Some(session_id))
+                let (token, auth) = self.generate_token(auth.user.id, None, None, Some(session_id))?;
+                model.socket.authenticated(auth);
+                model.socket.send(GenericAnswer::success(token).into());
+                Ok(Response::None)
             },
             None => Err(anyhow!(AuthError::TokenNotValid))
         }

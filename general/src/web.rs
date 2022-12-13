@@ -55,3 +55,9 @@ impl<T: Serialize> From<GenericAnswer<T>> for String {
         serde_json::to_string(&source).unwrap_or_default()
     }
 }
+
+impl<T: DeserializeOwned> From<String> for GenericAnswer<T> {
+    fn from(source: String) -> Self {
+        serde_json::from_str(&source).unwrap()
+    }
+}
