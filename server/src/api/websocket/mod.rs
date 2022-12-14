@@ -87,33 +87,17 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
         let user_info = self.user_auth.clone();
         let socket = self.client.clone();
 
-        let future = Box::pin(async {
-            match message {
-                Request::Auth { auth_type } => process_auth(auth_type, auth_manager, user_info, socket).await,
-                Request::User { user_type } => process_user(user_type, user_manager, user_info).await,
-                Request::Room { room_type } => process_room(room_type, room_manager, user_info).await,
-            }
-        });
+        let validation = match message {
+            Request::Auth { auth_type } => process_auth(auth_type, auth_manager, user_info, socket),
+            Request::User { user_type } => process_user(user_type, user_manager, user_info, socket),
+            Request::Room { room_type } => process_room(room_type, room_manager, user_info, socket),
+        };
 
-        let actor_future = future
-            .into_actor(self)
-            .then(move |result, _, ctx| {
-                match result {
-                    Ok(response) => match response {
-                        Response::UserInformation(model) => ctx.text(serde_json::to_string(&GenericAnswer::success(model)).unwrap_or_default()),
-                        Response::RoomInformation(room_id) => ctx.text(serde_json::to_string(&GenericAnswer::success(room_id)).unwrap_or_default()),
-                        Response::None => ctx.text(serde_json::to_string(&Answer::success()).unwrap_or_default()),
-                    },
-                    Err(error) => {
-                        println!("{:?}", error);
-                        ctx.text(serde_json::to_string(&GenericAnswer::fail(error.to_string())).unwrap_or_default())
-                    }
-                }
-                fut::ready(())
-            });
+        if let Err(error) = validation {
+            println!("{:?}", error);
+            ctx.text(serde_json::to_string(&GenericAnswer::fail(error.to_string())).unwrap_or_default())
+        }
 
-        // Spawns a future into the context.
-        ctx.spawn(actor_future);
         Ok(())
     }
 

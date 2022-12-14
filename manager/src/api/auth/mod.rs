@@ -182,8 +182,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
     fn handle(&mut self, model: RefreshTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
         match validate_auth(self.config.clone(), model.token) {
             Some(claims) => {
-                let (token, auth) = self.generate_token(claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session))?;
-                model.socket.authenticated(auth);
+                let (token, _) = self.generate_token(claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session))?;
                 model.socket.send(GenericAnswer::success(token).into());
                 Ok(Response::None)
             },

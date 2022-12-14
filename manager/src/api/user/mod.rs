@@ -15,6 +15,7 @@ use database::{Pool, DatabaseTrait, RowId};
 use general::config::YummyConfig;
 use general::meta::{MetaType, MetaAccess};
 use general::model::{UserType, YummyState, UserId};
+use general::web::GenericAnswer;
 use moka::sync::Cache;
 use uuid::Uuid;
 
@@ -74,6 +75,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="User::get user info", skip(self, _ctx))]
+    #[macros::api(name="ViaEmail", socket=true)]
     fn handle(&mut self, model: GetUserInformation, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
@@ -103,7 +105,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
         match user {
             Some(mut user) => {
                 user.online = self.states.is_user_online(UserId::from(user_id));
-                Ok(Response::UserInformation(user))
+                model.socket.send(GenericAnswer::success(user).into());
+                Ok(Response::None)
             },
             None => Err(anyhow::anyhow!(UserError::UserNotFound))
         }
@@ -114,6 +117,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
     type Result = anyhow::Result<Response>;
 
     #[tracing::instrument(name="User::UpdateUser", skip(self, _ctx))]
+    #[macros::api(name="ViaEmail", socket=true)]
     fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
 
         let original_user_id = match model.user.deref() {

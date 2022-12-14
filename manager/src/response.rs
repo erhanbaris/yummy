@@ -7,6 +7,5 @@ use serde::Deserialize;
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum Response {
     None,
-    UserInformation(UserInformationModel),
     RoomInformation(RoomId),
 }

@@ -1,6 +1,7 @@
 use std::{fmt::Debug, sync::Arc, collections::HashMap};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use general::client::ClientTrait;
 
 use actix::prelude::Message;
 use validator::Validate;
@@ -12,26 +13,31 @@ use crate::response::Response;
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<Response>")]
 pub struct GetUserInformation {
-    pub query: GetUserInformationEnum
+    pub query: GetUserInformationEnum,
+
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
 impl GetUserInformation {
-    pub fn me(me: Arc<Option<UserAuth>>) -> Self {
+    pub fn me(me: Arc<Option<UserAuth>>, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
         Self {
-            query: GetUserInformationEnum::Me(me)
+            query: GetUserInformationEnum::Me(me),
+            socket
         }
     }
-    pub fn user(user: UserId, requester: Arc<Option<UserAuth>>) -> Self {
+    pub fn user(user: UserId, requester: Arc<Option<UserAuth>>, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
         Self {
             query: GetUserInformationEnum::User {
                 user,
                 requester
-            }
+            },
+            socket
         }
     }
-    pub fn user_via_system(user: UserId) -> Self {
+    pub fn user_via_system(user: UserId, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
         Self {
-            query: GetUserInformationEnum::UserViaSystem(user)
+            query: GetUserInformationEnum::UserViaSystem(user),
+            socket
         }
     }
 }
@@ -43,11 +49,12 @@ pub enum GetUserInformationEnum {
     User { user: UserId, requester: Arc<Option<UserAuth>> }
 }
 
-#[derive(Message, Validate, Debug, Default)]
+#[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<Response>")]
 pub struct UpdateUser {
     pub user: Arc<Option<UserAuth>>,
     pub name: Option<String>,
+    pub socket: Arc<dyn ClientTrait + Sync + Send>,
 
     #[validate(email)]
     pub email: Option<String>,
@@ -57,6 +64,26 @@ pub struct UpdateUser {
     pub user_type: Option<UserType>,
     pub meta: Option<HashMap<String, MetaType>>,
     pub access_level: MetaAccess
+}
+
+
+#[cfg(test)]
+impl Default for UpdateUser
+{
+    fn default() -> Self {
+        Self {
+            user: Arc::new(None),
+            name: None,
+            socket: Arc::new(crate::test::DummyClient::default()),
+            email: None,
+            password: None,
+            device_id: None,
+            access_level: MetaAccess::default(),
+            custom_id: None,
+            meta: None,
+            user_type: None
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
