@@ -135,7 +135,7 @@ pub struct RoomState {
     pub users: Mutex<HashSet<RoomUserInfo>>
 }
 
-#[derive(Default, Debug, Eq, PartialEq)]
+#[derive(Default, Debug, Eq)]
 pub struct RoomUserInfo {
     pub user_id: UserId,
     pub room_user_type: RoomUserType
@@ -144,6 +144,12 @@ pub struct RoomUserInfo {
 impl Hash for RoomUserInfo {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.user_id.hash(state)
+    }
+}
+
+impl PartialEq for RoomUserInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.user_id == other.user_id
     }
 }
 
@@ -187,7 +193,7 @@ impl YummyState {
     pub fn new_session(&self, user_id: UserId, socket: Arc<dyn ClientTrait + Sync + Send>) -> SessionId {
         let session_id = SessionId::new();
         self.session_to_user.lock().insert(session_id.clone(), user_id);
-        self.user.lock().insert(user_id.clone(), UserState { user_id: user_id, session: session_id.clone(), room: Cell::new(None), socket });
+        self.user.lock().insert(user_id, UserState { user_id, session: session_id.clone(), room: Cell::new(None), socket });
         session_id
     }
 
@@ -220,7 +226,7 @@ impl YummyState {
 
     #[tracing::instrument(name="create_room", skip(self))]
     pub fn create_room(&self, room_id: RoomId, max_user: usize) {
-        self.room.lock().insert(room_id.clone(), RoomState { max_user, room_id, users: Mutex::new(HashSet::new()) });
+        self.room.lock().insert(room_id, RoomState { max_user, room_id, users: Mutex::new(HashSet::new()) });
     }
 
     #[tracing::instrument(name="join_to_room", skip(self))]
@@ -251,7 +257,7 @@ impl YummyState {
     #[tracing::instrument(name="get_users_from_room", skip(self))]
     pub fn get_users_from_room(&self, room_id: RoomId) -> Result<Vec<UserId>, YummyStateError> {
         match self.room.lock().get_mut(room_id.borrow()) {
-            Some(room) => Ok(room.users.lock().iter().map(|item| item.user_id.clone()).collect::<Vec<_>>()),
+            Some(room) => Ok(room.users.lock().iter().map(|item| item.user_id).collect::<Vec<_>>()),
             None => Err(YummyStateError::RoomNotFound)
         }
     }

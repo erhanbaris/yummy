@@ -6,7 +6,7 @@ use std::sync::Arc;
 use actix::Addr;
 use database::DatabaseTrait;
 use general::{meta::MetaAccess, auth::UserAuth, client::ClientTrait};
-use manager::{api::{auth::AuthManager, user::UserManager, room::RoomManager}, response::Response};
+use manager::{api::{auth::AuthManager, user::UserManager, room::RoomManager}};
 use manager::api::auth::model::*;
 use manager::api::user::model::*;
 

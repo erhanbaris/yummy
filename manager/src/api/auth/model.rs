@@ -1,14 +1,13 @@
 use std::{fmt::Debug, sync::Arc};
-use actix::{prelude::Message, Recipient};
-use general::{model::{SessionId, WebsocketMessage, UserId}, auth::UserAuth};
+use actix::prelude::Message;
+use general::{model::{SessionId, UserId}, auth::UserAuth};
 use thiserror::Error;
 use validator::Validate;
 use general::client::ClientTrait;
 
-use crate::response::Response;
 
 #[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<Response>")]
+#[rtype(result = "anyhow::Result<()>")]
 pub struct EmailAuthRequest {
     #[validate(email(message="Email address is not valid"))]
     pub email: String,
@@ -22,7 +21,7 @@ pub struct EmailAuthRequest {
 }
 
 #[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<Response>")]
+#[rtype(result = "anyhow::Result<()>")]
 pub struct RefreshTokenRequest {
 
     #[validate(length(min = 275, max = 1024, message = "Length should be between 275 to 1024 chars"))]
@@ -32,7 +31,7 @@ pub struct RefreshTokenRequest {
 }
 
 #[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<Response>")]
+#[rtype(result = "anyhow::Result<()>")]
 pub struct RestoreTokenRequest {
 
     #[validate(length(min = 275, max = 1024, message = "Length should be between 275 to 1024 chars"))]
@@ -42,25 +41,25 @@ pub struct RestoreTokenRequest {
 }
 
 #[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<Response>")]
+#[rtype(result = "anyhow::Result<()>")]
 pub struct LogoutRequest {
     pub user: Arc<Option<UserAuth>>
 }
 
 #[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<Response>")]
+#[rtype(result = "anyhow::Result<()>")]
 pub struct StartUserTimeout {
     pub session_id: SessionId
 }
 
 #[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<Response>")]
+#[rtype(result = "anyhow::Result<()>")]
 pub struct StopUserTimeout {
     pub session_id: SessionId
 }
 
 #[derive(Message, Debug, Validate)]
-#[rtype(result = "anyhow::Result<Response>")]
+#[rtype(result = "anyhow::Result<()>")]
 pub struct DeviceIdAuthRequest {
     #[validate(length(min = 8, max = 128, message = "Length should be between 8 to 128 chars"))]
     pub id: String,
@@ -75,7 +74,7 @@ impl DeviceIdAuthRequest {
 }
 
 #[derive(Message, Debug, Validate)]
-#[rtype(result = "anyhow::Result<Response>")]
+#[rtype(result = "anyhow::Result<()>")]
 pub struct CustomIdAuthRequest {
     #[validate(length(min = 8, max = 128, message = "Length should be between 8 to 128 chars"))]
     pub id: String,

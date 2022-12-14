@@ -17,7 +17,6 @@ use database::{create_database, create_connection};
 use super::AuthManager;
 use super::*;
 
-use crate::response::Response;
 use crate::test::DummyClient;
 
 fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<database::SqliteStore>>, Arc<DummyClient>)> {

@@ -20,6 +20,7 @@ use database::{create_database, create_connection};
 use super::*;
 use crate::api::auth::AuthManager;
 use crate::api::auth::model::*;
+use crate::api::comm::CommunicationManager;
 use general::web::GenericAnswer;
 use crate::test::DummyClient;
 
@@ -70,13 +71,12 @@ async fn create_room_1() -> anyhow::Result<()> {
         name: None,
         access_type: general::model::CreateRoomAccessType::Friend,
         max_user: 4,
-        tags: Vec::new()
+        tags: Vec::new(),
+        socket:recipient.clone()
     }).await??;
 
-    let room_id = match response {
-        Response::RoomInformation(room_id) => room_id,
-        _ => { return Err(anyhow::anyhow!("Expected 'Response::RoomInformation'")); }
-    };
+    let room_id: GenericAnswer<RoomId> = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id = room_id.result.unwrap_or_default();
 
     let user_id = match user.as_ref() {
         Some(user) => user.user.clone(),
@@ -94,19 +94,18 @@ async fn create_room_2() -> anyhow::Result<()> {
     let (room_manager, auth_manager, config, states, recipient) = create_actor()?;
     let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".to_string(), true, recipient);
 
-    let response = room_manager.send(CreateRoomRequest {
+    room_manager.send(CreateRoomRequest {
         user: user.clone(),
         disconnect_from_other_room: false,
         name: None,
         access_type: general::model::CreateRoomAccessType::Tag("123456".to_string()),
         max_user: 4,
-        tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()]
+        tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
+        socket:recipient.clone()
     }).await??;
 
-    let room_id = match response {
-        Response::RoomInformation(room_id) => room_id,
-        _ => { return Err(anyhow::anyhow!("Expected 'Response::RoomInformation'")); }
-    };
+    let room_id: GenericAnswer<RoomId> = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id = room_id.result.unwrap_or_default();
 
     let user_id = match user.as_ref() {
         Some(user) => user.user.clone(),

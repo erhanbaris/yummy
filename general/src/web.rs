@@ -20,6 +20,18 @@ impl Answer {
     }
 }
 
+impl From<Answer> for String {
+    fn from(source: Answer) -> Self {
+        serde_json::to_string(&source).unwrap_or_default()
+    }
+}
+
+impl From<String> for Answer {
+    fn from(source: String) -> Self {
+        serde_json::from_str(&source).unwrap()
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GenericAnswer<T> {
     pub status: bool,

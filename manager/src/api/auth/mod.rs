@@ -17,8 +17,6 @@ use database::{Pool, DatabaseTrait};
 use anyhow::{anyhow, Ok};
 use general::model::{UserId, SessionId};
 
-use crate::response::Response;
-
 use self::model::*;
 
 pub fn generate_response<T: Debug + Serialize + DeserializeOwned>(model: T) -> String {
@@ -66,7 +64,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for AuthMa
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAuthRequest> for AuthManager<DB> {
-    type Result = anyhow::Result<Response>;
+    type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="Auth::ViaEmail", skip(self, _ctx))]
     #[macros::api(name="ViaEmail", socket=true)]
@@ -98,12 +96,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
 
         model.socket.authenticated(auth);
         model.socket.send(GenericAnswer::success(token).into());
-        Ok(Response::None)
+        Ok(())
     }
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceIdAuthRequest> for AuthManager<DB> {
-    type Result = anyhow::Result<Response>;
+    type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="Auth::ViaDeviceId", skip(self, _ctx))]
     #[macros::api(name="ViaEmail", socket=true)]
@@ -126,12 +124,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
 
         model.socket.authenticated(auth);
         model.socket.send(GenericAnswer::success(token).into());
-        Ok(Response::None)
+        Ok(())
     }
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomIdAuthRequest> for AuthManager<DB> {
-    type Result = anyhow::Result<Response>;
+    type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="Auth::ViaCustomId", skip(self, _ctx))]
     #[macros::api(name="ViaEmail", socket=true)]
@@ -154,12 +152,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
 
         model.socket.authenticated(auth);
         model.socket.send(GenericAnswer::success(token).into());
-        Ok(Response::None)
+        Ok(())
     }
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRequest> for AuthManager<DB> {
-    type Result = anyhow::Result<Response>;
+    type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="Auth::Logout", skip(self, _ctx))]
     #[macros::api(name="ViaEmail")]
@@ -167,7 +165,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRe
         match model.user.deref() {
             Some(user) => {
                 self.states.as_ref().close_session(&user.session);
-                Ok(Response::None)
+                Ok(())
             },
             None => Err(anyhow::anyhow!(AuthError::TokenNotValid))
         }
@@ -175,7 +173,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRe
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshTokenRequest> for AuthManager<DB> {
-    type Result = anyhow::Result<Response>;
+    type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="Auth::Refresh", skip(self, _ctx))]
     #[macros::api(name="ViaEmail", socket=true)]
@@ -184,7 +182,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
             Some(claims) => {
                 let (token, _) = self.generate_token(claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session))?;
                 model.socket.send(GenericAnswer::success(token).into());
-                Ok(Response::None)
+                Ok(())
             },
             None => Err(anyhow!(AuthError::TokenNotValid))
         }
@@ -192,7 +190,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreTokenRequest> for AuthManager<DB> {
-    type Result = anyhow::Result<Response>;
+    type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="Auth::Restore", skip(self, ctx))]
     #[macros::api(name="ViaEmail", socket=true)]
@@ -211,7 +209,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
                 let (token, auth) = self.generate_token(auth.user.id, None, None, Some(session_id))?;
                 model.socket.authenticated(auth);
                 model.socket.send(GenericAnswer::success(token).into());
-                Ok(Response::None)
+                Ok(())
             },
             None => Err(anyhow!(AuthError::TokenNotValid))
         }
@@ -219,7 +217,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUserTimeout> for AuthManager<DB> {
-    type Result = anyhow::Result<Response>;
+    type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="Auth::StartTimer", skip(self, ctx))]
     #[macros::api(name="ViaEmail")]
@@ -234,12 +232,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUse
         });
 
         self.session_timeout_timers.insert(session_id, timer);
-        Ok(Response::None)
+        Ok(())
     }
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StopUserTimeout> for AuthManager<DB> {
-    type Result = anyhow::Result<Response>;
+    type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="Auth::StopTimer", skip(self, ctx))]
     #[macros::api(name="ViaEmail")]
@@ -248,6 +246,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StopUser
             ctx.cancel_future(handle);
         }
 
-        Ok(Response::None)
+        Ok(())
     }
 }

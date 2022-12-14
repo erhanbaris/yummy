@@ -3,17 +3,14 @@ pub mod model;
 #[cfg(test)]
 mod test;
 
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use actix::Handler;
 use actix::Actor;
 use actix::Context;
 use actix_broker::BrokerSubscribe;
-use database::DatabaseTrait;
 
 use general::config::YummyConfig;
-use general::model::WebsocketMessage;
 use general::model::YummyState;
 
 
@@ -61,9 +58,8 @@ impl Handler<SendMessage> for CommunicationManager {
     fn handle(&mut self, model: SendMessage, _ctx: &mut Self::Context) -> Self::Result {
         println!("connection:SendMessage {:?}", model);
 
-        match self.states.get_user_socket(model.user_id) {
-            Some(socket) => socket.send(model.message),
-            None => ()
+        if let Some(socket) = self.states.get_user_socket(model.user_id) {
+            socket.send(model.message)
         }
     }
 }

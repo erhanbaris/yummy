@@ -8,10 +8,8 @@ use validator::Validate;
 
 use general::{model::{UserId, UserType}, auth::UserAuth, meta::{MetaType, MetaAccess}};
 
-use crate::response::Response;
-
 #[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<Response>")]
+#[rtype(result = "anyhow::Result<()>")]
 pub struct GetUserInformation {
     pub query: GetUserInformationEnum,
 
@@ -50,7 +48,7 @@ pub enum GetUserInformationEnum {
 }
 
 #[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<Response>")]
+#[rtype(result = "anyhow::Result<()>")]
 pub struct UpdateUser {
     pub user: Arc<Option<UserAuth>>,
     pub name: Option<String>,

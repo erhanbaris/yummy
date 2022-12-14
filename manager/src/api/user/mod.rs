@@ -15,11 +15,10 @@ use database::{Pool, DatabaseTrait, RowId};
 use general::config::YummyConfig;
 use general::meta::{MetaType, MetaAccess};
 use general::model::{UserType, YummyState, UserId};
-use general::web::GenericAnswer;
+use general::web::{GenericAnswer, Answer};
 use moka::sync::Cache;
 use uuid::Uuid;
 
-use crate::response::Response;
 use crate::api::auth::model::AuthError;
 
 use self::model::*;
@@ -72,7 +71,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static>  UserManager<DB>
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserInformation> for UserManager<DB> {
-    type Result = anyhow::Result<Response>;
+    type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="User::get user info", skip(self, _ctx))]
     #[macros::api(name="ViaEmail", socket=true)]
@@ -106,7 +105,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
             Some(mut user) => {
                 user.online = self.states.is_user_online(UserId::from(user_id));
                 model.socket.send(GenericAnswer::success(user).into());
-                Ok(Response::None)
+                Ok(())
             },
             None => Err(anyhow::anyhow!(UserError::UserNotFound))
         }
@@ -114,7 +113,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUser> for UserManager<DB> {
-    type Result = anyhow::Result<Response>;
+    type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="User::UpdateUser", skip(self, _ctx))]
     #[macros::api(name="ViaEmail", socket=true)]
@@ -125,9 +124,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
-        let user_updated = model.custom_id.is_some() || model.device_id.is_some() || model.email.is_some() || model.name.is_some() || model.password.is_some() || model.user_type.is_some();
+        let has_user_update = model.custom_id.is_some() || model.device_id.is_some() || model.email.is_some() || model.name.is_some() || model.password.is_some() || model.user_type.is_some();
 
-        if !user_updated && model.meta.as_ref().map(|dict| dict.len()).unwrap_or_default() == 0 {
+        if !has_user_update && model.meta.as_ref().map(|dict| dict.len()).unwrap_or_default() == 0 {
             return Err(anyhow::anyhow!(UserError::UpdateInformationMissing));
         }
 
@@ -194,17 +193,21 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
                     }
                 };
             }
-
+            
             // Update user
-            match user_updated {
+            match has_user_update {
                 true => match DB::update_user(connection, user_id, updates)? {
                     0 => Err(anyhow::anyhow!(UserError::UserNotFound)),
                     _ => {
                         self.cleanup_user_cache(&original_user_id);
-                        Ok(Response::None)
+                        model.socket.send(Answer::success().into());
+                        Ok(())
                     }
                 },
-                false => Ok(Response::None)
+                false => {
+                    model.socket.send(Answer::success().into());
+                    Ok(())
+                }
             }
         })
     }

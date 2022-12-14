@@ -74,7 +74,7 @@ async fn get_private_user_2() -> anyhow::Result<()> {
     user_manager.send(GetUserInformation::me(Arc::new(Some(UserAuth {
         user: user.user.id,
         session: user.user.session
-    })), socket)).await??;
+    })), socket.clone())).await??;
 
    
     let user: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
@@ -492,9 +492,9 @@ async fn meta_manupulation_test() -> anyhow::Result<()> {
     let information_meta = information.meta.unwrap();
     assert_eq!(information_meta.len(), 4);
     assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), MetaAccess::User)));
-    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), MetaAccess::Friend)));
-    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, MetaAccess::Me)));
+    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, MetaAccess::Anonymous)));
 
     /* Check for moderator */
     user_manager.send(GetUserInformation::user(user_id.clone(), moderator.clone(), socket.clone())).await??;
@@ -506,10 +506,10 @@ async fn meta_manupulation_test() -> anyhow::Result<()> {
     let information_meta = information.meta.unwrap();
     assert_eq!(information_meta.len(), 5);
     assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), MetaAccess::User)));
-    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), MetaAccess::Friend)));
-    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, MetaAccess::Me)));
-    assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), MetaAccess::Mod)));
+    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), MetaAccess::Anonymous)));
 
 
     /* Check for admin */
@@ -521,11 +521,11 @@ async fn meta_manupulation_test() -> anyhow::Result<()> {
     let information_meta = information.meta.unwrap();
     assert_eq!(information_meta.len(), 6);
     assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), MetaAccess::User)));
-    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), MetaAccess::Friend)));
-    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, MetaAccess::Me)));
-    assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), MetaAccess::Mod)));
-    assert_eq!(information_meta.get("admin"), Some(&MetaType::Number(123456789.0, MetaAccess::Admin)));
+    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("admin"), Some(&MetaType::Number(123456789.0, MetaAccess::Anonymous)));
 
     /* Check for system */
     user_manager.send(GetUserInformation::user_via_system(user_id.clone(), socket.clone())).await??;
@@ -536,12 +536,12 @@ async fn meta_manupulation_test() -> anyhow::Result<()> {
     let information_meta = information.meta.unwrap();
     assert_eq!(information_meta.len(), 7);
     assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), MetaAccess::User)));
-    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), MetaAccess::Friend)));
-    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, MetaAccess::Me)));
-    assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), MetaAccess::Mod)));
-    assert_eq!(information_meta.get("admin"), Some(&MetaType::Number(123456789.0, MetaAccess::Admin)));
-    assert_eq!(information_meta.get("system"), Some(&MetaType::Number(112233.0, MetaAccess::System)));
+    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("admin"), Some(&MetaType::Number(123456789.0, MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("system"), Some(&MetaType::Number(112233.0, MetaAccess::Anonymous)));
 
     /* Check for other user */
     user_manager.send(GetUserInformation::user(user_id.clone(), other_user.clone(), socket.clone())).await??;
@@ -552,7 +552,7 @@ async fn meta_manupulation_test() -> anyhow::Result<()> {
     let information_meta = information.meta.unwrap();
     assert_eq!(information_meta.len(), 2);
     assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), MetaAccess::User)));
+    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), MetaAccess::Anonymous)));
 
     /* Check for anonymous */
     user_manager.send(GetUserInformation::user(user_id.clone(), Arc::new(None), socket.clone())).await??;

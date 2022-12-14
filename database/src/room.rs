@@ -6,7 +6,7 @@ use general::model::{CreateRoomAccessType, RoomUserType};
 use crate::{SqliteStore, PooledConnection, RowId, model::{RoomInsert, RoomTagInsert, RoomUserInsert}, schema::{room::{self}, room_tag, room_user}};
 
 pub trait RoomStoreTrait: Sized {
-    fn create_room<'a>(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, password: Option<&'a str>, max_user: usize, tags: Vec<String>) -> anyhow::Result<RowId>;
+    fn create_room(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, password: Option<&str>, max_user: usize, tags: Vec<String>) -> anyhow::Result<RowId>;
     fn join_to_room(connection: &mut PooledConnection, room_id: RowId, user_id: RowId, user_type: RoomUserType) -> anyhow::Result<()>;
 }
 
@@ -15,11 +15,14 @@ impl RoomStoreTrait for SqliteStore {
     fn create_room<'a>(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, password: Option<&'a str>, max_user: usize, tags: Vec<String>) -> anyhow::Result<RowId> {
         let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
 
-        let mut model = RoomInsert::default();
-        model.insert_date = insert_date;
-        model.password = password;
-        model.name = name;
-        model.max_user = max_user as i32;
+        let mut model = RoomInsert {
+            insert_date,
+            password,
+            name,
+            max_user: max_user as i32,
+            ..Default::default()
+        };
+
         
         let (access, supplementary) = match access_type {
             CreateRoomAccessType::Public => (1, None),
@@ -35,14 +38,16 @@ impl RoomStoreTrait for SqliteStore {
 
         let mut tag_inserts = Vec::new();
         for tag in tags.iter() {
-            let mut insert = RoomTagInsert::default();
-            insert.room_id = room_id.clone();
-            insert.tag = &tag[..];
-            insert.insert_date = insert_date;
+            let insert = RoomTagInsert {
+                room_id,
+                tag: &tag[..],
+                insert_date,
+                ..Default::default()
+            };
             tag_inserts.push(insert);
         }
 
-        if tag_inserts.len() > 0 {
+        if !tag_inserts.is_empty() {
             diesel::insert_into(room_tag::table).values(&tag_inserts).execute(connection)?;
         }
 
@@ -51,11 +56,14 @@ impl RoomStoreTrait for SqliteStore {
 
     #[tracing::instrument(name="Join to room", skip(connection))]
     fn join_to_room(connection: &mut PooledConnection, room_id: RowId, user_id: RowId, user_type: RoomUserType) -> anyhow::Result<()> {
-        let mut insert = RoomUserInsert::default();
-        insert.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
-        insert.room_id = room_id;
-        insert.user_id = user_id;
-        insert.room_user_type = user_type as i32;
+
+        let insert = RoomUserInsert {
+            insert_date: SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default(),
+            room_id,
+            user_id,
+            room_user_type: user_type as i32,
+            ..Default::default()
+        };
         diesel::insert_into(room_user::table).values(&vec![insert]).execute(connection)?;
 
         Ok(())

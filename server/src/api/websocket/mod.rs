@@ -12,22 +12,18 @@ use general::client::ClientTrait;
 use general::error::YummyError;
 use general::model::UserAuthenticated;
 use general::model::WebsocketMessage;
-use general::web::Answer;
 use general::web::GenericAnswer;
 use manager::api::auth::model::StartUserTimeout;
 use manager::api::room::RoomManager;
 use manager::api::user::UserManager;
-use manager::response::Response;
 use std::sync::Arc;
 use std::time::Instant;
 
 use general::client::EmptyClient;
 use actix::Actor;
 use actix::AsyncContext;
-use actix::ActorFutureExt;
 use actix::Handler;
-use actix::WrapFuture;
-use actix::{ActorContext, Addr, Running, StreamHandler, fut};
+use actix::{ActorContext, Addr, Running, StreamHandler};
 use actix_web::Result;
 use actix_web_actors::ws;
 use manager::api::auth::AuthManager;
@@ -334,7 +330,7 @@ mod tests {
             let receive = $client.get_text().await;
             assert!(receive.is_some());
         
-            let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+            let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
             assert!(response.status);
         };
     }

@@ -1,5 +1,4 @@
 pub mod api;
-pub mod response;
 
 #[cfg(test)]
 mod test {
