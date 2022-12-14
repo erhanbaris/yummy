@@ -1,10 +1,11 @@
 use std::{fmt::Debug, sync::Arc};
 
 use actix::prelude::Message;
+use serde::{Serialize, Deserialize};
 use thiserror::Error;
 use validator::Validate;
 
-use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType}, client::ClientTrait};
+use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait};
 
 
 #[derive(Message, Validate, Debug)]
@@ -32,4 +33,13 @@ pub struct JoinToRoomRequest {
 pub enum RoomError {
     #[error("User joined to other room")]
     UserJoinedOtherRoom
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(tag = "type")]
+pub enum RoomResponse {
+    UserJoinedToRoom {
+        user: UserId,
+        room: RoomId
+    }
 }

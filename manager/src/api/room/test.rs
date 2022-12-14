@@ -1,7 +1,5 @@
-use actix::Recipient;
-use general::client::ClientTrait;
-use general::client::EmptyClient;
-use general::model::WebsocketMessage;
+use serde::Deserialize;
+use serde::Serialize;
 use uuid::Uuid;
 
 use general::auth::UserAuth;
@@ -20,7 +18,6 @@ use database::{create_database, create_connection};
 use super::*;
 use crate::api::auth::AuthManager;
 use crate::api::auth::model::*;
-use crate::api::comm::CommunicationManager;
 use general::web::GenericAnswer;
 use crate::test::DummyClient;
 
@@ -47,6 +44,13 @@ macro_rules! email_auth {
     };
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct UserJoinedToRoom {
+    #[serde(rename = "type")]
+    class_type: String,
+    user: UserId,
+    room: RoomId
+}
 
 fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>, Arc<YummyState>, Arc<DummyClient>)> {
     let mut db_location = temp_dir();
@@ -54,10 +58,9 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
     
     let config = get_configuration();
     let states = Arc::new(YummyState::default());
-    let communication_manager = CommunicationManager::new(config.clone(), states.clone()).start();
     let connection = create_connection(db_location.to_str().unwrap())?;
     create_database(&mut connection.clone().get()?)?;
-    Ok((RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), communication_manager.recipient::<SendMessage>()).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config, states.clone(), Arc::new(DummyClient::default())))
+    Ok((RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config, states.clone(), Arc::new(DummyClient::default())))
 }
 
 #[actix::test]
@@ -65,7 +68,7 @@ async fn create_room_1() -> anyhow::Result<()> {
     let (room_manager, auth_manager, config, states, recipient) = create_actor()?;
     let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".to_string(), true, recipient);
 
-    let response = room_manager.send(CreateRoomRequest {
+    room_manager.send(CreateRoomRequest {
         user: user.clone(),
         disconnect_from_other_room: false,
         name: None,
@@ -115,5 +118,59 @@ async fn create_room_2() -> anyhow::Result<()> {
     assert!(room_id.get() != uuid::Uuid::nil());
     assert!(states.get_user_room(user_id).is_some());
     
+    Ok(())
+}
+
+#[actix::test]
+async fn create_room_3() -> anyhow::Result<()> {
+    let (room_manager, auth_manager, config, _, user_1_socket) = create_actor()?;
+    let user_1 = email_auth!(auth_manager, config.clone(), "user1@gmail.com".to_string(), "erhan".to_string(), true, user_1_socket);
+
+    let user_2_socket = Arc::new(DummyClient::default());
+    let user_2 = email_auth!(auth_manager, config.clone(), "user2@gmail.com".to_string(), "erhan".to_string(), true, user_2_socket);
+
+    let user_3_socket = Arc::new(DummyClient::default());
+    let user_3 = email_auth!(auth_manager, config.clone(), "user3@gmail.com".to_string(), "erhan".to_string(), true, user_3_socket);
+
+    room_manager.send(CreateRoomRequest {
+        user: user_1.clone(),
+        disconnect_from_other_room: false,
+        name: None,
+        access_type: general::model::CreateRoomAccessType::Tag("123456".to_string()),
+        max_user: 4,
+        tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
+        socket:user_1_socket.clone()
+    }).await??;
+
+    let room_id: GenericAnswer<RoomId> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id = room_id.result.unwrap_or_default();
+
+    assert!(room_id.get() != uuid::Uuid::nil());
+
+    room_manager.send(JoinToRoomRequest {
+        user: user_2.clone(),
+        room: room_id,
+        room_user_type: RoomUserType::User,
+        socket:user_2_socket.clone()
+    }).await??;
+
+    room_manager.send(JoinToRoomRequest {
+        user: user_3.clone(),
+        room: room_id,
+        room_user_type: RoomUserType::User,
+        socket:user_3_socket.clone()
+    }).await??;
+
+    // User 1 should receive other 2 users join message
+    let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    assert_eq!(message.user, user_2.as_ref().clone().unwrap().user);
+    
+    let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    assert_eq!(message.user, user_3.as_ref().clone().unwrap().user);
+
+    // User 2 should receive only user 3's join message
+    let message: UserJoinedToRoom = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    assert_eq!(message.user, user_3.as_ref().clone().unwrap().user);
+
     Ok(())
 }

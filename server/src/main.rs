@@ -2,12 +2,10 @@
 mod api;
 
 use general::config::{get_configuration, get_env_var};
-use manager::api::comm::model::SendMessage;
 use manager::api::user::UserManager;
 use std::sync::Arc;
 
 use manager::api::auth::AuthManager;
-use manager::api::comm::CommunicationManager;
 
 use actix_web::error::InternalError;
 
@@ -47,11 +45,10 @@ async fn main() -> std::io::Result<()> {
 
     let states = Arc::new(YummyState::default());
 
-    let communication_manager = CommunicationManager::new(config.clone(), states.clone()).start();
 
     let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
     let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
-    let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, database.clone(), communication_manager.recipient::<SendMessage>()).start());
+    let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, database.clone()).start());
         
     HttpServer::new(move || {
         let config = get_configuration();

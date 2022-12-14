@@ -57,7 +57,6 @@ where
 
     pub async fn get_text(&mut self) -> Option<String> {
         let message = self.socket.next().await;
-        println!(">>>>> RECEIVE: {:?}", message);
         match message {
             Some(Ok(Frame::Text(t))) => {
                 let bytes = t.as_ref();

@@ -1,9 +1,4 @@
-use std::cell::Cell;
-use std::collections::VecDeque;
-use std::sync::Mutex;
 use std::time::Duration;
-use actix::Recipient;
-use general::client::ClientTrait;
 use general::config::YummyConfig;
 use general::auth::validate_auth;
 use general::model::YummyState;

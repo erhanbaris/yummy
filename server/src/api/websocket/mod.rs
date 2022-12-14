@@ -90,7 +90,6 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
         };
 
         if let Err(error) = validation {
-            println!("{:?}", error);
             ctx.text(serde_json::to_string(&GenericAnswer::fail(error.to_string())).unwrap_or_default())
         }
 
@@ -135,7 +134,6 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> StreamHandler<Result<ws::Mess
 {
     #[tracing::instrument(name="handle", skip(self, ctx))]
     fn handle(&mut self, message: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        println!("Message received, {:?}", message);
 
         let result = match message {
             Ok(ws::Message::Close(reason)) => {
@@ -168,7 +166,6 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Handler<WebsocketMessage> for
     
     #[tracing::instrument(name="handle", skip(self, ctx))]
     fn handle(&mut self, message: WebsocketMessage, ctx: &mut Self::Context) {
-        println!("SEND:{:?}", message.0);
         ctx.text(message.0);
     }
 }
@@ -203,13 +200,11 @@ impl GameWebsocketClient {
 
 impl ClientTrait for GameWebsocketClient {
     fn send(&self, message: String) {
-        println!("Send message, {}", message);
         self.sender.do_send(WebsocketMessage(message));
     }
 
     fn authenticated(&self, user: general::auth::UserJwt) {
         self.auth.do_send(UserAuthenticated(user));
-        println!("authenticated");
     }
 }
 
@@ -229,8 +224,6 @@ mod tests {
     use general::model::{YummyState, UserType};
     use general::web::Answer;
     use manager::api::auth::AuthManager;
-    use manager::api::comm::CommunicationManager;
-    use manager::api::comm::model::SendMessage;
     use serde::Deserialize;
     use serde_json::json;
     use uuid::Uuid;
@@ -346,10 +339,9 @@ mod tests {
             create_database(&mut connection.clone().get().unwrap()).unwrap();
             
             let states = Arc::new(YummyState::default());
-            let communication_manager = CommunicationManager::new(config.clone(), states.clone()).start();
             let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
             let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
-            let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection), communication_manager.recipient::<SendMessage>()).start());
+            let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start());
 
             let query_cfg = QueryConfig::default()
                 .error_handler(|err, _| {

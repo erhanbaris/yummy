@@ -69,8 +69,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
     #[tracing::instrument(name="Auth::ViaEmail", skip(self, _ctx))]
     #[macros::api(name="ViaEmail", socket=true)]
     fn handle(&mut self, model: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
-        println!("{:?}", model);
-
         let mut connection = self.database.get()?;
         let user_info = DB::user_login_via_email(&mut connection, &model.email)?;
 

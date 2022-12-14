@@ -8,7 +8,7 @@ use std::{marker::PhantomData, ops::Deref};
 use std::sync::Arc;
 use anyhow::Ok;
 
-use actix::{Context, Actor, Handler, Recipient};
+use actix::{Context, Actor, Handler};
 use actix_broker::{BrokerSubscribe};
 use database::{Pool, DatabaseTrait};
 use database::RowId;
@@ -23,24 +23,21 @@ use crate::api::auth::model::AuthError;
 use self::model::*;
 
 use super::auth::model::UserDisconnectRequest;
-use super::comm::model::SendMessage;
 
 pub struct RoomManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
     states: Arc<YummyState>,
-    _marker: PhantomData<DB>,
-    communication: Recipient<SendMessage>
+    _marker: PhantomData<DB>
 }
 
 impl<DB: DatabaseTrait + ?Sized> RoomManager<DB> {
-    pub fn new(config: Arc<YummyConfig>, states: Arc<YummyState>, database: Arc<Pool>, communication: Recipient<SendMessage>) -> Self {
+    pub fn new(config: Arc<YummyConfig>, states: Arc<YummyState>, database: Arc<Pool>) -> Self {
         Self {
             config,
             database,
             states,
-            _marker: PhantomData,
-            communication
+            _marker: PhantomData
         }
     }
 }
@@ -63,7 +60,21 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisc
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> {
-    pub fn disconnect_from_room<T: Borrow<UserId> + std::fmt::Debug>(&self, _: T) {
+    pub fn disconnect_from_room<T: Borrow<UserId> + std::fmt::Debug>(&self, user: T) {
+        /*let users = self.states.get_users_from_room(model.room)?;
+        self.states.join_to_room(model.room, user_id, model.room_user_type)?;
+        
+        let mut connection = self.database.get()?;
+        DB::join_to_room(&mut connection, RowId(model.room.get()), RowId(user_id.get()), model.room_user_type)?;
+
+        for user in users.into_iter() {
+            if let Some(socket) = self.states.get_user_socket(user) {
+                socket.send(serde_json::to_string(&RoomResponse::UserJoinedToRoom {
+                    user: user_id,
+                    room: model.room
+                }).unwrap_or_default());
+            }
+        }*/
     }
 }
 
@@ -138,7 +149,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
         DB::join_to_room(&mut connection, RowId(model.room.get()), RowId(user_id.get()), model.room_user_type)?;
 
         for user in users.into_iter() {
-            self.communication.do_send(SendMessage::create(user, "merhaba dünya".to_string()));
+            if let Some(socket) = self.states.get_user_socket(user) {
+                socket.send(serde_json::to_string(&RoomResponse::UserJoinedToRoom {
+                    user: user_id,
+                    room: model.room
+                }).unwrap_or_default());
+            }
         }
 
         Ok(())

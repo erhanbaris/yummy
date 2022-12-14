@@ -1,6 +1,8 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use diesel::RunQueryDsl;
+use diesel::QueryDsl;
+use diesel::ExpressionMethods;
 use general::model::{CreateRoomAccessType, RoomUserType};
 
 use crate::{SqliteStore, PooledConnection, RowId, model::{RoomInsert, RoomTagInsert, RoomUserInsert}, schema::{room::{self}, room_tag, room_user}};
@@ -8,6 +10,7 @@ use crate::{SqliteStore, PooledConnection, RowId, model::{RoomInsert, RoomTagIns
 pub trait RoomStoreTrait: Sized {
     fn create_room(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, password: Option<&str>, max_user: usize, tags: Vec<String>) -> anyhow::Result<RowId>;
     fn join_to_room(connection: &mut PooledConnection, room_id: RowId, user_id: RowId, user_type: RoomUserType) -> anyhow::Result<()>;
+    fn disconnect_from_room(connection: &mut PooledConnection, room_id: RowId, user_id: RowId) -> anyhow::Result<()>;
 }
 
 impl RoomStoreTrait for SqliteStore {
@@ -66,6 +69,12 @@ impl RoomStoreTrait for SqliteStore {
         };
         diesel::insert_into(room_user::table).values(&vec![insert]).execute(connection)?;
 
+        Ok(())
+    }
+
+    #[tracing::instrument(name="Disconnect from room", skip(connection))]
+    fn disconnect_from_room(connection: &mut PooledConnection, room_id: RowId, user_id: RowId) -> anyhow::Result<()> {
+        diesel::delete(room_user::table.filter(room_user::user_id.eq(&user_id))).execute(connection)?;
         Ok(())
     }
 }
