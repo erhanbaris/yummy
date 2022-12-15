@@ -174,6 +174,9 @@ pub enum YummyStateError {
     #[error("User already in room")]
     UserAlreadInRoom,
     
+    #[error("User could not found in the room")]
+    UserCouldNotFoundInRoom,
+    
     #[error("Room has max users")]
     RoomHasMaxUsers
 }
@@ -254,6 +257,34 @@ impl YummyState {
         }
     }
 
+
+    #[tracing::instrument(name="join_to_room", skip(self))]
+    pub fn disconnect_from_room(&self, room_id: RoomId, user_id: UserId) -> Result<bool, YummyStateError> {
+        let mut rooms = self.room.lock();
+        let room_removed = match rooms.get_mut(room_id.borrow()) {
+            Some(room) => {
+                let mut users = room.users.lock();
+
+                let user_removed = users.remove(&RoomUserInfo {
+                    user_id,
+                    room_user_type: RoomUserType::default() // Hash only consider user_id, so room_user_type not important in this case
+                });
+
+                match user_removed {
+                    true => Ok(users.is_empty()),
+                    false => Err(YummyStateError::UserCouldNotFoundInRoom)
+                }
+            }
+            None => Err(YummyStateError::RoomNotFound)
+        }?;
+
+        if room_removed {
+            rooms.remove(room_id.borrow());
+        }
+
+        Ok(room_removed)
+    }
+
     #[tracing::instrument(name="get_users_from_room", skip(self))]
     pub fn get_users_from_room(&self, room_id: RoomId) -> Result<Vec<UserId>, YummyStateError> {
         match self.room.lock().get_mut(room_id.borrow()) {
@@ -331,6 +362,13 @@ mod tests {
         assert_eq!(state.join_to_room(room_1.clone(), user_2.clone(), RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
 
         assert_eq!(state.join_to_room(RoomId::new(), UserId::new(), RoomUserType::Owner).err().unwrap(), YummyStateError::RoomNotFound);
+        assert_eq!(state.get_users_from_room(room_1.clone())?.len(), 2);
+
+        assert_eq!(state.disconnect_from_room(room_1.clone(), user_1.clone())?, false);
+        assert_eq!(state.get_users_from_room(room_1.clone())?.len(), 1);
+
+        assert_eq!(state.disconnect_from_room(room_1.clone(), user_2.clone())?, true);
+        assert!(state.get_users_from_room(room_1.clone()).is_err());
 
         Ok(())
     }

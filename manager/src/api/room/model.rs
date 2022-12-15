@@ -41,5 +41,9 @@ pub enum RoomResponse {
     UserJoinedToRoom {
         user: UserId,
         room: RoomId
+    },
+    UserDisconnectedFromRoom {
+        user: UserId,
+        room: RoomId
     }
 }

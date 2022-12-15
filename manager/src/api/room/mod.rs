@@ -3,7 +3,6 @@ pub mod model;
 #[cfg(test)]
 mod test;
 
-use std::borrow::Borrow;
 use std::{marker::PhantomData, ops::Deref};
 use std::sync::Arc;
 use anyhow::Ok;
@@ -60,21 +59,23 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisc
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> {
-    pub fn disconnect_from_room<T: Borrow<UserId> + std::fmt::Debug>(&self, user: T) {
-        /*let users = self.states.get_users_from_room(model.room)?;
-        self.states.join_to_room(model.room, user_id, model.room_user_type)?;
+    pub fn disconnect_from_room(&self, room_id: RoomId, user_id: UserId) -> anyhow::Result<bool> {
+        let room_removed = self.states.disconnect_from_room(room_id.clone(), user_id.clone())?;
+        let users = self.states.get_users_from_room(room_id.clone())?;
         
         let mut connection = self.database.get()?;
-        DB::join_to_room(&mut connection, RowId(model.room.get()), RowId(user_id.get()), model.room_user_type)?;
+        DB::disconnect_from_room(&mut connection, RowId(room_id.get()), RowId(user_id.get()))?;
 
         for user in users.into_iter() {
             if let Some(socket) = self.states.get_user_socket(user) {
-                socket.send(serde_json::to_string(&RoomResponse::UserJoinedToRoom {
+                socket.send(serde_json::to_string(&RoomResponse::UserDisconnectedFromRoom {
                     user: user_id,
-                    room: model.room
+                    room: room_id
                 }).unwrap_or_default());
             }
-        }*/
+        }
+
+        Ok(room_removed)
     }
 }
 
@@ -93,11 +94,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
         };
 
         // User already joined to room
-        if self.states.get_user_room(user_id).is_some() {
+        if let Some(room_id) = self.states.get_user_room(user_id) {
             match disconnect_from_other_room {
-                true => self.disconnect_from_room(user_id),
+                true => self.disconnect_from_room(room_id, user_id)?,
                 false => return Err(anyhow::anyhow!(RoomError::UserJoinedOtherRoom))
-            }
+            };
         }
 
         let mut connection = self.database.get()?;
@@ -141,6 +142,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
             Some(user) => UserId::from(user.user.get()),
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
+
+        if let Some(room_id) = self.states.get_user_room(user_id) {
+            // User already joined to room, disconnect
+            self.disconnect_from_room(room_id, user_id)?;
+        }
 
         let users = self.states.get_users_from_room(model.room)?;
         self.states.join_to_room(model.room, user_id, model.room_user_type)?;

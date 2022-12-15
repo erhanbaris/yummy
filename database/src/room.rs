@@ -37,7 +37,10 @@ impl RoomStoreTrait for SqliteStore {
         model.access_supplementary = supplementary;
         
         let room_id = model.id;
-        diesel::insert_into(room::table).values(&vec![model]).execute(connection)?;
+        let affected_rows = diesel::insert_into(room::table).values(&vec![model]).execute(connection)?;
+        if affected_rows == 0 {
+            return Err(anyhow::anyhow!("No row inserted"));
+        }
 
         let mut tag_inserts = Vec::new();
         for tag in tags.iter() {
@@ -67,14 +70,20 @@ impl RoomStoreTrait for SqliteStore {
             room_user_type: user_type as i32,
             ..Default::default()
         };
-        diesel::insert_into(room_user::table).values(&vec![insert]).execute(connection)?;
-
+        
+        let affected_rows = diesel::insert_into(room_user::table).values(&vec![insert]).execute(connection)?;
+        if affected_rows == 0 {
+            return Err(anyhow::anyhow!("No row inserted"));
+        }
         Ok(())
     }
 
     #[tracing::instrument(name="Disconnect from room", skip(connection))]
     fn disconnect_from_room(connection: &mut PooledConnection, room_id: RowId, user_id: RowId) -> anyhow::Result<()> {
-        diesel::delete(room_user::table.filter(room_user::user_id.eq(&user_id))).execute(connection)?;
+        let affected_rows = diesel::delete(room_user::table.filter(room_user::user_id.eq(&user_id)).filter(room_user::room_id.eq(&room_id))).execute(connection)?;
+        if affected_rows == 0 {
+            return Err(anyhow::anyhow!("No row removed"));
+        }
         Ok(())
     }
 }
@@ -115,6 +124,20 @@ mod tests {
         let mut connection = db_conection()?;
         let room = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Tag("LEVEL 1000".to_string()), None, 2, Vec::new())?;
         SqliteStore::join_to_room(&mut connection, room, RowId::default(), RoomUserType::User)?;
+        Ok(())
+    }
+
+    #[test]
+    fn disconnect_from_room() -> anyhow::Result<()> {
+        let mut connection = db_conection()?;
+        let room = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Tag("LEVEL 1000".to_string()), None, 2, Vec::new())?;
+        let user = RowId::default();
+        
+        assert!(SqliteStore::disconnect_from_room(&mut connection, room, user.clone()).is_err());
+        
+        SqliteStore::join_to_room(&mut connection, room, user.clone(), RoomUserType::User)?;
+        SqliteStore::disconnect_from_room(&mut connection, room, user.clone())?;
+
         Ok(())
     }
 }
