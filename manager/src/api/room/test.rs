@@ -52,6 +52,14 @@ struct UserJoinedToRoom {
     room: RoomId
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct UserDisconnectedFromRoom {
+    #[serde(rename = "type")]
+    class_type: String,
+    user: UserId,
+    room: RoomId
+}
+
 fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>, Arc<YummyState>, Arc<DummyClient>)> {
     let mut db_location = temp_dir();
     db_location.push(format!("{}.db", Uuid::new_v4()));
@@ -161,16 +169,133 @@ async fn create_room_3() -> anyhow::Result<()> {
         socket:user_3_socket.clone()
     }).await??;
 
+    let user_1_id = user_1.clone().deref().as_ref().unwrap().user.clone();
+
     // User 1 should receive other 2 users join message
     let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     assert_eq!(message.user, user_2.as_ref().clone().unwrap().user);
-    
+
+    let room_id = message.room;
+
     let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     assert_eq!(message.user, user_3.as_ref().clone().unwrap().user);
+    assert_eq!(&message.class_type[..], "UserJoinedToRoom");
 
     // User 2 should receive only user 3's join message
     let message: UserJoinedToRoom = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     assert_eq!(message.user, user_3.as_ref().clone().unwrap().user);
+    assert_eq!(&message.class_type[..], "UserJoinedToRoom");
+
+    room_manager.send(CreateRoomRequest {
+        user: user_1.clone(),
+        disconnect_from_other_room: true,
+        name: None,
+        access_type: general::model::CreateRoomAccessType::Tag("123456".to_string()),
+        max_user: 4,
+        tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
+        socket:user_1_socket.clone()
+    }).await??;
+
+    let message = user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap();
+    let message: UserDisconnectedFromRoom = serde_json::from_str(&message).unwrap();
+    assert_eq!(message.user, user_1_id.clone());
+    assert_eq!(message.room, room_id.clone());
+    assert_eq!(&message.class_type[..], "UserDisconnectedFromRoom");
+
+    let message = user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap();
+    let message: UserDisconnectedFromRoom = serde_json::from_str(&message).unwrap();
+    assert_eq!(message.user, user_1_id.clone());
+    assert_eq!(message.room, room_id.clone());
+    assert_eq!(&message.class_type[..], "UserDisconnectedFromRoom");
+
+    Ok(())
+}
+
+
+#[actix::test]
+async fn create_room_4() -> anyhow::Result<()> {
+    let (room_manager, auth_manager, config, _, user_1_socket) = create_actor()?;
+    let user_1 = email_auth!(auth_manager, config.clone(), "user1@gmail.com".to_string(), "erhan".to_string(), true, user_1_socket);
+
+    let user_2_socket = Arc::new(DummyClient::default());
+    let user_2 = email_auth!(auth_manager, config.clone(), "user2@gmail.com".to_string(), "erhan".to_string(), true, user_2_socket);
+
+    let user_3_socket = Arc::new(DummyClient::default());
+    let user_3 = email_auth!(auth_manager, config.clone(), "user3@gmail.com".to_string(), "erhan".to_string(), true, user_3_socket);
+
+    assert!(room_manager.send(DisconnectFromRoomRequest {
+        user: user_1.clone(),
+        room: RoomId::default(),
+        socket:user_1_socket.clone()
+    }).await?.is_err());
+
+    // User 1 should receive other 2 users join message
+    let message: Answer = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    assert!(!message.status);
+
+    room_manager.send(CreateRoomRequest {
+        user: user_1.clone(),
+        disconnect_from_other_room: false,
+        name: None,
+        access_type: general::model::CreateRoomAccessType::Tag("123456".to_string()),
+        max_user: 4,
+        tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
+        socket:user_1_socket.clone()
+    }).await??;
+
+    let room_id: GenericAnswer<RoomId> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id = room_id.result.unwrap_or_default();
+
+    assert!(room_id.get() != uuid::Uuid::nil());
+
+    room_manager.send(JoinToRoomRequest {
+        user: user_2.clone(),
+        room: room_id,
+        room_user_type: RoomUserType::User,
+        socket:user_2_socket.clone()
+    }).await??;
+
+    room_manager.send(JoinToRoomRequest {
+        user: user_3.clone(),
+        room: room_id,
+        room_user_type: RoomUserType::User,
+        socket:user_3_socket.clone()
+    }).await??;
+
+    let user_1_id = user_1.clone().deref().as_ref().unwrap().user.clone();
+
+    // User 1 should receive other 2 users join message
+    let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    assert_eq!(message.user, user_2.as_ref().clone().unwrap().user);
+
+    let room_id = message.room;
+
+    let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    assert_eq!(message.user, user_3.as_ref().clone().unwrap().user);
+    assert_eq!(&message.class_type[..], "UserJoinedToRoom");
+
+    // User 2 should receive only user 3's join message
+    let message: UserJoinedToRoom = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    assert_eq!(message.user, user_3.as_ref().clone().unwrap().user);
+    assert_eq!(&message.class_type[..], "UserJoinedToRoom");
+
+    assert!(room_manager.send(DisconnectFromRoomRequest {
+        user: user_1.clone(),
+        room: room_id,
+        socket:user_1_socket.clone()
+    }).await?.is_ok());
+
+    let message = user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap();
+    let message: UserDisconnectedFromRoom = serde_json::from_str(&message).unwrap();
+    assert_eq!(message.user, user_1_id.clone());
+    assert_eq!(message.room, room_id.clone());
+    assert_eq!(&message.class_type[..], "UserDisconnectedFromRoom");
+
+    let message = user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap();
+    let message: UserDisconnectedFromRoom = serde_json::from_str(&message).unwrap();
+    assert_eq!(message.user, user_1_id.clone());
+    assert_eq!(message.room, room_id.clone());
+    assert_eq!(&message.class_type[..], "UserDisconnectedFromRoom");
 
     Ok(())
 }

@@ -73,8 +73,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static>  UserManager<DB>
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserInformation> for UserManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="User::get user info", skip(self, _ctx))]
-    #[macros::api(name="ViaEmail", socket=true)]
+    #[tracing::instrument(name="GetUserInformation", skip(self, _ctx))]
+    #[macros::api(name="GetUserInformation", socket=true)]
     fn handle(&mut self, model: GetUserInformation, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
@@ -115,8 +115,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUser> for UserManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="User::UpdateUser", skip(self, _ctx))]
-    #[macros::api(name="ViaEmail", socket=true)]
+    #[tracing::instrument(name="UpdateUser", skip(self, _ctx))]
+    #[macros::api(name="UpdateUser", socket=true)]
     fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
 
         let original_user_id = match model.user.deref() {

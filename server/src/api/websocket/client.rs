@@ -15,21 +15,8 @@ where
     RES: Debug + Send + Serialize + DeserializeOwned,
 {
     socket: Framed<BoxedSocket, Codec>,
-    url: String,
-    query_param_name: String,
-    key: String,
     marker1: std::marker::PhantomData<REQ>,
     marker2: std::marker::PhantomData<RES>,
-}
-
-impl<REQ, RES> Debug for WebsocketTestClient<REQ, RES>
-where
-    REQ: Debug + Send + Serialize + DeserializeOwned,
-    RES: Debug + Send + Serialize + DeserializeOwned,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "WebsocketTestClient")
-    }
 }
 
 impl<REQ, RES> WebsocketTestClient<REQ, RES>
@@ -43,9 +30,6 @@ where
         let (_, socket) = client.connect().await.unwrap();
         Self {
             socket,
-            url,
-            query_param_name,
-            key,
             marker1: PhantomData,
             marker2: PhantomData,
         }
@@ -63,11 +47,6 @@ where
                 let data = String::from_utf8(bytes.to_vec()).unwrap_or_default();
                 Some(data)
             }
-            Some(Ok(Frame::Binary(t))) => {
-                let bytes = t.as_ref();
-                let data = String::from_utf8(bytes.to_vec()).unwrap_or_default();
-                Some(data)
-            }
             Some(Ok(Frame::Ping(t))) => {
                 self.socket.send(awc::ws::Message::Pong(t)).await.unwrap();
                 Some(String::new())
@@ -76,8 +55,7 @@ where
                 self.socket.send(awc::ws::Message::Ping(t)).await.unwrap();
                 Some(String::new())
             }
-            Some(_) => Some(String::new()),
-            None => None,
+            _ => Some(String::new()),
         }
     }
 
@@ -86,19 +64,6 @@ where
             Ok(text) => self
                 .socket
                 .send(awc::ws::Message::Text(text.into()))
-                .await
-                .unwrap(),
-            Err(error) => {
-                panic!("------------ Serialize error : {:?}", error);
-            }
-        }
-    }
-
-    pub async fn pong(&mut self) {
-        match serde_json::to_string("PING") {
-            Ok(text) => self
-                .socket
-                .send(awc::ws::Message::Pong(text.into()))
                 .await
                 .unwrap(),
             Err(error) => {

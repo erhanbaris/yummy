@@ -66,8 +66,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for AuthMa
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAuthRequest> for AuthManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="Auth::ViaEmail", skip(self, _ctx))]
-    #[macros::api(name="ViaEmail", socket=true)]
+    #[tracing::instrument(name="EmailAuth", skip(self, _ctx))]
+    #[macros::api(name="EmailAuth", socket=true)]
     fn handle(&mut self, model: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
         let mut connection = self.database.get()?;
         let user_info = DB::user_login_via_email(&mut connection, &model.email)?;
@@ -101,8 +101,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceIdAuthRequest> for AuthManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="Auth::ViaDeviceId", skip(self, _ctx))]
-    #[macros::api(name="ViaEmail", socket=true)]
+    #[tracing::instrument(name="DeviceIdAuth", skip(self, _ctx))]
+    #[macros::api(name="DeviceIdAuth", socket=true)]
     fn handle(&mut self, model: DeviceIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
@@ -129,8 +129,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomIdAuthRequest> for AuthManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="Auth::ViaCustomId", skip(self, _ctx))]
-    #[macros::api(name="ViaEmail", socket=true)]
+    #[tracing::instrument(name="CustomIdAuth", skip(self, _ctx))]
+    #[macros::api(name="CustomIdAuth", socket=true)]
     fn handle(&mut self, model: CustomIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
@@ -157,8 +157,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRequest> for AuthManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="Auth::Logout", skip(self, _ctx))]
-    #[macros::api(name="ViaEmail")]
+    #[tracing::instrument(name="Logout", skip(self, _ctx))]
+    #[macros::api(name="Logout")]
     fn handle(&mut self, model: LogoutRequest, _ctx: &mut Context<Self>) -> Self::Result {
         match model.user.deref() {
             Some(user) => {
@@ -173,8 +173,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRe
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshTokenRequest> for AuthManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="Auth::Refresh", skip(self, _ctx))]
-    #[macros::api(name="ViaEmail", socket=true)]
+    #[tracing::instrument(name="RefreshToken", skip(self, _ctx))]
+    #[macros::api(name="RefreshToken", socket=true)]
     fn handle(&mut self, model: RefreshTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
         match validate_auth(self.config.clone(), model.token) {
             Some(claims) => {
@@ -190,8 +190,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreTokenRequest> for AuthManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="Auth::Restore", skip(self, ctx))]
-    #[macros::api(name="ViaEmail", socket=true)]
+    #[tracing::instrument(name="RestoreToken", skip(self, ctx))]
+    #[macros::api(name="RestoreToken", socket=true)]
     fn handle(&mut self, model: RestoreTokenRequest, ctx: &mut Context<Self>) -> Self::Result {
         match validate_auth(self.config.clone(), model.token) {
             Some(auth) => {
@@ -217,8 +217,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUserTimeout> for AuthManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="Auth::StartTimer", skip(self, ctx))]
-    #[macros::api(name="ViaEmail")]
+    #[tracing::instrument(name="StartUserTimeout", skip(self, ctx))]
+    #[macros::api(name="StartUserTimeout")]
     fn handle(&mut self, model: StartUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
         let session_id = model.session_id.clone();
         let timer = ctx.run_later(self.config.connection_restore_wait_timeout, move |manager, _ctx| {
@@ -237,8 +237,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUse
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StopUserTimeout> for AuthManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="Auth::StopTimer", skip(self, ctx))]
-    #[macros::api(name="ViaEmail")]
+    #[tracing::instrument(name="StopUserTimeout", skip(self, ctx))]
+    #[macros::api(name="StopUserTimeout")]
     fn handle(&mut self, model: StopUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
         if let Some(handle) = self.session_timeout_timers.remove(&model.session_id) {
             ctx.cancel_future(handle);

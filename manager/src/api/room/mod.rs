@@ -14,7 +14,7 @@ use database::RowId;
 
 use general::config::YummyConfig;
 use general::model::{YummyState, RoomUserType, RoomId, UserId};
-use general::web::GenericAnswer;
+use general::web::{GenericAnswer, Answer};
 use rand::Rng;
 
 use crate::api::auth::model::AuthError;
@@ -82,8 +82,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRoomRequest> for RoomManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="Room::Create room", skip(self, _ctx))]
-    #[macros::api(name="ViaEmail", socket=true)]
+    #[tracing::instrument(name="CreateRoom", skip(self, _ctx))]
+    #[macros::api(name="CreateRoom", socket=true)]
     fn handle(&mut self, model: CreateRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
         let CreateRoomRequest { access_type, disconnect_from_other_room, max_user, name, tags, user, socket } = model;
         
@@ -134,8 +134,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRoomRequest> for RoomManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="Room::Join to room", skip(self, _ctx))]
-    #[macros::api(name="ViaEmail", socket=true)]
+    #[tracing::instrument(name="JoinToRoom", skip(self, _ctx))]
+    #[macros::api(name="JoinToRoom", socket=true)]
     fn handle(&mut self, model: JoinToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
         // Check user information
         let user_id = match model.user.deref() {
@@ -161,6 +161,29 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
                     room: model.room
                 }).unwrap_or_default());
             }
+        }
+
+        Ok(())
+    }
+}
+
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DisconnectFromRoomRequest> for RoomManager<DB> {
+    type Result = anyhow::Result<()>;
+
+    #[tracing::instrument(name="DisconnectFromRoom", skip(self, _ctx))]
+    #[macros::api(name="DisconnectFromRoom", socket=true)]
+    fn handle(&mut self, model: DisconnectFromRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
+        let user_id = match model.user.deref() {
+            Some(user) => UserId::from(user.user.get()),
+            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
+        };
+
+        match self.states.get_user_room(user_id) {
+            Some(room_id) => {
+                self.disconnect_from_room(room_id, user_id)?;
+                model.socket.send(Answer::success().into());
+            }
+            None => return Err(anyhow::anyhow!(RoomError::RoomNotFound))
         }
 
         Ok(())

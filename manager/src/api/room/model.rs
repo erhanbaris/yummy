@@ -29,10 +29,21 @@ pub struct JoinToRoomRequest {
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<()>")]
+pub struct DisconnectFromRoomRequest {
+    pub user: Arc<Option<UserAuth>>,
+    pub room: RoomId,
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
+}
+
 #[derive(Error, Debug)]
 pub enum RoomError {
     #[error("User joined to other room")]
-    UserJoinedOtherRoom
+    UserJoinedOtherRoom,
+
+    #[error("Room not found")]
+    RoomNotFound
 }
 
 #[derive(Deserialize, Serialize, Debug)]

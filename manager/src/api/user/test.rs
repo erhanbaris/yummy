@@ -22,7 +22,7 @@ use crate::test::DummyClient;
 macro_rules! email_auth {
     ($auth_manager: expr, $config: expr, $email: expr, $password: expr, $create: expr, $socket: expr) => {
         {
-            let token = $auth_manager.send(EmailAuthRequest {
+            $auth_manager.send(EmailAuthRequest {
                 email: $email,
                 password: $password,
                 if_not_exist_create: $create,
@@ -56,7 +56,7 @@ fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, A
 #[actix::test]
 async fn get_private_user_1() -> anyhow::Result<()> {
     let (user_manager, _, _, socket) = create_actor()?;
-    user_manager.send(GetUserInformation::me(Arc::new(None), socket.clone())).await?;
+    assert!(user_manager.send(GetUserInformation::me(Arc::new(None), socket.clone())).await?.is_err());
     let message = socket.clone().messages.lock().unwrap().pop_back().unwrap();
     assert!(message.contains("User token is not valid"));
     Ok(())

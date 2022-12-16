@@ -111,30 +111,4 @@ impl UserAuth {
     pub fn is_empty(&self) -> bool {
         self.user.get() == uuid::Uuid::nil()
     }
-    
-    pub fn parse(req: &HttpRequest) -> Option<Self> {
-        let config = match req.app_data::<Data<Arc<YummyConfig>>>() {
-            Some(config) => config,
-            None => return None
-        };
-
-        let auth_key = match req.headers().get(&config.user_auth_key_name) {
-            Some(value) =>  match value.to_str() {
-                Ok(value) => value.to_string(),
-                Err(_) => return None
-            }
-            None => match web::Query::<HashMap<String, String>>::from_query(req.query_string()) {
-                Ok(map) => match map.0.get(&config.user_auth_key_name) {
-                    Some(value) => value.to_string(),
-                    None => return None
-                },
-                Err(_) => return None
-            }
-        };
-
-        match validate_auth(config.as_ref().clone(), auth_key) {
-            Some(claims) => Some(UserAuth { user: claims.user.id, session: claims.user.session }),
-            None => None
-        }
-    }
 }

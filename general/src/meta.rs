@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::fmt;
 use serde::de::{self};
 
-#[derive(Debug, PartialEq, Eq, Clone, Default)]
+#[derive(Debug, PartialEq, Eq, Clone, Default, Serialize)]
 pub enum MetaAccess {
     Anonymous = 0,
     User = 1,
@@ -42,23 +42,6 @@ impl From<i32> for MetaAccess {
             6 => MetaAccess::System,
             _ => MetaAccess::Anonymous
         }
-    }
-}
-
-impl Serialize for MetaAccess {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_i32(match *self {
-            MetaAccess::Anonymous => 0,
-            MetaAccess::User => 1,
-            MetaAccess::Friend => 2,
-            MetaAccess::Me => 3,
-            MetaAccess::Mod => 4,
-            MetaAccess::Admin => 5,
-            MetaAccess::System => 6,
-        })
     }
 }
 
