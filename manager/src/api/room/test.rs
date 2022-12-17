@@ -60,6 +60,15 @@ struct UserDisconnectedFromRoom {
     room: RoomId
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct MessageReceivedFromRoom {
+    #[serde(rename = "type")]
+    class_type: String,
+    user: UserId,
+    room: RoomId,
+    message: String
+}
+
 fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>, Arc<YummyState>, Arc<DummyClient>)> {
     let mut db_location = temp_dir();
     db_location.push(format!("{}.db", Uuid::new_v4()));
@@ -296,6 +305,96 @@ async fn create_room_4() -> anyhow::Result<()> {
     assert_eq!(message.user, user_1_id.clone());
     assert_eq!(message.room, room_id.clone());
     assert_eq!(&message.class_type[..], "UserDisconnectedFromRoom");
+
+    Ok(())
+}
+
+
+#[actix::test]
+async fn message_to_room() -> anyhow::Result<()> {
+    let (room_manager, auth_manager, config, _, user_1_socket) = create_actor()?;
+    let user_1 = email_auth!(auth_manager, config.clone(), "user1@gmail.com".to_string(), "erhan".to_string(), true, user_1_socket);
+    let user_1_id = user_1.clone().deref().as_ref().unwrap().user.clone();
+
+    let user_2_socket = Arc::new(DummyClient::default());
+    let user_2 = email_auth!(auth_manager, config.clone(), "user2@gmail.com".to_string(), "erhan".to_string(), true, user_2_socket);
+    let user_2_id = user_2.clone().deref().as_ref().unwrap().user.clone();
+
+    let user_3_socket = Arc::new(DummyClient::default());
+    let user_3 = email_auth!(auth_manager, config.clone(), "user3@gmail.com".to_string(), "erhan".to_string(), true, user_3_socket);
+
+    room_manager.send(CreateRoomRequest {
+        user: user_1.clone(),
+        disconnect_from_other_room: false,
+        name: None,
+        access_type: general::model::CreateRoomAccessType::Tag("123456".to_string()),
+        max_user: 4,
+        tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
+        socket:user_1_socket.clone()
+    }).await??;
+
+    let room_id: GenericAnswer<RoomId> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id = room_id.result.unwrap_or_default();
+
+    assert!(room_id.get() != uuid::Uuid::nil());
+
+    // Join to room
+    room_manager.send(JoinToRoomRequest {
+        user: user_2.clone(),
+        room: room_id,
+        room_user_type: RoomUserType::User,
+        socket:user_2_socket.clone()
+    }).await??;
+
+    room_manager.send(JoinToRoomRequest {
+        user: user_3.clone(),
+        room: room_id,
+        room_user_type: RoomUserType::User,
+        socket:user_3_socket.clone()
+    }).await??;
+
+    // Send message to room
+    room_manager.send(MessageToRoomRequest {
+        user: user_1.clone(),
+        room: room_id,
+        message: "HELLO".to_string(),
+        socket:user_1_socket.clone()
+    }).await??;
+
+    // All users will receive the message
+    let message = serde_json::from_str::<MessageReceivedFromRoom>(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    assert_eq!(message.user, user_1_id.clone());
+    assert_eq!(message.room, room_id.clone());
+    assert_eq!(&message.message, "HELLO");
+    assert_eq!(&message.class_type[..], "MessageFromRoom");
+
+    let message = serde_json::from_str::<MessageReceivedFromRoom>(&user_3_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    assert_eq!(message.user, user_1_id.clone());
+    assert_eq!(message.room, room_id.clone());
+    assert_eq!(&message.message, "HELLO");
+    assert_eq!(&message.class_type[..], "MessageFromRoom");
+
+
+    // Send message to room
+    room_manager.send(MessageToRoomRequest {
+        user: user_2.clone(),
+        room: room_id,
+        message: "WORLD".to_string(),
+        socket:user_2_socket.clone()
+    }).await??;
+
+    // All users will receive the message
+    let message = serde_json::from_str::<MessageReceivedFromRoom>(&user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    assert_eq!(message.user, user_2_id.clone());
+    assert_eq!(message.room, room_id.clone());
+    assert_eq!(&message.message, "WORLD");
+    assert_eq!(&message.class_type[..], "MessageFromRoom");
+
+    let message = serde_json::from_str::<MessageReceivedFromRoom>(&user_3_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    assert_eq!(message.user, user_2_id.clone());
+    assert_eq!(message.room, room_id.clone());
+    assert_eq!(&message.message, "WORLD");
+    assert_eq!(&message.class_type[..], "MessageFromRoom");
 
     Ok(())
 }

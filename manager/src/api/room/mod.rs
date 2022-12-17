@@ -5,10 +5,9 @@ mod test;
 
 use std::{marker::PhantomData, ops::Deref};
 use std::sync::Arc;
-use anyhow::Ok;
-
 use actix::{Context, Actor, Handler};
 use actix_broker::{BrokerSubscribe};
+use anyhow::anyhow;
 use database::{Pool, DatabaseTrait};
 use database::RowId;
 
@@ -122,7 +121,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
             self.states.join_to_room(room_id, user_id, RoomUserType::Owner)?;
             self.states.set_user_room(user_id, room_id);
 
-            Ok(room_id)
+            anyhow::Ok(room_id)
         })?;
         
 
@@ -187,5 +186,38 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<Disconne
         }
 
         Ok(())
+    }
+}
+
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageToRoomRequest> for RoomManager<DB> {
+    type Result = anyhow::Result<()>;
+
+    #[tracing::instrument(name="MessageToRoomRequest", skip(self, _ctx))]
+    #[macros::api(name="MessageToRoomRequest", socket=true)]
+    fn handle(&mut self, model: MessageToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {   
+        let MessageToRoomRequest { user, room, message, socket } = model;
+
+        let user_id = match user.deref() {
+            Some(user) => UserId::from(user.user.get()),
+            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
+        };
+
+        match self.states.get_users_from_room(room.clone()) {
+            Ok(users) => {
+                let message = RoomResponse::MessageFromRoom { user: user_id, room: model.room.clone(), message: Arc::new(message) };
+
+                for user in users.into_iter() {
+                    if user != user_id {
+                        if let Some(user_socket) = self.states.get_user_socket(user) {
+                            user_socket.send(message.clone().into());
+                        }
+                    }
+                }
+
+                socket.send(Answer::success().into());
+                Ok(())
+            }
+            Err(error) => Err(anyhow!(error))
+        }
     }
 }

@@ -37,6 +37,15 @@ pub struct DisconnectFromRoomRequest {
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<()>")]
+pub struct MessageToRoomRequest {
+    pub user: Arc<Option<UserAuth>>,
+    pub room: RoomId,
+    pub message: String,
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
+}
+
 #[derive(Error, Debug)]
 pub enum RoomError {
     #[error("User joined to other room")]
@@ -46,7 +55,7 @@ pub enum RoomError {
     RoomNotFound
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(tag = "type")]
 pub enum RoomResponse {
     UserJoinedToRoom {
@@ -56,5 +65,22 @@ pub enum RoomResponse {
     UserDisconnectedFromRoom {
         user: UserId,
         room: RoomId
+    },
+    MessageFromRoom {
+        user: UserId,
+        room: RoomId,
+        message: Arc<String>
+    }
+}
+
+impl From<RoomResponse> for String {
+    fn from(source: RoomResponse) -> Self {
+        serde_json::to_string(&source).unwrap_or_default()
+    }
+}
+
+impl From<String> for RoomResponse {
+    fn from(source: String) -> Self {
+        serde_json::from_str(&source).unwrap()
     }
 }
