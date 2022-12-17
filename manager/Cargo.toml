@@ -15,7 +15,7 @@ actix-web-actors = "4.1.0"
 actix-web = { version = "4", features = ["rustls"] }
 actix-broker = "0.4.3"
 
-thiserror = "1.0.37"
+thiserror = "1.0.38"
 anyhow = "1.0.66"
 secrecy = { version = "0.8.0", features = ["serde"] }
 
