@@ -2,6 +2,8 @@
 mod api;
 
 use general::config::{get_configuration, get_env_var};
+use general::state::SendMessage;
+use manager::api::conn::CommunicationManager;
 use manager::api::user::UserManager;
 use std::sync::Arc;
 
@@ -9,7 +11,7 @@ use manager::api::auth::AuthManager;
 
 use actix_web::error::InternalError;
 
-use actix::Actor;
+use actix::{Actor, Recipient};
 use actix_web::error::{JsonPayloadError};
 use actix_web::web::{JsonConfig, QueryConfig};
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -25,7 +27,7 @@ pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    use general::model::YummyState;
+    use general::state::YummyState;
     use manager::api::{room::RoomManager};
 
     let server_bind = get_env_var("SERVER_BIND", "0.0.0.0:9090".to_string());
@@ -33,18 +35,23 @@ async fn main() -> std::io::Result<()> {
     
     tracing_subscriber::fmt::init();
     std::env::set_var("RUST_LOG", &rust_log_level);
+    let config = get_configuration();
 
     log::info!("Yummy is starting...");
     log::info!("Binding at \"{}\"", server_bind);
+    log::info!("Server name \"{}\"", config.server_name);
     log::info!("Log level is \"{}\"", rust_log_level);
 
-    let config = get_configuration();
     let database = Arc::new(database::create_connection(&config.database_url).unwrap());
     let mut connection = database.clone().get().unwrap();
     database::create_database(&mut connection).unwrap_or_default();
 
-    let states = Arc::new(YummyState::default());
+    #[cfg(feature = "stateless")]
+    let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
+    let conn_manager = CommunicationManager::new(config.clone()).start();
+    let conn_recipient: Recipient<SendMessage> = conn_manager.clone().recipient();
+    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")] conn_recipient);
 
     let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
     let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());

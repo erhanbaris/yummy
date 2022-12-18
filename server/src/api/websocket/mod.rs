@@ -121,7 +121,8 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Actor for GameWebsocket<DB> {
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
         if let Some(auth) = self.user_auth.as_ref() {
             self.auth_manager.do_send(StartUserTimeout {
-                session_id: auth.session.clone()
+                session_id: auth.session.clone(),
+                user_id: auth.user.clone()
             });
         }
 
@@ -221,9 +222,11 @@ mod tests {
     use database::model::UserInformationModel;
     use database::{create_database, create_connection, RowId};
     use general::meta::MetaAccess;
-    use general::model::{YummyState, UserType};
+    use general::model::UserType;
+    use general::state::{YummyState, SendMessage};
     use general::web::Answer;
     use manager::api::auth::AuthManager;
+    use manager::api::conn::CommunicationManager;
     use serde::Deserialize;
     use serde_json::json;
     use uuid::Uuid;
@@ -236,6 +239,9 @@ mod tests {
     use super::*;
     use super::client::*;
     use crate::json_error_handler;
+
+    #[cfg(feature = "stateless")]
+    use general::test::cleanup_redis;
 
     #[derive(Default, Clone, Debug, Deserialize)]
     pub struct UserInformationResponse {
@@ -338,7 +344,16 @@ mod tests {
             let connection = create_connection(db_location.to_str().unwrap()).unwrap();
             create_database(&mut connection.clone().get().unwrap()).unwrap();
             
-            let states = Arc::new(YummyState::default());
+            #[cfg(feature = "stateless")]
+            let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
+
+            #[cfg(feature = "stateless")]
+            cleanup_redis(conn.clone());
+        
+            let conn_manager = CommunicationManager::new(config.clone()).start();
+            let conn_recipient: Recipient<SendMessage> = conn_manager.clone().recipient();
+            let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")] conn_recipient);
+
             let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
             let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
             let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start());

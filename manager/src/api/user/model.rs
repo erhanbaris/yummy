@@ -72,7 +72,7 @@ impl Default for UpdateUser
         Self {
             user: Arc::new(None),
             name: None,
-            socket: Arc::new(crate::test::DummyClient::default()),
+            socket: Arc::new(general::test::DummyClient::default()),
             email: None,
             password: None,
             device_id: None,

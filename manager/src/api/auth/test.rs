@@ -1,7 +1,12 @@
 use std::time::Duration;
+use actix::Recipient;
 use general::config::YummyConfig;
 use general::auth::validate_auth;
-use general::model::YummyState;
+use general::state::SendMessage;
+use general::state::YummyState;
+
+#[cfg(feature = "stateless")]
+use general::test::cleanup_redis;
 use std::sync::Arc;
 
 use actix::Actor;
@@ -9,14 +14,25 @@ use actix::Addr;
 use anyhow::Ok;
 use database::{create_database, create_connection};
 
+use crate::api::conn::CommunicationManager;
+
 use super::AuthManager;
 use super::*;
 
-use crate::test::DummyClient;
+use general::test::DummyClient;
 
 fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<database::SqliteStore>>, Arc<DummyClient>)> {
     let connection = create_connection(":memory:")?;
-    let states = Arc::new(YummyState::default());
+    #[cfg(feature = "stateless")]
+    let conn = r2d2::Pool::new(redis::Client::open("redis://127.0.0.1/").unwrap()).unwrap();
+
+    #[cfg(feature = "stateless")]
+    cleanup_redis(conn.clone());
+
+    let conn_manager = CommunicationManager::new(config.clone()).start();
+    let conn_recipient: Recipient<SendMessage> = conn_manager.clone().recipient();
+    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")] conn_recipient);
+
     create_database(&mut connection.clone().get()?)?;
     Ok((AuthManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start(), Arc::new(DummyClient::default())))
 }
@@ -51,7 +67,8 @@ async fn login_user_via_email() -> anyhow::Result<()> {
 
     let auth = socket.clone().auth.lock().unwrap().clone();
     address.send(StartUserTimeout {
-        session_id: auth.session.clone()
+        session_id: auth.session.clone(),
+        user_id: auth.id
     }).await??;
 
     actix::clock::sleep(std::time::Duration::new(3, 0)).await;
@@ -123,7 +140,8 @@ async fn login_user_via_device_id() -> anyhow::Result<()> {
     let auth = socket.clone().auth.lock().unwrap().clone();
     
     address.send(StartUserTimeout {
-        session_id: auth.session.clone()
+        session_id: auth.session.clone(),
+        user_id: auth.id
     }).await??;
 
     actix::clock::sleep(std::time::Duration::new(3, 0)).await;
@@ -171,7 +189,8 @@ async fn login_user_via_custom_id() -> anyhow::Result<()> {
     let auth = socket.clone().auth.lock().unwrap().clone();
 
     address.send(StartUserTimeout {
-        session_id: auth.session.clone()
+        session_id: auth.session.clone(),
+        user_id: auth.id
     }).await??;
 
     actix::clock::sleep(std::time::Duration::new(3, 0)).await;

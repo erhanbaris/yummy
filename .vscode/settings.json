@@ -1,7 +1,7 @@
 {
     "cucumberautocomplete.steps": ["server/tests/steps/*.txt"],
     "cucumberautocomplete.strictGherkinCompletion": true,
-    "cucumberautocomplete.syncfeatures": "server/tests/mangala/*.feature",
+    "cucumberautocomplete.syncfeatures": "server/tests/*.feature",
     "cucumberautocomplete.customParameters": [
         {
             "parameter": "{word}",
@@ -16,5 +16,6 @@
       "comments": false,
       "strings": true,
       "other": true
-    }
+    },
+    "rust-analyzer.cargo.features": ["stateless"]
   }

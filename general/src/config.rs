@@ -3,6 +3,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::env;
 
+use rand::{distributions::Alphanumeric, Rng};
+
 pub const DEFAULT_CLIENT_TIMEOUT: u64 = 20; // in seconds
 pub const DEFAULT_CONNECTION_RESTORE_WAIT_TIMEOUT: u64 = 10; // in seconds
 pub const DEFAULT_HEARTBEAT_INTERVAL: u64 = 10; // in seconds
@@ -16,8 +18,16 @@ pub const DEFAULT_DEFAULT_INTEGRATION_KEY: &str = "YummyYummy";
 pub const DEFAULT_ROOM_PASSWORD_CHARSET: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 pub const DEFAULT_ROOM_PASSWORD_LENGTH: usize = 4;
 
+#[cfg(feature = "stateless")]
+pub const DEFAULT_REDIS_URL: &str = "redis://127.0.0.1/";
+
+#[cfg(feature = "stateless")]
+pub const DEFAULT_REDIS_PREFIX: &str = "";
+
+
 #[derive(Debug, Default, Clone)]
 pub struct YummyConfig {
+    pub server_name: String,
     pub token_lifetime: Duration,
     pub heartbeat_interval: Duration,
     pub client_timeout: Duration,
@@ -32,6 +42,12 @@ pub struct YummyConfig {
     pub user_auth_key_name: String,
     pub salt_key: String,
     pub database_url: String,
+
+    #[cfg(feature = "stateless")]
+    pub redis_url: String,
+
+    #[cfg(feature = "stateless")]
+    pub redis_prefix: String
 }
 
 pub fn get_env_var<R: Clone + FromStr>(key: &str, default: R) -> R {
@@ -41,7 +57,14 @@ pub fn get_env_var<R: Clone + FromStr>(key: &str, default: R) -> R {
 }
 
 pub fn get_configuration() -> Arc<YummyConfig> {
+    let server_name: String = format!("YUMMY-{}", rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(7)
+        .map(char::from)
+        .collect::<String>());
+
     Arc::new(YummyConfig {
+        server_name: get_env_var("SERVER-NAME", server_name),
         client_timeout: Duration::from_secs(get_env_var("CLIENT_TIMEOUT", DEFAULT_CLIENT_TIMEOUT)),
         connection_restore_wait_timeout: Duration::from_secs(get_env_var("CONNECTION_RESTORE_WAIT_TIMEOUT", DEFAULT_CONNECTION_RESTORE_WAIT_TIMEOUT)),
         heartbeat_interval: Duration::from_secs(get_env_var("HEARTBEAT_INTERVAL", DEFAULT_HEARTBEAT_INTERVAL)),
@@ -54,5 +77,8 @@ pub fn get_configuration() -> Arc<YummyConfig> {
         max_user_meta: get_env_var("MAX_USER_META", DEFAULT_MAX_USER_META),
         room_password_charset: get_env_var("ROOM_PASSWORD_CHARSET", DEFAULT_ROOM_PASSWORD_CHARSET.to_string()).as_bytes().to_vec(),
         room_password_length: get_env_var("ROOM_PASSWORD_LENGTH", DEFAULT_ROOM_PASSWORD_LENGTH),
+
+        #[cfg(feature = "stateless")] redis_url: get_env_var("REDIS_URL", DEFAULT_REDIS_URL.to_string()),
+        #[cfg(feature = "stateless")] redis_prefix: get_env_var("REDIS_PREFIX", DEFAULT_REDIS_PREFIX.to_string()),
     })
 }

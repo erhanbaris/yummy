@@ -5,7 +5,7 @@ mod test;
 
 use std::{ops::Deref, fmt::Debug};
 use actix_broker::BrokerIssue;
-use general::{auth::{generate_auth, UserJwt, validate_auth}, model::YummyState, web::GenericAnswer};
+use general::{auth::{generate_auth, UserJwt, validate_auth}, state::YummyState, web::GenericAnswer};
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -26,19 +26,19 @@ pub fn generate_response<T: Debug + Serialize + DeserializeOwned>(model: T) -> S
 pub struct AuthManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
-    states: Arc<YummyState>,
+    states: YummyState,
     session_timeout_timers: HashMap<SessionId, SpawnHandle>,
     _auth: PhantomData<DB>
 }
 
 impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
-    pub fn new(config: Arc<YummyConfig>, states: Arc<YummyState>, database: Arc<Pool>) -> Self {
+    pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>) -> Self {
         Self {
             config,
             database,
             states,
             session_timeout_timers: HashMap::new(),
-            _auth: PhantomData
+            _auth: PhantomData,
         }
     }
 
@@ -162,7 +162,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRe
     fn handle(&mut self, model: LogoutRequest, _ctx: &mut Context<Self>) -> Self::Result {
         match model.user.deref() {
             Some(user) => {
-                self.states.as_ref().close_session(&user.session);
+                self.states.close_session(&user.session);
                 Ok(())
             },
             None => Err(anyhow::anyhow!(AuthError::TokenNotValid))
@@ -222,9 +222,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUse
     fn handle(&mut self, model: StartUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
         let session_id = model.session_id.clone();
         let timer = ctx.run_later(self.config.connection_restore_wait_timeout, move |manager, _ctx| {
-            if let Some(user) = manager.states.close_session(&model.session_id) {
+            if manager.states.close_session(&model.session_id) {
                 manager.issue_system_async(UserDisconnectRequest {
-                    user_id: user.user_id
+                    user_id: model.user_id
                 });
             }
         });

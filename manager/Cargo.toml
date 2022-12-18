@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-general = { path = "../general" }
-database = { path = "../database" }
-macros = { path = "../macros" }
+general.workspace = true
+database.workspace = true
+macros.workspace = true
 
 actix = "0.13"
 actix-web-actors = "4.1.0"
@@ -32,3 +32,10 @@ serde_trim = "0.4.0"
 
 moka = { version = "0.9.6", features = ["future"] }
 rand = "0.8.5"
+
+r2d2 =  { version = "0.8.10", optional = true }
+redis = { version = "0.22.1", features = ["r2d2"], optional = true }
+
+[features]
+stateless = ["dep:redis", "dep:r2d2"]
+default = []

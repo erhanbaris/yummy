@@ -12,7 +12,8 @@ use database::{Pool, DatabaseTrait};
 use database::RowId;
 
 use general::config::YummyConfig;
-use general::model::{YummyState, RoomUserType, RoomId, UserId};
+use general::model::{RoomId, UserId, RoomUserType};
+use general::state::YummyState;
 use general::web::{GenericAnswer, Answer};
 use rand::Rng;
 
@@ -25,12 +26,12 @@ use super::auth::model::UserDisconnectRequest;
 pub struct RoomManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
-    states: Arc<YummyState>,
+    states: YummyState,
     _marker: PhantomData<DB>
 }
 
 impl<DB: DatabaseTrait + ?Sized> RoomManager<DB> {
-    pub fn new(config: Arc<YummyConfig>, states: Arc<YummyState>, database: Arc<Pool>) -> Self {
+    pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>) -> Self {
         Self {
             config,
             database,
@@ -58,7 +59,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisc
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> {
-    pub fn disconnect_from_room(&self, room_id: RoomId, user_id: UserId) -> anyhow::Result<bool> {
+    pub fn disconnect_from_room(&mut self, room_id: RoomId, user_id: UserId) -> anyhow::Result<bool> {
         let room_removed = self.states.disconnect_from_room(room_id.clone(), user_id.clone())?;
         let users = self.states.get_users_from_room(room_id.clone())?;
         

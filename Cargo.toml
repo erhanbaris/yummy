@@ -6,3 +6,10 @@ members = [
     "database",
     "general"
 ]
+
+[workspace.dependencies]
+general = { path = "./general", features = ["stateless"] }
+manager = { path = "./manager", features = ["stateless"] }
+server = { path = "./server", features = ["stateless"] }
+database = { path = "./database" }
+macros = { path = "./macros" }

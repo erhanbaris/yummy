@@ -1,3 +1,5 @@
+use actix::Recipient;
+use general::state::SendMessage;
 use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
@@ -6,7 +8,7 @@ use general::auth::UserAuth;
 use general::auth::validate_auth;
 use general::config::YummyConfig;
 use general::config::get_configuration;
-use general::model::YummyState;
+use general::state::YummyState;
 use std::env::temp_dir;
 use std::sync::Arc;
 
@@ -18,9 +20,12 @@ use database::{create_database, create_connection};
 use super::*;
 use crate::api::auth::AuthManager;
 use crate::api::auth::model::*;
+use crate::api::conn::CommunicationManager;
 use general::web::GenericAnswer;
-use crate::test::DummyClient;
+use general::test::DummyClient;
 
+#[cfg(feature = "stateless")]
+use general::test::cleanup_redis;
 
 macro_rules! email_auth {
     ($auth_manager: expr, $config: expr, $email: expr, $password: expr, $create: expr, $recipient: expr) => {
@@ -69,12 +74,21 @@ struct MessageReceivedFromRoom {
     message: String
 }
 
-fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>, Arc<YummyState>, Arc<DummyClient>)> {
+fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>, YummyState, Arc<DummyClient>)> {
     let mut db_location = temp_dir();
     db_location.push(format!("{}.db", Uuid::new_v4()));
     
     let config = get_configuration();
-    let states = Arc::new(YummyState::default());
+    #[cfg(feature = "stateless")]
+    let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
+
+    #[cfg(feature = "stateless")]
+    cleanup_redis(conn.clone());
+
+    let conn_manager = CommunicationManager::new(config.clone()).start();
+    let conn_recipient: Recipient<SendMessage> = conn_manager.clone().recipient();
+    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")] conn_recipient);
+
     let connection = create_connection(db_location.to_str().unwrap())?;
     create_database(&mut connection.clone().get()?)?;
     Ok((RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config, states.clone(), Arc::new(DummyClient::default())))
@@ -82,7 +96,7 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
 
 #[actix::test]
 async fn create_room_1() -> anyhow::Result<()> {
-    let (room_manager, auth_manager, config, states, recipient) = create_actor()?;
+    let (room_manager, auth_manager, config, mut states, recipient) = create_actor()?;
     let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".to_string(), true, recipient);
 
     room_manager.send(CreateRoomRequest {
@@ -111,7 +125,7 @@ async fn create_room_1() -> anyhow::Result<()> {
 
 #[actix::test]
 async fn create_room_2() -> anyhow::Result<()> {
-    let (room_manager, auth_manager, config, states, recipient) = create_actor()?;
+    let (room_manager, auth_manager, config, mut states, recipient) = create_actor()?;
     let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".to_string(), true, recipient);
 
     room_manager.send(CreateRoomRequest {

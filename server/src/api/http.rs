@@ -48,7 +48,7 @@ pub mod tests {
     use actix_web::{web, web::Data, App};
     use database::model::UserInformationModel;
     use database::{create_database, create_connection};
-    use general::model::YummyState;
+    use general::state::YummyState;
     use general::web::Answer;
     use general::web::GenericAnswer;
     use manager::api::auth::AuthManager;
@@ -62,6 +62,8 @@ pub mod tests {
     use crate::json_error_handler;
     use super::http_query;
 
+    #[cfg(feature = "stateless")]
+    use general::test::cleanup_redis;
 
     fn config(cfg: &mut web::ServiceConfig) {
         let mut db_location = temp_dir();
@@ -70,7 +72,14 @@ pub mod tests {
         let config = ::general::config::get_configuration();
         let connection = create_connection(db_location.to_str().unwrap()).unwrap();
         create_database(&mut connection.clone().get().unwrap()).unwrap();
-        let states = Arc::new(YummyState::default());
+
+        #[cfg(feature = "stateless")]
+        let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
+
+        #[cfg(feature = "stateless")]
+        cleanup_redis(conn.clone());
+
+        let states = YummyState::new(#[cfg(feature = "stateless")] conn);
         let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
         let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
         let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start());

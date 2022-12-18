@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-general = { path = "../general" }
-database = { path = "../database" }
-manager = { path = "../manager" }
+general.workspace = true
+database.workspace = true
+manager.workspace = true
 
 actix = "0.13"
 actix-cors = "0.6.4"
@@ -45,6 +45,9 @@ serde_trim = "0.4.0"
 
 moka = { version = "0.9.6", features = ["future"] }
 
+r2d2 =  { version = "0.8.10", optional = true }
+redis = { version = "0.22.1", features = ["r2d2"], optional = true }
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
 actix-test-server = "0.2.2"
@@ -55,3 +58,7 @@ awc = "3.0.1"
 actix-codec = "0.5.0"
 futures = "0.3.25"
 futures-util = "0.3.25"
+
+[features]
+stateless = ["dep:redis", "dep:r2d2"]
+default = ["stateless"]

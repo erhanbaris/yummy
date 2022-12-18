@@ -1,9 +1,11 @@
+use actix::Recipient;
 use anyhow::anyhow;
 use general::auth::UserAuth;
 use general::auth::validate_auth;
 use general::config::YummyConfig;
 use general::config::get_configuration;
 use general::meta::MetaAccess;
+use general::state::SendMessage;
 use general::web::GenericAnswer;
 use std::collections::HashMap;
 use std::env::temp_dir;
@@ -17,7 +19,11 @@ use database::{create_database, create_connection};
 use super::*;
 use crate::api::auth::AuthManager;
 use crate::api::auth::model::*;
-use crate::test::DummyClient;
+use crate::api::conn::CommunicationManager;
+use general::test::DummyClient;
+
+#[cfg(feature = "stateless")]
+use general::test::cleanup_redis;
 
 macro_rules! email_auth {
     ($auth_manager: expr, $config: expr, $email: expr, $password: expr, $create: expr, $socket: expr) => {
@@ -47,7 +53,16 @@ fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, A
     db_location.push(format!("{}.db", Uuid::new_v4()));
     
     let config = get_configuration();
-    let states = Arc::new(YummyState::default());
+    #[cfg(feature = "stateless")]
+    let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
+
+    #[cfg(feature = "stateless")]
+    cleanup_redis(conn.clone());
+
+    let conn_manager = CommunicationManager::new(config.clone()).start();
+    let conn_recipient: Recipient<SendMessage> = conn_manager.clone().recipient();
+    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")] conn_recipient);
+
     let connection = create_connection(db_location.to_str().unwrap())?;
     create_database(&mut connection.clone().get()?)?;
     Ok((UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config, Arc::new(DummyClient::default())))

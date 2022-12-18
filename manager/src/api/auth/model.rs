@@ -17,7 +17,7 @@ pub struct EmailAuthRequest {
 
     pub if_not_exist_create: bool,
 
-    pub socket: Arc<dyn ClientTrait + Sync + Send>
+    pub socket: Arc<dyn ClientTrait + Sync + Send>,
 }
 
 #[derive(Message, Validate, Debug)]
@@ -49,7 +49,8 @@ pub struct LogoutRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct StartUserTimeout {
-    pub session_id: SessionId
+    pub session_id: SessionId,
+    pub user_id: UserId
 }
 
 #[derive(Message, Validate, Debug)]

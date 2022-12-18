@@ -14,7 +14,8 @@ use database::{Pool, DatabaseTrait, RowId};
 
 use general::config::YummyConfig;
 use general::meta::{MetaType, MetaAccess};
-use general::model::{UserType, YummyState, UserId};
+use general::model::{UserType, UserId};
+use general::state::YummyState;
 use general::web::{GenericAnswer, Answer};
 use moka::sync::Cache;
 use uuid::Uuid;
@@ -28,7 +29,7 @@ use super::auth::model::UserDisconnectRequest;
 pub struct UserManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
-    states: Arc<YummyState>,
+    states: YummyState,
     _marker: PhantomData<DB>,
 
     // Caches
@@ -36,7 +37,7 @@ pub struct UserManager<DB: DatabaseTrait + ?Sized> {
 }
 
 impl<DB: DatabaseTrait + ?Sized> UserManager<DB> {
-    pub fn new(config: Arc<YummyConfig>, states: Arc<YummyState>, database: Arc<Pool>) -> Self {
+    pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>) -> Self {
         Self {
             config,
             database,
