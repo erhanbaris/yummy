@@ -3,6 +3,7 @@ use anyhow::anyhow;
 use general::auth::UserAuth;
 use general::auth::validate_auth;
 use general::config::YummyConfig;
+use general::config::configure_environment;
 use general::config::get_configuration;
 use general::meta::MetaAccess;
 use general::state::SendMessage;
@@ -52,6 +53,7 @@ fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, A
     let mut db_location = temp_dir();
     db_location.push(format!("{}.db", Uuid::new_v4()));
     
+    configure_environment();
     let config = get_configuration();
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();

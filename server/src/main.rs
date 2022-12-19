@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 mod api;
 
-use general::config::{get_configuration, get_env_var};
+use general::config::{get_configuration, get_env_var, configure_environment};
 use general::state::SendMessage;
 use manager::api::conn::CommunicationManager;
 use manager::api::user::UserManager;
@@ -17,8 +17,6 @@ use actix_web::web::{JsonConfig, QueryConfig};
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::{middleware, App, HttpServer, web::Data};
 
-use dotenv::dotenv;
-
 pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::Error {
     let detail = err.to_string();
     let res = HttpResponse::BadRequest().body("error");
@@ -32,8 +30,7 @@ async fn main() -> std::io::Result<()> {
     use general::state::YummyState;
     use manager::api::{room::RoomManager};
 
-    dotenv().ok();
-
+    configure_environment();
     let server_bind = get_env_var("SERVER_BIND", "0.0.0.0:9090".to_string());
     let rust_log_level = get_env_var("RUST_LOG", "debug,backend,actix_web=debug".to_string());
     

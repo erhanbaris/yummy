@@ -17,5 +17,5 @@
       "strings": true,
       "other": true
     },
-    "rust-analyzer.cargo.features": []
+    "rust-analyzer.cargo.features": ["stateless"]
   }

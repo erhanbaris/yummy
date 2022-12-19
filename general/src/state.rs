@@ -380,6 +380,7 @@ impl YummyState {
 mod tests {
     use std::sync::Arc;
 
+    use crate::config::configure_environment;
     use crate::{model::*, client::EmptyClient, config::get_configuration};
 
     #[cfg(feature = "stateless")]
@@ -408,6 +409,7 @@ mod tests {
 
     #[actix::test]
     async fn state_1() -> anyhow::Result<()> {
+        configure_environment();
         let config = get_configuration();
 
         #[cfg(feature = "stateless")]
@@ -434,6 +436,7 @@ mod tests {
 
     #[actix::test]
     async fn state_2() -> anyhow::Result<()> {
+        configure_environment();
         let config = get_configuration();
         
         #[cfg(feature = "stateless")]
@@ -455,6 +458,7 @@ mod tests {
     
     #[actix::test]
     async fn room_tests() -> anyhow::Result<()> {
+        configure_environment();
         let config = get_configuration();
         
         #[cfg(feature = "stateless")]
@@ -494,6 +498,7 @@ mod tests {
     
     #[actix::test]
     async fn room_unlimited_users_tests() -> anyhow::Result<()> {
+        configure_environment();
         let config = get_configuration();
 
         #[cfg(feature = "stateless")]

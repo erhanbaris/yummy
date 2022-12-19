@@ -32,6 +32,8 @@ rand = "0.8.5"
 r2d2 =  { version = "0.8.10", optional = true }
 redis = { version = "0.22.1", features = ["r2d2"], optional = true }
 
+dotenv = "0.15.0"
+
 [features]
 stateless = ["dep:redis", "dep:r2d2"]
 default = []

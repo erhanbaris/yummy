@@ -69,6 +69,7 @@ pub mod tests {
         let mut db_location = temp_dir();
         db_location.push(format!("{}.db", Uuid::new_v4()));
 
+        ::general::config::configure_environment();
         let config = ::general::config::get_configuration();
         let connection = create_connection(db_location.to_str().unwrap()).unwrap();
         create_database(&mut connection.clone().get().unwrap()).unwrap();

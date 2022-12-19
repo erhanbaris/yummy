@@ -56,6 +56,22 @@ pub fn get_env_var<R: Clone + FromStr>(key: &str, default: R) -> R {
         .unwrap_or(default)
 }
 
+pub fn configure_environment() {
+    let profile = get_profile();
+    dotenv::from_filename(format!("{}.env", profile)).ok();
+    dotenv::dotenv().ok();
+}
+
+pub fn get_profile() -> &'static str {
+    if cfg!(test) {
+        "test"
+    } else if cfg!(debug_assertions) {
+        "dev"
+    } else {
+        "prod"
+    }
+}
+
 pub fn get_configuration() -> Arc<YummyConfig> {
     let server_name: String = format!("YUMMY-{}", rand::thread_rng()
         .sample_iter(&Alphanumeric)

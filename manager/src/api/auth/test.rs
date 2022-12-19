@@ -2,6 +2,7 @@ use std::time::Duration;
 use actix::Recipient;
 use general::config::YummyConfig;
 use general::auth::validate_auth;
+use general::config::configure_environment;
 use general::state::SendMessage;
 use general::state::YummyState;
 
@@ -218,6 +219,7 @@ async fn login_users_via_custom_id() -> anyhow::Result<()> {
 /* restore token unit tests */
 #[actix::test]
 async fn token_restore_test_1() -> anyhow::Result<()> {
+    configure_environment();
     let config = ::general::config::get_configuration();
     let (address, socket) = create_actor(config.clone())?;
     address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
@@ -268,6 +270,7 @@ async fn fail_token_restore_test_1() -> anyhow::Result<()> {
 /* refreh token unit tests */
 #[actix::test]
 async fn token_refresh_test_1() -> anyhow::Result<()> {
+    configure_environment();
     let config = ::general::config::get_configuration();
     let (address, socket) = create_actor(config.clone())?;
     address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
@@ -300,6 +303,7 @@ async fn token_refresh_test_1() -> anyhow::Result<()> {
 
 #[actix::test]
 async fn token_refresh_test_2() -> anyhow::Result<()> {
+    configure_environment();
     let config = ::general::config::get_configuration();
     let (address, socket) = create_actor(config.clone())?;
     address.send(EmailAuthRequest {

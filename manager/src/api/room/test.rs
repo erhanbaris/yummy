@@ -1,4 +1,5 @@
 use actix::Recipient;
+use general::config::configure_environment;
 use general::state::SendMessage;
 use serde::Deserialize;
 use serde::Serialize;
@@ -78,6 +79,7 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
     let mut db_location = temp_dir();
     db_location.push(format!("{}.db", Uuid::new_v4()));
     
+    configure_environment();
     let config = get_configuration();
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
