@@ -13,6 +13,10 @@ use redis::Commands;
 use crate::client::ClientTrait;
 use crate::config::YummyConfig;
 use crate::model::{UserId, RoomId, SessionId};
+use crate::model::RoomUserType;
+use crate::model::UserState;
+use crate::model::RoomState;
+use parking_lot::Mutex;
 
 #[derive(Message, Debug, Clone)]
 #[rtype(result = "()")]
@@ -323,6 +327,8 @@ impl YummyState {
     pub fn join_to_room(&self, room_id: RoomId, user_id: UserId, user_type: RoomUserType) -> Result<(), YummyStateError> {
 
         // Get room
+
+        use crate::model::{RoomUserInfo, RoomUserType};
         match self.room.lock().get_mut(room_id.borrow()) {
             Some(room) => {
                 let mut users = room.users.lock();
@@ -347,6 +353,8 @@ impl YummyState {
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="join_to_room", skip(self))]
     pub fn disconnect_from_room(&self, room_id: RoomId, user_id: UserId) -> Result<bool, YummyStateError> {
+        use crate::model::{RoomUserType, RoomUserInfo};
+
         let mut rooms = self.room.lock();
         let room_removed = match rooms.get_mut(room_id.borrow()) {
             Some(room) => {

@@ -8,8 +8,8 @@ members = [
 ]
 
 [workspace.dependencies]
-general = { path = "./general", features = ["stateless"] }
-manager = { path = "./manager", features = ["stateless"] }
-server = { path = "./server", features = ["stateless"] }
+general = { path = "./general", features = [] }
+manager = { path = "./manager", features = [] }
+server = { path = "./server", features = [] }
 database = { path = "./database" }
 macros = { path = "./macros" }

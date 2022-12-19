@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 
 use serde::de::DeserializeOwned;
@@ -14,6 +15,7 @@ use actix::prelude::Message;
 use uuid::Uuid;
 
 use crate::auth::UserJwt;
+use crate::client::ClientTrait;
 use crate::web::GenericAnswer;
 
 #[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash, Ord, PartialOrd)]
