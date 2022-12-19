@@ -24,7 +24,7 @@ use general::test::DummyClient;
 fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<database::SqliteStore>>, Arc<DummyClient>)> {
     let connection = create_connection(":memory:")?;
     #[cfg(feature = "stateless")]
-    let conn = r2d2::Pool::new(redis::Client::open("redis://127.0.0.1/").unwrap()).unwrap();
+    let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
     #[cfg(feature = "stateless")]
     cleanup_redis(conn.clone());

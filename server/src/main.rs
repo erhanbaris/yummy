@@ -17,6 +17,8 @@ use actix_web::web::{JsonConfig, QueryConfig};
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::{middleware, App, HttpServer, web::Data};
 
+use dotenv::dotenv;
+
 pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::Error {
     let detail = err.to_string();
     let res = HttpResponse::BadRequest().body("error");
@@ -30,6 +32,8 @@ async fn main() -> std::io::Result<()> {
     use general::state::YummyState;
     use manager::api::{room::RoomManager};
 
+    dotenv().ok();
+
     let server_bind = get_env_var("SERVER_BIND", "0.0.0.0:9090".to_string());
     let rust_log_level = get_env_var("RUST_LOG", "debug,backend,actix_web=debug".to_string());
     
@@ -38,8 +42,8 @@ async fn main() -> std::io::Result<()> {
     let config = get_configuration();
 
     log::info!("Yummy is starting...");
-    log::info!("Binding at \"{}\"", server_bind);
-    log::info!("Server name \"{}\"", config.server_name);
+    log::info!("Binding at   \"{}\"", server_bind);
+    log::info!("Server name  \"{}\"", config.server_name);
     log::info!("Log level is \"{}\"", rust_log_level);
 
     let database = Arc::new(database::create_connection(&config.database_url).unwrap());

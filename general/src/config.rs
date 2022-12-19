@@ -64,7 +64,7 @@ pub fn get_configuration() -> Arc<YummyConfig> {
         .collect::<String>());
 
     Arc::new(YummyConfig {
-        server_name: get_env_var("SERVER-NAME", server_name),
+        server_name: get_env_var("SERVER_NAME", server_name),
         client_timeout: Duration::from_secs(get_env_var("CLIENT_TIMEOUT", DEFAULT_CLIENT_TIMEOUT)),
         connection_restore_wait_timeout: Duration::from_secs(get_env_var("CONNECTION_RESTORE_WAIT_TIMEOUT", DEFAULT_CONNECTION_RESTORE_WAIT_TIMEOUT)),
         heartbeat_interval: Duration::from_secs(get_env_var("HEARTBEAT_INTERVAL", DEFAULT_HEARTBEAT_INTERVAL)),

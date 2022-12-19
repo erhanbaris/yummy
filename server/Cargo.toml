@@ -48,6 +48,8 @@ moka = { version = "0.9.6", features = ["future"] }
 r2d2 =  { version = "0.8.10", optional = true }
 redis = { version = "0.22.1", features = ["r2d2"], optional = true }
 
+dotenv = "0.15.0"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
 actix-test-server = "0.2.2"
@@ -61,4 +63,4 @@ futures-util = "0.3.25"
 
 [features]
 stateless = ["dep:redis", "dep:r2d2"]
-default = []
+default = ["stateless"]

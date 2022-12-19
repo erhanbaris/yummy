@@ -106,10 +106,7 @@ pub struct UserState {
     pub session: SessionId,
 
     #[cfg(not(feature = "stateless"))]
-    pub room: std::cell::Cell<Option<RoomId>>,
-    
-    #[cfg(not(feature = "stateless"))]
-    pub socket: Arc<dyn ClientTrait + Sync + Send>
+    pub room: std::cell::Cell<Option<RoomId>>
 }
 
 #[derive(Default, Debug)]

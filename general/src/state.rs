@@ -108,7 +108,7 @@ impl YummyState {
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="new_session", skip(self))]
-    pub fn new_session(&mut self, user_id: UserId, _: Arc<dyn ClientTrait + Sync + Send>) -> SessionId {
+    pub fn new_session(&mut self, user_id: UserId) -> SessionId {
         let session_id = SessionId::new();
         match self.redis.get() {
             Ok(mut redis) => {
@@ -149,15 +149,6 @@ impl YummyState {
             Ok(item) => Some(RoomId::from(item)),
             Err(_) => None
         }
-    }
-
-    #[cfg(feature = "stateless")]
-    #[tracing::instrument(name="get_user_socket", skip(self))]
-    pub fn get_user_socket<T: Borrow<UserId> + std::fmt::Debug>(&mut self, user_id: T) -> Option<Arc<dyn ClientTrait + Sync + Send>> {
-        use crate::client::EmptyClient;
-
-        Some(Arc::new(EmptyClient::default()))
-        //self.user.lock().get(user_id.borrow()).map(|user| user.socket.clone())
     }
 
     #[cfg(feature = "stateless")]
@@ -276,12 +267,12 @@ impl YummyState {
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="new_session", skip(self))]
-    pub fn new_session(&self, user_id: UserId, socket: Arc<dyn ClientTrait + Sync + Send>) -> SessionId {
+    pub fn new_session(&self, user_id: UserId) -> SessionId {
         use std::cell::Cell;
 
         let session_id = SessionId::new();
         self.session_to_user.lock().insert(session_id.clone(), user_id);
-        self.user.lock().insert(user_id, UserState { user_id, session: session_id.clone(), room: Cell::new(None), socket });
+        self.user.lock().insert(user_id, UserState { user_id, session: session_id.clone(), room: Cell::new(None) });
         session_id
     }
 
@@ -300,12 +291,6 @@ impl YummyState {
     #[tracing::instrument(name="get_user_room", skip(self))]
     pub fn get_user_room<T: Borrow<UserId> + std::fmt::Debug>(&self, user_id: T) -> Option<RoomId> {
         self.user.lock().get(user_id.borrow()).and_then(|user| user.room.get())
-    }
-
-    #[cfg(not(feature = "stateless"))]
-    #[tracing::instrument(name="get_user_socket", skip(self))]
-    pub fn get_user_socket<T: Borrow<UserId> + std::fmt::Debug>(&self, user_id: T) -> Option<Arc<dyn ClientTrait + Sync + Send>> {
-        self.user.lock().get(user_id.borrow()).map(|user| user.socket.clone())
     }
 
     #[cfg(not(feature = "stateless"))]
@@ -423,18 +408,18 @@ mod tests {
 
     #[actix::test]
     async fn state_1() -> anyhow::Result<()> {
+        let config = get_configuration();
+
         #[cfg(feature = "stateless")]
-        let conn = r2d2::Pool::new(redis::Client::open("redis://127.0.0.1/").unwrap()).unwrap();
+        let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
         #[cfg(feature = "stateless")]
         cleanup_redis(conn.clone());
 
-        let config = get_configuration();
-
         let recipient = DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")]  recipient);
         let user_id = UserId::new();
-        let session_id = state.new_session(user_id, Arc::new(EmptyClient::default()));
+        let session_id = state.new_session(user_id);
 
         assert!(state.is_session_online(session_id.clone()));
         assert!(state.is_user_online(user_id.clone()));
@@ -449,13 +434,13 @@ mod tests {
 
     #[actix::test]
     async fn state_2() -> anyhow::Result<()> {
+        let config = get_configuration();
+        
         #[cfg(feature = "stateless")]
-        let conn = r2d2::Pool::new(redis::Client::open("redis://127.0.0.1/").unwrap()).unwrap();
+        let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
         #[cfg(feature = "stateless")]
         cleanup_redis(conn.clone());
-
-        let config = get_configuration();
 
         let recipient = DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")]  recipient);
@@ -470,13 +455,13 @@ mod tests {
     
     #[actix::test]
     async fn room_tests() -> anyhow::Result<()> {
+        let config = get_configuration();
+        
         #[cfg(feature = "stateless")]
-        let conn = r2d2::Pool::new(redis::Client::open("redis://127.0.0.1/").unwrap()).unwrap();
+        let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
         #[cfg(feature = "stateless")]
         cleanup_redis(conn.clone());
-
-        let config = get_configuration();
 
         let recipient = DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")]  recipient);
@@ -509,13 +494,13 @@ mod tests {
     
     #[actix::test]
     async fn room_unlimited_users_tests() -> anyhow::Result<()> {
+        let config = get_configuration();
+
         #[cfg(feature = "stateless")]
-        let conn = r2d2::Pool::new(redis::Client::open("redis://127.0.0.1/").unwrap()).unwrap();
+        let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
         #[cfg(feature = "stateless")]
         cleanup_redis(conn.clone());
-
-        let config = get_configuration();
 
         let recipient = DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")]  recipient);

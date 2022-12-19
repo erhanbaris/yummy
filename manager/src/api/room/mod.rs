@@ -6,14 +6,14 @@ mod test;
 use std::{marker::PhantomData, ops::Deref};
 use std::sync::Arc;
 use actix::{Context, Actor, Handler};
-use actix_broker::{BrokerSubscribe};
+use actix_broker::{BrokerSubscribe, BrokerIssue};
 use anyhow::anyhow;
 use database::{Pool, DatabaseTrait};
 use database::RowId;
 
 use general::config::YummyConfig;
 use general::model::{RoomId, UserId, RoomUserType};
-use general::state::YummyState;
+use general::state::{YummyState, SendMessage};
 use general::web::{GenericAnswer, Answer};
 use rand::Rng;
 
@@ -66,13 +66,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         let mut connection = self.database.get()?;
         DB::disconnect_from_room(&mut connection, RowId(room_id.get()), RowId(user_id.get()))?;
 
-        for user in users.into_iter() {
-            if let Some(socket) = self.states.get_user_socket(user) {
-                socket.send(serde_json::to_string(&RoomResponse::UserDisconnectedFromRoom {
-                    user: user_id,
-                    room: room_id
-                }).unwrap_or_default());
-            }
+        let message = serde_json::to_string(&RoomResponse::UserDisconnectedFromRoom {
+            user: user_id,
+            room: room_id
+        }).unwrap_or_default();
+
+        for user_id in users.into_iter() {
+            self.issue_system_async(SendMessage {
+                message: message.clone(),
+                user_id
+            });
         }
 
         Ok(room_removed)
@@ -154,13 +157,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
         let mut connection = self.database.get()?;
         DB::join_to_room(&mut connection, RowId(model.room.get()), RowId(user_id.get()), model.room_user_type)?;
 
-        for user in users.into_iter() {
-            if let Some(socket) = self.states.get_user_socket(user) {
-                socket.send(serde_json::to_string(&RoomResponse::UserJoinedToRoom {
-                    user: user_id,
-                    room: model.room
-                }).unwrap_or_default());
-            }
+        let message = serde_json::to_string(&RoomResponse::UserJoinedToRoom {
+            user: user_id,
+            room: model.room
+        }).unwrap_or_default();
+
+        for user_id in users.into_iter() {
+            self.issue_system_async(SendMessage {
+                message: message.clone(),
+                user_id
+            });
         }
 
         Ok(())
@@ -205,13 +211,14 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
 
         match self.states.get_users_from_room(room.clone()) {
             Ok(users) => {
-                let message = RoomResponse::MessageFromRoom { user: user_id, room: model.room.clone(), message: Arc::new(message) };
+                let message: String = RoomResponse::MessageFromRoom { user: user_id, room: model.room.clone(), message: Arc::new(message) }.into();
 
                 for user in users.into_iter() {
                     if user != user_id {
-                        if let Some(user_socket) = self.states.get_user_socket(user) {
-                            user_socket.send(message.clone().into());
-                        }
+                        self.issue_system_async(SendMessage {
+                            message: message.clone(),
+                            user_id
+                        });
                     }
                 }
 

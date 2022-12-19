@@ -42,6 +42,7 @@ impl Actor for CommunicationManager {
 
     fn started(&mut self,ctx: &mut Self::Context) {
         self.subscribe_system_async::<UserDisconnectRequest>(ctx);
+        self.subscribe_system_async::<SendMessage>(ctx);
     }
 }
 

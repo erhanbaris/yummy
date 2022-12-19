@@ -89,7 +89,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
 
-        let session_id = self.states.new_session(UserId::from(user_id.get()), model.socket.clone());
+        let session_id = self.states.new_session(UserId::from(user_id.get()));
         let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, Some(model.email.to_string()), Some(session_id))?;
 
         model.socket.authenticated(auth);
@@ -117,7 +117,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
         
-        let session_id = self.states.new_session(UserId::from(user_id.get()), model.socket.clone());
+        let session_id = self.states.new_session(UserId::from(user_id.get()));
         let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))?;
 
         model.socket.authenticated(auth);
@@ -145,7 +145,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
         
-        let session_id = self.states.new_session(UserId::from(user_id.get()), model.socket.clone());
+        let session_id = self.states.new_session(UserId::from(user_id.get()));
         let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))?;
 
         model.socket.authenticated(auth);
@@ -201,7 +201,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
                     }
                     auth.user.session
                 } else {
-                    self.states.new_session(auth.user.id, model.socket.clone())
+                    self.states.new_session(auth.user.id)
                 };
 
                 let (token, auth) = self.generate_token(auth.user.id, None, None, Some(session_id))?;
