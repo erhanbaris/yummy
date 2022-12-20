@@ -17,7 +17,6 @@ use general::client::ClientTrait;
 use general::config::YummyConfig;
 use general::model::UserId;
 use general::state::SendMessage;
-use general::state::YummyState;
 
 use self::model::UserConnected;
 
@@ -41,27 +40,35 @@ impl Actor for CommunicationManager {
     type Context = Context<Self>;
 
     fn started(&mut self,ctx: &mut Self::Context) {
+        self.subscribe_system_async::<UserConnected>(ctx);
         self.subscribe_system_async::<UserDisconnectRequest>(ctx);
         self.subscribe_system_async::<SendMessage>(ctx);
+    }
+}
+
+impl Handler<UserConnected> for CommunicationManager {
+    type Result = ();
+
+    #[tracing::instrument(name="UserConnected", skip(self, _ctx))]
+    fn handle(&mut self, model: UserConnected, _ctx: &mut Self::Context) -> Self::Result {
+        self.users.insert(model.user_id, model.socket);
     }
 }
 
 impl Handler<UserDisconnectRequest> for CommunicationManager {
     type Result = ();
 
-    #[tracing::instrument(name="User::User disconnected", skip(self, _ctx))]
-    fn handle(&mut self, user: UserDisconnectRequest, _ctx: &mut Self::Context) -> Self::Result {
-        println!("connection:UserDisconnectRequest {:?}", user);
+    #[tracing::instrument(name="UserDisconnectRequest", skip(self, _ctx))]
+    fn handle(&mut self, model: UserDisconnectRequest, _ctx: &mut Self::Context) -> Self::Result {
+        self.users.remove(&model.user_id);
     }
 }
 
 impl Handler<SendMessage> for CommunicationManager {
     type Result = ();
 
-    #[tracing::instrument(name="User::Send message", skip(self, _ctx))]
+    #[tracing::instrument(name="SendMessage", skip(self, _ctx))]
     fn handle(&mut self, model: SendMessage, _ctx: &mut Self::Context) -> Self::Result {
-        println!("connection:SendMessage {:?}", model);
-
         match self.users.get(&model.user_id) {
             Some(socket) => socket.send(model.message),
             None => ()
