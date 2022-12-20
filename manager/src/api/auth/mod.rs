@@ -18,6 +18,7 @@ use anyhow::{anyhow, Ok};
 use general::model::{UserId, SessionId};
 
 use self::model::*;
+use crate::api::conn::model::UserConnected;
 
 pub fn generate_response<T: Debug + Serialize + DeserializeOwned>(model: T) -> String {
     serde_json::to_string(&model).unwrap_or_default()
@@ -120,6 +121,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
         let session_id = self.states.new_session(UserId::from(user_id.get()));
         let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))?;
 
+        self.issue_arbiter_async(UserConnected {
+            user_id: UserId::from(user_id.get()),
+            socket: model.socket.clone()
+        });
         model.socket.authenticated(auth);
         model.socket.send(GenericAnswer::success(token).into());
         Ok(())

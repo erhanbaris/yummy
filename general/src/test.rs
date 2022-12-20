@@ -10,6 +10,8 @@ pub struct DummyClient {
 
 impl ClientTrait for DummyClient {
     fn send(&self, message: String) {
+
+        println!("send {} {:?}", message, self.auth);
         self.messages.lock().unwrap().push_back(message)
     }
 
@@ -24,6 +26,7 @@ impl ClientTrait for DummyClient {
 
 impl Default for DummyClient {
     fn default() -> Self {
+        println!("DummyClient");
         Self {
             messages: Mutex::default(),
             auth: Mutex::new(UserJwt::default())

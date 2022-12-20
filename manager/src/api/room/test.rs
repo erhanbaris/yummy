@@ -165,6 +165,8 @@ async fn create_room_3() -> anyhow::Result<()> {
     let user_3_socket = Arc::new(DummyClient::default());
     let user_3 = email_auth!(auth_manager, config.clone(), "user3@gmail.com".to_string(), "erhan".to_string(), true, user_3_socket);
 
+
+    println!("CreateRoomRequest");
     room_manager.send(CreateRoomRequest {
         user: user_1.clone(),
         disconnect_from_other_room: false,
@@ -180,6 +182,7 @@ async fn create_room_3() -> anyhow::Result<()> {
 
     assert!(room_id.get() != uuid::Uuid::nil());
 
+    println!("JoinToRoomRequest");
     room_manager.send(JoinToRoomRequest {
         user: user_2.clone(),
         room: room_id,
@@ -187,6 +190,7 @@ async fn create_room_3() -> anyhow::Result<()> {
         socket:user_2_socket.clone()
     }).await??;
 
+    println!("JoinToRoomRequest");
     room_manager.send(JoinToRoomRequest {
         user: user_3.clone(),
         room: room_id,
@@ -195,6 +199,8 @@ async fn create_room_3() -> anyhow::Result<()> {
     }).await??;
 
     let user_1_id = user_1.clone().deref().as_ref().unwrap().user.clone();
+
+    println!("messages {:?}", user_1_socket.clone().messages.lock().unwrap());
 
     // User 1 should receive other 2 users join message
     let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
@@ -378,7 +384,12 @@ async fn message_to_room() -> anyhow::Result<()> {
     }).await??;
 
     // All users will receive the message
-    let message = serde_json::from_str::<MessageReceivedFromRoom>(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    println!("messages {:?}", user_2_socket.clone().messages.lock().unwrap());
+
+    let message = user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap();
+    println!("message {} sender {:?}", message, user_1.clone());
+    
+    let message = serde_json::from_str::<MessageReceivedFromRoom>(&message).unwrap();
     assert_eq!(message.user, user_1_id.clone());
     assert_eq!(message.room, room_id.clone());
     assert_eq!(&message.message, "HELLO");

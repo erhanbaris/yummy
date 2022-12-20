@@ -51,6 +51,7 @@ impl Handler<UserConnected> for CommunicationManager {
 
     #[tracing::instrument(name="UserConnected", skip(self, _ctx))]
     fn handle(&mut self, model: UserConnected, _ctx: &mut Self::Context) -> Self::Result {
+        println!("UserConnected {:?}", model.user_id.get());
         self.users.insert(model.user_id, model.socket);
     }
 }
@@ -69,9 +70,10 @@ impl Handler<SendMessage> for CommunicationManager {
 
     #[tracing::instrument(name="SendMessage", skip(self, _ctx))]
     fn handle(&mut self, model: SendMessage, _ctx: &mut Self::Context) -> Self::Result {
+        println!("SendMessage");
         match self.users.get(&model.user_id) {
             Some(socket) => socket.send(model.message),
-            None => ()
+            None => println!("no socket {:?}", model.user_id.get())
         }
     }
 }
