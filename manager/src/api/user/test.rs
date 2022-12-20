@@ -62,8 +62,7 @@ fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, A
     cleanup_redis(conn.clone());
 
     let conn_manager = CommunicationManager::new(config.clone()).start();
-    let conn_recipient: Recipient<SendMessage> = conn_manager.clone().recipient();
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")] conn_recipient);
+    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn);
 
     let connection = create_connection(db_location.to_str().unwrap())?;
     create_database(&mut connection.clone().get()?)?;

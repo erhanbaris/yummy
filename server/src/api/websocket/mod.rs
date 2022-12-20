@@ -38,7 +38,11 @@ use super::process_room;
 pub async fn websocket_endpoint<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, stream: Payload, config: Data<Arc<YummyConfig>>, auth_manager: Data<Addr<AuthManager<DB>>>, user_manager: Data<Addr<UserManager<DB>>>, room_manager: Data<Addr<RoomManager<DB>>>, _: ApiIntegration) -> Result<actix_web::HttpResponse, YummyError> {
     let config = config.get_ref();
 
-    ws::start(GameWebsocket::new(config.clone(), auth_manager.get_ref().clone(), user_manager.get_ref().clone(), room_manager.get_ref().clone()), &req, stream)
+    ws::start(GameWebsocket::new(config.clone(),
+        auth_manager.get_ref().clone(),
+        user_manager.get_ref().clone(),
+        room_manager.get_ref().clone()),
+        &req, stream)
         .map_err(YummyError::from)
 }
 
@@ -352,7 +356,7 @@ mod tests {
         
             let conn_manager = CommunicationManager::new(config.clone()).start();
             let conn_recipient: Recipient<SendMessage> = conn_manager.clone().recipient();
-            let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")] conn_recipient);
+            let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn);
 
             let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
             let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());

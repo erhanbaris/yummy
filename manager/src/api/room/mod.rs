@@ -44,7 +44,7 @@ impl<DB: DatabaseTrait + ?Sized> RoomManager<DB> {
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for RoomManager<DB> {
     type Context = Context<Self>;
     
-    fn started(&mut self,ctx: &mut Self::Context) {
+    fn started(&mut self, ctx: &mut Self::Context) {
         self.subscribe_system_async::<UserDisconnectRequest>(ctx);
     }
 }
@@ -204,20 +204,22 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
     fn handle(&mut self, model: MessageToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {   
         let MessageToRoomRequest { user, room, message, socket } = model;
 
-        let user_id = match user.deref() {
+        let sender_user_id = match user.deref() {
             Some(user) => UserId::from(user.user.get()),
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
         match self.states.get_users_from_room(room.clone()) {
             Ok(users) => {
-                let message: String = RoomResponse::MessageFromRoom { user: user_id, room: model.room.clone(), message: Arc::new(message) }.into();
+                println!(">>>> users {:?}", users);
+                let message: String = RoomResponse::MessageFromRoom { user: sender_user_id, room: model.room.clone(), message: Arc::new(message) }.into();
 
-                for user in users.into_iter() {
-                    if user != user_id {
+                for receiver_user in users.into_iter() {
+                    if receiver_user != sender_user_id {
+                        println!("> MessageToRoomRequest {:?}", user);
                         self.issue_system_async(SendMessage {
                             message: message.clone(),
-                            user_id
+                            user_id: receiver_user
                         });
                     }
                 }

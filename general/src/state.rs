@@ -48,14 +48,11 @@ pub struct YummyState {
 
     // Fields for stateless informations
     #[cfg(feature = "stateless")]
-    redis: r2d2::Pool<redis::Client>,
-
-    #[cfg(feature = "stateless")]
-    sender: Recipient<SendMessage>
+    redis: r2d2::Pool<redis::Client>
 }
 
 impl YummyState {
-    pub fn new(config: Arc<YummyConfig>, #[cfg(feature = "stateless")] redis: r2d2::Pool<redis::Client>, #[cfg(feature = "stateless")] sender: Recipient<SendMessage>) -> Self {
+    pub fn new(config: Arc<YummyConfig>, #[cfg(feature = "stateless")] redis: r2d2::Pool<redis::Client>) -> Self {
         Self {
             config,
 
@@ -63,8 +60,7 @@ impl YummyState {
             #[cfg(not(feature = "stateless"))] room: Arc::new(Mutex::default()),
             #[cfg(not(feature = "stateless"))] session_to_user: Arc::new(Mutex::default()),
             
-            #[cfg(feature = "stateless")] redis,
-            #[cfg(feature = "stateless")] sender
+            #[cfg(feature = "stateless")] redis
         }
     }
 }
@@ -419,7 +415,7 @@ mod tests {
         cleanup_redis(conn.clone());
 
         let recipient = DummyActor{}.start().recipient::<SendMessage>();
-        let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")]  recipient);
+        let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         let user_id = UserId::new();
         let session_id = state.new_session(user_id);
 
@@ -446,7 +442,7 @@ mod tests {
         cleanup_redis(conn.clone());
 
         let recipient = DummyActor{}.start().recipient::<SendMessage>();
-        let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")]  recipient);
+        let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         
         state.close_session(SessionId::new());
 
@@ -468,7 +464,7 @@ mod tests {
         cleanup_redis(conn.clone());
 
         let recipient = DummyActor{}.start().recipient::<SendMessage>();
-        let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")]  recipient);
+        let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         
         let room_1 = RoomId::new();
         state.create_room(room_1, 2);
@@ -508,7 +504,7 @@ mod tests {
         cleanup_redis(conn.clone());
 
         let recipient = DummyActor{}.start().recipient::<SendMessage>();
-        let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")]  recipient);
+        let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
     
         let room = RoomId::new();
         state.create_room(room, 0);

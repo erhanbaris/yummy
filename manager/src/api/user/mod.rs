@@ -30,10 +30,7 @@ pub struct UserManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
     states: YummyState,
-    _marker: PhantomData<DB>,
-
-    // Caches
-    cache_private_user_info: Cache<Uuid, UserInformationModel>
+    _marker: PhantomData<DB>
 }
 
 impl<DB: DatabaseTrait + ?Sized> UserManager<DB> {
@@ -42,8 +39,7 @@ impl<DB: DatabaseTrait + ?Sized> UserManager<DB> {
             config,
             database,
             states,
-            _marker: PhantomData,
-            cache_private_user_info: Cache::builder().time_to_idle(Duration::from_secs(5*60)).build()
+            _marker: PhantomData
         }
     }
 }
@@ -62,12 +58,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisc
     #[tracing::instrument(name="User::User disconnected", skip(self, _ctx))]
     fn handle(&mut self, user: UserDisconnectRequest, _ctx: &mut Self::Context) -> Self::Result {
         println!("user:UserDisconnectRequest {:?}", user);
-    }
-}
-
-impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static>  UserManager<DB> {
-    fn cleanup_user_cache(&self, user_id: &Uuid) {
-        self.cache_private_user_info.invalidate(user_id);
     }
 }
 
@@ -200,7 +190,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
                 true => match DB::update_user(connection, user_id, updates)? {
                     0 => Err(anyhow::anyhow!(UserError::UserNotFound)),
                     _ => {
-                        self.cleanup_user_cache(&original_user_id);
                         model.socket.send(Answer::success().into());
                         Ok(())
                     }

@@ -11,11 +11,12 @@ pub struct DummyClient {
 impl ClientTrait for DummyClient {
     fn send(&self, message: String) {
 
-        println!("send {} {:?}", message, self.auth);
+        println!("send {} {:?}", message, self.auth.lock().unwrap().id.get());
         self.messages.lock().unwrap().push_back(message)
     }
 
     fn authenticated(&self, auth: UserJwt) {
+        println!(">> Auth id: {}", auth.id.get());
         let mut self_auth = self.auth.lock().unwrap();
         self_auth.email = auth.email;
         self_auth.id = auth.id;

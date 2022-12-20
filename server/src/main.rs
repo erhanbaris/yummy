@@ -2,7 +2,6 @@
 mod api;
 
 use general::config::{get_configuration, get_env_var, configure_environment};
-use general::state::SendMessage;
 use manager::api::conn::CommunicationManager;
 use manager::api::user::UserManager;
 use std::sync::Arc;
@@ -50,17 +49,16 @@ async fn main() -> std::io::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-    let conn_manager = CommunicationManager::new(config.clone()).start();
-    let conn_recipient: Recipient<SendMessage> = conn_manager.clone().recipient();
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")] conn_recipient);
+    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn);
 
-    let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
     let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
-    let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, database.clone()).start());
-        
-    HttpServer::new(move || {
-        let config = get_configuration();
+    let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
+    let conn_manager = Data::new(CommunicationManager::new(config.clone()).start());
+    let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
+    
+    let config = Data::new(config);
 
+    HttpServer::new(move || {
         let query_cfg = QueryConfig::default()
             .error_handler(|err, _| {
                 log::error!("{:?}", err);
@@ -70,10 +68,11 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(query_cfg)
             .app_data(JsonConfig::default().error_handler(json_error_handler))
-            .app_data(Data::new(config))
+            .app_data(config.clone())
             .app_data(auth_manager.clone())
             .app_data(user_manager.clone())
             .app_data(room_manager.clone())
+            .app_data(conn_manager.clone())
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
             

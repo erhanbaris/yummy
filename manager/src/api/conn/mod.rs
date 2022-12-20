@@ -39,10 +39,16 @@ impl CommunicationManager {
 impl Actor for CommunicationManager {
     type Context = Context<Self>;
 
-    fn started(&mut self,ctx: &mut Self::Context) {
+    fn started(&mut self, ctx: &mut Self::Context) {
+        println!("CommunicationManager");
         self.subscribe_system_async::<UserConnected>(ctx);
         self.subscribe_system_async::<UserDisconnectRequest>(ctx);
         self.subscribe_system_async::<SendMessage>(ctx);
+    }
+
+    fn stopping(&mut self, ctx: &mut Self::Context) -> actix::Running {
+        println!("CommunicationManager stopping");
+        actix::Running::Stop
     }
 }
 
@@ -61,6 +67,7 @@ impl Handler<UserDisconnectRequest> for CommunicationManager {
 
     #[tracing::instrument(name="UserDisconnectRequest", skip(self, _ctx))]
     fn handle(&mut self, model: UserDisconnectRequest, _ctx: &mut Self::Context) -> Self::Result {
+        println!("conn:UserDisconnectRequest {:?}", model);
         self.users.remove(&model.user_id);
     }
 }

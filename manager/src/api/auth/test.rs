@@ -31,8 +31,7 @@ fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<da
     cleanup_redis(conn.clone());
 
     let conn_manager = CommunicationManager::new(config.clone()).start();
-    let conn_recipient: Recipient<SendMessage> = conn_manager.clone().recipient();
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn, #[cfg(feature = "stateless")] conn_recipient);
+    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn);
 
     create_database(&mut connection.clone().get()?)?;
     Ok((AuthManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start(), Arc::new(DummyClient::default())))

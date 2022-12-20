@@ -12,13 +12,15 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use general::config::YummyConfig;
 
-use actix::{Context, Handler, Actor, AsyncContext, SpawnHandle};
+use actix::{Context, Handler, Actor, AsyncContext, SpawnHandle, Addr};
 use database::{Pool, DatabaseTrait};
 use anyhow::{anyhow, Ok};
 use general::model::{UserId, SessionId};
 
 use self::model::*;
 use crate::api::conn::model::UserConnected;
+
+use super::conn::CommunicationManager;
 
 pub fn generate_response<T: Debug + Serialize + DeserializeOwned>(model: T) -> String {
     serde_json::to_string(&model).unwrap_or_default()
@@ -93,6 +95,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
         let session_id = self.states.new_session(UserId::from(user_id.get()));
         let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, Some(model.email.to_string()), Some(session_id))?;
 
+        self.issue_system_async(UserConnected {
+            user_id: UserId::from(user_id.get()),
+            socket: model.socket.clone()
+        });
         model.socket.authenticated(auth);
         model.socket.send(GenericAnswer::success(token).into());
         Ok(())
@@ -121,7 +127,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
         let session_id = self.states.new_session(UserId::from(user_id.get()));
         let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))?;
 
-        self.issue_arbiter_async(UserConnected {
+        self.issue_system_async(UserConnected {
             user_id: UserId::from(user_id.get()),
             socket: model.socket.clone()
         });
@@ -153,6 +159,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
         let session_id = self.states.new_session(UserId::from(user_id.get()));
         let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))?;
 
+
+        self.issue_system_async(UserConnected {
+            user_id: UserId::from(user_id.get()),
+            socket: model.socket.clone()
+        });
         model.socket.authenticated(auth);
         model.socket.send(GenericAnswer::success(token).into());
         Ok(())
@@ -210,6 +221,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
                 };
 
                 let (token, auth) = self.generate_token(auth.user.id, None, None, Some(session_id))?;
+
+                self.issue_system_async(UserConnected {
+                    user_id: auth.id.clone(),
+                    socket: model.socket.clone()
+                });
                 model.socket.authenticated(auth);
                 model.socket.send(GenericAnswer::success(token).into());
                 Ok(())
@@ -225,6 +241,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUse
     #[tracing::instrument(name="StartUserTimeout", skip(self, ctx))]
     #[macros::api(name="StartUserTimeout")]
     fn handle(&mut self, model: StartUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
+        self.issue_system_async(UserDisconnectRequest {
+            user_id: model.user_id
+        });
         let session_id = model.session_id.clone();
         let timer = ctx.run_later(self.config.connection_restore_wait_timeout, move |manager, _ctx| {
             if manager.states.close_session(&model.session_id) {
