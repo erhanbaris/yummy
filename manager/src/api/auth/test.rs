@@ -30,7 +30,7 @@ fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<da
     #[cfg(feature = "stateless")]
     cleanup_redis(conn.clone());
 
-    let conn_manager = CommunicationManager::new(config.clone()).start();
+    CommunicationManager::new(config.clone()).start();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn);
 
     create_database(&mut connection.clone().get()?)?;

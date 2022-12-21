@@ -8,14 +8,18 @@ mod test;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use actix::AsyncContext;
 use actix::Handler;
 use actix::Actor;
 use actix::Context;
 use actix_broker::BrokerSubscribe;
+use actix::WrapFuture;
 
 use general::client::ClientTrait;
 use general::config::YummyConfig;
 use general::model::UserId;
+use general::pubsub::MessageReceived;
+use general::pubsub::subscribe_to_channel;
 use general::state::SendMessage;
 
 use self::model::UserConnected;
@@ -44,11 +48,19 @@ impl Actor for CommunicationManager {
         self.subscribe_system_async::<UserConnected>(ctx);
         self.subscribe_system_async::<UserDisconnectRequest>(ctx);
         self.subscribe_system_async::<SendMessage>(ctx);
-    }
 
-    fn stopping(&mut self, ctx: &mut Self::Context) -> actix::Running {
-        println!("CommunicationManager stopping");
-        actix::Running::Stop
+        let future = subscribe_to_channel(self.config.clone(), "message".to_string(), ctx.address().recipient());
+        let actor_fut = future.into_actor(self);
+        ctx.wait(actor_fut);
+    }
+}
+
+impl Handler<MessageReceived> for CommunicationManager {
+    type Result = ();
+
+    #[tracing::instrument(name="MessageReceived", skip(self, _ctx))]
+    fn handle(&mut self, model: MessageReceived, _ctx: &mut Self::Context) -> Self::Result {
+        println!("MessageReceived {:?}", model);
     }
 }
 

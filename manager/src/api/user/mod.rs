@@ -3,10 +3,9 @@ pub mod model;
 #[cfg(test)]
 mod test;
 
-use std::time::Duration;
 use std::{marker::PhantomData, ops::Deref};
 use std::sync::Arc;
-use database::model::{UserUpdate, UserInformationModel};
+use database::model::UserUpdate;
 
 use actix::{Context, Actor, Handler};
 use actix_broker::BrokerSubscribe;
@@ -17,8 +16,6 @@ use general::meta::{MetaType, MetaAccess};
 use general::model::{UserType, UserId};
 use general::state::YummyState;
 use general::web::{GenericAnswer, Answer};
-use moka::sync::Cache;
-use uuid::Uuid;
 
 use crate::api::auth::model::AuthError;
 

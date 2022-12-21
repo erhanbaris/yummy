@@ -1,6 +1,4 @@
-use actix::Recipient;
 use general::config::configure_environment;
-use general::state::SendMessage;
 use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;

@@ -10,7 +10,7 @@ general.workspace = true
 database.workspace = true
 manager.workspace = true
 
-actix = "0.13"
+actix.workspace = true
 actix-cors = "0.6.4"
 actix-web = { version = "4", features = ["rustls"] }
 actix-web-actors = "4.1.0"
@@ -45,13 +45,13 @@ serde_trim = "0.4.0"
 
 moka = { version = "0.9.6", features = ["future"] }
 
-r2d2 =  { version = "0.8.10", optional = true }
-redis = { version = "0.22.1", features = ["r2d2"], optional = true }
+r2d2 =  { workspace = true, optional = true }
+redis = { workspace = true, optional = true }
 
 dotenv = "0.15.0"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["full"] }
+tokio.workspace = true
 actix-test-server = "0.2.2"
 actix-test = "0.1.0"
 actix-http = "3.2.2"

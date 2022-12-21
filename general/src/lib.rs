@@ -8,3 +8,4 @@ pub mod meta;
 pub mod client;
 pub mod state;
 pub mod test;
+pub mod pubsub;

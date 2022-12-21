@@ -10,7 +10,7 @@ use manager::api::auth::AuthManager;
 
 use actix_web::error::InternalError;
 
-use actix::{Actor, Recipient};
+use actix::Actor;
 use actix_web::error::{JsonPayloadError};
 use actix_web::web::{JsonConfig, QueryConfig};
 use actix_web::{web, HttpRequest, HttpResponse};

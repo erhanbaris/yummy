@@ -227,7 +227,7 @@ mod tests {
     use database::{create_database, create_connection, RowId};
     use general::meta::MetaAccess;
     use general::model::UserType;
-    use general::state::{YummyState, SendMessage};
+    use general::state::YummyState;
     use general::web::Answer;
     use manager::api::auth::AuthManager;
     use manager::api::conn::CommunicationManager;
@@ -354,8 +354,7 @@ mod tests {
             #[cfg(feature = "stateless")]
             cleanup_redis(conn.clone());
         
-            let conn_manager = CommunicationManager::new(config.clone()).start();
-            let conn_recipient: Recipient<SendMessage> = conn_manager.clone().recipient();
+            CommunicationManager::new(config.clone()).start();
             let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn);
 
             let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());

@@ -12,15 +12,13 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use general::config::YummyConfig;
 
-use actix::{Context, Handler, Actor, AsyncContext, SpawnHandle, Addr};
+use actix::{Context, Handler, Actor, AsyncContext, SpawnHandle};
 use database::{Pool, DatabaseTrait};
 use anyhow::{anyhow, Ok};
 use general::model::{UserId, SessionId};
 
 use self::model::*;
 use crate::api::conn::model::UserConnected;
-
-use super::conn::CommunicationManager;
 
 pub fn generate_response<T: Debug + Serialize + DeserializeOwned>(model: T) -> String {
     serde_json::to_string(&model).unwrap_or_default()

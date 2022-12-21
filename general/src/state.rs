@@ -503,7 +503,7 @@ mod tests {
         #[cfg(feature = "stateless")]
         cleanup_redis(conn.clone());
 
-        let recipient = DummyActor{}.start().recipient::<SendMessage>();
+        DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
     
         let room = RoomId::new();
