@@ -18,8 +18,6 @@ use actix::AsyncContext;
 use general::client::ClientTrait;
 use general::config::YummyConfig;
 use general::model::UserId;
-use general::pubsub::PubSubMessage;
-use general::pubsub::subscribe;
 use general::state::SendMessage;
 
 use self::model::UserConnected;
@@ -40,12 +38,40 @@ impl CommunicationManager {
     }
 }
 
-#[derive(Message, Debug, Clone)]
-#[rtype(result = "()")]
-pub struct MessageToClientReceived(pub String);
-impl PubSubMessage for MessageToClientReceived {
-    fn new(message: String) -> Self {
-        Self(message)
+#[cfg(feature = "stateless")]
+mod stateless {
+    use actix::{Message, Handler};
+    use general::state::SendMessage;
+    use actix::AsyncContext;
+
+    use super::CommunicationManager;
+
+
+    #[derive(Message, Debug, Clone)]
+    #[rtype(result = "()")]
+    pub struct MessageToClientReceived(pub String);
+    impl general::pubsub::PubSubMessage for MessageToClientReceived {
+        fn new(message: String) -> Self {
+            Self(message)
+        }
+    }
+
+    impl Handler<MessageToClientReceived> for CommunicationManager {
+        type Result = ();
+    
+        #[tracing::instrument(name="MessageToClientReceived", skip(self, ctx))]
+        fn handle(&mut self, model: MessageToClientReceived, ctx: &mut Self::Context) -> Self::Result {
+            println!("MessageReceived {:?}", model);
+            let message: SendMessage = match serde_json::from_str(&model.0) {
+                Ok(message) => message,
+                Err(error) => {
+                    println!("Message parse error : {}", error.to_string());
+                    return ;
+                }
+            };
+    
+            ctx.address().do_send(message);
+        }
     }
 }
 
@@ -58,25 +84,8 @@ impl Actor for CommunicationManager {
         self.subscribe_system_async::<UserDisconnectRequest>(ctx);
         self.subscribe_system_async::<SendMessage>(ctx);
 
-        subscribe::<MessageToClientReceived, _>(self, ctx, self.config.clone(), format!("m-{}", self.config.server_name));
-    }
-}
-
-impl Handler<MessageToClientReceived> for CommunicationManager {
-    type Result = ();
-
-    #[tracing::instrument(name="MessageToClientReceived", skip(self, ctx))]
-    fn handle(&mut self, model: MessageToClientReceived, ctx: &mut Self::Context) -> Self::Result {
-        println!("MessageReceived {:?}", model);
-        let message: SendMessage = match serde_json::from_str(&model.0) {
-            Ok(message) => message,
-            Err(error) => {
-                println!("Message parse error : {}", error.to_string());
-                return ;
-            }
-        };
-
-        ctx.address().do_send(message);
+        #[cfg(feature = "stateless")]
+        general::pubsub::subscribe::<stateless::MessageToClientReceived, _>(self, ctx, self.config.clone(), format!("m-{}", self.config.server_name));
     }
 }
 
