@@ -16,7 +16,7 @@ actix-web = { version = "4", features = ["rustls"] }
 actix-broker = "0.4.3"
 
 thiserror = "1.0.38"
-anyhow = "1.0.66"
+anyhow = "1.0.68"
 secrecy = { version = "0.8.0", features = ["serde"] }
 
 serde = { version = "1.0.151", features = ["derive", "rc"] }

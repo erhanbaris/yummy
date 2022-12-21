@@ -33,7 +33,7 @@ strum = "0.24"
 strum_macros = "0.24"
 
 thiserror = "1.0.38"
-anyhow = "1.0.66"
+anyhow = "1.0.68"
 secrecy = { version = "0.8.0", features = ["serde"] }
 
 tracing = "0.1"
