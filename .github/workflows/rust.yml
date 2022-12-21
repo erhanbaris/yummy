@@ -22,5 +22,4 @@ jobs:
       run: cargo test --all
     - name: Check stateless
       run: cargo check --features stateless
-    - name: Tests stateless
-      run: cargo test --all --features stateless
+

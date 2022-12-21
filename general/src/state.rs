@@ -5,7 +5,7 @@ use std::{fmt::Debug, borrow::Borrow};
 use actix::{Recipient, Message};
 use serde::de::DeserializeOwned;
 use thiserror::Error;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "stateless")]
 use redis::Commands;
@@ -18,7 +18,7 @@ use crate::model::UserState;
 use crate::model::RoomState;
 use parking_lot::Mutex;
 
-#[derive(Message, Debug, Clone)]
+#[derive(Message, Debug, Clone, Serialize, Deserialize)]
 #[rtype(result = "()")]
 pub struct SendMessage {
     pub user_id: UserId,
