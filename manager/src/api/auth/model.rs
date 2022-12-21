@@ -1,10 +1,18 @@
 use std::{fmt::Debug, sync::Arc};
 use actix::prelude::Message;
-use general::{model::{SessionId, UserId}, auth::UserAuth};
+use general::{model::{SessionId, UserId}, auth::UserAuth, password::Password};
 use thiserror::Error;
-use validator::Validate;
+use validator::{Validate, ValidationError};
 use general::client::ClientTrait;
 
+fn validate_unique_password(pass: &Password) -> Result<(), ValidationError> {
+    let pass = pass.get();
+    if pass.len() > 32 || pass.len() < 3 {
+        return Err(ValidationError::new("Length should be between 3 to 32 chars"));
+    }
+
+    Ok(())
+}
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
@@ -12,8 +20,8 @@ pub struct EmailAuthRequest {
     #[validate(email(message="Email address is not valid"))]
     pub email: String,
 
-    #[validate(length(min = 3, max = 32, message = "Length should be between 3 to 32 chars"))]
-    pub password: String,
+    #[validate(custom(function="validate_unique_password", message="Length should be between 3 to 32 chars"))]
+    pub password: Password,
 
     pub if_not_exist_create: bool,
 

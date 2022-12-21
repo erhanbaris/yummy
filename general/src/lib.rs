@@ -8,6 +8,7 @@ pub mod meta;
 pub mod client;
 pub mod state;
 pub mod test;
+pub mod password;
 
 #[cfg(feature = "stateless")]
 pub mod pubsub;

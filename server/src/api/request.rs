@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use general::{model::{UserId, UserType}, meta::MetaType};
+use general::{model::{UserId, UserType}, meta::MetaType, password::Password};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 pub enum RequestAuthType {
     Email {
         email: String,
-        password: String,
+        password: Password,
 
         #[serde(default, rename = "create")]
         if_not_exist_create: bool

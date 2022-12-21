@@ -137,7 +137,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Actor for GameWebsocket<DB> {
 impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> StreamHandler<Result<ws::Message, ws::ProtocolError>>
     for GameWebsocket<DB>
 {
-    #[tracing::instrument(name="handle", skip(self, ctx))]
+    #[tracing::instrument(name="Message", skip(self, ctx))]
     fn handle(&mut self, message: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
 
         let result = match message {
@@ -169,7 +169,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> StreamHandler<Result<ws::Mess
 impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Handler<WebsocketMessage> for GameWebsocket<DB> {
     type Result = ();
     
-    #[tracing::instrument(name="handle", skip(self, ctx))]
+    #[tracing::instrument(name="WebsocketMessage", skip(self, ctx))]
     fn handle(&mut self, message: WebsocketMessage, ctx: &mut Self::Context) {
         ctx.text(message.0);
     }
@@ -178,7 +178,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Handler<WebsocketMessage> for
 impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Handler<UserAuthenticated> for GameWebsocket<DB> {
     type Result = ();
     
-    #[tracing::instrument(name="handle", skip(self, _ctx))]
+    #[tracing::instrument(name="UserAuthenticated", skip(self, _ctx))]
     fn handle(&mut self, model: UserAuthenticated, _ctx: &mut Self::Context) {
         log::info!("AUTH:{:?}", model.0);
         self.user_auth = Arc::new(Some(UserAuth {

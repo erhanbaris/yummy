@@ -138,7 +138,7 @@ async fn fail_update_get_user_3() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
     auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
-        password: "erhan".to_string(),
+        password:"erhan".into(),
         if_not_exist_create: true,
         socket: socket.clone()
     }).await??;
@@ -170,7 +170,7 @@ async fn fail_update_get_user_4() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
     auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
-        password: "erhan".to_string(),
+        password:"erhan".into(),
         if_not_exist_create: true,
         socket: socket.clone()
     }).await??;
@@ -201,7 +201,7 @@ async fn fail_update_password() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
     auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
-        password: "erhan".to_string(),
+        password:"erhan".into(),
         if_not_exist_create: true,
         socket: socket.clone()
     }).await??;
@@ -236,7 +236,7 @@ async fn fail_update_email() -> anyhow::Result<()> {
 
     auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
-        password: "erhan".to_string(),
+        password:"erhan".into(),
         if_not_exist_create: true,
         socket: socket.clone()
     }).await??;
@@ -271,7 +271,7 @@ async fn update_user_1() -> anyhow::Result<()> {
 
     auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
-        password: "erhan".to_string(),
+        password:"erhan".into(),
         if_not_exist_create: true,
         socket: socket.clone()
     }).await??;
@@ -317,7 +317,7 @@ async fn update_user_2() -> anyhow::Result<()> {
 
     auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
-        password: "erhan".to_string(),
+        password:"erhan".into(),
         if_not_exist_create: true,
         socket: socket.clone()
     }).await??;
@@ -386,7 +386,7 @@ async fn update_user_3() -> anyhow::Result<()> {
 
     auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
-        password: "erhan".to_string(),
+        password:"erhan".into(),
         if_not_exist_create: true,
         socket: socket.clone()
     }).await??;
@@ -458,10 +458,10 @@ async fn update_user_3() -> anyhow::Result<()> {
 async fn meta_manupulation_test() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
 
-    let admin = email_auth!(auth_manager, config.clone(), "admin@gmail.com".to_string(), "erhan".to_string(), true, socket.clone());
-    let moderator = email_auth!(auth_manager, config.clone(), "moderator@gmail.com".to_string(), "erhan".to_string(), true, socket.clone());
-    let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".to_string(), true, socket.clone());
-    let other_user = email_auth!(auth_manager, config, "other_user@gmail.com".to_string(), "erhan".to_string(), true, socket.clone());
+    let admin = email_auth!(auth_manager, config.clone(), "admin@gmail.com".to_string(), "erhan".into(), true, socket.clone());
+    let moderator = email_auth!(auth_manager, config.clone(), "moderator@gmail.com".to_string(), "erhan".into(), true, socket.clone());
+    let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".into(), true, socket.clone());
+    let other_user = email_auth!(auth_manager, config, "other_user@gmail.com".to_string(), "erhan".into(), true, socket.clone());
 
     let user_id = match user.as_ref() {
         Some(user) => user.user.clone(),

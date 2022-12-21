@@ -6,6 +6,7 @@ mod test;
 use std::{ops::Deref, fmt::Debug};
 use actix_broker::BrokerIssue;
 use general::{auth::{generate_auth, UserJwt, validate_auth}, state::YummyState, web::GenericAnswer};
+use secrecy::ExposeSecret;
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -72,10 +73,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
     fn handle(&mut self, model: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
         let mut connection = self.database.get()?;
         let user_info = DB::user_login_via_email(&mut connection, &model.email)?;
+        log::info!("{:?}", model);
 
         let (user_id, name) = match (user_info, model.if_not_exist_create) {
             (Some(user_info), _) => {
-                if model.password != user_info.password.unwrap_or_default() {
+                if model.password.get() != &user_info.password.unwrap_or_default() {
                     return Err(anyhow!(AuthError::EmailOrPasswordNotValid));
                 }
 

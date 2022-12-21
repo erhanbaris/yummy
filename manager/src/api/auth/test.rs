@@ -43,7 +43,7 @@ async fn create_user_via_email() -> anyhow::Result<()> {
     let (address, socket) = create_actor(::general::config::get_configuration())?;
     address.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
-        password: "erhan".to_string(),
+        password:"erhan".into(),
         if_not_exist_create: true,
         socket
     }).await??;
@@ -60,7 +60,7 @@ async fn login_user_via_email() -> anyhow::Result<()> {
     let (address, socket) = create_actor(Arc::new(config))?;
     address.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
-        password: "erhan".to_string(),
+        password:"erhan".into(),
         if_not_exist_create: true,
         socket: socket.clone()
     }).await??;
@@ -75,7 +75,7 @@ async fn login_user_via_email() -> anyhow::Result<()> {
 
     address.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
-        password: "erhan".to_string(),
+        password:"erhan".into(),
         if_not_exist_create: false,
         socket
     }).await??;
@@ -88,7 +88,7 @@ async fn failed_login_user_via_email_1() -> anyhow::Result<()> {
     let (address, socket) = create_actor(::general::config::get_configuration())?;
     let result = address.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
-        password: "erhan".to_string(),
+        password:"erhan".into(),
         if_not_exist_create: false,
         socket
     }).await?;
@@ -102,14 +102,14 @@ async fn failed_login_user_via_email_2() -> anyhow::Result<()> {
     let (address, socket) = create_actor(::general::config::get_configuration())?;
     address.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
-        password: "erhan".to_string(),
+        password:"erhan".into(),
         if_not_exist_create: true,
         socket: socket.clone()
     }).await??;
 
     let result = address.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
-        password: "wrong password".to_string(),
+        password: "wrong password".into(),
         if_not_exist_create: true,
         socket: socket.clone()
     }).await?;
@@ -307,7 +307,7 @@ async fn token_refresh_test_2() -> anyhow::Result<()> {
     let (address, socket) = create_actor(config.clone())?;
     address.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
-        password: "erhan".to_string(),
+        password:"erhan".into(),
         if_not_exist_create: true, socket: socket.clone()
     }).await??;
 

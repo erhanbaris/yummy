@@ -96,7 +96,7 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
 #[actix::test]
 async fn create_room_1() -> anyhow::Result<()> {
     let (room_manager, auth_manager, config, mut states, recipient) = create_actor()?;
-    let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".to_string(), true, recipient);
+    let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".into(), true, recipient);
 
     room_manager.send(CreateRoomRequest {
         user: user.clone(),
@@ -125,7 +125,7 @@ async fn create_room_1() -> anyhow::Result<()> {
 #[actix::test]
 async fn create_room_2() -> anyhow::Result<()> {
     let (room_manager, auth_manager, config, mut states, recipient) = create_actor()?;
-    let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".to_string(), true, recipient);
+    let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".into(), true, recipient);
 
     room_manager.send(CreateRoomRequest {
         user: user.clone(),
@@ -154,13 +154,13 @@ async fn create_room_2() -> anyhow::Result<()> {
 #[actix::test]
 async fn create_room_3() -> anyhow::Result<()> {
     let (room_manager, auth_manager, config, _, user_1_socket) = create_actor()?;
-    let user_1 = email_auth!(auth_manager, config.clone(), "user1@gmail.com".to_string(), "erhan".to_string(), true, user_1_socket);
+    let user_1 = email_auth!(auth_manager, config.clone(), "user1@gmail.com".to_string(), "erhan".into(), true, user_1_socket);
 
     let user_2_socket = Arc::new(DummyClient::default());
-    let user_2 = email_auth!(auth_manager, config.clone(), "user2@gmail.com".to_string(), "erhan".to_string(), true, user_2_socket);
+    let user_2 = email_auth!(auth_manager, config.clone(), "user2@gmail.com".to_string(), "erhan".into(), true, user_2_socket);
 
     let user_3_socket = Arc::new(DummyClient::default());
-    let user_3 = email_auth!(auth_manager, config.clone(), "user3@gmail.com".to_string(), "erhan".to_string(), true, user_3_socket);
+    let user_3 = email_auth!(auth_manager, config.clone(), "user3@gmail.com".to_string(), "erhan".into(), true, user_3_socket);
 
 
     println!("CreateRoomRequest");
@@ -243,13 +243,13 @@ async fn create_room_3() -> anyhow::Result<()> {
 #[actix::test]
 async fn create_room_4() -> anyhow::Result<()> {
     let (room_manager, auth_manager, config, _, user_1_socket) = create_actor()?;
-    let user_1 = email_auth!(auth_manager, config.clone(), "user1@gmail.com".to_string(), "erhan".to_string(), true, user_1_socket);
+    let user_1 = email_auth!(auth_manager, config.clone(), "user1@gmail.com".to_string(), "erhan".into(), true, user_1_socket);
 
     let user_2_socket = Arc::new(DummyClient::default());
-    let user_2 = email_auth!(auth_manager, config.clone(), "user2@gmail.com".to_string(), "erhan".to_string(), true, user_2_socket);
+    let user_2 = email_auth!(auth_manager, config.clone(), "user2@gmail.com".to_string(), "erhan".into(), true, user_2_socket);
 
     let user_3_socket = Arc::new(DummyClient::default());
-    let user_3 = email_auth!(auth_manager, config.clone(), "user3@gmail.com".to_string(), "erhan".to_string(), true, user_3_socket);
+    let user_3 = email_auth!(auth_manager, config.clone(), "user3@gmail.com".to_string(), "erhan".into(), true, user_3_socket);
 
     assert!(room_manager.send(DisconnectFromRoomRequest {
         user: user_1.clone(),
@@ -332,15 +332,15 @@ async fn create_room_4() -> anyhow::Result<()> {
 #[actix::test]
 async fn message_to_room() -> anyhow::Result<()> {
     let (room_manager, auth_manager, config, _, user_1_socket) = create_actor()?;
-    let user_1 = email_auth!(auth_manager, config.clone(), "user1@gmail.com".to_string(), "erhan".to_string(), true, user_1_socket);
+    let user_1 = email_auth!(auth_manager, config.clone(), "user1@gmail.com".to_string(), "erhan".into(), true, user_1_socket);
     let user_1_id = user_1.clone().deref().as_ref().unwrap().user.clone();
 
     let user_2_socket = Arc::new(DummyClient::default());
-    let user_2 = email_auth!(auth_manager, config.clone(), "user2@gmail.com".to_string(), "erhan".to_string(), true, user_2_socket);
+    let user_2 = email_auth!(auth_manager, config.clone(), "user2@gmail.com".to_string(), "erhan".into(), true, user_2_socket);
     let user_2_id = user_2.clone().deref().as_ref().unwrap().user.clone();
 
     let user_3_socket = Arc::new(DummyClient::default());
-    let user_3 = email_auth!(auth_manager, config.clone(), "user3@gmail.com".to_string(), "erhan".to_string(), true, user_3_socket);
+    let user_3 = email_auth!(auth_manager, config.clone(), "user3@gmail.com".to_string(), "erhan".into(), true, user_3_socket);
 
     room_manager.send(CreateRoomRequest {
         user: user_1.clone(),

@@ -43,8 +43,6 @@ tracing-opentelemetry = "0.18.0"
 validator = { version = "0.16", features = ["derive"] }
 serde_trim = "0.4.0"
 
-moka = { version = "0.9.6", features = ["future"] }
-
 r2d2 =  { workspace = true, optional = true }
 redis = { workspace = true, optional = true }
 

@@ -1,5 +1,6 @@
 use diesel::*;
 use general::model::UserType;
+use general::password::Password;
 use uuid::Uuid;
 use std::borrow::Borrow;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -15,7 +16,7 @@ pub trait AuthStoreTrait: Sized {
 
     fn update_last_login<T: Borrow<RowId> + std::fmt::Debug>(connection: &mut PooledConnection, user_id: T) -> anyhow::Result<()>;
 
-    fn create_user_via_email(connection: &mut PooledConnection, email: &str, password: &str) -> anyhow::Result<RowId>;
+    fn create_user_via_email(connection: &mut PooledConnection, email: &str, password: &Password) -> anyhow::Result<RowId>;
     fn create_user_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<RowId>;
     fn create_user_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<RowId>;
 }
@@ -93,14 +94,14 @@ impl AuthStoreTrait for SqliteStore {
     }
 
     #[tracing::instrument(name="User create via email", skip(connection))]
-    fn create_user_via_email(connection: &mut PooledConnection, email: &str, password: &str) -> anyhow::Result<RowId> {
+    fn create_user_via_email(connection: &mut PooledConnection, email: &str, password: &Password) -> anyhow::Result<RowId> {
         
         let row_id = RowId(Uuid::new_v4());
         let mut model = UserInsert::default();
         model.id = row_id;
         model.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
         model.last_login_date = model.insert_date;
-        model.password = Some(password);
+        model.password = Some(password.get());
         model.email = Some(email);
         model.user_type = UserType::default().into();
         diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
@@ -156,7 +157,7 @@ mod tests {
     fn create_user_via_email() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
-        SqliteStore::create_user_via_email(&mut connection, "erhanbaris@gmail.com", "erhan")?;
+        SqliteStore::create_user_via_email(&mut connection, "erhanbaris@gmail.com", &"erhan".into())?;
         Ok(())
     }
 
@@ -164,7 +165,7 @@ mod tests {
     fn login_via_email() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
-        let created_user_id = SqliteStore::create_user_via_email(&mut connection, "erhanbaris@gmail.com", "erhan")?;
+        let created_user_id = SqliteStore::create_user_via_email(&mut connection, "erhanbaris@gmail.com", &"erhan".into())?;
         let result = SqliteStore::user_login_via_email(&mut connection, "erhanbaris@gmail.com")?.unwrap();
 
         assert_eq!(created_user_id, result.user_id);

@@ -176,7 +176,7 @@ mod tests {
     fn get_user_information_1() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
-        let user_id = SqliteStore::create_user_via_email(&mut connection, "erhanbaris@gmail.com", "erhan")?;
+        let user_id = SqliteStore::create_user_via_email(&mut connection, "erhanbaris@gmail.com", &"erhan".into())?;
         let user = SqliteStore::get_user_information(&mut connection, user_id, MetaAccess::Anonymous)?.unwrap();
         assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
         assert!(user.custom_id.is_none());
