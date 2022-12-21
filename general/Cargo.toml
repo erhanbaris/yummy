@@ -10,7 +10,7 @@ actix.workspace = true
 actix-web = { version = "4", features = ["rustls"] }
 
 thiserror = "1.0.38"
-anyhow = "1.0.66"
+anyhow = "1.0.68"
 secrecy = { version = "0.8.0", features = ["serde"] }
 
 jsonwebtoken = "8.2.0"
