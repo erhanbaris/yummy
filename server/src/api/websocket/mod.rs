@@ -353,9 +353,9 @@ mod tests {
 
             #[cfg(feature = "stateless")]
             cleanup_redis(conn.clone());
-            let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn);
+            let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
 
-            ConnectionManager::new(config.clone(), states.clone()).start();
+            ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
             let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
             let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use general::{model::{UserId, UserType}, meta::MetaType, password::Password};
+use general::{model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType}, meta::MetaType, password::Password};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -52,7 +52,24 @@ pub enum RequestUserType {
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "room_type")]
 pub enum RequestRoomType {
-    Create { }
+    Create {
+        disconnect_from_other_room: bool,
+        name: Option<String>,
+        access_type: CreateRoomAccessType,
+        max_user: usize,
+        tags: Vec<String>
+    },
+    Join {
+        room: RoomId,
+        room_user_type: RoomUserType,
+    },
+    Disconnect {
+        room: RoomId
+    },
+    Message {
+        room: RoomId,
+        message: String,
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]

@@ -30,12 +30,12 @@ async fn main() -> std::io::Result<()> {
     use manager::api::{room::RoomManager};
 
     configure_environment();
-    let server_bind = get_env_var("SERVER_BIND", "0.0.0.0:9090".to_string());
-    let rust_log_level = get_env_var("RUST_LOG", "debug,backend,actix_web=debug".to_string());
+    let config = get_configuration();
+    
+    let server_bind = get_env_var("SERVER_BIND", format!("{}:{}", config.server_ip, config.server_port));
+    let rust_log_level = get_env_var("RUST_LOG", config.rust_log.to_string());
     
     tracing_subscriber::fmt::init();
-    std::env::set_var("RUST_LOG", &rust_log_level);
-    let config = get_configuration();
 
     log::info!("Yummy is starting...");
     log::info!("Binding at   \"{}\"", server_bind);
@@ -49,11 +49,11 @@ async fn main() -> std::io::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn);
+    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
 
     let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
     let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
-    let conn_manager = Data::new(ConnectionManager::new(config.clone(), states.clone()).start());
+    let conn_manager = Data::new(ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn).start());
     let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
     
     let config = Data::new(config);

@@ -19,6 +19,9 @@ use general::model::UserId;
 use general::state::SendMessage;
 use general::state::YummyState;
 
+#[cfg(feature = "stateless")]
+use redis::Commands;
+
 use self::model::UserConnected;
 
 use super::auth::model::UserDisconnectRequest;
@@ -26,15 +29,21 @@ use super::auth::model::UserDisconnectRequest;
 pub struct ConnectionManager {
     config: Arc<YummyConfig>,
     states: YummyState,
-    users: HashMap<UserId, Arc<dyn ClientTrait + Sync + Send>>
+    users: HashMap<UserId, Arc<dyn ClientTrait + Sync + Send>>,
+
+    // Fields for stateless informations
+    #[cfg(feature = "stateless")]
+    redis: r2d2::Pool<redis::Client>
 }
 
 impl ConnectionManager {
-    pub fn new(config: Arc<YummyConfig>, states: YummyState) -> Self {
+    pub fn new(config: Arc<YummyConfig>, states: YummyState, #[cfg(feature = "stateless")] redis: r2d2::Pool<redis::Client>) -> Self {
         Self {
             config,
             states,
-            users: HashMap::default()
+            users: HashMap::default(),
+
+            #[cfg(feature = "stateless")] redis
         }
     }
 }
@@ -115,9 +124,14 @@ impl Handler<SendMessage> for ConnectionManager {
         match self.users.get(&model.user_id) {
             Some(socket) => socket.send(model.message),
             None => {
+                #[cfg(feature = "stateless")]
                 match self.states.get_user_location(model.user_id) {
                     Some(server_name) => {
-
+                        if let Ok(mut redis) = self.redis.get() {
+                            if let Ok(message) = serde_json::to_string(&model) {
+                                redis.publish::<_, _, i32>(format!("m-{}", server_name), message).unwrap_or_default();
+                            }
+                        }
                     },
                     None => println!("no socket {:?}", model.user_id.get())
                 }

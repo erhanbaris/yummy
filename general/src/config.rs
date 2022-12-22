@@ -5,6 +5,10 @@ use std::env;
 
 use rand::{distributions::Alphanumeric, Rng};
 
+pub const DEFAULT_SERVER_IP: &str = "0.0.0.0";
+pub const DEFAULT_SERVER_PORT: usize = 9090;
+pub const DEFAULT_RUST_LOG: &str = "debug,backend,actix_web=debug";
+
 pub const DEFAULT_CLIENT_TIMEOUT: u64 = 20; // in seconds
 pub const DEFAULT_CONNECTION_RESTORE_WAIT_TIMEOUT: u64 = 10; // in seconds
 pub const DEFAULT_HEARTBEAT_INTERVAL: u64 = 10; // in seconds
@@ -28,6 +32,11 @@ pub const DEFAULT_REDIS_PREFIX: &str = "";
 #[derive(Debug, Default, Clone)]
 pub struct YummyConfig {
     pub server_name: String,
+    pub server_ip: String,
+    pub server_port: String,
+
+    pub rust_log: String,
+    
     pub token_lifetime: Duration,
     pub heartbeat_interval: Duration,
     pub client_timeout: Duration,
@@ -81,6 +90,9 @@ pub fn get_configuration() -> Arc<YummyConfig> {
 
     Arc::new(YummyConfig {
         server_name: get_env_var("SERVER_NAME", server_name),
+        server_ip: get_env_var("SERVER_IP", DEFAULT_SERVER_IP.to_string()),
+        server_port: get_env_var("SERVER_PORT", DEFAULT_SERVER_PORT.to_string()),
+        rust_log: get_env_var("RUST_LOG", DEFAULT_RUST_LOG.to_string()),
         client_timeout: Duration::from_secs(get_env_var("CLIENT_TIMEOUT", DEFAULT_CLIENT_TIMEOUT)),
         connection_restore_wait_timeout: Duration::from_secs(get_env_var("CONNECTION_RESTORE_WAIT_TIMEOUT", DEFAULT_CONNECTION_RESTORE_WAIT_TIMEOUT)),
         heartbeat_interval: Duration::from_secs(get_env_var("HEARTBEAT_INTERVAL", DEFAULT_HEARTBEAT_INTERVAL)),
