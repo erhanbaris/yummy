@@ -230,7 +230,7 @@ mod tests {
     use general::state::YummyState;
     use general::web::Answer;
     use manager::api::auth::AuthManager;
-    use manager::api::conn::CommunicationManager;
+    use manager::api::conn::ConnectionManager;
     use serde::Deserialize;
     use serde_json::json;
     use uuid::Uuid;
@@ -353,9 +353,9 @@ mod tests {
 
             #[cfg(feature = "stateless")]
             cleanup_redis(conn.clone());
-        
-            CommunicationManager::new(config.clone()).start();
             let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn);
+
+            ConnectionManager::new(config.clone(), states.clone()).start();
 
             let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
             let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());

@@ -15,7 +15,7 @@ use actix::Addr;
 use anyhow::Ok;
 use database::{create_database, create_connection};
 
-use crate::api::conn::CommunicationManager;
+use crate::api::conn::ConnectionManager;
 
 use super::AuthManager;
 use super::*;
@@ -29,9 +29,9 @@ fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<da
 
     #[cfg(feature = "stateless")]
     cleanup_redis(conn.clone());
-
-    CommunicationManager::new(config.clone()).start();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn);
+
+    ConnectionManager::new(config.clone(), states.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
     Ok((AuthManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start(), Arc::new(DummyClient::default())))

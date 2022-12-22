@@ -211,12 +211,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
 
         match self.states.get_users_from_room(room.clone()) {
             Ok(users) => {
-                println!(">>>> users {:?}", users);
                 let message: String = RoomResponse::MessageFromRoom { user: sender_user_id, room: model.room.clone(), message: Arc::new(message) }.into();
 
                 for receiver_user in users.into_iter() {
                     if receiver_user != sender_user_id {
-                        println!("> MessageToRoomRequest {:?}", user);
                         self.issue_system_async(SendMessage {
                             message: message.clone(),
                             user_id: receiver_user

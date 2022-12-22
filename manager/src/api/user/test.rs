@@ -18,7 +18,7 @@ use database::{create_database, create_connection};
 use super::*;
 use crate::api::auth::AuthManager;
 use crate::api::auth::model::*;
-use crate::api::conn::CommunicationManager;
+use crate::api::conn::ConnectionManager;
 use database::model::UserInformationModel;
 use general::test::DummyClient;
 
@@ -59,9 +59,9 @@ fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, A
 
     #[cfg(feature = "stateless")]
     cleanup_redis(conn.clone());
-
-    CommunicationManager::new(config.clone()).start();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn);
+
+    ConnectionManager::new(config.clone(), states.clone()).start();
 
     let connection = create_connection(db_location.to_str().unwrap())?;
     create_database(&mut connection.clone().get()?)?;

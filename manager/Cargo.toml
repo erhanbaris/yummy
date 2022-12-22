@@ -17,7 +17,6 @@ actix-broker = "0.4.3"
 
 thiserror = "1.0.38"
 anyhow = "1.0.68"
-secrecy = { version = "0.8.0", features = ["serde"] }
 
 log = "0.4"
 

@@ -6,7 +6,6 @@ mod test;
 use std::{ops::Deref, fmt::Debug};
 use actix_broker::BrokerIssue;
 use general::{auth::{generate_auth, UserJwt, validate_auth}, state::YummyState, web::GenericAnswer};
-use secrecy::ExposeSecret;
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 use std::sync::Arc;

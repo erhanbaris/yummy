@@ -11,28 +11,29 @@ use std::sync::Arc;
 use actix::Handler;
 use actix::Actor;
 use actix::Context;
-use actix::Message;
 use actix_broker::BrokerSubscribe;
 
-use actix::AsyncContext;
 use general::client::ClientTrait;
 use general::config::YummyConfig;
 use general::model::UserId;
 use general::state::SendMessage;
+use general::state::YummyState;
 
 use self::model::UserConnected;
 
 use super::auth::model::UserDisconnectRequest;
 
-pub struct CommunicationManager {
+pub struct ConnectionManager {
     config: Arc<YummyConfig>,
+    states: YummyState,
     users: HashMap<UserId, Arc<dyn ClientTrait + Sync + Send>>
 }
 
-impl CommunicationManager {
-    pub fn new(config: Arc<YummyConfig>) -> Self {
+impl ConnectionManager {
+    pub fn new(config: Arc<YummyConfig>, states: YummyState) -> Self {
         Self {
             config,
+            states,
             users: HashMap::default()
         }
     }
@@ -44,7 +45,7 @@ mod stateless {
     use general::state::SendMessage;
     use actix::AsyncContext;
 
-    use super::CommunicationManager;
+    use super::ConnectionManager;
 
 
     #[derive(Message, Debug, Clone)]
@@ -56,12 +57,11 @@ mod stateless {
         }
     }
 
-    impl Handler<MessageToClientReceived> for CommunicationManager {
+    impl Handler<MessageToClientReceived> for ConnectionManager {
         type Result = ();
     
         #[tracing::instrument(name="MessageToClientReceived", skip(self, ctx))]
         fn handle(&mut self, model: MessageToClientReceived, ctx: &mut Self::Context) -> Self::Result {
-            println!("MessageReceived {:?}", model);
             let message: SendMessage = match serde_json::from_str(&model.0) {
                 Ok(message) => message,
                 Err(error) => {
@@ -75,11 +75,10 @@ mod stateless {
     }
 }
 
-impl Actor for CommunicationManager {
+impl Actor for ConnectionManager {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        println!("CommunicationManager");
         self.subscribe_system_async::<UserConnected>(ctx);
         self.subscribe_system_async::<UserDisconnectRequest>(ctx);
         self.subscribe_system_async::<SendMessage>(ctx);
@@ -89,17 +88,16 @@ impl Actor for CommunicationManager {
     }
 }
 
-impl Handler<UserConnected> for CommunicationManager {
+impl Handler<UserConnected> for ConnectionManager {
     type Result = ();
 
     #[tracing::instrument(name="UserConnected", skip(self, _ctx))]
     fn handle(&mut self, model: UserConnected, _ctx: &mut Self::Context) -> Self::Result {
-        println!("UserConnected {:?}", model.user_id.get());
         self.users.insert(model.user_id, model.socket);
     }
 }
 
-impl Handler<UserDisconnectRequest> for CommunicationManager {
+impl Handler<UserDisconnectRequest> for ConnectionManager {
     type Result = ();
 
     #[tracing::instrument(name="UserDisconnectRequest", skip(self, _ctx))]
@@ -109,15 +107,21 @@ impl Handler<UserDisconnectRequest> for CommunicationManager {
     }
 }
 
-impl Handler<SendMessage> for CommunicationManager {
+impl Handler<SendMessage> for ConnectionManager {
     type Result = ();
 
     #[tracing::instrument(name="SendMessage", skip(self, _ctx))]
     fn handle(&mut self, model: SendMessage, _ctx: &mut Self::Context) -> Self::Result {
-        println!("SendMessage");
         match self.users.get(&model.user_id) {
             Some(socket) => socket.send(model.message),
-            None => println!("no socket {:?}", model.user_id.get())
+            None => {
+                match self.states.get_user_location(model.user_id) {
+                    Some(server_name) => {
+
+                    },
+                    None => println!("no socket {:?}", model.user_id.get())
+                }
+            }
         }
     }
 }

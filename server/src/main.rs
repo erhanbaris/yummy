@@ -2,7 +2,7 @@
 mod api;
 
 use general::config::{get_configuration, get_env_var, configure_environment};
-use manager::api::conn::CommunicationManager;
+use manager::api::conn::ConnectionManager;
 use manager::api::user::UserManager;
 use std::sync::Arc;
 
@@ -53,7 +53,7 @@ async fn main() -> std::io::Result<()> {
 
     let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
     let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
-    let conn_manager = Data::new(CommunicationManager::new(config.clone()).start());
+    let conn_manager = Data::new(ConnectionManager::new(config.clone(), states.clone()).start());
     let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
     
     let config = Data::new(config);

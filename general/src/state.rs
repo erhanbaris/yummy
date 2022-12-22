@@ -248,6 +248,18 @@ impl YummyState {
         Ok(users.into_iter().map(|item| UserId::from(uuid::Uuid::from_str(&item[..]).unwrap_or_default())).collect::<Vec<UserId>>())
     }
 
+    #[cfg(feature = "stateless")]
+    #[tracing::instrument(name="get_user_location", skip(self))]
+    pub fn get_user_location(&self, user_id: UserId) -> Option<String> {
+        match self.redis.get() {
+            Ok(mut redis) => match redis.hget::<_, _, String>(format!("{}user-loc", self.config.redis_prefix), user_id.clone().get().to_string()) {
+                Ok(result) => Some(result),
+                Err(_) => None
+            },
+            Err(_) => None
+        }
+    }
+
     /* STATEFULL functions */
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="is_user_online", skip(self))]
@@ -306,10 +318,7 @@ impl YummyState {
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="join_to_room", skip(self))]
     pub fn join_to_room(&self, room_id: RoomId, user_id: UserId, user_type: RoomUserType) -> Result<(), YummyStateError> {
-
-        // Get room
-
-        use crate::model::{RoomUserInfo, RoomUserType};
+        use crate::model::RoomUserInfo;
         match self.room.lock().get_mut(room_id.borrow()) {
             Some(room) => {
                 let mut users = room.users.lock();
@@ -369,8 +378,13 @@ impl YummyState {
             None => Err(YummyStateError::RoomNotFound)
         }
     }
-}
 
+    #[cfg(not(feature = "stateless"))]
+    #[tracing::instrument(name="get_user_location", skip(self))]
+    pub fn get_user_location(&self, user_id: UserId) -> Option<String> {
+        None
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -414,7 +428,7 @@ mod tests {
         #[cfg(feature = "stateless")]
         cleanup_redis(conn.clone());
 
-        let recipient = DummyActor{}.start().recipient::<SendMessage>();
+        DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         let user_id = UserId::new();
         let session_id = state.new_session(user_id);
@@ -441,7 +455,7 @@ mod tests {
         #[cfg(feature = "stateless")]
         cleanup_redis(conn.clone());
 
-        let recipient = DummyActor{}.start().recipient::<SendMessage>();
+        DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         
         state.close_session(SessionId::new());
@@ -463,7 +477,7 @@ mod tests {
         #[cfg(feature = "stateless")]
         cleanup_redis(conn.clone());
 
-        let recipient = DummyActor{}.start().recipient::<SendMessage>();
+        DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         
         let room_1 = RoomId::new();
