@@ -53,10 +53,19 @@ pub enum RequestUserType {
 #[serde(tag = "room_type")]
 pub enum RequestRoomType {
     Create {
+        #[serde(default, rename="disconnect")]
         disconnect_from_other_room: bool,
+
+        #[serde(default)]
         name: Option<String>,
+
+        #[serde(default)]
         access_type: CreateRoomAccessType,
+
+        #[serde(default)]
         max_user: usize,
+
+        #[serde(default)]
         tags: Vec<String>
     },
     Join {

@@ -50,9 +50,9 @@
 ### User information success response
 
 
-| Field name | Type            | Required | Description               |
-|-----------:|-----------------|----------|---------------------------|
-| status     | boolean         | Y        | Value should be 'true'    |
+| Field name | Type                               | Required | Description               |
+|-----------:|------------------------------------|----------|---------------------------|
+| status     | boolean                            | Y        | Value should be 'true'    |
 | result     | [UserInfoObject](#UserInfoObject)  | Y        | User's information object |
 
 ```json

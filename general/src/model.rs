@@ -138,8 +138,9 @@ impl RoomUserInfo {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub enum CreateRoomAccessType {
+    #[default]
     Public,
     Private,
     Friend,

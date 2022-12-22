@@ -6,7 +6,7 @@
 
 | Field name | Type    | Required | Description                                    | Default value |
 |------------|---------|----------|------------------------------------------------|---------------|
-| type       | string  | Y        | Value must be 'Auth'                          |               |
+| type       | string  | Y        | Value must be 'Auth'                           |               |
 | auth_type  | string  | Y        | Value must be 'Email'                          |               |
 | email      | string  | Y        | Authentication email address                   |               |
 | password   | string  | Y        | Authentication password                        |               |
@@ -35,7 +35,7 @@
 
 | Field name | Type    | Required | Description                                    |
 |------------|---------|----------|------------------------------------------------|
-| type       | string  | Y        | Value must be 'Auth'                          |
+| type       | string  | Y        | Value must be 'Auth'                           |
 | auth_type  | string  | Y        | Value must be 'DeviceId'                       |
 | id         | string  | Y        | Authentication device id                       |
 
@@ -55,7 +55,7 @@
 
 | Field name | Type    | Required | Description                                    |
 |------------|---------|----------|------------------------------------------------|
-| type       | string  | Y        | Value must be 'Auth'                          |
+| type       | string  | Y        | Value must be 'Auth'                           |
 | auth_type  | string  | Y        | Value must be 'CustomId'                       |
 | id         | string  | Y        | Authentication device id                       |
 
@@ -77,7 +77,7 @@ Regenerating token with new expire date.
 
 | Field name | Type    | Required | Description                                    |
 |------------|---------|----------|------------------------------------------------|
-| type       | string  | Y        | Value must be 'Auth'                          |
+| type       | string  | Y        | Value must be 'Auth'                   v       |
 | auth_type  | string  | Y        | Value must be 'Refresh'                        |
 | token      | string  | Y        | Valid Authentication token                     |
 
@@ -103,7 +103,7 @@ The user should be restore token after reconnecting to the system. If timeout ex
 
 | Field name | Type    | Required | Description                                    |
 |------------|---------|----------|------------------------------------------------|
-| type       | string  | Y        | Value must be 'Auth'                          |
+| type       | string  | Y        | Value must be 'Auth'                           |
 | auth_type  | string  | Y        | Value must be 'Restore'                        |
 | token      | string  | Y        | Valid Authentication token                     |
 
@@ -130,8 +130,8 @@ Terminates the current session and active game and player will be informed.
 
 | Field name | Type    | Required | Description                                    |
 |------------|---------|----------|------------------------------------------------|
-| type       | string  | Y        | Value must be 'Auth'                          |
-| auth_type  | string  | Y        | Value must be 'Logout'                        |
+| type       | string  | Y        | Value must be 'Auth'                           |
+| auth_type  | string  | Y        | Value must be 'Logout'                         |
 
 **Example request**
 
