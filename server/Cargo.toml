@@ -50,12 +50,12 @@ dotenv = "0.15.0"
 [dev-dependencies]
 tokio.workspace = true
 actix-test-server = "0.2.2"
-actix-test = "0.1.0"
+actix-test = { version = "0.1.0", features = ["rustls"] } 
 actix-http = "3.2.2"
+actix-tls = { version = "3", features = ["rustls"] }
 
-rcgen = "0.10.0"
-
-awc = "3.0.1"
+rustls.workspace = true
+awc = { version = "3.0.1", features = ["rustls"] }
 actix-codec = "0.5.0"
 futures = "0.3.25"
 futures-util = "0.3.25"

@@ -1,6 +1,6 @@
 
 use actix::Actor;
-use actix_test::TestServer;
+use actix_test::{TestServer, TestServerConfig};
 use actix_web::web::get;
 use actix_web::HttpResponse;
 use actix_web::error::InternalError;
@@ -11,6 +11,7 @@ use database::{create_database, create_connection, RowId};
 use general::meta::MetaAccess;
 use general::model::UserType;
 use general::state::YummyState;
+use general::tls::load_temporary_rustls_config;
 use general::web::Answer;
 use manager::api::auth::AuthManager;
 use manager::api::conn::ConnectionManager;
@@ -122,9 +123,19 @@ macro_rules! update_meta {
 }
 
 pub fn create_websocket_server(config: Arc<YummyConfig>) -> TestServer {
+    create_websocket_server_with_config(config, TestServerConfig::default())
+}
+
+pub fn create_websocket_server_with_tls(config: Arc<YummyConfig>) -> TestServer {
+    let test_server_config = TestServerConfig::default();
+    let test_server_config = test_server_config.rustls(load_temporary_rustls_config(config.clone()).unwrap());
+    create_websocket_server_with_config(config, test_server_config)
+}
+
+pub fn create_websocket_server_with_config(config: Arc<YummyConfig>, test_server_config: TestServerConfig) -> TestServer {
     let config = config.clone();
     
-    actix_test::start(move || {
+    actix_test::start_with(test_server_config, move || {
         let mut db_location = temp_dir();
         db_location.push(format!("{}.db", Uuid::new_v4()));
 
@@ -159,6 +170,24 @@ pub fn create_websocket_server(config: Arc<YummyConfig>) -> TestServer {
             .app_data(Data::new(config.clone()))
             .route("/v1/socket", get().to(websocket_endpoint::<database::SqliteStore>))
     })
+}
+
+#[actix_web::test]
+async fn https_test() -> anyhow::Result<()> {
+    let server = create_websocket_server_with_tls(::general::config::get_configuration());
+
+    let url = server.url("/v1/socket");
+    let mut client = WebsocketTestClient::<String, String>::new(url, general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+
+    let request = json!({
+    });
+    client.send(request).await;
+    let receive = client.get_text().await;
+    assert!(receive.is_some());
+
+    let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
+    assert!(!response.status);
+    Ok(())
 }
 
 #[actix_web::test]

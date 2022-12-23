@@ -21,8 +21,9 @@ cargo run --release
 - Observability via OpenTelemetry integration
 
 ### Todo list
+
 - [ ] Add parameter for OpenTelemetry configuration
-- [ ] TLS support
+- [X] TLS support
 - [ ] Design document
 - [ ] Example projects
 - [ ] Friend add/remove/list integration

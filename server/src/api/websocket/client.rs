@@ -1,14 +1,38 @@
 use actix_codec::Framed;
+use actix_tls::connect::rustls::webpki_roots_cert_store;
 use awc::ws::Codec;
 use awc::BoxedSocket;
-use awc::Client;
 use awc::ws::Frame;
 use futures::SinkExt;
 use futures::StreamExt;
+use rustls::Certificate;
+use rustls::ServerName;
+use rustls::client::ServerCertVerified;
+use rustls::client::ServerCertVerifier;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::sync::Arc;
+use std::time::SystemTime;
+use rustls::ClientConfig;
+
+pub struct NoCertificateVerification;
+
+impl ServerCertVerifier for NoCertificateVerification {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &Certificate,
+        _intermediates: &[Certificate],
+        _server_name: &ServerName,
+        _scts: &mut dyn Iterator<Item = &[u8]>,
+        _ocsp_response: &[u8],
+        _now: SystemTime,
+    ) -> Result<ServerCertVerified, rustls::Error> {
+        Ok(ServerCertVerified::assertion())
+    }
+}
+
 pub struct WebsocketTestClient<REQ, RES>
 where
     REQ: Debug + Send + Serialize + DeserializeOwned,
@@ -25,8 +49,21 @@ where
     RES: Debug + Send + Serialize + DeserializeOwned,
 {
     pub async fn new(url: String, query_param_name: String, key: String) -> Self {
+        let mut config = ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(webpki_roots_cert_store())
+            .with_no_client_auth();
+
+        config
+            .dangerous()
+            .set_certificate_verifier(Arc::new(NoCertificateVerification));
+
         let url_with_query_param = format!("{0}?{1}={2}", url, query_param_name, key);
-        let client = Client::default().ws(url_with_query_param);
+        let client = awc::Client::builder()
+            .connector(awc::Connector::new().rustls(Arc::new(config)))
+            .finish()
+            .ws(url_with_query_param);
+
         let (_, socket) = client.connect().await.unwrap();
         Self {
             socket,

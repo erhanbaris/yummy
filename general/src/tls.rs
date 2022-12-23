@@ -57,20 +57,58 @@ pub fn load_rustls_config(config: Arc<YummyConfig>) -> Option<rustls::ServerConf
 
     // exit if no keys could be parsed
     if keys.is_empty() {
-        eprintln!("Could not locate PKCS 8 private keys.");
+        log::error!("Could not locate PKCS 8 private keys.");
         return None;
     }
 
-    config.with_single_cert(cert_chain, keys.remove(0)).ok()
+    match config.with_single_cert(cert_chain, keys.remove(0)) {
+        Ok(config) => Some(config),
+        Err(error) => {
+            log::error!("Could not combine cert. Error: {}", error);
+            None
+        }
+    }
+}
+
+pub fn load_temporary_rustls_config(config: Arc<YummyConfig>) -> Option<rustls::ServerConfig> {
+    use tempfile::tempdir;
+    use rcgen::generate_simple_self_signed;
+    use std::io::Write;
+
+    let subject_alt_names = vec!["127.0.0.1".to_string(), "localhost".to_string()];
+
+    let cert = generate_simple_self_signed(subject_alt_names).ok()?;
+
+    let cert_file = cert.serialize_pem().ok()?;
+    let key_file = cert.serialize_private_key_pem();
+    
+    let dir = tempdir().ok()?;
+
+    let cert_file_path = dir.path().join("cert_file.txt");
+    let key_file_path = dir.path().join("key_file.txt");
+    
+    let mut file = File::create(cert_file_path.clone()).ok()?;
+    writeln!(file, "{}", cert_file).ok()?;
+    let cert_file_path = cert_file_path.to_str()?.to_string();
+
+    let mut file = File::create(key_file_path.clone()).ok()?;
+    writeln!(file, "{}", key_file).ok()?;
+    let key_file_path = key_file_path.to_str()?.to_string();
+
+    let mut config = config.as_ref().clone();
+    config.tls_cert_path = Some(cert_file_path);
+    config.tls_key_path = Some(key_file_path);
+
+    load_rustls_config(Arc::new(config))
 }
 
 #[cfg(test)]
 mod tests {
     use std::fs::File;
     use std::sync::Arc;
-    use std::io::{Write, Read, Seek, SeekFrom};
 
     use crate::config::get_configuration;
+    use crate::tls::load_temporary_rustls_config;
 
     use super::load_rustls_config;
 
@@ -93,5 +131,11 @@ mod tests {
         config.tls_key_path = Some("dummy".to_string());
         let rustls_config = load_rustls_config(Arc::new(config));
         assert!(rustls_config.is_none());
+    }
+
+    #[test]
+    fn valid_cert() {
+        let rustls_config = load_temporary_rustls_config(get_configuration());
+        assert!(rustls_config.is_some());
     }
 }
