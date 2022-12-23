@@ -12,7 +12,7 @@ macros.workspace = true
 
 actix.workspace = true
 actix-web-actors = "4.1.0"
-actix-web = { version = "4", features = ["rustls"] }
+actix-web.workspace = true
 actix-broker = "0.4.3"
 
 thiserror = "1.0.38"

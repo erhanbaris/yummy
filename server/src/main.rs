@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 mod api;
 
-use general::config::{get_configuration, get_env_var, configure_environment};
+use general::config::{get_configuration, configure_environment};
 use manager::api::conn::ConnectionManager;
 use manager::api::user::UserManager;
 use std::sync::Arc;
@@ -32,17 +32,15 @@ async fn main() -> std::io::Result<()> {
     configure_environment();
     let config = get_configuration();
     
-    let server_bind = get_env_var("SERVER_BIND", format!("{}:{}", config.server_ip, config.server_port));
-    let rust_log_level = get_env_var("RUST_LOG", config.rust_log.to_string());
-    
     tracing_subscriber::fmt::init();
 
+    let server_bind = format!("{}:{}", config.bind_ip, config.bind_port);
     log::info!("Yummy is starting...");
     log::info!("Binding at   \"{}\"", server_bind);
     log::info!("Server name  \"{}\"", config.server_name);
-    log::info!("Log level is \"{}\"", rust_log_level);
+    log::info!("Log level is \"{}\"", config.rust_log.to_string());
 
-    let database = Arc::new(database::create_connection(&config.database_url).unwrap());
+    let database = Arc::new(database::create_connection(&config.database_path).unwrap());
     let mut connection = database.clone().get().unwrap();
     database::create_database(&mut connection).unwrap_or_default();
 

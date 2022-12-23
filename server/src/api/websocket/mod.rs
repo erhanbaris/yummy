@@ -106,7 +106,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
     #[tracing::instrument(name="HB", skip(self, ctx))]
     fn hb(&self, ctx: &mut ws::WebsocketContext<Self>) {
         ctx.run_interval(self.config.heartbeat_interval, |act, ctx| {
-            if Instant::now().duration_since(act.hb) > act.config.client_timeout {
+            if Instant::now().duration_since(act.hb) > act.config.heartbeat_timeout {
                 println!("Disconnecting failed heartbeat, {:?}", act.hb);
                 ctx.stop();
                 return;

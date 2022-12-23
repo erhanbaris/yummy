@@ -240,9 +240,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUse
     #[tracing::instrument(name="StartUserTimeout", skip(self, ctx))]
     #[macros::api(name="StartUserTimeout")]
     fn handle(&mut self, model: StartUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
-        self.issue_system_async(UserDisconnectRequest {
-            user_id: model.user_id
-        });
         let session_id = model.session_id.clone();
         let timer = ctx.run_later(self.config.connection_restore_wait_timeout, move |manager, _ctx| {
             if manager.states.close_session(&model.session_id) {

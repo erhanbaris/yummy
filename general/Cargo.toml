@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 actix.workspace = true
-actix-web = { version = "4", features = ["rustls"] }
+actix-web.workspace = true
 
 thiserror = "1.0.38"
 anyhow = "1.0.68"

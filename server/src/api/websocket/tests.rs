@@ -483,7 +483,7 @@ async fn auth_via_email_5() -> anyhow::Result<()> {
     let mut config = ::general::config::get_configuration().deref().clone();
     config.connection_restore_wait_timeout = Duration::from_secs(1);
     config.heartbeat_interval = Duration::from_secs(1);
-    config.client_timeout = Duration::from_secs(1);
+    config.heartbeat_timeout = Duration::from_secs(1);
 
     let server = create_websocket_server(Arc::new(config));
 
@@ -545,7 +545,7 @@ async fn auth_via_email_6() -> anyhow::Result<()> {
     let mut config = ::general::config::get_configuration().deref().clone();
     config.connection_restore_wait_timeout = Duration::from_secs(1);
     config.heartbeat_interval = Duration::from_secs(1);
-    config.client_timeout = Duration::from_secs(1);
+    config.heartbeat_timeout = Duration::from_secs(1);
 
     let server = create_websocket_server(Arc::new(config));
 

@@ -55,7 +55,7 @@ async fn login_user_via_email() -> anyhow::Result<()> {
     let mut config = ::general::config::get_configuration().deref().clone();
     config.connection_restore_wait_timeout = Duration::from_secs(1);
     config.heartbeat_interval = Duration::from_secs(1);
-    config.client_timeout = Duration::from_secs(1);
+    config.heartbeat_timeout = Duration::from_secs(1);
     
     let (address, socket) = create_actor(Arc::new(config))?;
     address.send(EmailAuthRequest {
@@ -131,7 +131,7 @@ async fn login_user_via_device_id() -> anyhow::Result<()> {
     let mut config = ::general::config::get_configuration().deref().clone();
     config.connection_restore_wait_timeout = Duration::from_secs(1);
     config.heartbeat_interval = Duration::from_secs(1);
-    config.client_timeout = Duration::from_secs(1);
+    config.heartbeat_timeout = Duration::from_secs(1);
     
     let (address, socket) = create_actor(Arc::new(config))?;
     address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
@@ -180,7 +180,7 @@ async fn login_user_via_custom_id() -> anyhow::Result<()> {
     let mut config = ::general::config::get_configuration().deref().clone();
     config.connection_restore_wait_timeout = Duration::from_secs(1);
     config.heartbeat_interval = Duration::from_secs(1);
-    config.client_timeout = Duration::from_secs(1);
+    config.heartbeat_timeout = Duration::from_secs(1);
     
     let (address, socket) = create_actor(Arc::new(config))?;
     address.send(CustomIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
