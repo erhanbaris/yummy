@@ -13,24 +13,35 @@ cargo run --release
 ## Documentation
 [Link](documents/README.md)
 
-### Todo list
+### Features
+- Custom user metadata
+- Custom rooms
+- Different authentication methods
+- Supports for vertical and horizontal scaling
+- Observability via OpenTelemetry integration
 
+### Todo list
+- [ ] Add parameter for OpenTelemetry configuration
+- [ ] TLS support
+- [ ] Design document
+- [ ] Example projects
 - [ ] Friend add/remove/list integration
 - [ ] RabbitMQ integration
 - [X] Redis integration
+- [ ] Create Lua scripts for Redis operations
 - [ ] Server disconnect detection [Stateless]
+- [ ] Support for pre and post API calls
+- [ ] Web interface for system control
+- [ ] Lua, JS, .NET Core runtimes
+- [ ] Client libraries (JS, Python, Rust, Godot, Unity, etc.)
 
 ---
 
 ### General Unit Test
 
 - [ ] Room integration
-
----
-
-### Stateless Unit Test
-
 - [ ] Multiple server communication
+- [ ] Integration test
 
 
 ## Coverage report generation procedures
