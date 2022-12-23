@@ -35,6 +35,9 @@ pub struct YummyConfig {
     pub bind_port: String,
 
     pub rust_log: String,
+
+    pub tls_cert_path: Option<String>,
+    pub tls_key_path: Option<String>,
     
     pub token_lifetime: Duration,
     pub heartbeat_interval: Duration,
@@ -90,6 +93,10 @@ pub fn get_configuration() -> Arc<YummyConfig> {
         server_name: get_env_var("SERVER_NAME", server_name),
         bind_ip: get_env_var("BIND_IP", DEFAULT_BIND_IP.to_string()),
         bind_port: get_env_var("BIND_PORT", DEFAULT_BIND_PORT.to_string()),
+        
+        tls_cert_path: env::var("TLS_CERT_PATH").ok(),
+        tls_key_path: env::var("TLS_KEY_PATH").ok(),
+        
         rust_log: get_env_var("RUST_LOG", DEFAULT_RUST_LOG.to_string()),
         heartbeat_timeout: Duration::from_secs(get_env_var("HEARTBEAT_TIMEOUT", DEFAULT_HEARTBEAT_TIMEOUT)),
         connection_restore_wait_timeout: Duration::from_secs(get_env_var("CONNECTION_RESTORE_WAIT_TIMEOUT", DEFAULT_CONNECTION_RESTORE_WAIT_TIMEOUT)),

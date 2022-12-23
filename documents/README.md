@@ -21,6 +21,14 @@ __Information__: Instance's binding ip address. <br/>
 __Default value__: 9090 <br/>
 __Information__: Instance's binding port address. <br/>
 
+* **TLS_CERT_PATH** <br/>
+__Default value__: <br/>
+__Information__: TLS certificates cert file path. <br/>
+
+* **TLS_KEY_PATH** <br/>
+__Default value__: <br/>
+__Information__: TLS certificates key file path. <br/>
+
 * **RUST_LOG** <br/>
 __Default value__: debug,backend,actix_web=debug <br/>
 __Information__: Rust Programming Language's and Actix Framework's logging configuration. <br/>

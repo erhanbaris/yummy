@@ -53,6 +53,8 @@ actix-test-server = "0.2.2"
 actix-test = "0.1.0"
 actix-http = "3.2.2"
 
+rcgen = "0.10.0"
+
 awc = "3.0.1"
 actix-codec = "0.5.0"
 futures = "0.3.25"
