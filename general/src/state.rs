@@ -1,22 +1,30 @@
 use std::collections::{HashMap, HashSet};
+use std::ops::Deref;
 use std::sync::Arc;
 use std::{fmt::Debug, borrow::Borrow};
 
-use actix::{Recipient, Message};
+use actix::Message;
 use serde::de::DeserializeOwned;
+use strum_macros::EnumDiscriminants;
 use thiserror::Error;
 use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "stateless")]
 use redis::Commands;
 
-use crate::client::ClientTrait;
 use crate::config::YummyConfig;
 use crate::model::{UserId, RoomId, SessionId};
 use crate::model::RoomUserType;
 use crate::model::UserState;
 use crate::model::RoomState;
+use crate::model::CreateRoomAccessType;
 use parking_lot::Mutex;
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct RoomUserInformation {
+    pub user_id: UserId,
+    pub name: Option<String>
+}
 
 #[derive(Message, Debug, Clone, Serialize, Deserialize)]
 #[rtype(result = "()")]
@@ -29,6 +37,28 @@ impl SendMessage {
     pub fn create<T:  Borrow<T> + Debug + Serialize + DeserializeOwned>(user_id: UserId, message: T) -> SendMessage {
         let message = serde_json::to_string(message.borrow());
         Self { user_id, message: message.unwrap_or_default() }
+    }
+}
+
+
+#[derive(Debug, Clone, EnumDiscriminants, PartialEq)]
+#[strum_discriminants(name(RoomInfoTypeVariant))]
+pub enum RoomInfoType {
+    RoomName(Option<String>),
+    Users(Vec<RoomUserInformation>),
+    MaxUser(usize),
+    UserLength(usize),
+    Password(Option<String>)
+}
+
+#[derive(Debug, Default)]
+pub struct RoomQueryResult {
+    pub results: Vec<RoomInfoType>
+}
+
+impl RoomQueryResult {
+    pub fn get_item(&self, query: RoomInfoTypeVariant) -> Option<RoomInfoType> {
+        self.results.iter().find(|item| query == RoomInfoTypeVariant::from(item.deref())).cloned()
     }
 }
 
@@ -275,12 +305,12 @@ impl YummyState {
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="new_session", skip(self))]
-    pub fn new_session(&self, user_id: UserId) -> SessionId {
+    pub fn new_session(&self, user_id: UserId, name: Option<String>) -> SessionId {
         use std::cell::Cell;
 
         let session_id = SessionId::new();
         self.session_to_user.lock().insert(session_id.clone(), user_id);
-        self.user.lock().insert(user_id, UserState { user_id, session: session_id.clone(), room: Cell::new(None) });
+        self.user.lock().insert(user_id, UserState { user_id, name, session: session_id.clone(), room: Cell::new(None) });
         session_id
     }
 
@@ -311,8 +341,8 @@ impl YummyState {
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="create_room", skip(self))]
-    pub fn create_room(&self, room_id: RoomId, max_user: usize) {
-        self.room.lock().insert(room_id, RoomState { max_user, room_id, users: Mutex::new(HashSet::new()) });
+    pub fn create_room(&self, room_id: RoomId, name: Option<String>, access_type: CreateRoomAccessType, password: Option<String>, max_user: usize, tags: Vec<String>) {
+        self.room.lock().insert(room_id, RoomState { max_user, room_id, users: Mutex::new(HashSet::new()), tags, name, access_type, password });
     }
 
     #[cfg(not(feature = "stateless"))]
@@ -384,26 +414,59 @@ impl YummyState {
     pub fn get_user_location(&self, user_id: UserId) -> Option<String> {
         None
     }
+
+    #[cfg(not(feature = "stateless"))]
+    #[tracing::instrument(name="get_room_info", skip(self))]
+    pub fn get_room_info(&self, room_id: RoomId, query: Vec<RoomInfoTypeVariant>) -> Result<RoomQueryResult, YummyStateError> {
+        let mut result = RoomQueryResult::default();
+        match self.room.lock().get(&room_id) {
+            Some(room) => {
+                for item in query.iter() {
+                    let item = match item {
+                        RoomInfoTypeVariant::MaxUser => RoomInfoType::MaxUser(room.max_user),
+                        RoomInfoTypeVariant::Password => RoomInfoType::Password(room.password.clone()),
+                        RoomInfoTypeVariant::RoomName => RoomInfoType::RoomName(room.name.clone()),
+                        RoomInfoTypeVariant::UserLength => RoomInfoType::UserLength(room.users.lock().len()),
+                        RoomInfoTypeVariant::Users => {
+                            let  mut users = Vec::new();
+                            for user in room.users.lock().iter() {
+                                let name = match self.user.lock().get(&user.user_id) {
+                                    Some(user) => user.name.clone(),
+                                    None => None
+                                };
+                                users.push(RoomUserInformation {
+                                    user_id: user.user_id,
+                                    name
+                                });
+                            }
+
+                            RoomInfoType::Users(users)
+                        }
+                    };
+        
+                    result.results.push(item);
+                }
+
+                Ok(result)
+            },
+            None => Err(YummyStateError::RoomNotFound)
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use crate::config::configure_environment;
-    use crate::{model::*, client::EmptyClient, config::get_configuration};
+    use crate::{model::*, config::get_configuration};
 
     #[cfg(feature = "stateless")]
     use crate::test::cleanup_redis;
     use actix::Actor;
     use actix::Context;
     use actix::Handler;
-    use actix::Recipient;
     use anyhow::Ok;
 
-    use super::SendMessage;
-    use super::YummyState;
-    use super::YummyStateError;
+    use super::*;
 
     struct DummyActor;
     impl Actor for DummyActor {
@@ -431,7 +494,7 @@ mod tests {
         DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         let user_id = UserId::new();
-        let session_id = state.new_session(user_id);
+        let session_id = state.new_session(user_id, None);
 
         assert!(state.is_session_online(session_id.clone()));
         assert!(state.is_user_online(user_id.clone()));
@@ -481,7 +544,7 @@ mod tests {
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         
         let room_1 = RoomId::new();
-        state.create_room(room_1, 2);
+        state.create_room(room_1, Some("room".to_string()), CreateRoomAccessType::Friend, None, 2, Vec::new());
 
         let user_1 = UserId::new();
         let user_2 = UserId::new();
@@ -521,12 +584,71 @@ mod tests {
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
     
         let room = RoomId::new();
-        state.create_room(room, 0);
+        state.create_room(room, None, CreateRoomAccessType::Public, None, 0, Vec::new());
 
         for _ in 0..100_000 {
             state.join_to_room(room, UserId::new(), RoomUserType::Owner)?
         }
 
+        Ok(())
+    }
+    
+    #[actix::test]
+    async fn get_room() -> anyhow::Result<()> {
+        configure_environment();
+        let config = get_configuration();
+
+        #[cfg(feature = "stateless")]
+        let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
+
+        #[cfg(feature = "stateless")]
+        cleanup_redis(conn.clone());
+
+        DummyActor{}.start().recipient::<SendMessage>();
+        let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
+    
+        let room = RoomId::new();
+        state.create_room(room, Some("Room 1".to_string()), CreateRoomAccessType::Private, Some("erhan".to_string()), 10, vec!["tag1".to_string(), "tag3".to_string(), "tag3".to_string()]);
+
+        let result = state.get_room_info(room, Vec::new())?;
+        assert_eq!(result.results.len(), 0);
+
+        let result = state.get_room_info(room, vec![RoomInfoTypeVariant::RoomName])?;
+        assert_eq!(result.results.len(), 1);
+        assert_eq!(result.get_item(RoomInfoTypeVariant::RoomName).unwrap(), RoomInfoType::RoomName(Some("Room 1".to_string())));
+
+
+        let result = state.get_room_info(room, vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::Password])?;
+        assert_eq!(result.results.len(), 5);
+        assert_eq!(result.get_item(RoomInfoTypeVariant::RoomName).unwrap(), RoomInfoType::RoomName(Some("Room 1".to_string())));
+        assert_eq!(result.get_item(RoomInfoTypeVariant::MaxUser).unwrap(), RoomInfoType::MaxUser(10));
+        assert_eq!(result.get_item(RoomInfoTypeVariant::UserLength).unwrap(), RoomInfoType::UserLength(0));
+        assert_eq!(result.get_item(RoomInfoTypeVariant::Password).unwrap(), RoomInfoType::Password(Some("erhan".to_string())));
+        assert!(result.get_item(RoomInfoTypeVariant::Users).is_some());
+
+        let user_1 = UserId::new();
+        let user_2 = UserId::new();
+        let user_3 = UserId::new();
+
+        state.new_session(user_1, Some("user1".to_string()));
+        state.new_session(user_2, Some("user2".to_string()));
+        state.new_session(user_3, Some("user3".to_string()));
+
+        state.join_to_room(room.clone(), user_1.clone(), RoomUserType::Owner)?;
+        state.join_to_room(room.clone(), user_2.clone(), RoomUserType::Owner)?;
+        state.join_to_room(room.clone(), user_3.clone(), RoomUserType::Owner)?;
+
+        let result = state.get_room_info(room, vec![RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::Users])?;
+        assert_eq!(result.results.len(), 2);
+        assert_eq!(result.get_item(RoomInfoTypeVariant::UserLength).unwrap(), RoomInfoType::UserLength(3));
+
+        if let RoomInfoType::Users(mut users) = result.get_item(RoomInfoTypeVariant::Users).unwrap() {
+            users.sort_by(|a, b| a.name.partial_cmp(&b.name).unwrap());
+            assert_eq!(users, vec![RoomUserInformation { user_id: user_1, name: Some("user1".to_string()) }, RoomUserInformation { user_id: user_2, name: Some("user2".to_string()) }, RoomUserInformation { user_id: user_3, name: Some("user3".to_string()) }]);
+        } else {
+            assert!(false);
+        }
+        
         Ok(())
     }
 }

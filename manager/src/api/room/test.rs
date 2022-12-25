@@ -1,4 +1,5 @@
 use general::config::configure_environment;
+use general::state::RoomUserInformation;
 use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
@@ -49,11 +50,19 @@ macro_rules! email_auth {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+struct Joined {
+    #[serde(rename = "type")]
+    class_type: String,
+    room_name: Option<String>,
+    users: Vec<RoomUserInformation>
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct UserJoinedToRoom {
     #[serde(rename = "type")]
     class_type: String,
     user: UserId,
-    room: RoomId
+    room: RoomId,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -185,12 +194,20 @@ async fn create_room_3() -> anyhow::Result<()> {
         socket:user_2_socket.clone()
     }).await??;
 
+    let message: GenericAnswer<Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    let message = message.result.unwrap();
+    assert_eq!(&message.class_type[..], "Joined");
+
     room_manager.send(JoinToRoomRequest {
         user: user_3.clone(),
         room: room_id,
         room_user_type: RoomUserType::User,
         socket:user_3_socket.clone()
     }).await??;
+
+    let message: GenericAnswer<Joined> = serde_json::from_str(&user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    let message = message.result.unwrap();
+    assert_eq!(&message.class_type[..], "Joined");
 
     let user_1_id = user_1.clone().deref().as_ref().unwrap().user.clone();
 
@@ -278,12 +295,20 @@ async fn create_room_4() -> anyhow::Result<()> {
         socket:user_2_socket.clone()
     }).await??;
 
+    let message: GenericAnswer<Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    let message = message.result.unwrap();
+    assert_eq!(&message.class_type[..], "Joined");
+
     room_manager.send(JoinToRoomRequest {
         user: user_3.clone(),
         room: room_id,
         room_user_type: RoomUserType::User,
         socket:user_3_socket.clone()
     }).await??;
+
+    let message: GenericAnswer<Joined> = serde_json::from_str(&user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    let message = message.result.unwrap();
+    assert_eq!(&message.class_type[..], "Joined");
 
     let user_1_id = user_1.clone().deref().as_ref().unwrap().user.clone();
 

@@ -91,7 +91,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
 
-        let session_id = self.states.new_session(UserId::from(user_id.get()));
+        let session_id = self.states.new_session(UserId::from(user_id.get()), name.clone());
         let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, Some(model.email.to_string()), Some(session_id))?;
 
         self.issue_system_async(UserConnected {
@@ -123,7 +123,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
         
-        let session_id = self.states.new_session(UserId::from(user_id.get()));
+        let session_id = self.states.new_session(UserId::from(user_id.get()), name.clone());
         let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))?;
 
         self.issue_system_async(UserConnected {
@@ -155,7 +155,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
         
-        let session_id = self.states.new_session(UserId::from(user_id.get()));
+        let session_id = self.states.new_session(UserId::from(user_id.get()), name.clone());
         let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))?;
 
 
@@ -216,7 +216,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
                     }
                     auth.user.session
                 } else {
-                    self.states.new_session(auth.user.id)
+                    self.states.new_session(auth.user.id, auth.user.name.clone())
                 };
 
                 let (token, auth) = self.generate_token(auth.user.id, None, None, Some(session_id))?;

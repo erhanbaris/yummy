@@ -21,6 +21,7 @@ use uuid::Uuid;
 use std::collections::HashMap;
 use std::env::temp_dir;
 use std::ops::Deref;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -1021,5 +1022,43 @@ async fn create_room() -> anyhow::Result<()> {
 
     let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
     assert!(response.status);
+    assert!(uuid::Uuid::from_str(&response.result.unwrap()).is_ok());
+    Ok(())
+}
+
+#[actix_web::test]
+async fn join_room() -> anyhow::Result<()> {
+    let server = create_websocket_server(::general::config::get_configuration());
+
+    let mut client_1 = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+    custom_id_auth!(client_1, "client_1");
+
+    let mut client_2 = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+    custom_id_auth!(client_2, "client_2");
+
+    // Error
+    client_1.send(json!({
+        "type": "Room",
+        "room_type": "Create"
+    })).await;
+    let receive = client_1.get_text().await;
+    assert!(receive.is_some());
+
+    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    assert!(response.status);
+
+    let room_id = response.result.unwrap();
+    assert!(uuid::Uuid::from_str(&room_id).is_ok());
+
+    client_2.send(json!({
+        "type": "Room",
+        "room_type": "Join",
+        "room": room_id,
+        "room_user_type": "User"
+    })).await;
+
+    let receive = client_2.get_text().await;
+    assert!(receive.is_some());
+
     Ok(())
 }

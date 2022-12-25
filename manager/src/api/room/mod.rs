@@ -13,7 +13,7 @@ use database::RowId;
 
 use general::config::YummyConfig;
 use general::model::{RoomId, UserId, RoomUserType};
-use general::state::{YummyState, SendMessage};
+use general::state::{YummyState, SendMessage, RoomInfoTypeVariant, RoomInfoType};
 use general::web::{GenericAnswer, Answer};
 use rand::Rng;
 
@@ -53,8 +53,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisc
     type Result = ();
 
     #[tracing::instrument(name="Room::User disconnected", skip(self, _ctx))]
-    fn handle(&mut self, user: UserDisconnectRequest, _ctx: &mut Self::Context) -> Self::Result {
-        println!("room:UserDisconnectRequest {:?}", user);
+    fn handle(&mut self, model: UserDisconnectRequest, _ctx: &mut Self::Context) -> Self::Result {
+        println!("room:UserDisconnectRequest {:?}", model);
+        if let Some(room_id) = self.states.get_user_room(&model.user_id) {
+            self.disconnect_from_room(room_id, model.user_id).unwrap_or_default();
+        }
     }
 }
 
@@ -116,12 +119,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
             .collect();
 
         let room_id = DB::transaction(&mut connection, move |connection| {
-            let room_id = DB::create_room(connection, name, access_type, Some(&password[..]), max_user, tags)?;
+            let room_id = DB::create_room(connection, name.clone(), access_type.clone(), Some(&password[..]), max_user, &tags)?;
 
             DB::join_to_room(connection, room_id, RowId(user_id.get()), RoomUserType::Owner)?;
 
             let room_id = RoomId::from(room_id.get());
-            self.states.create_room(room_id, max_user);
+            self.states.create_room(room_id, name, access_type, Some(password), max_user, tags);
             self.states.join_to_room(room_id, user_id, RoomUserType::Owner)?;
             self.states.set_user_room(user_id, room_id);
 
@@ -131,6 +134,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
 
         socket.send(GenericAnswer::success(room_id).into());
         Ok(())
+    }
+}
+
+macro_rules! try_unpack {
+    ($variant:path, $value:expr) => {
+        if let $variant(x) = $value {
+            Some(x)
+        } else {
+            None
+        }   
     }
 }
 
@@ -168,6 +181,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
                 user_id
             });
         }
+
+        let infos = self.states.get_room_info(model.room, vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Users])?;
+        let room_name = infos.get_item(RoomInfoTypeVariant::RoomName).and_then(|p| try_unpack!(RoomInfoType::RoomName, p)).unwrap_or_default();
+        let users = infos.get_item(RoomInfoTypeVariant::Users).and_then(|p| try_unpack!(RoomInfoType::Users, p)).unwrap_or_default();
+        
+        model.socket.send(GenericAnswer::success(RoomResponse::Joined { room_name, users }).into());
 
         Ok(())
     }

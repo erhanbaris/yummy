@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 use thiserror::Error;
 use validator::Validate;
 
-use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait};
+use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::RoomUserInformation};
 
 
 #[derive(Message, Validate, Debug)]
@@ -58,6 +58,10 @@ pub enum RoomError {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(tag = "type")]
 pub enum RoomResponse {
+    Joined {
+        room_name: Option<String>,
+        users: Vec<RoomUserInformation>
+    },
     UserJoinedToRoom {
         user: UserId,
         room: RoomId

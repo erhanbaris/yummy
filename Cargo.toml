@@ -24,3 +24,6 @@ tracing-subscriber = "0.3"
 serde = { version = "1.0.151", features = ["derive", "rc"] }
 rustls = "0.20.7"
 rustls-pemfile = "1.0.1"
+
+strum = "0.24"
+strum_macros = "0.24"

@@ -102,6 +102,7 @@ impl From<i32> for UserType {
 pub struct UserState {
     pub user_id: UserId,
     pub session: SessionId,
+    pub name: Option<String>,
 
     #[cfg(not(feature = "stateless"))]
     pub room: std::cell::Cell<Option<RoomId>>
@@ -109,8 +110,12 @@ pub struct UserState {
 
 #[derive(Default, Debug)]
 pub struct RoomState {
-    pub max_user: usize,
     pub room_id: RoomId,
+    pub name: Option<String>,
+    pub access_type: CreateRoomAccessType,
+    pub max_user: usize,
+    pub password: Option<String>,
+    pub tags: Vec<String>,
     pub users: Mutex<HashSet<RoomUserInfo>>
 }
 
@@ -138,7 +143,7 @@ impl RoomUserInfo {
     }
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub enum CreateRoomAccessType {
     #[default]
     Public,

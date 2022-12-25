@@ -8,14 +8,14 @@ use general::model::{CreateRoomAccessType, RoomUserType};
 use crate::{SqliteStore, PooledConnection, RowId, model::{RoomInsert, RoomTagInsert, RoomUserInsert}, schema::{room::{self}, room_tag, room_user}};
 
 pub trait RoomStoreTrait: Sized {
-    fn create_room(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, password: Option<&str>, max_user: usize, tags: Vec<String>) -> anyhow::Result<RowId>;
+    fn create_room(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, password: Option<&str>, max_user: usize, tags: &Vec<String>) -> anyhow::Result<RowId>;
     fn join_to_room(connection: &mut PooledConnection, room_id: RowId, user_id: RowId, user_type: RoomUserType) -> anyhow::Result<()>;
     fn disconnect_from_room(connection: &mut PooledConnection, room_id: RowId, user_id: RowId) -> anyhow::Result<()>;
 }
 
 impl RoomStoreTrait for SqliteStore {
     #[tracing::instrument(name="Create room", skip(connection))]
-    fn create_room<'a>(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, password: Option<&'a str>, max_user: usize, tags: Vec<String>) -> anyhow::Result<RowId> {
+    fn create_room<'a>(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, password: Option<&'a str>, max_user: usize, tags: &Vec<String>) -> anyhow::Result<RowId> {
         let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
 
         let mut model = RoomInsert {
@@ -105,15 +105,15 @@ mod tests {
     #[test]
     fn create_room_1() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
-        SqliteStore::create_room(&mut connection, Some("room 1".to_string()), CreateRoomAccessType::Public, Some("password"), 2, vec!["tag 1".to_string(), "tag 2".to_string()])?;
+        SqliteStore::create_room(&mut connection, Some("room 1".to_string()), CreateRoomAccessType::Public, Some("password"), 2, &vec!["tag 1".to_string(), "tag 2".to_string()])?;
         Ok(())
     }
 
     #[test]
     fn create_room_2() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
-        let room_1 = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Tag("LEVEL 1000".to_string()), None, 2, Vec::new())?;
-        let room_2 = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Public, None, 20, Vec::new())?;
+        let room_1 = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Tag("LEVEL 1000".to_string()), None, 2, &Vec::new())?;
+        let room_2 = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Public, None, 20, &Vec::new())?;
 
         assert_ne!(room_1, room_2);
         Ok(())
@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn join_to_room() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
-        let room = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Tag("LEVEL 1000".to_string()), None, 2, Vec::new())?;
+        let room = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Tag("LEVEL 1000".to_string()), None, 2, &Vec::new())?;
         SqliteStore::join_to_room(&mut connection, room, RowId::default(), RoomUserType::User)?;
         Ok(())
     }
@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn disconnect_from_room() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
-        let room = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Tag("LEVEL 1000".to_string()), None, 2, Vec::new())?;
+        let room = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Tag("LEVEL 1000".to_string()), None, 2, &Vec::new())?;
         let user = RowId::default();
         
         assert!(SqliteStore::disconnect_from_room(&mut connection, room, user.clone()).is_err());
