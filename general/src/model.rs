@@ -73,6 +73,12 @@ impl RoomId {
     }
 }
 
+impl ToString for RoomId {
+    fn to_string(&self) -> String {
+        self.0.to_string()
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Serialize_repr, Deserialize_repr, Clone, Default)]
 #[repr(u8)]
 pub enum UserType {
@@ -149,13 +155,12 @@ impl RoomUserInfo {
     }
 }
 
-#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum CreateRoomAccessType {
     #[default]
     Public,
     Private,
-    Friend,
-    Tag(String)
+    Friend
 }
 
 #[derive(Default, Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]

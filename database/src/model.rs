@@ -39,7 +39,6 @@ pub struct RoomInsert<'a> {
     pub id: RowId,
     pub name: Option<String>,
     pub access_type: i32,
-    pub access_supplementary: Option<String>,
     pub password: Option<&'a str>,
     pub max_user: i32,
     pub insert_date: i32,

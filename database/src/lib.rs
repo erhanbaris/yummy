@@ -133,7 +133,6 @@ pub fn create_database(connection: &mut PooledConnection) -> anyhow::Result<()> 
             max_user INTEGER NOT NULL,
             password TEXT,
             access_type INTEGER NOT NULL,
-            access_supplementary TEXT,
             insert_date INTEGER NOT NULL
         );"#,
     )

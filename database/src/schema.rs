@@ -32,7 +32,6 @@ table! {
         max_user -> Integer,
         password -> Nullable<Text>,
         access_type -> Integer,
-        access_supplementary -> Nullable<Text>,
         insert_date -> Integer,
     }
 }

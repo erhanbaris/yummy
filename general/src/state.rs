@@ -48,7 +48,9 @@ pub enum RoomInfoType {
     Users(Vec<RoomUserInformation>),
     MaxUser(usize),
     UserLength(usize),
-    Password(Option<String>)
+    Password(Option<String>),
+    AccessType(CreateRoomAccessType),
+    Tags(Vec<String>)
 }
 
 #[derive(Debug, Default)]
@@ -190,7 +192,7 @@ impl YummyState {
     #[tracing::instrument(name="set_user_room", skip(self))]
     pub fn set_user_room<T: Borrow<UserId> + std::fmt::Debug>(&mut self, user_id: T, room_id: RoomId) {
         if let Ok(mut redis) = self.redis.get() {
-            redis.hset::<_, _, _, i32>(format!("{}users:{}", self.config.redis_prefix, user_id.borrow().to_string()), "room", room_id.get().to_string()).unwrap_or_default();
+            redis.hset::<_, _, _, i32>(format!("{}users:{}", self.config.redis_prefix, user_id.borrow().to_string()), "room", room_id.to_string()).unwrap_or_default();
         }
     }
 
@@ -199,13 +201,24 @@ impl YummyState {
     pub fn create_room(&self, room_id: RoomId, name: Option<String>, access_type: CreateRoomAccessType, password: Option<String>, max_user: usize, tags: Vec<String>) {
         match self.redis.get() {
             Ok(mut redis) => {
+                let access_type = match access_type {
+                    CreateRoomAccessType::Public => 1,
+                    CreateRoomAccessType::Private => 2,
+                    CreateRoomAccessType::Friend => 3,
+                };
+
                 redis::cmd("HSET")
-                    .arg(format!("{}room:{}", self.config.redis_prefix, room_id.get().to_string()))
+                    .arg(format!("{}room:{}", self.config.redis_prefix, room_id.to_string()))
                     .arg("max-user").arg(max_user)
                     .arg("user-len").arg(0_usize)
                     .arg("name").arg(name.unwrap_or_default())
                     .arg("pass").arg(password.unwrap_or_default())
-                    .execute(&mut redis)
+                    .arg("access").arg(access_type)
+                    .execute(&mut redis);
+
+                if !tags.is_empty() {
+                    redis.sadd::<_, _, ()>(format!("{}room-tag:{}", self.config.redis_prefix, room_id.to_string()), tags).unwrap_or_default();
+                }
             },
             Err(_) => ()
         };
@@ -223,7 +236,7 @@ impl YummyState {
                     let user_id = user_id.borrow().get().to_string();
 
                     let room_info = redis::cmd("HMGET")
-                        .arg(format!("{}room:{}", self.config.redis_prefix, room_id.get().to_string()))
+                        .arg(format!("{}room:{}", self.config.redis_prefix, room_id.to_string()))
                         .arg("user-len")
                         .arg("max-user")
                         .query::<Vec<usize>>(&mut redis).unwrap_or_default();
@@ -318,25 +331,27 @@ impl YummyState {
         match self.redis.get() {
             Ok(mut redis) => {
                 let mut command = redis::cmd("HMGET");
-                let mut request = command.arg(format!("{}room:{}", self.config.redis_prefix, room_id.get().to_string()));
+                let mut request = command.arg(format!("{}room:{}", self.config.redis_prefix, room_id.to_string()));
                 
                 for item in query.iter() {
-                    request = match item {
-                        RoomInfoTypeVariant::RoomName => request.arg("name"),
-                        RoomInfoTypeVariant::Users => request.arg("users"),
-                        RoomInfoTypeVariant::MaxUser => request.arg("max-user"),
-                        RoomInfoTypeVariant::UserLength => request.arg("user-len"),
-                        RoomInfoTypeVariant::Password => request.arg("pass"),
+                    match item {
+                        RoomInfoTypeVariant::RoomName => request = request.arg("name"),
+                        RoomInfoTypeVariant::Users => request = request.arg("users"),
+                        RoomInfoTypeVariant::MaxUser => request = request.arg("max-user"),
+                        RoomInfoTypeVariant::UserLength => request = request.arg("user-len"),
+                        RoomInfoTypeVariant::Password => request = request.arg("pass"),
+                        RoomInfoTypeVariant::AccessType => request = request.arg("access"),
+                        RoomInfoTypeVariant::Tags => request = request.arg("tags"), // Dummy data
                     };
                 }
 
-                let room_infos = request.query::<Vec<redis::Value>>(&mut redis).unwrap_or_default();
+                let room_infos = request.query::<Vec<redis::Value>>(&mut redis).unwrap();
 
                 for (query, room_info) in query.into_iter().zip(room_infos.into_iter()) {
-                    let result_item = match query {
+                    match query {
                         RoomInfoTypeVariant::RoomName => {
                             let room_name: String = FromRedisValue::from_redis_value(&room_info).unwrap_or_default();
-                            RoomInfoType::RoomName(if room_name.is_empty() { None } else { Some(room_name) })
+                            result.results.push(RoomInfoType::RoomName(if room_name.is_empty() { None } else { Some(room_name) }));
                         },
                         RoomInfoTypeVariant::Users => {
                             let mut user_infos = Vec::new();
@@ -348,17 +363,25 @@ impl YummyState {
                                     user_id: UserId::from(uuid::Uuid::parse_str(user_id).unwrap_or_default())
                                 })
                             }
-                            RoomInfoType::Users(user_infos)
+                            result.results.push(RoomInfoType::Users(user_infos));
                         },
-                        RoomInfoTypeVariant::MaxUser => RoomInfoType::MaxUser(FromRedisValue::from_redis_value(&room_info).unwrap_or_default()),
-                        RoomInfoTypeVariant::UserLength => RoomInfoType::UserLength(FromRedisValue::from_redis_value(&room_info).unwrap_or_default()),
+                        RoomInfoTypeVariant::AccessType => result.results.push(RoomInfoType::AccessType(match FromRedisValue::from_redis_value(&room_info).unwrap_or_default() {
+                            1 => CreateRoomAccessType::Public,
+                            2 => CreateRoomAccessType::Private,
+                            3 => CreateRoomAccessType::Friend,
+                            _ => CreateRoomAccessType::Public
+                        })),
+                        RoomInfoTypeVariant::MaxUser => result.results.push(RoomInfoType::MaxUser(FromRedisValue::from_redis_value(&room_info).unwrap_or_default())),
+                        RoomInfoTypeVariant::UserLength => result.results.push(RoomInfoType::UserLength(FromRedisValue::from_redis_value(&room_info).unwrap_or_default())),
                         RoomInfoTypeVariant::Password => {
                             let password: String = FromRedisValue::from_redis_value(&room_info).unwrap_or_default();
-                            RoomInfoType::Password(if password.is_empty() { None } else { Some(password) })
+                            result.results.push(RoomInfoType::Password(if password.is_empty() { None } else { Some(password) }));
                         },
+                        RoomInfoTypeVariant::Tags => {
+                            let tags = redis.smembers::<_, Vec<String>>(format!("{}room-tag:{}", self.config.redis_prefix, room_id.to_string())).unwrap_or_default();
+                            result.results.push(RoomInfoType::Tags(tags));
+                        } 
                     };
-
-                    result.results.push(result_item);
                 }
 
                 Ok(result)
@@ -504,6 +527,7 @@ impl YummyState {
                         RoomInfoTypeVariant::Password => RoomInfoType::Password(room.password.clone()),
                         RoomInfoTypeVariant::RoomName => RoomInfoType::RoomName(room.name.clone()),
                         RoomInfoTypeVariant::UserLength => RoomInfoType::UserLength(room.users.lock().len()),
+                        RoomInfoTypeVariant::AccessType => RoomInfoType::AccessType(room.access_type.clone()),
                         RoomInfoTypeVariant::Users => {
                             let  mut users = Vec::new();
                             for user in room.users.lock().iter() {
@@ -518,7 +542,8 @@ impl YummyState {
                             }
 
                             RoomInfoType::Users(users)
-                        }
+                        },
+                        RoomInfoTypeVariant::Tags => RoomInfoType::Tags(room.tags.clone())
                     };
         
                     result.results.push(item);
@@ -685,7 +710,7 @@ mod tests {
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
     
         let room = RoomId::new();
-        state.create_room(room, Some("Room 1".to_string()), CreateRoomAccessType::Private, Some("erhan".to_string()), 10, vec!["tag1".to_string(), "tag3".to_string(), "tag3".to_string()]);
+        state.create_room(room, Some("Room 1".to_string()), CreateRoomAccessType::Private, Some("erhan".to_string()), 10, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()]);
 
         let result = state.get_room_info(room, Vec::new())?;
         assert_eq!(result.results.len(), 0);
@@ -695,13 +720,15 @@ mod tests {
         assert_eq!(result.get_item(RoomInfoTypeVariant::RoomName).unwrap(), RoomInfoType::RoomName(Some("Room 1".to_string())));
 
 
-        let result = state.get_room_info(room, vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::Password])?;
-        assert_eq!(result.results.len(), 5);
+        let result = state.get_room_info(room, vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::Password])?;
+        assert_eq!(result.results.len(), 7);
         assert_eq!(result.get_item(RoomInfoTypeVariant::RoomName).unwrap(), RoomInfoType::RoomName(Some("Room 1".to_string())));
         assert_eq!(result.get_item(RoomInfoTypeVariant::MaxUser).unwrap(), RoomInfoType::MaxUser(10));
         assert_eq!(result.get_item(RoomInfoTypeVariant::UserLength).unwrap(), RoomInfoType::UserLength(0));
         assert_eq!(result.get_item(RoomInfoTypeVariant::Password).unwrap(), RoomInfoType::Password(Some("erhan".to_string())));
+        assert_eq!(result.get_item(RoomInfoTypeVariant::AccessType).unwrap(), RoomInfoType::AccessType(CreateRoomAccessType::Private));
         assert!(result.get_item(RoomInfoTypeVariant::Users).is_some());
+        assert!(result.get_item(RoomInfoTypeVariant::Tags).is_some());
 
         let user_1 = UserId::new();
         let user_2 = UserId::new();

@@ -140,7 +140,7 @@ async fn create_room_2() -> anyhow::Result<()> {
         user: user.clone(),
         disconnect_from_other_room: false,
         name: None,
-        access_type: general::model::CreateRoomAccessType::Tag("123456".to_string()),
+        access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:recipient.clone()
@@ -176,7 +176,7 @@ async fn create_room_3() -> anyhow::Result<()> {
         user: user_1.clone(),
         disconnect_from_other_room: false,
         name: None,
-        access_type: general::model::CreateRoomAccessType::Tag("123456".to_string()),
+        access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:user_1_socket.clone()
@@ -230,7 +230,7 @@ async fn create_room_3() -> anyhow::Result<()> {
         user: user_1.clone(),
         disconnect_from_other_room: true,
         name: None,
-        access_type: general::model::CreateRoomAccessType::Tag("123456".to_string()),
+        access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:user_1_socket.clone()
@@ -277,7 +277,7 @@ async fn create_room_4() -> anyhow::Result<()> {
         user: user_1.clone(),
         disconnect_from_other_room: false,
         name: None,
-        access_type: general::model::CreateRoomAccessType::Tag("123456".to_string()),
+        access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:user_1_socket.clone()
@@ -366,7 +366,7 @@ async fn message_to_room() -> anyhow::Result<()> {
         user: user_1.clone(),
         disconnect_from_other_room: false,
         name: None,
-        access_type: general::model::CreateRoomAccessType::Tag("123456".to_string()),
+        access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:user_1_socket.clone()
