@@ -1,9 +1,7 @@
 use std::time::Duration;
-use actix::Recipient;
 use general::config::YummyConfig;
 use general::auth::validate_auth;
 use general::config::configure_environment;
-use general::state::SendMessage;
 use general::state::YummyState;
 
 #[cfg(feature = "stateless")]

@@ -107,7 +107,10 @@ pub enum YummyStateError {
     UserCouldNotFoundInRoom,
     
     #[error("Room has max users")]
-    RoomHasMaxUsers
+    RoomHasMaxUsers,
+    
+    #[error("Cache could not readed")]
+    CacheCouldNotReaded
 }
 
 impl YummyState {
@@ -134,13 +137,20 @@ impl YummyState {
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="new_session", skip(self))]
-    pub fn new_session(&mut self, user_id: UserId) -> SessionId {
+    pub fn new_session(&mut self, user_id: UserId, name: Option<String>) -> SessionId {
         let session_id = SessionId::new();
         match self.redis.get() {
             Ok(mut redis) => {
                 redis.sadd::<_, _, i32>(format!("{}online-users", self.config.redis_prefix), user_id.borrow().get().to_string()).unwrap_or_default();
                 redis.hset::<_, _, _, i32>(format!("{}session-user", self.config.redis_prefix), session_id.clone().get().to_string(), user_id.borrow().get().to_string()).unwrap_or_default();
-                redis.hset::<_, _, _, i32>(format!("{}user-loc", self.config.redis_prefix), user_id.clone().get().to_string(), self.config.server_name.clone()).unwrap_or_default();
+
+                redis::cmd("HSET")
+                    .arg(format!("{}users:{}", self.config.redis_prefix, user_id.to_string()))
+                    .arg("room").arg("")
+                    .arg("name").arg(name.unwrap_or_default())
+                    .arg("loc").arg(&self.config.server_name)
+                    .query::<()>(&mut redis)
+                    .unwrap_or_default();
             },
             Err(_) => ()
         };
@@ -154,8 +164,7 @@ impl YummyState {
             Ok(mut redis) => {
                 let user_id = redis.hget::<_, _, String>(format!("{}session-user", self.config.redis_prefix), session_id.borrow().get().to_string()).unwrap_or_default();
                 redis.hdel::<_, _, i32>(format!("{}session-user", self.config.redis_prefix), session_id.borrow().get().to_string()).unwrap_or_default();
-                redis.hdel::<_, _, i32>(format!("{}user-room", self.config.redis_prefix), session_id.borrow().get().to_string()).unwrap_or_default();
-                redis.srem::<_, _, i32>(format!("{}user-loc", self.config.redis_prefix), &user_id).unwrap_or_default();
+                redis.del::<_, i32>(format!("{}users:{}", self.config.redis_prefix, user_id.to_string())).unwrap_or_default();
                 redis.srem::<_, _, i32>(format!("{}online-users", self.config.redis_prefix), user_id).unwrap_or_default() > 0
             },
             Err(_) => false
@@ -167,7 +176,7 @@ impl YummyState {
     pub fn get_user_room<T: Borrow<UserId> + std::fmt::Debug>(&mut self, user_id: T) -> Option<RoomId> {
         use std::str::FromStr;
         let result = match self.redis.get() {
-            Ok(mut redis) => redis.hget::<_, _, String>(format!("{}user-room", self.config.redis_prefix), user_id.borrow().clone().get().to_string()).unwrap_or_default(),
+            Ok(mut redis) => redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id.borrow().to_string()), "room").unwrap_or_default(),
             Err(_) => return None
         };
         
@@ -181,20 +190,21 @@ impl YummyState {
     #[tracing::instrument(name="set_user_room", skip(self))]
     pub fn set_user_room<T: Borrow<UserId> + std::fmt::Debug>(&mut self, user_id: T, room_id: RoomId) {
         if let Ok(mut redis) = self.redis.get() {
-            redis.hset::<_, _, _, i32>(format!("{}user-room", self.config.redis_prefix), user_id.borrow().clone().get().to_string(), room_id.get().to_string()).unwrap_or_default();
+            redis.hset::<_, _, _, i32>(format!("{}users:{}", self.config.redis_prefix, user_id.borrow().to_string()), "room", room_id.get().to_string()).unwrap_or_default();
         }
     }
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="create_room", skip(self))]
-    pub fn create_room(&mut self, room_id: RoomId, max_user: usize) {
-
+    pub fn create_room(&self, room_id: RoomId, name: Option<String>, access_type: CreateRoomAccessType, password: Option<String>, max_user: usize, tags: Vec<String>) {
         match self.redis.get() {
             Ok(mut redis) => {
-                redis::cmd(&format!("{}HSET", self.config.redis_prefix))
-                    .arg(format!("{}room-info:{}", self.config.redis_prefix, room_id.get().to_string()))
+                redis::cmd("HSET")
+                    .arg(format!("{}room:{}", self.config.redis_prefix, room_id.get().to_string()))
                     .arg("max-user").arg(max_user)
-                    .arg("user-len").arg(0)
+                    .arg("user-len").arg(0_usize)
+                    .arg("name").arg(name.unwrap_or_default())
+                    .arg("pass").arg(password.unwrap_or_default())
                     .execute(&mut redis)
             },
             Err(_) => ()
@@ -205,17 +215,22 @@ impl YummyState {
     #[tracing::instrument(name="join_to_room", skip(self))]
     pub fn join_to_room(&mut self, room_id: RoomId, user_id: UserId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
 
-        let room_info_key = format!("{}room-info:{}", self.config.redis_prefix, room_id.get());
+        let room_info_key = format!("{}room:{}", self.config.redis_prefix, room_id.get());
         match self.redis.get() {
             Ok(mut redis) => match redis.exists::<_, bool>(&room_info_key).unwrap_or_default() {
                 true => {
                     let room_users_key = format!("{}room-users:{}", self.config.redis_prefix, room_id.get());
                     let user_id = user_id.borrow().get().to_string();
-    
-                    let room_info = redis.hgetall::<_, HashMap<String, i32>>(&room_info_key).unwrap_or_default();
-                    let user_len = room_info.get("user-len").map(|item| *item).unwrap_or_default();
-                    let max_user = room_info.get("max-user").map(|item| *item).unwrap_or_default();
-    
+
+                    let room_info = redis::cmd("HMGET")
+                        .arg(format!("{}room:{}", self.config.redis_prefix, room_id.get().to_string()))
+                        .arg("user-len")
+                        .arg("max-user")
+                        .query::<Vec<usize>>(&mut redis).unwrap_or_default();
+
+                    let user_len = room_info.get(0).cloned().unwrap_or_default();
+                    let max_user = room_info.get(1).cloned().unwrap_or_default();
+
                     // If the max_user 0 or lower than users count, add to room
                     if max_user == 0 || max_user > user_len {
                         let is_member = redis.sismember(&room_users_key, user_id.clone()).unwrap_or_default();
@@ -243,10 +258,10 @@ impl YummyState {
     pub fn disconnect_from_room(&mut self, room_id: RoomId, user_id: UserId) -> Result<bool, YummyStateError> {
         let room_removed: bool = match self.redis.get() {
             Ok(mut redis) => {
-                let room_info_key = format!("{}room-info:{}", self.config.redis_prefix, room_id.get());
+                let room_info_key = format!("{}room:{}", self.config.redis_prefix, room_id.get());
                 let room_users_key = &format!("{}room-users:{}", self.config.redis_prefix, room_id.get());
 
-                redis.srem::<_, _, i32>(&room_users_key, user_id.get().to_string()).unwrap_or_default();
+                redis.srem::<_, _, i32>(&room_users_key, user_id.to_string()).unwrap_or_default();
                 redis.hincr::<_, _, _, i32>(&room_info_key, "user-len", -1).unwrap_or_default();
 
                 let user_len = redis.hget::<_, _, i32>(&room_info_key, "user-len").unwrap_or_default();
@@ -282,11 +297,73 @@ impl YummyState {
     #[tracing::instrument(name="get_user_location", skip(self))]
     pub fn get_user_location(&self, user_id: UserId) -> Option<String> {
         match self.redis.get() {
-            Ok(mut redis) => match redis.hget::<_, _, String>(format!("{}user-loc", self.config.redis_prefix), user_id.clone().get().to_string()) {
+            Ok(mut redis) => match redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id.to_string()), "loc") {
                 Ok(result) => Some(result),
                 Err(_) => None
             },
             Err(_) => None
+        }
+    }
+
+    #[cfg(feature = "stateless")]
+    #[tracing::instrument(name="get_room_info", skip(self))]
+    pub fn get_room_info(&self, room_id: RoomId, query: Vec<RoomInfoTypeVariant>) -> Result<RoomQueryResult, YummyStateError> {
+        use redis::FromRedisValue;
+
+        let mut result = RoomQueryResult::default();
+        if query.is_empty() {
+            return Ok(result);
+        }
+
+        match self.redis.get() {
+            Ok(mut redis) => {
+                let mut command = redis::cmd("HMGET");
+                let mut request = command.arg(format!("{}room:{}", self.config.redis_prefix, room_id.get().to_string()));
+                
+                for item in query.iter() {
+                    request = match item {
+                        RoomInfoTypeVariant::RoomName => request.arg("name"),
+                        RoomInfoTypeVariant::Users => request.arg("users"),
+                        RoomInfoTypeVariant::MaxUser => request.arg("max-user"),
+                        RoomInfoTypeVariant::UserLength => request.arg("user-len"),
+                        RoomInfoTypeVariant::Password => request.arg("pass"),
+                    };
+                }
+
+                let room_infos = request.query::<Vec<redis::Value>>(&mut redis).unwrap_or_default();
+
+                for (query, room_info) in query.into_iter().zip(room_infos.into_iter()) {
+                    let result_item = match query {
+                        RoomInfoTypeVariant::RoomName => {
+                            let room_name: String = FromRedisValue::from_redis_value(&room_info).unwrap_or_default();
+                            RoomInfoType::RoomName(if room_name.is_empty() { None } else { Some(room_name) })
+                        },
+                        RoomInfoTypeVariant::Users => {
+                            let mut user_infos = Vec::new();
+                            let users = redis.smembers::<_, Vec<String>>(format!("{}room-users:{}", self.config.redis_prefix, room_id.get())).unwrap_or_default();
+                            for user_id in users.iter() {
+                                let name = redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id), "name").unwrap_or_default();
+                                user_infos.push(RoomUserInformation {
+                                    name: if name.is_empty() { None } else { Some(name) },
+                                    user_id: UserId::from(uuid::Uuid::parse_str(user_id).unwrap_or_default())
+                                })
+                            }
+                            RoomInfoType::Users(user_infos)
+                        },
+                        RoomInfoTypeVariant::MaxUser => RoomInfoType::MaxUser(FromRedisValue::from_redis_value(&room_info).unwrap_or_default()),
+                        RoomInfoTypeVariant::UserLength => RoomInfoType::UserLength(FromRedisValue::from_redis_value(&room_info).unwrap_or_default()),
+                        RoomInfoTypeVariant::Password => {
+                            let password: String = FromRedisValue::from_redis_value(&room_info).unwrap_or_default();
+                            RoomInfoType::Password(if password.is_empty() { None } else { Some(password) })
+                        },
+                    };
+
+                    result.results.push(result_item);
+                }
+
+                Ok(result)
+            },
+            Err(_) => Err(YummyStateError::CacheCouldNotReaded)
         }
     }
 
@@ -637,7 +714,7 @@ mod tests {
         state.join_to_room(room.clone(), user_1.clone(), RoomUserType::Owner)?;
         state.join_to_room(room.clone(), user_2.clone(), RoomUserType::Owner)?;
         state.join_to_room(room.clone(), user_3.clone(), RoomUserType::Owner)?;
-
+        
         let result = state.get_room_info(room, vec![RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::Users])?;
         assert_eq!(result.results.len(), 2);
         assert_eq!(result.get_item(RoomInfoTypeVariant::UserLength).unwrap(), RoomInfoType::UserLength(3));

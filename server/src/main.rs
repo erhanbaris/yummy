@@ -46,13 +46,13 @@ async fn main() -> std::io::Result<()> {
     database::create_database(&mut connection).unwrap_or_default();
 
     #[cfg(feature = "stateless")]
-    let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
+    let redis_client = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] redis_client.clone());
 
     let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
     let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
-    let conn_manager = Data::new(ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn).start());
+    let conn_manager = Data::new(ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] redis_client).start());
     let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
     
     let data_config = Data::new(config.clone());

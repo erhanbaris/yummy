@@ -33,6 +33,12 @@ impl UserId {
     }
 }
 
+impl ToString for UserId {
+    fn to_string(&self) -> String {
+        self.0.to_string()
+    }
+}
+
 #[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Clone, Hash, Ord, PartialOrd)]
 pub struct SessionId(Uuid);
 
