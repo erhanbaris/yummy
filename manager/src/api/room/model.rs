@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 use thiserror::Error;
 use validator::Validate;
 
-use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::RoomUserInformation};
+use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::{RoomUserInformation, RoomInfoTypeVariant}};
 
 
 #[derive(Message, Validate, Debug)]
@@ -43,6 +43,14 @@ pub struct MessageToRoomRequest {
     pub user: Arc<Option<UserAuth>>,
     pub room: RoomId,
     pub message: String,
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
+}
+
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<()>")]
+pub struct RoomListRequet {
+    pub tag: Option<String>,
+    pub members: Vec<RoomInfoTypeVariant>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 

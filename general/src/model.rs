@@ -126,8 +126,8 @@ pub struct RoomState {
     pub name: Option<String>,
     pub access_type: CreateRoomAccessType,
     pub max_user: usize,
-    pub password: Option<String>,
     pub tags: Vec<String>,
+    pub insert_date: i32,
     pub users: Mutex<HashSet<RoomUserInfo>>
 }
 

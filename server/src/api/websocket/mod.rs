@@ -129,7 +129,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Actor for GameWebsocket<DB> {
         if let Some(auth) = self.user_auth.as_ref() {
             self.auth_manager.do_send(StartUserTimeout {
                 session_id: auth.session.clone(),
-                user_id: auth.user.clone()
+                user_id: auth.user
             });
         }
 

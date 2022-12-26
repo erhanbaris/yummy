@@ -3,6 +3,7 @@ pub mod model;
 #[cfg(test)]
 mod test;
 
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::{marker::PhantomData, ops::Deref};
 use std::sync::Arc;
 use actix::{Context, Actor, Handler};
@@ -15,7 +16,6 @@ use general::config::YummyConfig;
 use general::model::{RoomId, UserId, RoomUserType};
 use general::state::{YummyState, SendMessage, RoomInfoTypeVariant, RoomInfoType};
 use general::web::{GenericAnswer, Answer};
-use rand::Rng;
 
 use crate::api::auth::model::AuthError;
 
@@ -55,7 +55,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisc
     #[tracing::instrument(name="Room::User disconnected", skip(self, _ctx))]
     fn handle(&mut self, model: UserDisconnectRequest, _ctx: &mut Self::Context) -> Self::Result {
         println!("room:UserDisconnectRequest {:?}", model);
-        if let Some(room_id) = self.states.get_user_room(&model.user_id) {
+        if let Some(room_id) = self.states.get_user_room(model.user_id) {
             self.disconnect_from_room(room_id, model.user_id).unwrap_or_default();
         }
     }
@@ -63,8 +63,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisc
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> {
     pub fn disconnect_from_room(&mut self, room_id: RoomId, user_id: UserId) -> anyhow::Result<bool> {
-        let room_removed = self.states.disconnect_from_room(room_id.clone(), user_id.clone())?;
-        let users = self.states.get_users_from_room(room_id.clone())?;
+        let room_removed = self.states.disconnect_from_room(room_id, user_id)?;
+        let users = self.states.get_users_from_room(room_id)?;
         
         let mut connection = self.database.get()?;
         DB::disconnect_from_room(&mut connection, RowId(room_id.get()), RowId(user_id.get()))?;
@@ -109,22 +109,14 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
 
         let mut connection = self.database.get()?;
 
-        /* Create random password */
-        let mut randomizer = rand::thread_rng();
-        let password: String = (0..self.config.room_password_length)
-            .map(|_| {
-                let idx = randomizer.gen_range(0..self.config.room_password_charset.len());
-                self.config.room_password_charset[idx] as char
-            })
-            .collect();
-
         let room_id = DB::transaction(&mut connection, move |connection| {
-            let room_id = DB::create_room(connection, name.clone(), access_type.clone(), Some(&password[..]), max_user, &tags)?;
+            let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
+            let room_id = DB::create_room(connection, name.clone(), access_type.clone(), max_user, &tags)?;
 
             DB::join_to_room(connection, room_id, RowId(user_id.get()), RoomUserType::Owner)?;
 
             let room_id = RoomId::from(room_id.get());
-            self.states.create_room(room_id, name, access_type, Some(password), max_user, tags);
+            self.states.create_room(room_id, insert_date, name, access_type, max_user, tags);
             self.states.join_to_room(room_id, user_id, RoomUserType::Owner)?;
             self.states.set_user_room(user_id, room_id);
 
@@ -228,9 +220,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
-        match self.states.get_users_from_room(room.clone()) {
+        match self.states.get_users_from_room(room) {
             Ok(users) => {
-                let message: String = RoomResponse::MessageFromRoom { user: sender_user_id, room: model.room.clone(), message: Arc::new(message) }.into();
+                let message: String = RoomResponse::MessageFromRoom { user: sender_user_id, room: model.room, message: Arc::new(message) }.into();
 
                 for receiver_user in users.into_iter() {
                     if receiver_user != sender_user_id {
@@ -246,5 +238,23 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
             }
             Err(error) => Err(anyhow!(error))
         }
+    }
+}
+
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomListRequet> for RoomManager<DB> {
+    type Result = anyhow::Result<()>;
+
+    #[tracing::instrument(name="MessageToRoomRequest", skip(self, _ctx))]
+    #[macros::api(name="MessageToRoomRequest", socket=true)]
+    fn handle(&mut self, model: RoomListRequet, _ctx: &mut Context<Self>) -> Self::Result {
+        let members = if model.members.is_empty() {
+            vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength]
+        } else {
+            model.members
+        };
+
+        let rooms = self.states.get_rooms(model.tag, members)?;
+        model.socket.send(GenericAnswer::success(rooms).into());
+        Ok(())
     }
 }

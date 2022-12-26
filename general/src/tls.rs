@@ -104,7 +104,6 @@ pub fn load_temporary_rustls_config(config: Arc<YummyConfig>) -> Option<rustls::
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
     use std::sync::Arc;
 
     use crate::config::get_configuration;

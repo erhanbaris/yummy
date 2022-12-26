@@ -348,7 +348,6 @@ async fn create_room_4() -> anyhow::Result<()> {
     Ok(())
 }
 
-
 #[actix::test]
 async fn message_to_room() -> anyhow::Result<()> {
     let (room_manager, auth_manager, config, _, user_1_socket) = create_actor()?;
@@ -435,6 +434,60 @@ async fn message_to_room() -> anyhow::Result<()> {
     assert_eq!(message.room, room_id.clone());
     assert_eq!(&message.message, "WORLD");
     assert_eq!(&message.class_type[..], "MessageFromRoom");
+
+    Ok(())
+}
+
+#[actix::test]
+async fn get_rooms() -> anyhow::Result<()> {
+    let (room_manager, auth_manager, config, _, user_1_socket) = create_actor()?;
+    email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".into(), true, user_1_socket);
+
+    for i in 0..100 {
+        let user_socket = Arc::new(DummyClient::default());
+        let user = email_auth!(auth_manager, config.clone(), format!("user{}@gmail.com", i), "erhan".into(), true, user_socket.clone());
+
+        room_manager.send(CreateRoomRequest {
+            user,
+            disconnect_from_other_room: false,
+            name: None,
+            access_type: general::model::CreateRoomAccessType::Public,
+            max_user: 4,
+            tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
+            socket:user_socket.clone()
+        }).await??;
+    }
+
+    room_manager.send(RoomListRequet {
+        socket: user_1_socket.clone(),
+        members: Vec::new(),
+        tag: None
+    }).await??;
+
+    let result: GenericAnswer<serde_json::Value> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+
+    assert!(result.status);
+    assert!(result.result.is_some());
+    let items = result.result.unwrap();
+    if let serde_json::Value::Array(items) = items {
+        assert_eq!(items.len(), 100);
+        let first_item = items.get(0).unwrap();
+
+        if let serde_json::Value::Object(obj) = first_item {
+            assert!(obj.contains_key("id"));
+            assert!(obj.contains_key("name"));
+            assert!(obj.contains_key("user-length"));
+            assert!(obj.contains_key("max-user"));
+            assert!(obj.contains_key("users"));
+            assert!(obj.contains_key("tags"));
+            assert!(obj.contains_key("access-type"));
+            assert!(obj.contains_key("insert-date"));
+        } else { 
+            assert!(false, "Item is not object");
+        }
+    } else { 
+        assert!(false, "Return valus is not array");
+    }
 
     Ok(())
 }

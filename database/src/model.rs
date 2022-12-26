@@ -35,11 +35,10 @@ pub struct UserMetaInsert<'a> {
 
 #[derive(Default, Debug, Insertable)]
 #[diesel(table_name = room)]
-pub struct RoomInsert<'a> {
+pub struct RoomInsert {
     pub id: RowId,
     pub name: Option<String>,
     pub access_type: i32,
-    pub password: Option<&'a str>,
     pub max_user: i32,
     pub insert_date: i32,
 }

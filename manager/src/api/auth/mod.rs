@@ -158,7 +158,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
         let session_id = self.states.new_session(UserId::from(user_id.get()), name.clone());
         let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))?;
 
-
         self.issue_system_async(UserConnected {
             user_id: UserId::from(user_id.get()),
             socket: model.socket.clone()
@@ -222,7 +221,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
                 let (token, auth) = self.generate_token(auth.user.id, None, None, Some(session_id))?;
 
                 self.issue_system_async(UserConnected {
-                    user_id: auth.id.clone(),
+                    user_id: auth.id,
                     socket: model.socket.clone()
                 });
                 model.socket.authenticated(auth);
