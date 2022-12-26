@@ -29,7 +29,7 @@ impl ClientTrait for StatelessClient {
     fn send(&self, message: String) {
         println!("STATELESS MESSAGE SENT");
         self.1.do_send(SendMessage {
-            user_id: self.0.clone(),
+            user_id: self.0,
             message
         })
     }

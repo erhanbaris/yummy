@@ -56,6 +56,12 @@ impl SessionId {
     }
 }
 
+impl ToString for SessionId {
+    fn to_string(&self) -> String {
+        self.0.to_string()
+    }
+}
+
 #[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash)]
 pub struct RoomId(Uuid);
 
@@ -155,7 +161,7 @@ impl RoomUserInfo {
     }
 }
 
-#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CreateRoomAccessType {
     #[default]
     Public,

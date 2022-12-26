@@ -32,7 +32,7 @@ pub async fn subscribe_to_channel<M: PubSubMessage>(config: Arc<YummyConfig>, ch
 }
 
 pub fn subscribe<M: PubSubMessage, T: Actor<Context = Context<T>> + Handler<M>>(me: &mut T, ctx: &mut T::Context, config: Arc<YummyConfig>, channel: String) where <M as actix::Message>::Result: std::marker::Send {
-    let future = subscribe_to_channel::<M>(config.clone(), channel, ctx.address().recipient());
+    let future = subscribe_to_channel::<M>(config, channel, ctx.address().recipient());
     let actor_fut = future.into_actor(me);
     ctx.wait(actor_fut);
 }

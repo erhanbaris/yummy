@@ -7,6 +7,7 @@ use darling::FromMeta;
 
 #[derive(FromMeta)]
  struct MacroArgs {
+    #[allow(dead_code)]
     name: String,
 
     #[darling(default)]

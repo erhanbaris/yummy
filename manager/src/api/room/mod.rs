@@ -24,7 +24,7 @@ use self::model::*;
 use super::auth::model::UserDisconnectRequest;
 
 pub struct RoomManager<DB: DatabaseTrait + ?Sized> {
-    config: Arc<YummyConfig>,
+    _config: Arc<YummyConfig>,
     database: Arc<Pool>,
     states: YummyState,
     _marker: PhantomData<DB>
@@ -33,7 +33,7 @@ pub struct RoomManager<DB: DatabaseTrait + ?Sized> {
 impl<DB: DatabaseTrait + ?Sized> RoomManager<DB> {
     pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>) -> Self {
         Self {
-            config,
+            _config: config,
             database,
             states,
             _marker: PhantomData

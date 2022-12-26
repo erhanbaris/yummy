@@ -27,7 +27,10 @@ use self::model::UserConnected;
 use super::auth::model::UserDisconnectRequest;
 
 pub struct ConnectionManager {
+    #[allow(dead_code)]
     config: Arc<YummyConfig>,
+    
+    #[allow(dead_code)]
     states: YummyState,
     users: HashMap<UserId, Arc<dyn ClientTrait + Sync + Send>>,
 
@@ -74,7 +77,7 @@ mod stateless {
             let message: SendMessage = match serde_json::from_str(&model.0) {
                 Ok(message) => message,
                 Err(error) => {
-                    println!("Message parse error : {}", error.to_string());
+                    println!("Message parse error : {}", error);
                     return ;
                 }
             };
@@ -121,6 +124,7 @@ impl Handler<SendMessage> for ConnectionManager {
 
     #[tracing::instrument(name="SendMessage", skip(self, _ctx))]
     fn handle(&mut self, model: SendMessage, _ctx: &mut Self::Context) -> Self::Result {
+        #[allow(clippy::single_match)]
         match self.users.get(&model.user_id) {
             Some(socket) => socket.send(model.message),
             None => {

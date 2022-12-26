@@ -8,14 +8,14 @@ use general::model::{CreateRoomAccessType, RoomUserType};
 use crate::{SqliteStore, PooledConnection, RowId, model::{RoomInsert, RoomTagInsert, RoomUserInsert}, schema::{room::{self}, room_tag, room_user}};
 
 pub trait RoomStoreTrait: Sized {
-    fn create_room(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: &Vec<String>) -> anyhow::Result<RowId>;
+    fn create_room(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: &[String]) -> anyhow::Result<RowId>;
     fn join_to_room(connection: &mut PooledConnection, room_id: RowId, user_id: RowId, user_type: RoomUserType) -> anyhow::Result<()>;
     fn disconnect_from_room(connection: &mut PooledConnection, room_id: RowId, user_id: RowId) -> anyhow::Result<()>;
 }
 
 impl RoomStoreTrait for SqliteStore {
     #[tracing::instrument(name="Create room", skip(connection))]
-    fn create_room<'a>(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: &Vec<String>) -> anyhow::Result<RowId> {
+    fn create_room<'a>(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: &[String]) -> anyhow::Result<RowId> {
         let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
 
         let mut model = RoomInsert {
