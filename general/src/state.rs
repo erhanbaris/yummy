@@ -17,6 +17,18 @@ use crate::config::YummyConfig;
 use crate::model::{UserId, RoomId, SessionId};
 use crate::model::CreateRoomAccessType;
 
+macro_rules! redis_result {
+    ($query: expr) => {
+        match $query {
+            Ok(result) => result,
+            Err(error) => {
+                tracing::error!("Redis error: {}", error.to_string());
+                Default::default()
+            }
+        }   
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct RoomUserInformation {
     pub user_id: UserId,
@@ -147,7 +159,7 @@ impl YummyState {
     #[tracing::instrument(name="is_user_online", skip(self))]
     pub fn is_user_online<T: Borrow<UserId> + std::fmt::Debug>(&mut self, user_id: T) -> bool {
         match self.redis.get() {
-            Ok(mut redis) => redis.sismember(format!("{}online-users", self.config.redis_prefix), user_id.borrow().to_string()).unwrap_or_default(),
+            Ok(mut redis) => redis_result!(redis.sismember(format!("{}online-users", self.config.redis_prefix), user_id.borrow().to_string())),
             Err(_) => false
         }
     }
@@ -157,7 +169,7 @@ impl YummyState {
     #[tracing::instrument(name="is_session_online", skip(self))]
     pub fn is_session_online<T: Borrow<SessionId> + std::fmt::Debug>(&mut self, session_id: T) -> bool {
         match self.redis.get() {
-            Ok(mut redis) => redis.hexists::<_, _, bool>(format!("{}session-user", self.config.redis_prefix), session_id.borrow().to_string()).unwrap_or_default(),
+            Ok(mut redis) => redis_result!(redis.hexists::<_, _, bool>(format!("{}session-user", self.config.redis_prefix), session_id.borrow().to_string())),
             Err(_) => false
         }
     }
@@ -167,16 +179,23 @@ impl YummyState {
     pub fn new_session(&mut self, user_id: UserId, name: Option<String>) -> SessionId {
         let session_id = SessionId::new();
         if let Ok(mut redis) = self.redis.get() {
-            redis.sadd::<_, _, i32>(format!("{}online-users", self.config.redis_prefix), user_id.borrow().to_string()).unwrap_or_default();
-            redis.hset::<_, _, _, i32>(format!("{}session-user", self.config.redis_prefix), session_id.to_string(), user_id.borrow().to_string()).unwrap_or_default();
-
-            redis::cmd("HSET")
-                .arg(format!("{}users:{}", self.config.redis_prefix, user_id.to_string()))
-                .arg("room").arg("")
-                .arg("name").arg(name.unwrap_or_default())
-                .arg("loc").arg(&self.config.server_name)
-                .query::<()>(&mut redis)
-                .unwrap_or_default();
+            
+            redis_result!(redis::pipe()
+                .atomic()
+                .cmd("SADD").arg(format!("{}online-users", self.config.redis_prefix))
+                    .arg(user_id.borrow().to_string())
+                    .ignore()
+                
+                .cmd("HSET").arg(format!("{}session-user", self.config.redis_prefix))
+                    .arg(session_id.to_string()).arg(user_id.borrow().to_string())
+                    .ignore()
+                
+                .cmd("HSET").arg(format!("{}users:{}", self.config.redis_prefix, user_id.to_string()))
+                    .arg("room").arg("")
+                    .arg("name").arg(name.unwrap_or_default())
+                    .arg("loc").arg(&self.config.server_name)
+                    .ignore()
+                .query::<()>(&mut redis));
         }
         session_id
     }
@@ -186,10 +205,22 @@ impl YummyState {
     pub fn close_session<T: Borrow<SessionId> + std::fmt::Debug>(&mut self, session_id: T) -> bool {
         match self.redis.get() {
             Ok(mut redis) => {
-                let user_id = redis.hget::<_, _, String>(format!("{}session-user", self.config.redis_prefix), session_id.borrow().to_string()).unwrap_or_default();
-                redis.hdel::<_, _, i32>(format!("{}session-user", self.config.redis_prefix), session_id.borrow().to_string()).unwrap_or_default();
-                redis.del::<_, i32>(format!("{}users:{}", self.config.redis_prefix, user_id)).unwrap_or_default();
-                redis.srem::<_, _, i32>(format!("{}online-users", self.config.redis_prefix), user_id).unwrap_or_default() > 0
+                let user_id = redis_result!(redis.hget::<_, _, String>(format!("{}session-user", self.config.redis_prefix), session_id.borrow().to_string()));
+
+                let result = redis_result!(redis::pipe()
+                    .atomic()
+                    .cmd("HDEL").arg(format!("{}session-user", self.config.redis_prefix))
+                        .arg(session_id.borrow().to_string())
+                        .ignore()
+
+                    .cmd("DEL").arg(format!("{}users:{}", self.config.redis_prefix, user_id))
+                        .ignore()
+                    
+                    .cmd("SREM").arg(format!("{}online-users", self.config.redis_prefix))
+                        .arg(user_id)
+                    .query::<i32>(&mut redis));
+
+                result > 0
             },
             Err(_) => false
         }
@@ -200,7 +231,7 @@ impl YummyState {
     pub fn get_user_room<T: Borrow<UserId> + std::fmt::Debug>(&mut self, user_id: T) -> Option<RoomId> {
         use std::str::FromStr;
         let result = match self.redis.get() {
-            Ok(mut redis) => redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id.borrow().to_string()), "room").unwrap_or_default(),
+            Ok(mut redis) => redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id.borrow().to_string()), "room")),
             Err(_) => return None
         };
         
@@ -214,7 +245,7 @@ impl YummyState {
     #[tracing::instrument(name="set_user_room", skip(self))]
     pub fn set_user_room<T: Borrow<UserId> + std::fmt::Debug>(&mut self, user_id: T, room_id: RoomId) {
         if let Ok(mut redis) = self.redis.get() {
-            redis.hset::<_, _, _, i32>(format!("{}users:{}", self.config.redis_prefix, user_id.borrow().to_string()), "room", room_id.to_string()).unwrap_or_default();
+            redis_result!(redis.hset::<_, _, _, i32>(format!("{}users:{}", self.config.redis_prefix, user_id.borrow().to_string()), "room", room_id.to_string()));
         }
     }
 
@@ -229,24 +260,25 @@ impl YummyState {
                 CreateRoomAccessType::Friend => 3,
             };
 
-            redis::cmd("HSET")
-                .arg(format!("{}room:{}", self.config.redis_prefix, &room_id))
-                .arg("max-user").arg(max_user)
-                .arg("user-len").arg(0_usize)
-                .arg("name").arg(name.unwrap_or_default())
-                .arg("access").arg(access_type)
-                .arg("idate").arg(insert_date)
-                .execute(&mut redis);
+            
+            let mut pipes = &mut redis::pipe();
+            pipes = pipes
+                .atomic()
+                .cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id))
+                    .arg("max-user").arg(max_user)
+                    .arg("user-len").arg(0_usize)
+                    .arg("name").arg(name.unwrap_or_default())
+                    .arg("access").arg(access_type)
+                    .arg("idate").arg(insert_date);
 
             if !tags.is_empty() {
-                let mut pipes = &mut redis::pipe();                    
                 for tag in tags.iter() {
                     pipes = pipes.cmd("SADD").arg(format!("{}room-tag:{}", self.config.redis_prefix, &room_id)).arg(tag).ignore();
                     pipes = pipes.cmd("SADD").arg(format!("{}tag:{}", self.config.redis_prefix, &tag)).arg(&room_id).ignore();
                 }
-
-                pipes.query::<()>(&mut redis).unwrap();
             }
+            
+            redis_result!(pipes.query::<()>(&mut redis));
         }
     }
 
@@ -256,31 +288,34 @@ impl YummyState {
 
         let room_info_key = format!("{}room:{}", self.config.redis_prefix, room_id.get());
         match self.redis.get() {
-            Ok(mut redis) => match redis.exists::<_, bool>(&room_info_key).unwrap_or_default() {
+            Ok(mut redis) => match redis_result!(redis.exists::<_, bool>(&room_info_key)) {
                 true => {
                     let room_users_key = format!("{}room-users:{}", self.config.redis_prefix, room_id.get());
                     let user_id = user_id.borrow().to_string();
 
-                    let room_info = redis::cmd("HMGET")
+                    let room_info = redis_result!(redis::cmd("HMGET")
                         .arg(format!("{}room:{}", self.config.redis_prefix, room_id.to_string()))
                         .arg("user-len")
                         .arg("max-user")
-                        .query::<Vec<usize>>(&mut redis).unwrap_or_default();
+                        .query::<Vec<usize>>(&mut redis));
 
                     let user_len = room_info.first().cloned().unwrap_or_default();
                     let max_user = room_info.get(1).cloned().unwrap_or_default();
 
                     // If the max_user 0 or lower than users count, add to room
                     if max_user == 0 || max_user > user_len {
-                        let is_member = redis.sismember(&room_users_key, user_id.clone()).unwrap_or_default();
+                        let is_member = redis_result!(redis.sismember(&room_users_key, user_id.clone()));
     
                         // User alread in the room
                         if is_member {
                             return Err(YummyStateError::UserAlreadInRoom);
                         }
 
-                        redis.hincr::<_, _, _, i32>(&room_info_key, "user-len", 1).unwrap_or_default();
-                        redis.sadd::<_, _, i32>(room_users_key, user_id).unwrap_or_default();
+                        redis_result!(redis::pipe()
+                            .atomic()
+                            .cmd("HINCRBY").arg(&room_info_key).arg("user-len").arg(1).ignore()
+                            .cmd("SADD").arg(room_users_key).arg(user_id).ignore()
+                            .query::<()>(&mut redis));
                         Ok(())
                     } else {
                         Err(YummyStateError::RoomHasMaxUsers)
@@ -300,15 +335,20 @@ impl YummyState {
                 let room_info_key = format!("{}room:{}", self.config.redis_prefix, room_id.get());
                 let room_users_key = &format!("{}room-users:{}", self.config.redis_prefix, room_id.get());
 
-                redis.srem::<_, _, i32>(room_users_key, user_id.to_string()).unwrap_or_default();
-                redis.hincr::<_, _, _, i32>(&room_info_key, "user-len", -1).unwrap_or_default();
-
-                let user_len = redis.hget::<_, _, i32>(&room_info_key, "user-len").unwrap_or_default();
+                let (_, user_len): (i32, i32) = redis_result!(redis::pipe()
+                    .atomic()
+                    .cmd("SREM").arg(room_users_key).arg(user_id.to_string())
+                    .cmd("HINCRBY").arg(&room_info_key).arg("user-len").arg(-1)
+                    .query::<(_, i32)>(&mut redis));
+                    
                 let no_user = user_len == 0;
 
                 if no_user {
-                    redis.del::<_, i32>(room_users_key).unwrap_or_default();
-                    redis.del::<_, i32>(&room_info_key).unwrap_or_default();
+                    redis_result!(redis::pipe()
+                        .atomic()
+                        .cmd("DEL").arg(room_users_key).ignore()
+                        .cmd("DEL").arg(room_info_key).ignore()
+                        .query::<()>(&mut redis));
                 }
 
                 no_user
@@ -323,8 +363,8 @@ impl YummyState {
     pub fn get_users_from_room(&mut self, room_id: RoomId) -> Result<Vec<UserId>, YummyStateError> {
         use std::str::FromStr;
         let users: std::collections::HashSet<String> = match self.redis.get() {
-            Ok(mut redis) => match redis.exists::<_, bool>(&format!("{}room-users:{}", self.config.redis_prefix, room_id.get())).unwrap_or_default() {
-                true => redis.smembers(&format!("{}room-users:{}", self.config.redis_prefix, room_id.get())).unwrap_or_default(),
+            Ok(mut redis) => match redis_result!(redis.exists::<_, bool>(&format!("{}room-users:{}", self.config.redis_prefix, room_id.get()))) {
+                true => redis_result!(redis.smembers(&format!("{}room-users:{}", self.config.redis_prefix, room_id.get()))),
                 false => return Err(YummyStateError::RoomNotFound),
             },
             Err(_) => HashSet::default()
@@ -371,7 +411,7 @@ impl YummyState {
                     };
                 }
 
-                let room_infos = request.query::<Vec<redis::Value>>(&mut redis).unwrap();
+                let room_infos = redis_result!(request.query::<Vec<redis::Value>>(&mut redis));
 
                 for (query, room_info) in query.into_iter().zip(room_infos.into_iter()) {
                     match query {
@@ -380,10 +420,12 @@ impl YummyState {
                             result.items.push(RoomInfoType::RoomName(if room_name.is_empty() { None } else { Some(room_name) }));
                         },
                         RoomInfoTypeVariant::Users => {
+
+                            // This request is slow compare to other. We should change it to lua script to increase performance
                             let mut user_infos = Vec::new();
-                            let users = redis.smembers::<_, Vec<String>>(format!("{}room-users:{}", self.config.redis_prefix, room_id.get())).unwrap_or_default();
+                            let users = redis_result!(redis.smembers::<_, Vec<String>>(format!("{}room-users:{}", self.config.redis_prefix, room_id.get())));
                             for user_id in users.iter() {
-                                let name = redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id), "name").unwrap_or_default();
+                                let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id), "name"));
                                 user_infos.push(RoomUserInformation {
                                     name: if name.is_empty() { None } else { Some(name) },
                                     user_id: UserId::from(uuid::Uuid::parse_str(user_id).unwrap_or_default())

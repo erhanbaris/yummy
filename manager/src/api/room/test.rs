@@ -438,6 +438,7 @@ async fn message_to_room() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg_attr(feature = "stateless", ignore)]
 #[actix::test]
 async fn get_rooms() -> anyhow::Result<()> {
     let (room_manager, auth_manager, config, _, user_1_socket) = create_actor()?;
