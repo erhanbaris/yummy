@@ -22,7 +22,7 @@ macro_rules! redis_result {
         match $query {
             Ok(result) => result,
             Err(error) => {
-                tracing::error!("Redis error: {}", error.to_string());
+                log::error!("Redis error: {}", error.to_string());
                 Default::default()
             }
         }   
@@ -264,12 +264,14 @@ impl YummyState {
             let mut pipes = &mut redis::pipe();
             pipes = pipes
                 .atomic()
+                .cmd("SADD").arg(format!("{}rooms", self.config.redis_prefix)).arg(&room_id).ignore()
                 .cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id))
                     .arg("max-user").arg(max_user)
                     .arg("user-len").arg(0_usize)
                     .arg("name").arg(name.unwrap_or_default())
                     .arg("access").arg(access_type)
-                    .arg("idate").arg(insert_date);
+                    .arg("idate").arg(insert_date)
+                    .ignore();
 
             if !tags.is_empty() {
                 for tag in tags.iter() {
@@ -443,7 +445,7 @@ impl YummyState {
                         RoomInfoTypeVariant::MaxUser => result.items.push(RoomInfoType::MaxUser(FromRedisValue::from_redis_value(&room_info).unwrap_or_default())),
                         RoomInfoTypeVariant::UserLength => result.items.push(RoomInfoType::UserLength(FromRedisValue::from_redis_value(&room_info).unwrap_or_default())),
                         RoomInfoTypeVariant::Tags => {
-                            let tags = redis.smembers::<_, Vec<String>>(format!("{}room-tag:{}", self.config.redis_prefix, room_id.to_string())).unwrap_or_default();
+                            let tags = redis_result!(redis.smembers::<_, Vec<String>>(format!("{}room-tag:{}", self.config.redis_prefix, room_id.to_string())));
                             result.items.push(RoomInfoType::Tags(tags));
                         } 
                     };
@@ -458,7 +460,92 @@ impl YummyState {
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="get_rooms", skip(self))]
     pub fn get_rooms(&self, tag: Option<String>, query: Vec<RoomInfoTypeVariant>) -> Result<Vec<RoomInfoTypeCollection>, YummyStateError> {
-        Err(YummyStateError::CacheCouldNotReaded)
+        use redis::FromRedisValue;
+        
+        match self.redis.get() {
+            Ok(mut redis) => {
+                let mut results = Vec::new();
+                
+                let rooms = match tag {
+                    Some(tag) => redis_result!(redis.smembers::<_, Vec<String>>(format!("{}tag:{}", self.config.redis_prefix, &tag))),
+                    None => redis_result!(redis.smembers::<_, Vec<String>>(format!("{}rooms", self.config.redis_prefix)))
+                };
+
+                let mut command = &mut redis::pipe();
+                for room_id in rooms.iter() {
+                    command = command.cmd("HMGET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id));
+                    
+                    for item in query.iter() {
+                        match item {
+                            RoomInfoTypeVariant::RoomName => command = command.arg("name"),
+                            RoomInfoTypeVariant::Users => command = command.arg("users"),
+                            RoomInfoTypeVariant::MaxUser => command = command.arg("max-user"),
+                            RoomInfoTypeVariant::UserLength => command = command.arg("user-len"),
+                            RoomInfoTypeVariant::AccessType => command = command.arg("access"),
+                            RoomInfoTypeVariant::InsertDate => command = command.arg("idate"),
+                            RoomInfoTypeVariant::Tags => command = command.arg("tags"), // Dummy data, dont remove
+                        };
+                    }
+                }
+
+                let room_results = redis_result!(command.query::<Vec<redis::Value>>(&mut redis));
+
+                for (room_id, room_result) in rooms.into_iter().zip(room_results.into_iter()) {
+                    let room_id = RoomId::from(uuid::Uuid::parse_str(&room_id).unwrap_or_default());
+
+                    let mut room_info = RoomInfoTypeCollection {
+                        room_id: Some(room_id.clone()),
+                        .. Default::default()
+                    };
+
+                    // Get all sub results
+                    let room_result: Vec<redis::Value> = FromRedisValue::from_redis_value(&room_result).unwrap_or_default();
+
+                    for (index, item) in query.iter().enumerate() {
+                        let redis_value = room_result.get(index).unwrap_or(&redis::Value::Nil);
+
+                        match item {
+                            RoomInfoTypeVariant::RoomName => {
+                                let room_name: String = FromRedisValue::from_redis_value(&redis_value).unwrap_or_default();
+                                room_info.items.push(RoomInfoType::RoomName(if room_name.is_empty() { None } else { Some(room_name) }));
+                            },
+                            RoomInfoTypeVariant::Users => {
+    
+                                // This request is slow compare to other. We should change it to lua script to increase performance
+                                let mut user_infos = Vec::new();
+                                let users = redis_result!(redis.smembers::<_, Vec<String>>(format!("{}room-users:{}", self.config.redis_prefix, room_id.get())));
+                                for user_id in users.iter() {
+                                    let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id), "name"));
+                                    user_infos.push(RoomUserInformation {
+                                        name: if name.is_empty() { None } else { Some(name) },
+                                        user_id: UserId::from(uuid::Uuid::parse_str(user_id).unwrap_or_default())
+                                    })
+                                }
+                                room_info.items.push(RoomInfoType::Users(user_infos));
+                            },
+                            RoomInfoTypeVariant::AccessType => room_info.items.push(RoomInfoType::AccessType(match FromRedisValue::from_redis_value(&redis_value).unwrap_or_default() {
+                                1 => CreateRoomAccessType::Public,
+                                2 => CreateRoomAccessType::Private,
+                                3 => CreateRoomAccessType::Friend,
+                                _ => CreateRoomAccessType::Public
+                            })),
+                            RoomInfoTypeVariant::InsertDate => room_info.items.push(RoomInfoType::InsertDate(FromRedisValue::from_redis_value(&redis_value).unwrap_or_default())),
+                            RoomInfoTypeVariant::MaxUser => room_info.items.push(RoomInfoType::MaxUser(FromRedisValue::from_redis_value(&redis_value).unwrap_or_default())),
+                            RoomInfoTypeVariant::UserLength => room_info.items.push(RoomInfoType::UserLength(FromRedisValue::from_redis_value(&redis_value).unwrap_or_default())),
+                            RoomInfoTypeVariant::Tags => {
+                                let tags = redis_result!(redis.smembers::<_, Vec<String>>(format!("{}room-tag:{}", self.config.redis_prefix, room_id.to_string())));
+                                room_info.items.push(RoomInfoType::Tags(tags));
+                            } 
+                        }
+                    }
+        
+                    results.push(room_info);
+                }
+
+                Ok(results)
+            },
+            Err(_) => Err(YummyStateError::CacheCouldNotReaded)
+        }
     }
 
     /* STATEFULL functions */

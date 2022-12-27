@@ -1,5 +1,6 @@
 use general::config::configure_environment;
 use general::state::RoomUserInformation;
+use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
@@ -87,7 +88,15 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
     db_location.push(format!("{}.db", Uuid::new_v4()));
     
     configure_environment();
-    let config = get_configuration();
+
+    let mut config = get_configuration().deref().clone();
+
+    #[cfg(feature = "stateless")] {       
+        config.redis_prefix = format!("{}:", rand::thread_rng().gen::<usize>().to_string());
+    }
+
+    let config = Arc::new(config);
+    
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
@@ -438,7 +447,6 @@ async fn message_to_room() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg_attr(feature = "stateless", ignore)]
 #[actix::test]
 async fn get_rooms() -> anyhow::Result<()> {
     let (room_manager, auth_manager, config, _, user_1_socket) = create_actor()?;
