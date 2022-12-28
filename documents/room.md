@@ -19,7 +19,7 @@
     "room_type": "Create",
     "disconnect": true,
     "access_type": "Private",
-    "max_user": 10
+    "max_user": 1
 }
 ```
 
@@ -27,9 +27,7 @@
 {
     "type": "Room",
     "room_type": "Create",
-    "access_type": {
-        "Tag": "Test"
-    },
+    "tags": ["test 1", "test 2", "test 3"],
 }
 ```
 
@@ -78,7 +76,6 @@ Who can access the room.
 | Public  | The room can be searchable by everyone and anyone can join to room.     |
 | Private | The room available only with the key     |
 | Friend  | Friends can see and can join to room     |
-| Tag     | Search and join are only available via tag. Definition is different from other message.|
 
 
 Except Tag field, all fields names are "Public", "Private" and "Friend".

@@ -207,7 +207,7 @@ impl YummyState {
             Ok(mut redis) => {
                 let user_id = redis_result!(redis.hget::<_, _, String>(format!("{}session-user", self.config.redis_prefix), session_id.borrow().to_string()));
 
-                let result = redis_result!(redis::pipe()
+                let (result, ) = redis_result!(redis::pipe()
                     .atomic()
                     .cmd("HDEL").arg(format!("{}session-user", self.config.redis_prefix))
                         .arg(session_id.borrow().to_string())
@@ -217,8 +217,8 @@ impl YummyState {
                         .ignore()
                     
                     .cmd("SREM").arg(format!("{}online-users", self.config.redis_prefix))
-                        .arg(user_id)
-                    .query::<i32>(&mut redis));
+                        .arg(user_id) 
+                    .query::<(i32,)>(&mut redis));
 
                 result > 0
             },
@@ -330,27 +330,42 @@ impl YummyState {
     }
 
     #[cfg(feature = "stateless")]
-    #[tracing::instrument(name="join_to_room", skip(self))]
+    #[tracing::instrument(name="disconnect_from_room", skip(self))]
     pub fn disconnect_from_room(&mut self, room_id: RoomId, user_id: UserId) -> Result<bool, YummyStateError> {
         let room_removed: bool = match self.redis.get() {
             Ok(mut redis) => {
-                let room_info_key = format!("{}room:{}", self.config.redis_prefix, room_id.get());
-                let room_users_key = &format!("{}room-users:{}", self.config.redis_prefix, room_id.get());
+                let room_id = room_id.to_string();
+                let room_info_key = format!("{}room:{}", self.config.redis_prefix, &room_id);
+                let room_users_key = &format!("{}room-users:{}", self.config.redis_prefix, &room_id);
 
-                let (_, user_len): (i32, i32) = redis_result!(redis::pipe()
+                let (user_len,) =  redis_result!(redis::pipe()
                     .atomic()
-                    .cmd("SREM").arg(room_users_key).arg(user_id.to_string())
+                    .cmd("SREM").arg(room_users_key).arg(user_id.to_string()).ignore()
                     .cmd("HINCRBY").arg(&room_info_key).arg("user-len").arg(-1)
-                    .query::<(_, i32)>(&mut redis));
+                    .query::<(i32,)>(&mut redis));
                     
                 let no_user = user_len == 0;
 
                 if no_user {
-                    redis_result!(redis::pipe()
+                    let (tags,) = redis_result!(redis::pipe()
                         .atomic()
                         .cmd("DEL").arg(room_users_key).ignore()
                         .cmd("DEL").arg(room_info_key).ignore()
-                        .query::<()>(&mut redis));
+                        .cmd("SMEMBERS").arg(format!("{}room-tag:{}", self.config.redis_prefix, &room_id))
+                        .cmd("DEL").arg(format!("{}room-tag:{}", self.config.redis_prefix, &room_id)).ignore()
+                        .query::<(Vec<String>,)>(&mut redis));
+
+                    // Remove tags
+                    if !tags.is_empty() {
+                        let mut query = &mut redis::pipe();
+                        for tag in tags.iter() {
+                            query = query.cmd("SREM").arg(format!("{}tag:{}", self.config.redis_prefix, &tag)).ignore()
+                        }
+
+                        redis_result!(query.query::<()>(&mut redis));
+                    }
+                        
+                    println!("{:?}", tags);
                 }
 
                 no_user
@@ -851,7 +866,7 @@ mod tests {
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         
         let room_1 = RoomId::new();
-        state.create_room(room_1, 1234, Some("room".to_string()), CreateRoomAccessType::Friend, 2, Vec::new());
+        state.create_room(room_1, 1234, Some("room".to_string()), CreateRoomAccessType::Friend, 2, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()]);
 
         let user_1 = UserId::new();
         let user_2 = UserId::new();
