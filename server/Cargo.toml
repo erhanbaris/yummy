@@ -11,54 +11,54 @@ database.workspace = true
 manager.workspace = true
 
 actix.workspace = true
-actix-cors = "0.6.4"
+actix-cors.workspace = true
 actix-web.workspace = true
-actix-web-actors = "4.1.0"
-actix-files = "0.6.2"
+actix-web-actors.workspace = true
+actix-files.workspace = true
 
-serde = { version = "1.0.152", features = ["derive", "rc"] }
-serde_json = "1.0.91"
-serde_repr = "0.1"
-uuid = { version = "1.2", features = ["serde", "v4"] }
+serde.workspace = true
+serde_json.workspace = true
+serde_repr.workspace = true
+uuid.workspace = true
 
-log = "0.4"
-env_logger = "0.10.0"
+log.workspace = true
+env_logger.workspace = true
 
-jsonwebtoken = "8.2.0"
+jsonwebtoken.workspace = true
 
-num-derive = "0.3.3"
-num-traits = "0.2.15"
+num-derive.workspace = true
+num-traits.workspace = true
 
-strum = "0.24"
-strum_macros = "0.24"
+strum.workspace = true
+strum_macros.workspace = true
 
-thiserror = "1.0.38"
-anyhow = "1.0.68"
+thiserror.workspace = true
+anyhow.workspace = true
 
-tracing = "0.1"
-tracing-subscriber = "0.3"
-tracing-opentelemetry = "0.18.0"
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-opentelemetry.workspace = true
 
-validator = { version = "0.16", features = ["derive"] }
-serde_trim = "0.4.0"
+validator.workspace = true
+serde_trim.workspace = true
 
 r2d2 =  { workspace = true, optional = true }
 redis = { workspace = true, optional = true }
 
-dotenv = "0.15.0"
+dotenv.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
-actix-test-server = "0.2.2"
-actix-test = { version = "0.1.0", features = ["rustls"] } 
-actix-http = "3.2.2"
-actix-tls = { version = "3", features = ["rustls"] }
+actix-test-server.workspace = true
+actix-test.workspace = true
+actix-http.workspace = true
+actix-tls.workspace = true
 
 rustls.workspace = true
-awc = { version = "3.0.1", features = ["rustls"] }
-actix-codec = "0.5.0"
-futures = "0.3.25"
-futures-util = "0.3.25"
+awc.workspace = true
+actix-codec.workspace = true
+futures.workspace = true
+futures-util.workspace = true
 
 [features]
 stateless = ["dep:redis", "dep:r2d2"]
