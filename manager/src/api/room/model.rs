@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 use thiserror::Error;
 use validator::Validate;
 
-use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::{RoomUserInformation, RoomInfoTypeVariant}, meta::MetaType};
+use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::{RoomUserInformation, RoomInfoTypeVariant}, meta::{MetaType, RoomMetaAccess}};
 
 
 #[derive(Message, Validate, Debug)]
@@ -17,7 +17,7 @@ pub struct CreateRoomRequest {
     pub access_type: CreateRoomAccessType,
     pub max_user: usize,
     pub tags: Vec<String>,
-    pub meta: Option<HashMap<String, MetaType>>,
+    pub meta: Option<HashMap<String, MetaType<RoomMetaAccess>>>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 

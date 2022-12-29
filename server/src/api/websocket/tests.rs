@@ -8,7 +8,7 @@ use actix_web::web::{QueryConfig, JsonConfig};
 use actix_web::{web::Data, App};
 use database::model::UserInformationModel;
 use database::{create_database, create_connection, RowId};
-use general::meta::MetaAccess;
+use general::meta::UserMetaAccess;
 use general::model::UserType;
 use general::state::YummyState;
 use general::tls::load_temporary_rustls_config;
@@ -977,15 +977,15 @@ async fn user_update_4() -> anyhow::Result<()> {
         "lat": 3.11133,
         "lon": 5.444,
         "admin type": {
-            "access": MetaAccess::Admin as u32,
+            "access": UserMetaAccess::Admin as u32,
             "value": 10
         },
         "me type": {
-            "access": MetaAccess::Me as u32,
+            "access": UserMetaAccess::Me as u32,
             "value": 9
         },
         "user type": {
-            "access": MetaAccess::User as u32,
+            "access": UserMetaAccess::User as u32,
             "value": 8
         }
     });

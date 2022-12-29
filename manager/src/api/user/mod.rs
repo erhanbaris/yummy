@@ -12,7 +12,7 @@ use actix_broker::BrokerSubscribe;
 use database::{Pool, DatabaseTrait, RowId};
 
 use general::config::YummyConfig;
-use general::meta::{MetaType, MetaAccess};
+use general::meta::{MetaType, UserMetaAccess};
 use general::model::{UserType, UserId};
 use general::state::YummyState;
 use general::web::{GenericAnswer, Answer};
@@ -69,21 +69,21 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
 
         let (user_id, access_type) = match model.query {
             GetUserInformationEnum::Me(user) => match user.deref() {
-                Some(user) => (user.user.get(), MetaAccess::Me),
+                Some(user) => (user.user.get(), UserMetaAccess::Me),
                 None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
             },
-            GetUserInformationEnum::UserViaSystem(user) => (user.get(), MetaAccess::System),
+            GetUserInformationEnum::UserViaSystem(user) => (user.get(), UserMetaAccess::System),
             GetUserInformationEnum::User { user, requester } => {
                 match requester.deref() {
                     Some(requester) => {
                         let user_type = DB::get_user_type(&mut connection, RowId(requester.user.get()))?;
                         (user.get(), match user_type {
-                            UserType::Admin => MetaAccess::Admin,
-                            UserType::Mod => MetaAccess::Mod,
-                            UserType::User => MetaAccess::User
+                            UserType::Admin => UserMetaAccess::Admin,
+                            UserType::Mod => UserMetaAccess::Mod,
+                            UserType::User => UserMetaAccess::User
                         })
                     },
-                    None => (user.get(), MetaAccess::Anonymous)
+                    None => (user.get(), UserMetaAccess::Anonymous)
                 }
             }
         };
@@ -122,7 +122,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
         let user_id = RowId(original_user_id);
 
         let mut connection = self.database.get()?;
-        let user = match DB::get_user_information(&mut connection, user_id, MetaAccess::Admin)? {
+        let user = match DB::get_user_information(&mut connection, user_id, UserMetaAccess::Admin)? {
             Some(user) => user,
             None => return Err(anyhow::anyhow!(UserError::UserNotFound))
         };

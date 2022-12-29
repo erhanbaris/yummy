@@ -4,7 +4,7 @@ use general::auth::validate_auth;
 use general::config::YummyConfig;
 use general::config::configure_environment;
 use general::config::get_configuration;
-use general::meta::MetaAccess;
+use general::meta::UserMetaAccess;
 use general::web::GenericAnswer;
 use std::collections::HashMap;
 use std::env::temp_dir;
@@ -344,11 +344,11 @@ async fn update_user_2() -> anyhow::Result<()> {
         socket: socket.clone(),
         name: Some("Erhan".to_string()),
         meta: Some(HashMap::from([
-            ("gender".to_string(), MetaType::String("Male".to_string(), MetaAccess::Friend)),
-            ("location".to_string(), MetaType::String("Copenhagen".to_string(), MetaAccess::Friend)),
-            ("postcode".to_string(), MetaType::Number(1000.0, MetaAccess::Mod)),
-            ("score".to_string(), MetaType::Number(15.3, MetaAccess::Anonymous)),
-            ("temp_admin".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+            ("gender".to_string(), MetaType::String("Male".to_string(), UserMetaAccess::Friend)),
+            ("location".to_string(), MetaType::String("Copenhagen".to_string(), UserMetaAccess::Friend)),
+            ("postcode".to_string(), MetaType::Number(1000.0, UserMetaAccess::Mod)),
+            ("score".to_string(), MetaType::Number(15.3, UserMetaAccess::Anonymous)),
+            ("temp_admin".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
         ])),
         ..Default::default()
     }).await??;
@@ -413,16 +413,16 @@ async fn update_user_3() -> anyhow::Result<()> {
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
         meta: Some(HashMap::from([
-            ("1".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("2".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("3".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("4".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("5".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("6".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("7".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("8".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("9".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("10".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+            ("1".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("2".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("3".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("4".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("5".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("6".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("7".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("8".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("9".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("10".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
         ])),
         ..Default::default()
     }).await??;
@@ -433,17 +433,17 @@ async fn update_user_3() -> anyhow::Result<()> {
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
         meta: Some(HashMap::from([
-            ("1".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("2".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("3".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("4".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("5".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("6".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("7".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("8".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("9".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("10".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
-            ("11".to_string(), MetaType::Bool(true, MetaAccess::Admin)),
+            ("1".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("2".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("3".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("4".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("5".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("6".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("7".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("8".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("9".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("10".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
+            ("11".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
         ])),
         ..Default::default()
     }).await?;
@@ -486,13 +486,13 @@ async fn meta_manupulation_test() -> anyhow::Result<()> {
     user_manager.send(UpdateUser {
         user: user.clone(),
         meta: Some(HashMap::from([
-            ("system".to_string(), MetaType::Number(112233.0, MetaAccess::System)),
-            ("admin".to_string(), MetaType::Number(123456789.0, MetaAccess::Admin)),
-            ("moderator".to_string(), MetaType::String("Copennhagen".to_string(), MetaAccess::Mod)),
-            ("me".to_string(), MetaType::Bool(true, MetaAccess::Me)),
-            ("friend".to_string(), MetaType::String("123".to_string(), MetaAccess::Friend)),
-            ("user".to_string(), MetaType::String("88".to_string(), MetaAccess::User)),
-            ("anonymous".to_string(), MetaType::String("99".to_string(), MetaAccess::Anonymous)),
+            ("system".to_string(), MetaType::Number(112233.0, UserMetaAccess::System)),
+            ("admin".to_string(), MetaType::Number(123456789.0, UserMetaAccess::Admin)),
+            ("moderator".to_string(), MetaType::String("Copennhagen".to_string(), UserMetaAccess::Mod)),
+            ("me".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+            ("friend".to_string(), MetaType::String("123".to_string(), UserMetaAccess::Friend)),
+            ("user".to_string(), MetaType::String("88".to_string(), UserMetaAccess::User)),
+            ("anonymous".to_string(), MetaType::String("99".to_string(), UserMetaAccess::Anonymous)),
         ])),
         ..Default::default()
     }).await??;
@@ -506,10 +506,10 @@ async fn meta_manupulation_test() -> anyhow::Result<()> {
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
     assert_eq!(information_meta.len(), 4);
-    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, UserMetaAccess::Anonymous)));
 
     /* Check for moderator */
     user_manager.send(GetUserInformation::user(user_id.clone(), moderator.clone(), socket.clone())).await??;
@@ -520,11 +520,11 @@ async fn meta_manupulation_test() -> anyhow::Result<()> {
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
     assert_eq!(information_meta.len(), 5);
-    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), UserMetaAccess::Anonymous)));
 
 
     /* Check for admin */
@@ -535,12 +535,12 @@ async fn meta_manupulation_test() -> anyhow::Result<()> {
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
     assert_eq!(information_meta.len(), 6);
-    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("admin"), Some(&MetaType::Number(123456789.0, MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("admin"), Some(&MetaType::Number(123456789.0, UserMetaAccess::Anonymous)));
 
     /* Check for system */
     user_manager.send(GetUserInformation::user_via_system(user_id.clone(), socket.clone())).await??;
@@ -550,13 +550,13 @@ async fn meta_manupulation_test() -> anyhow::Result<()> {
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
     assert_eq!(information_meta.len(), 7);
-    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("admin"), Some(&MetaType::Number(123456789.0, MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("system"), Some(&MetaType::Number(112233.0, MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("admin"), Some(&MetaType::Number(123456789.0, UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("system"), Some(&MetaType::Number(112233.0, UserMetaAccess::Anonymous)));
 
     /* Check for other user */
     user_manager.send(GetUserInformation::user(user_id.clone(), other_user.clone(), socket.clone())).await??;
@@ -566,8 +566,8 @@ async fn meta_manupulation_test() -> anyhow::Result<()> {
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
     assert_eq!(information_meta.len(), 2);
-    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), MetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
 
     /* Check for anonymous */
     user_manager.send(GetUserInformation::user(user_id.clone(), Arc::new(None), socket.clone())).await??;
@@ -577,7 +577,7 @@ async fn meta_manupulation_test() -> anyhow::Result<()> {
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
     assert_eq!(information_meta.len(), 1);
-    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), MetaAccess::Anonymous)));
+    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
 
     Ok(())
 }

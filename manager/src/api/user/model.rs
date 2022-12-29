@@ -6,7 +6,7 @@ use general::client::ClientTrait;
 use actix::prelude::Message;
 use validator::Validate;
 
-use general::{model::{UserId, UserType}, auth::UserAuth, meta::{MetaType, MetaAccess}};
+use general::{model::{UserId, UserType}, auth::UserAuth, meta::{MetaType, UserMetaAccess}};
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
@@ -60,8 +60,8 @@ pub struct UpdateUser {
     pub device_id: Option<String>,
     pub custom_id: Option<String>,
     pub user_type: Option<UserType>,
-    pub meta: Option<HashMap<String, MetaType>>,
-    pub access_level: MetaAccess
+    pub meta: Option<HashMap<String, MetaType<UserMetaAccess>>>,
+    pub access_level: UserMetaAccess
 }
 
 
@@ -76,7 +76,7 @@ impl Default for UpdateUser
             email: None,
             password: None,
             device_id: None,
-            access_level: MetaAccess::default(),
+            access_level: UserMetaAccess::default(),
             custom_id: None,
             meta: None,
             user_type: None

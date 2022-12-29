@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::{schema::user, schema::user_meta, schema::room, schema::room_tag, schema::room_user, schema::room_meta, RowId};
 use diesel::*;
 use general::meta::MetaType;
+use general::meta::UserMetaAccess;
 use general::model::UserType;
 use serde::Serialize;
 use serde::Deserialize;
@@ -111,7 +112,7 @@ pub struct UserInformationModel {
     pub email: Option<String>,
     pub device_id: Option<String>,
     pub custom_id: Option<String>,
-    pub meta: Option<HashMap<String, MetaType>>,
+    pub meta: Option<HashMap<String, MetaType<UserMetaAccess>>>,
     pub user_type: UserType,
     pub online: bool,
     pub insert_date: i32,
