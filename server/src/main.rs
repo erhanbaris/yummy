@@ -3,11 +3,11 @@ mod api;
 
 use general::config::{get_configuration, configure_environment};
 use general::tls::load_rustls_config;
-use manager::api::conn::ConnectionManager;
-use manager::api::user::UserManager;
+use manager::conn::ConnectionManager;
+use manager::user::UserManager;
 use std::sync::Arc;
 
-use manager::api::auth::AuthManager;
+use manager::auth::AuthManager;
 
 use actix_web::error::InternalError;
 
@@ -28,7 +28,7 @@ pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     use general::state::YummyState;
-    use manager::api::{room::RoomManager};
+    use manager::{room::RoomManager};
 
     configure_environment();
     let config = get_configuration();

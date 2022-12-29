@@ -16,9 +16,9 @@ use general::error::YummyError;
 use general::model::UserAuthenticated;
 use general::model::WebsocketMessage;
 use general::web::GenericAnswer;
-use manager::api::auth::model::StartUserTimeout;
-use manager::api::room::RoomManager;
-use manager::api::user::UserManager;
+use manager::auth::model::StartUserTimeout;
+use manager::room::RoomManager;
+use manager::user::UserManager;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -29,7 +29,7 @@ use actix::Handler;
 use actix::{ActorContext, Addr, Running, StreamHandler};
 use actix_web::Result;
 use actix_web_actors::ws;
-use manager::api::auth::AuthManager;
+use manager::auth::AuthManager;
 
 use general::config::YummyConfig;
 use crate::api::process_auth;

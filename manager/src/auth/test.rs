@@ -13,7 +13,7 @@ use actix::Addr;
 use anyhow::Ok;
 use database::{create_database, create_connection};
 
-use crate::api::conn::ConnectionManager;
+use crate::conn::ConnectionManager;
 
 use super::AuthManager;
 use super::*;

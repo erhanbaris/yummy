@@ -17,7 +17,7 @@ use general::model::{UserType, UserId};
 use general::state::YummyState;
 use general::web::{GenericAnswer, Answer};
 
-use crate::api::auth::model::AuthError;
+use crate::auth::model::AuthError;
 
 use self::model::*;
 

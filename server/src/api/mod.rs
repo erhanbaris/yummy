@@ -6,9 +6,9 @@ use std::sync::Arc;
 use actix::Addr;
 use database::DatabaseTrait;
 use general::{meta::UserMetaAccess, auth::UserAuth, client::ClientTrait};
-use manager::{api::{auth::AuthManager, user::UserManager, room::{RoomManager, model::{CreateRoomRequest, JoinToRoomRequest, DisconnectFromRoomRequest, MessageToRoomRequest}}}};
-use manager::api::auth::model::*;
-use manager::api::user::model::*;
+use manager::{auth::AuthManager, user::UserManager, room::{RoomManager, model::{CreateRoomRequest, JoinToRoomRequest, DisconnectFromRoomRequest, MessageToRoomRequest}}};
+use manager::auth::model::*;
+use manager::user::model::*;
 
 use validator::Validate;
 

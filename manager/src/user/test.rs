@@ -16,9 +16,9 @@ use anyhow::Ok;
 use database::{create_database, create_connection};
 
 use super::*;
-use crate::api::auth::AuthManager;
-use crate::api::auth::model::*;
-use crate::api::conn::ConnectionManager;
+use crate::auth::AuthManager;
+use crate::auth::model::*;
+use crate::conn::ConnectionManager;
 use database::model::UserInformationModel;
 use general::test::DummyClient;
 

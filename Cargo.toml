@@ -7,6 +7,13 @@ members = [
     "general"
 ]
 
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Erhan Baris <erhanbaris@gmail.com>"]
+repository = "https://github.com/erhanbaris/yummy"
+homepage = "https://github.com/erhanbaris/yummy"
+
 [workspace.dependencies]
 general = { path = "./general", features = [] }
 manager = { path = "./manager", features = [] }

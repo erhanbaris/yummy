@@ -17,7 +17,7 @@ use general::model::{RoomId, UserId, RoomUserType};
 use general::state::{YummyState, SendMessage, RoomInfoTypeVariant, RoomInfoType};
 use general::web::{GenericAnswer, Answer};
 
-use crate::api::auth::model::AuthError;
+use crate::auth::model::AuthError;
 
 use self::model::*;
 

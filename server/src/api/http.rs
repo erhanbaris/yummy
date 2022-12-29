@@ -6,8 +6,8 @@ use actix_web::{web::{Data, Json}};
 use database::DatabaseTrait;
 use general::web::{GenericAnswer, Answer};
 use general::{auth::{UserAuth, ApiIntegration}, error::YummyError};
-use manager::api::room::RoomManager;
-use manager::api::{auth::AuthManager, user::UserManager};
+use manager::room::RoomManager;
+use manager::{auth::AuthManager, user::UserManager};
 use manager::response::Response;
 
 use crate::api::request::Request;
@@ -51,9 +51,9 @@ pub mod tests {
     use general::state::YummyState;
     use general::web::Answer;
     use general::web::GenericAnswer;
-    use manager::api::auth::AuthManager;
-    use manager::api::room::RoomManager;
-    use manager::api::user::UserManager;
+    use manager::auth::AuthManager;
+    use manager::room::RoomManager;
+    use manager::user::UserManager;
     use serde_json::json;
     use uuid::Uuid;
     use std::env::temp_dir;

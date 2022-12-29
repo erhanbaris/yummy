@@ -18,7 +18,7 @@ use anyhow::{anyhow, Ok};
 use general::model::{UserId, SessionId};
 
 use self::model::*;
-use crate::api::conn::model::UserConnected;
+use crate::conn::model::UserConnected;
 
 pub fn generate_response<T: Debug + Serialize + DeserializeOwned>(model: T) -> String {
     serde_json::to_string(&model).unwrap_or_default()
