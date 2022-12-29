@@ -62,4 +62,4 @@ futures-util = "0.3.25"
 
 [features]
 stateless = ["dep:redis", "dep:r2d2"]
-default = ["stateless"]
+default = []
