@@ -43,6 +43,14 @@ pub struct RoomInsert {
     pub insert_date: i32,
 }
 
+#[derive(Default, Debug, AsChangeset)]
+#[diesel(table_name = room)]
+pub struct RoomUpdate {
+    pub name: Option<Option<String>>,
+    pub max_user: Option<i32>,
+    pub access_type: Option<i32>
+}
+
 #[derive(Default, Debug, Insertable)]
 #[diesel(table_name = room_tag)]
 pub struct RoomTagInsert<'a> {
