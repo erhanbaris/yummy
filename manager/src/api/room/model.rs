@@ -1,11 +1,11 @@
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, sync::Arc, collections::HashMap};
 
 use actix::prelude::Message;
 use serde::{Serialize, Deserialize};
 use thiserror::Error;
 use validator::Validate;
 
-use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::{RoomUserInformation, RoomInfoTypeVariant}};
+use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::{RoomUserInformation, RoomInfoTypeVariant}, meta::MetaType};
 
 
 #[derive(Message, Validate, Debug)]
@@ -17,6 +17,7 @@ pub struct CreateRoomRequest {
     pub access_type: CreateRoomAccessType,
     pub max_user: usize,
     pub tags: Vec<String>,
+    pub meta: Option<HashMap<String, MetaType>>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 

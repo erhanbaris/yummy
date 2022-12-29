@@ -122,6 +122,7 @@ async fn create_room_1() -> anyhow::Result<()> {
         name: None,
         access_type: general::model::CreateRoomAccessType::Friend,
         max_user: 4,
+        meta: None,
         tags: Vec::new(),
         socket:recipient.clone()
     }).await??;
@@ -151,6 +152,7 @@ async fn create_room_2() -> anyhow::Result<()> {
         name: None,
         access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
+        meta: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:recipient.clone()
     }).await??;
@@ -187,6 +189,7 @@ async fn create_room_3() -> anyhow::Result<()> {
         name: None,
         access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
+        meta: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:user_1_socket.clone()
     }).await??;
@@ -241,6 +244,7 @@ async fn create_room_3() -> anyhow::Result<()> {
         name: None,
         access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
+        meta: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:user_1_socket.clone()
     }).await??;
@@ -288,6 +292,7 @@ async fn create_room_4() -> anyhow::Result<()> {
         name: None,
         access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
+        meta: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:user_1_socket.clone()
     }).await??;
@@ -376,6 +381,7 @@ async fn message_to_room() -> anyhow::Result<()> {
         name: None,
         access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
+        meta: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:user_1_socket.clone()
     }).await??;
@@ -462,6 +468,7 @@ async fn get_rooms() -> anyhow::Result<()> {
             name: None,
             access_type: general::model::CreateRoomAccessType::Public,
             max_user: 4,
+            meta: None,
             tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
             socket:user_socket.clone()
         }).await??;

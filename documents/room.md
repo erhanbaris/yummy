@@ -79,8 +79,3 @@ Who can access the room.
 
 
 Except Tag field, all fields names are "Public", "Private" and "Friend".
-Tag field format is looks like that:
-
-```json
-{"Tag":"tag name"}
-```

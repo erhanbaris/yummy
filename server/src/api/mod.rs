@@ -54,7 +54,7 @@ pub(crate) fn process_user<DB: DatabaseTrait + Unpin + 'static>(user_type: Reque
 #[tracing::instrument(name="process_room", skip(room_manager))]
 pub(crate) fn process_room<DB: DatabaseTrait + Unpin + 'static>(room_type: RequestRoomType, room_manager: Addr<RoomManager<DB>>, me: Arc<Option<UserAuth>>, socket: Arc<dyn ClientTrait + Sync + Send>) -> anyhow::Result<()> {
     match room_type {
-        RequestRoomType::Create { disconnect_from_other_room, name, access_type, max_user, tags } => as_response!(room_manager, CreateRoomRequest { user: me, socket, disconnect_from_other_room, name, access_type, max_user, tags }),
+        RequestRoomType::Create { disconnect_from_other_room, name, access_type, max_user, tags, meta } => as_response!(room_manager, CreateRoomRequest { user: me, socket, disconnect_from_other_room, name, access_type, max_user, tags, meta }),
         RequestRoomType::Join { room, room_user_type } => as_response!(room_manager, JoinToRoomRequest { user: me, socket, room, room_user_type }),
         RequestRoomType::Disconnect { room } => as_response!(room_manager, DisconnectFromRoomRequest { user: me, socket, room }),
         RequestRoomType::Message { room, message } => as_response!(room_manager, MessageToRoomRequest { user: me, socket, room, message }),

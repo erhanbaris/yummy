@@ -24,7 +24,8 @@ cargo run --release
 
 - [ ] Add parameter for OpenTelemetry configuration
 - [X] TLS support
-- [ ] Remove room at redis state when no user in the room
+- [X] Remove room at redis state when no user in the room
+- [ ] Room metadata
 - [ ] Design document
 - [ ] Example projects
 - [ ] Friend add/remove/list integration

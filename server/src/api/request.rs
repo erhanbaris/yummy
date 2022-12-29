@@ -66,7 +66,10 @@ pub enum RequestRoomType {
         max_user: usize,
 
         #[serde(default)]
-        tags: Vec<String>
+        tags: Vec<String>,
+
+        #[serde(default)]
+        meta: Option<HashMap<String, MetaType>>
     },
     Join {
         room: RoomId,

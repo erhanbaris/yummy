@@ -55,9 +55,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisc
     #[tracing::instrument(name="Room::User disconnected", skip(self, _ctx))]
     fn handle(&mut self, model: UserDisconnectRequest, _ctx: &mut Self::Context) -> Self::Result {
         println!("room:UserDisconnectRequest {:?}", model);
-        if let Some(room_id) = self.states.get_user_room(model.user_id) {
-            self.disconnect_from_room(room_id, model.user_id).unwrap_or_default();
-        }
     }
 }
 
@@ -91,7 +88,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
     #[tracing::instrument(name="CreateRoom", skip(self, _ctx))]
     #[macros::api(name="CreateRoom", socket=true)]
     fn handle(&mut self, model: CreateRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
-        let CreateRoomRequest { access_type, disconnect_from_other_room, max_user, name, tags, user, socket } = model;
+        let CreateRoomRequest { access_type, disconnect_from_other_room, max_user, name, tags, user, meta, socket } = model;
         
         // Check user information
         let user_id = match user.deref() {
@@ -115,6 +112,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
 
             DB::join_to_room(connection, room_id, RowId(user_id.get()), RoomUserType::Owner)?;
 
+            if let Some(meta) = meta {
+                DB::insert_metas(connection, room_id, meta.into_iter().map(|(key, value)| (key, value)).collect::<Vec<_>>())?;
+            }
+            
             let room_id = RoomId::from(room_id.get());
             self.states.create_room(room_id, insert_date, name, access_type, max_user, tags);
             self.states.join_to_room(room_id, user_id, RoomUserType::Owner)?;

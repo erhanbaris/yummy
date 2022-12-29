@@ -3,14 +3,19 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use diesel::RunQueryDsl;
 use diesel::QueryDsl;
 use diesel::ExpressionMethods;
+use general::meta::MetaType;
 use general::model::{CreateRoomAccessType, RoomUserType};
+use uuid::Uuid;
 
+use crate::model::RoomMetaInsert;
+use crate::schema::room_meta;
 use crate::{SqliteStore, PooledConnection, RowId, model::{RoomInsert, RoomTagInsert, RoomUserInsert}, schema::{room::{self}, room_tag, room_user}};
 
 pub trait RoomStoreTrait: Sized {
     fn create_room(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: &[String]) -> anyhow::Result<RowId>;
     fn join_to_room(connection: &mut PooledConnection, room_id: RowId, user_id: RowId, user_type: RoomUserType) -> anyhow::Result<()>;
     fn disconnect_from_room(connection: &mut PooledConnection, room_id: RowId, user_id: RowId) -> anyhow::Result<()>;
+    fn insert_metas(connection: &mut PooledConnection, room_id: RowId, metas: Vec<(String, MetaType)>) -> anyhow::Result<()>;
 }
 
 impl RoomStoreTrait for SqliteStore {
@@ -82,12 +87,46 @@ impl RoomStoreTrait for SqliteStore {
         }
         Ok(())
     }
+
+    #[tracing::instrument(name="Insert metas", skip(connection))]
+    fn insert_metas(connection: &mut PooledConnection, room_id: RowId, metas: Vec<(String, MetaType)>) -> anyhow::Result<()> {
+        let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
+        let mut inserts = Vec::new();
+
+        for (key, meta) in metas.into_iter() {
+            let id = RowId(Uuid::new_v4());
+            let (value, access, meta_type) = match meta {
+                MetaType::Null => continue,
+                MetaType::Number(value, access) => (value.to_string(), access, 1),
+                MetaType::String(value, access) => (value, access, 2),
+                MetaType::Bool(value, access) => (value.to_string(), access, 3),
+            };
+
+            let insert = RoomMetaInsert {
+                id,
+                room_id: &room_id,
+                key,
+                value,
+                access: access.into(),
+                meta_type,
+                insert_date
+            };
+
+            inserts.push(insert);
+        }
+        diesel::insert_into(room_meta::table).values(&inserts).execute(connection)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use anyhow::Ok;
+    use general::meta::MetaType;
+    use uuid::Uuid;
 
+    use crate::model::RoomMetaInsert;
+    use crate::schema::room_meta;
     use crate::{create_database, create_connection, PooledConnection};
 
     use crate::SqliteStore;

@@ -203,24 +203,33 @@ impl YummyState {
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="close_session", skip(self))]
     pub fn close_session<T: Borrow<SessionId> + std::fmt::Debug>(&mut self, session_id: T) -> bool {
+        use uuid::Uuid;
+
         match self.redis.get() {
             Ok(mut redis) => {
                 let user_id = redis_result!(redis.hget::<_, _, String>(format!("{}session-user", self.config.redis_prefix), session_id.borrow().to_string()));
 
-                let (result, ) = redis_result!(redis::pipe()
+                let (room_id, remove_result) = redis_result!(redis::pipe()
                     .atomic()
                     .cmd("HDEL").arg(format!("{}session-user", self.config.redis_prefix))
                         .arg(session_id.borrow().to_string())
                         .ignore()
+                    
+                    .cmd("HGET").arg(format!("{}users:{}", self.config.redis_prefix, user_id))
+                        .arg("room")
 
                     .cmd("DEL").arg(format!("{}users:{}", self.config.redis_prefix, user_id))
                         .ignore()
                     
                     .cmd("SREM").arg(format!("{}online-users", self.config.redis_prefix))
-                        .arg(user_id) 
-                    .query::<(i32,)>(&mut redis));
+                        .arg(&user_id)
+                    .query::<(Option<String>, i32)>(&mut redis));
 
-                result > 0
+                if let Some(room_id) = room_id {
+                    self.disconnect_from_room(RoomId::from(Uuid::parse_str(&room_id).unwrap_or_default()), UserId::from(Uuid::parse_str(&user_id).unwrap_or_default())).unwrap_or_default();
+                }
+
+                remove_result > 0
             },
             Err(_) => false
         }
@@ -230,6 +239,7 @@ impl YummyState {
     #[tracing::instrument(name="get_user_room", skip(self))]
     pub fn get_user_room<T: Borrow<UserId> + std::fmt::Debug>(&mut self, user_id: T) -> Option<RoomId> {
         use std::str::FromStr;
+        println!("{}users:{}", self.config.redis_prefix, user_id.borrow().to_string());
         let result = match self.redis.get() {
             Ok(mut redis) => redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id.borrow().to_string()), "room")),
             Err(_) => return None
@@ -349,6 +359,7 @@ impl YummyState {
                 if no_user {
                     let (tags,) = redis_result!(redis::pipe()
                         .atomic()
+                        .cmd("SREM").arg(format!("{}rooms", self.config.redis_prefix)).arg(&room_id).ignore()
                         .cmd("DEL").arg(room_users_key).ignore()
                         .cmd("DEL").arg(room_info_key).ignore()
                         .cmd("SMEMBERS").arg(format!("{}room-tag:{}", self.config.redis_prefix, &room_id))
@@ -359,13 +370,11 @@ impl YummyState {
                     if !tags.is_empty() {
                         let mut query = &mut redis::pipe();
                         for tag in tags.iter() {
-                            query = query.cmd("SREM").arg(format!("{}tag:{}", self.config.redis_prefix, &tag)).ignore()
+                            query = query.cmd("SREM").arg(format!("{}tag:{}", self.config.redis_prefix, &tag)).arg(&room_id).ignore()
                         }
 
                         redis_result!(query.query::<()>(&mut redis));
                     }
-                        
-                    println!("{:?}", tags);
                 }
 
                 no_user
@@ -509,7 +518,7 @@ impl YummyState {
                     let room_id = RoomId::from(uuid::Uuid::parse_str(&room_id).unwrap_or_default());
 
                     let mut room_info = RoomInfoTypeCollection {
-                        room_id: Some(room_id.clone()),
+                        room_id: Some(room_id),
                         .. Default::default()
                     };
 
@@ -521,7 +530,7 @@ impl YummyState {
 
                         match item {
                             RoomInfoTypeVariant::RoomName => {
-                                let room_name: String = FromRedisValue::from_redis_value(&redis_value).unwrap_or_default();
+                                let room_name: String = FromRedisValue::from_redis_value(redis_value).unwrap_or_default();
                                 room_info.items.push(RoomInfoType::RoomName(if room_name.is_empty() { None } else { Some(room_name) }));
                             },
                             RoomInfoTypeVariant::Users => {
@@ -538,15 +547,15 @@ impl YummyState {
                                 }
                                 room_info.items.push(RoomInfoType::Users(user_infos));
                             },
-                            RoomInfoTypeVariant::AccessType => room_info.items.push(RoomInfoType::AccessType(match FromRedisValue::from_redis_value(&redis_value).unwrap_or_default() {
+                            RoomInfoTypeVariant::AccessType => room_info.items.push(RoomInfoType::AccessType(match FromRedisValue::from_redis_value(redis_value).unwrap_or_default() {
                                 1 => CreateRoomAccessType::Public,
                                 2 => CreateRoomAccessType::Private,
                                 3 => CreateRoomAccessType::Friend,
                                 _ => CreateRoomAccessType::Public
                             })),
-                            RoomInfoTypeVariant::InsertDate => room_info.items.push(RoomInfoType::InsertDate(FromRedisValue::from_redis_value(&redis_value).unwrap_or_default())),
-                            RoomInfoTypeVariant::MaxUser => room_info.items.push(RoomInfoType::MaxUser(FromRedisValue::from_redis_value(&redis_value).unwrap_or_default())),
-                            RoomInfoTypeVariant::UserLength => room_info.items.push(RoomInfoType::UserLength(FromRedisValue::from_redis_value(&redis_value).unwrap_or_default())),
+                            RoomInfoTypeVariant::InsertDate => room_info.items.push(RoomInfoType::InsertDate(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
+                            RoomInfoTypeVariant::MaxUser => room_info.items.push(RoomInfoType::MaxUser(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
+                            RoomInfoTypeVariant::UserLength => room_info.items.push(RoomInfoType::UserLength(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
                             RoomInfoTypeVariant::Tags => {
                                 let tags = redis_result!(redis.smembers::<_, Vec<String>>(format!("{}room-tag:{}", self.config.redis_prefix, room_id.to_string())));
                                 room_info.items.push(RoomInfoType::Tags(tags));

@@ -55,4 +55,16 @@ table! {
     }
 }
 
-allow_tables_to_appear_in_same_query!(user, user_meta, room, room_tag, room_user,);
+table! {
+    room_meta {
+        id -> Text,
+        room_id ->  Text,
+        key -> Text,
+        value -> Text,
+        meta_type -> Integer,
+        access -> Integer,
+        insert_date -> Integer,
+    }
+}
+
+allow_tables_to_appear_in_same_query!(user, user_meta, room, room_tag, room_user, room_meta,);
