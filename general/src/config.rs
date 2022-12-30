@@ -14,6 +14,7 @@ pub const DEFAULT_CONNECTION_RESTORE_WAIT_TIMEOUT: u64 = 10; // in seconds
 pub const DEFAULT_HEARTBEAT_INTERVAL: u64 = 10; // in seconds
 pub const DEFAULT_TOKEN_LIFETIME: u64 = 24 * 60 * 60; // in seconds
 pub const DEFAULT_MAX_USER_META: usize = 10;
+pub const DEFAULT_MAX_ROOM_META: usize = 10;
 pub const DEFAULT_API_KEY_NAME: &str = "x-yummy-api";
 pub const DEFAULT_SALT_KEY: &str = "YUMMY-SALT";
 pub const DEFAULT_DATABASE_PATH: &str = "yummy.db";
@@ -45,6 +46,7 @@ pub struct YummyConfig {
     pub connection_restore_wait_timeout: Duration,
 
     pub max_user_meta: usize,
+    pub max_room_meta: usize,
     pub room_password_charset: Vec<u8>,
     pub room_password_length: usize,
 
@@ -107,6 +109,7 @@ pub fn get_configuration() -> Arc<YummyConfig> {
         integration_key: get_env_var("INTEGRATION_KEY", DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()),
         database_path: get_env_var("DATABASE_PATH", DEFAULT_DATABASE_PATH.to_string()),
         max_user_meta: get_env_var("MAX_USER_META", DEFAULT_MAX_USER_META),
+        max_room_meta: get_env_var("MAX_ROOM_META", DEFAULT_MAX_ROOM_META),
         room_password_charset: get_env_var("ROOM_PASSWORD_CHARSET", DEFAULT_ROOM_PASSWORD_CHARSET.to_string()).as_bytes().to_vec(),
         room_password_length: get_env_var("ROOM_PASSWORD_LENGTH", DEFAULT_ROOM_PASSWORD_LENGTH),
 

@@ -40,7 +40,7 @@ impl UserStoreTrait for SqliteStore {
     fn get_user_information<'a>(connection: &mut PooledConnection, user_id: RowId, access_type: UserMetaAccess) -> anyhow::Result<Option<UserInformationModel>> {
         let result = user::table
             .select((user::id, user::name, user::email, user::device_id, user::custom_id, user::user_type, user::insert_date, user::last_login_date))
-            .filter(user::id.eq(user_id))
+            .filter(user::id.eq(&user_id))
             .get_result::<(RowId, Option<String>, Option<String>, Option<String>, Option<String>, i32, i32, i32)>(connection)
             .optional()?;
 
@@ -269,38 +269,38 @@ mod tests {
         let mut connection = db_conection()?;
 
         let user_id = SqliteStore::create_user_via_custom_id(&mut connection, "123456789")?;
-        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, UserMetaAccess::System)?.len(), 0);
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id.clone(), UserMetaAccess::System)?.len(), 0);
 
         // New meta
-        SqliteStore::insert_user_metas(&mut connection, user_id, vec![("gender".to_string(), MetaType::String("male".to_string(), UserMetaAccess::Friend))])?;
+        SqliteStore::insert_user_metas(&mut connection, user_id.clone(), vec![("gender".to_string(), MetaType::String("male".to_string(), UserMetaAccess::Friend))])?;
 
-        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, UserMetaAccess::Friend)?.len(), 1);
-        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, UserMetaAccess::Anonymous)?.len(), 0);
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id.clone(), UserMetaAccess::Friend)?.len(), 1);
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id.clone(), UserMetaAccess::Anonymous)?.len(), 0);
 
-        let meta = SqliteStore::get_user_meta(&mut connection, user_id, UserMetaAccess::System)?;
+        let meta = SqliteStore::get_user_meta(&mut connection, user_id.clone(), UserMetaAccess::System)?;
         assert_eq!(meta.len(), 1);
 
         // Remove meta
-        SqliteStore::remove_user_metas(&mut connection, vec![meta[0].0])?;
-        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, UserMetaAccess::Friend)?.len(), 0);
-        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, UserMetaAccess::Anonymous)?.len(), 0);
-        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, UserMetaAccess::System)?.len(), 0);
+        SqliteStore::remove_user_metas(&mut connection, vec![meta[0].0.clone()])?;
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id.clone(), UserMetaAccess::Friend)?.len(), 0);
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id.clone(), UserMetaAccess::Anonymous)?.len(), 0);
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id.clone(), UserMetaAccess::System)?.len(), 0);
 
-        SqliteStore::insert_user_metas(&mut connection, user_id, vec![
+        SqliteStore::insert_user_metas(&mut connection, user_id.clone(), vec![
             ("location".to_string(), MetaType::String("copenhagen".to_string(), UserMetaAccess::Anonymous)),
             ("score".to_string(), MetaType::Number(123.0, UserMetaAccess::Friend))])?;
 
-        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, UserMetaAccess::Friend)?.len(), 2);
-        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id, UserMetaAccess::System)?.len(), 2);
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id.clone(), UserMetaAccess::Friend)?.len(), 2);
+        assert_eq!(SqliteStore::get_user_meta(&mut connection, user_id.clone(), UserMetaAccess::System)?.len(), 2);
 
         // Filter with anonymous
-        let meta = SqliteStore::get_user_meta(&mut connection, user_id, UserMetaAccess::Anonymous)?;
+        let meta = SqliteStore::get_user_meta(&mut connection, user_id.clone(), UserMetaAccess::Anonymous)?;
         assert_eq!(meta.len(), 1);
         assert_eq!(meta.into_iter().map(|(_, key, value)| (key, value)).collect::<Vec<(String, MetaType<UserMetaAccess>)>>(), vec![
             ("location".to_string(), MetaType::String("copenhagen".to_string(), UserMetaAccess::Anonymous))]);
 
         // Filter with system
-        let meta = SqliteStore::get_user_meta(&mut connection, user_id, UserMetaAccess::System)?;
+        let meta = SqliteStore::get_user_meta(&mut connection, user_id.clone(), UserMetaAccess::System)?;
         assert_eq!(meta.len(), 2);
         assert_eq!(meta.into_iter().map(|(_, key, value)| (key, value)).collect::<Vec<(String, MetaType<UserMetaAccess>)>>(), vec![
             ("location".to_string(), MetaType::String("copenhagen".to_string(), UserMetaAccess::Anonymous)),

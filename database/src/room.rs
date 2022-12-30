@@ -44,7 +44,7 @@ impl RoomStoreTrait for SqliteStore {
         };
         model.access_type = access;
         
-        let room_id = model.id;
+        let room_id = model.id.clone(); // todo: discart cloning
         let affected_rows = diesel::insert_into(room::table).values(&vec![model]).execute(connection)?;
         if affected_rows == 0 {
             return Err(anyhow::anyhow!("No row inserted"));
@@ -53,7 +53,7 @@ impl RoomStoreTrait for SqliteStore {
         let mut tag_inserts = Vec::new();
         for tag in tags.iter() {
             let insert = RoomTagInsert {
-                room_id,
+                room_id: room_id.clone(), // todo: discart cloning
                 tag: &tag[..],
                 insert_date,
                 ..Default::default()
@@ -237,10 +237,10 @@ mod tests {
         let room = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Friend, 2, &Vec::new())?;
         let user = RowId::default();
         
-        assert!(SqliteStore::disconnect_from_room(&mut connection, room, user.clone()).is_err());
+        assert!(SqliteStore::disconnect_from_room(&mut connection, room.clone(), user.clone()).is_err());
         
-        SqliteStore::join_to_room(&mut connection, room, user.clone(), RoomUserType::User)?;
-        SqliteStore::disconnect_from_room(&mut connection, room, user.clone())?;
+        SqliteStore::join_to_room(&mut connection, room.clone(), user.clone(), RoomUserType::User)?;
+        SqliteStore::disconnect_from_room(&mut connection, room.clone(), user.clone())?;
 
         Ok(())
     }
@@ -252,33 +252,33 @@ mod tests {
         let room = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Friend, 2, &Vec::new())?;
         
         // New meta
-        SqliteStore::insert_metas(&mut connection, room, vec![("game-type".to_string(), MetaType::String("war".to_string(), RoomMetaAccess::Owner))])?;
+        SqliteStore::insert_metas(&mut connection, room.clone(), vec![("game-type".to_string(), MetaType::String("war".to_string(), RoomMetaAccess::Owner))])?;
 
 
-        let meta = SqliteStore::get_room_meta(&mut connection, room, RoomMetaAccess::System)?;
+        let meta = SqliteStore::get_room_meta(&mut connection, room.clone(), RoomMetaAccess::System)?;
         assert_eq!(meta.len(), 1);
 
         // Remove meta
-        SqliteStore::remove_room_metas(&mut connection, vec![meta[0].0])?;
-        assert_eq!(SqliteStore::get_room_meta(&mut connection, room, RoomMetaAccess::Owner)?.len(), 0);
-        assert_eq!(SqliteStore::get_room_meta(&mut connection, room, RoomMetaAccess::Anonymous)?.len(), 0);
-        assert_eq!(SqliteStore::get_room_meta(&mut connection, room, RoomMetaAccess::System)?.len(), 0);
+        SqliteStore::remove_room_metas(&mut connection, vec![meta[0].0.clone()])?;
+        assert_eq!(SqliteStore::get_room_meta(&mut connection, room.clone(), RoomMetaAccess::Owner)?.len(), 0);
+        assert_eq!(SqliteStore::get_room_meta(&mut connection, room.clone(), RoomMetaAccess::Anonymous)?.len(), 0);
+        assert_eq!(SqliteStore::get_room_meta(&mut connection, room.clone(), RoomMetaAccess::System)?.len(), 0);
 
-        SqliteStore::insert_room_metas(&mut connection, room, vec![
+        SqliteStore::insert_room_metas(&mut connection, room.clone(), vec![
             ("location".to_string(), MetaType::String("copenhagen".to_string(), RoomMetaAccess::Anonymous)),
             ("score".to_string(), MetaType::Number(123.0, RoomMetaAccess::Owner))])?;
 
-        assert_eq!(SqliteStore::get_room_meta(&mut connection, room, RoomMetaAccess::Owner)?.len(), 2);
-        assert_eq!(SqliteStore::get_room_meta(&mut connection, room, RoomMetaAccess::System)?.len(), 2);
+        assert_eq!(SqliteStore::get_room_meta(&mut connection, room.clone(), RoomMetaAccess::Owner)?.len(), 2);
+        assert_eq!(SqliteStore::get_room_meta(&mut connection, room.clone(), RoomMetaAccess::System)?.len(), 2);
 
         // Filter with anonymous
-        let meta = SqliteStore::get_room_meta(&mut connection, room, RoomMetaAccess::Anonymous)?;
+        let meta = SqliteStore::get_room_meta(&mut connection, room.clone(), RoomMetaAccess::Anonymous)?;
         assert_eq!(meta.len(), 1);
         assert_eq!(meta.into_iter().map(|(_, key, value)| (key, value)).collect::<Vec<(String, MetaType<RoomMetaAccess>)>>(), vec![
             ("location".to_string(), MetaType::String("copenhagen".to_string(), RoomMetaAccess::Anonymous))]);
 
         // Filter with system
-        let meta = SqliteStore::get_room_meta(&mut connection, room, RoomMetaAccess::System)?;
+        let meta = SqliteStore::get_room_meta(&mut connection, room.clone(), RoomMetaAccess::System)?;
         assert_eq!(meta.len(), 2);
         assert_eq!(meta.into_iter().map(|(_, key, value)| (key, value)).collect::<Vec<(String, MetaType<RoomMetaAccess>)>>(), vec![
             ("location".to_string(), MetaType::String("copenhagen".to_string(), RoomMetaAccess::Anonymous)),

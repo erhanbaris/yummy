@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 use thiserror::Error;
 use validator::Validate;
 
-use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::{RoomUserInformation, RoomInfoTypeVariant}, meta::{MetaType, RoomMetaAccess}};
+use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::{RoomUserInformation, RoomInfoTypeVariant}, meta::{MetaType, RoomMetaAccess, UserMetaAccess}};
 
 
 #[derive(Message, Validate, Debug)]
@@ -55,13 +55,32 @@ pub struct RoomListRequet {
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<()>")]
+pub struct UpdateRoom {
+    pub user: Arc<Option<UserAuth>>,
+    pub room_id: RoomId,
+    pub name: Option<String>,
+    pub socket: Arc<dyn ClientTrait + Sync + Send>,
+    pub meta: Option<HashMap<String, MetaType<RoomMetaAccess>>>,
+    pub access_type: Option<CreateRoomAccessType>,
+    pub max_user: Option<usize>,
+    pub tags: Option<Vec<String>>,
+}
+
 #[derive(Error, Debug)]
 pub enum RoomError {
     #[error("User joined to other room")]
     UserJoinedOtherRoom,
 
     #[error("Room not found")]
-    RoomNotFound
+    RoomNotFound,
+
+    #[error("Update information missing")]
+    UpdateInformationMissing,
+
+    #[error("Meta limit over to maximum")]
+    MetaLimitOverToMaximum
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]

@@ -60,7 +60,11 @@ __Information__: Secret key for JWT. <br/>
 
 * **MAX_USER_META** <br/>
 __Default value__: 10 <br/>
-__Information__: Maximum allowed meta informations per users. <br/>
+__Information__: Maximum allowed meta informations per user. <br/>
+
+* **MAX_ROOM_META** <br/>
+__Default value__: 10 <br/>
+__Information__: Maximum allowed meta informations per room. <br/>
 
 * **ROOM_PASSWORD_CHARSET** <br/>
 __Default value__: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 <br/>

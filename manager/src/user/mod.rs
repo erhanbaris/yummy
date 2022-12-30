@@ -69,21 +69,21 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
 
         let (user_id, access_type) = match model.query {
             GetUserInformationEnum::Me(user) => match user.deref() {
-                Some(user) => (user.user.get(), UserMetaAccess::Me),
+                Some(user) => (user.user, UserMetaAccess::Me),
                 None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
             },
-            GetUserInformationEnum::UserViaSystem(user) => (user.get(), UserMetaAccess::System),
+            GetUserInformationEnum::UserViaSystem(user) => (user, UserMetaAccess::System),
             GetUserInformationEnum::User { user, requester } => {
                 match requester.deref() {
                     Some(requester) => {
-                        let user_type = DB::get_user_type(&mut connection, RowId(requester.user.get()))?;
-                        (user.get(), match user_type {
+                        let user_type = DB::get_user_type::<RowId>(&mut connection, requester.user.into())?;
+                        (user, match user_type {
                             UserType::Admin => UserMetaAccess::Admin,
                             UserType::Mod => UserMetaAccess::Mod,
                             UserType::User => UserMetaAccess::User
                         })
                     },
-                    None => (user.get(), UserMetaAccess::Anonymous)
+                    None => (user, UserMetaAccess::Anonymous)
                 }
             }
         };
@@ -107,8 +107,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
     #[macros::api(name="UpdateUser", socket=true)]
     fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
 
-        let original_user_id = match model.user.deref() {
-            Some(user) => user.user.get(),
+        let user_id: RowId = match model.user.deref() {
+            Some(user) => user.user.into(),
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
@@ -119,10 +119,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
         }
 
         let mut updates = UserUpdate::default();
-        let user_id = RowId(original_user_id);
 
         let mut connection = self.database.get()?;
-        let user = match DB::get_user_information(&mut connection, user_id, UserMetaAccess::Admin)? {
+        let user = match DB::get_user_information(&mut connection, user_id.clone(), UserMetaAccess::Admin)? { // todo: discart cloning
             Some(user) => user,
             None => return Err(anyhow::anyhow!(UserError::UserNotFound))
         };
@@ -146,7 +145,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
             updates.email = Some(email)
         }
 
-        let mut connection = self.database.get()?;
         let config = self.config.clone();
 
         DB::transaction::<_, anyhow::Error, _>(&mut connection, move |connection| {
@@ -156,12 +154,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
                     0 => (),
                     n if n > config.max_user_meta => return Err(anyhow::anyhow!(UserError::MetaLimitOverToMaximum)),
                     _ => {
-                        let user_old_metas = DB::get_user_meta(connection, user_id, model.access_level)?;
+                        let user_old_metas = DB::get_user_meta(connection, user_id.clone(), model.access_level)?; // todo: discart cloning
                         let mut remove_list = Vec::new();
                         let mut insert_list = Vec::new();
 
                         for (key, value) in meta.into_iter() {
-                            let row= user_old_metas.iter().find(|item| item.1 == key).map(|item| item.0);
+                            let row = user_old_metas.iter().find(|item| item.1 == key).map(|item| item.0.clone()); // todo: discard cloning
 
                             /* Remove the key if exists in the database */
                             if let Some(row_id) = row {
@@ -177,7 +175,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
                         }
 
                         DB::remove_user_metas(connection, remove_list)?;
-                        DB::insert_user_metas(connection, user_id, insert_list)?;
+                        DB::insert_user_metas(connection, user_id.clone(), insert_list)?; // todo: discart cloning
                     }
                 };
             }

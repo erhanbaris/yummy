@@ -20,6 +20,7 @@ use diesel::serialize::{ToSql, Output};
 use diesel::sql_types::*;
 use diesel::expression::AsExpression;
 
+use general::model::{SessionId, UserId, RoomId};
 use serde::{Deserialize, Serialize};
 use user::UserStoreTrait;
 use room::RoomStoreTrait;
@@ -44,9 +45,33 @@ pub struct SqliteStore;
 impl DatabaseTrait for SqliteStore { }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(AsExpression, Copy, Clone, FromSqlRow)]
+#[derive(AsExpression, Clone, FromSqlRow)]
 #[diesel(sql_type = Text)]
 pub struct RowId(pub uuid::Uuid);
+
+impl From<RowId> for RoomId {
+    fn from(row: RowId) -> Self {
+        RoomId(row.0)
+    }
+}
+
+impl From<SessionId> for RowId {
+    fn from(session: SessionId) -> Self {
+        RowId(session.0)
+    }
+}
+
+impl From<UserId> for RowId {
+    fn from(session: UserId) -> Self {
+        RowId(session.0)
+    }
+}
+
+impl From<RoomId> for RowId {
+    fn from(session: RoomId) -> Self {
+        RowId(session.0)
+    }
+}
 
 impl Default for RowId {
     fn default() -> Self {
@@ -62,7 +87,7 @@ impl RowId {
 
 impl ToString for RowId {
     fn to_string(&self) -> String {
-        self.get().to_string()
+        self.0.to_string()
     }
 }
 

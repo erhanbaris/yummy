@@ -52,7 +52,7 @@ impl AuthStoreTrait for SqliteStore {
 
         match result {
             Some((user_id, name, email)) => {
-                Self::update_last_login(connection, user_id)?;
+                Self::update_last_login(connection, &user_id)?;
                 Ok(Some(LoginInfo {
                     user_id,
                     name,
@@ -74,7 +74,7 @@ impl AuthStoreTrait for SqliteStore {
 
         match result {
             Some((user_id, name, email)) => {
-                Self::update_last_login(connection, user_id)?;
+                Self::update_last_login(connection, &user_id)?;
                 Ok(Some(LoginInfo {
                     user_id,
                     name,
@@ -98,7 +98,7 @@ impl AuthStoreTrait for SqliteStore {
         
         let row_id = RowId(Uuid::new_v4());
         let mut model = UserInsert::default();
-        model.id = row_id;
+        model.id = row_id.clone(); // todo: discart cloning
         model.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
         model.last_login_date = model.insert_date;
         model.password = Some(password.get());
@@ -113,7 +113,7 @@ impl AuthStoreTrait for SqliteStore {
     fn create_user_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<RowId> {
         let row_id = RowId(Uuid::new_v4());
         let mut model = UserInsert::default();
-        model.id = row_id;
+        model.id = row_id.clone(); // todo: discart cloning
         model.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
         model.last_login_date = model.insert_date;
         model.device_id = Some(device_id);
@@ -127,7 +127,7 @@ impl AuthStoreTrait for SqliteStore {
     fn create_user_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<RowId> {
         let row_id = RowId(Uuid::new_v4());
         let mut model = UserInsert::default();
-        model.id = row_id;
+        model.id = row_id.clone(); // todo: discart cloning
         model.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
         model.last_login_date = model.insert_date;
         model.custom_id = Some(custom_id);

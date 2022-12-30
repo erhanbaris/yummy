@@ -22,6 +22,7 @@ cargo run --release
 
 ### Todo list
 
+- [ ] Remove all unnecessary copy and clone
 - [ ] Add parameter for OpenTelemetry configuration
 - [X] TLS support
 - [X] Remove room at redis state when no user in the room

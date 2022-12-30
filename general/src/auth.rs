@@ -109,6 +109,6 @@ impl UserAuth {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.user.get() == uuid::Uuid::nil()
+        self.user.is_empty()
     }
 }

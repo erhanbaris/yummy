@@ -135,7 +135,7 @@ async fn create_room_1() -> anyhow::Result<()> {
         None => return Err(anyhow::anyhow!("UserId not found"))
     };
 
-    assert!(room_id.get() != uuid::Uuid::nil());
+    assert!(!room_id.is_empty());
     assert!(states.get_user_room(user_id).is_some());
     
     Ok(())
@@ -165,7 +165,7 @@ async fn create_room_2() -> anyhow::Result<()> {
         None => return Err(anyhow::anyhow!("UserId not found"))
     };
 
-    assert!(room_id.get() != uuid::Uuid::nil());
+    assert!(!room_id.is_empty());
     assert!(states.get_user_room(user_id).is_some());
     
     Ok(())
@@ -197,7 +197,7 @@ async fn create_room_3() -> anyhow::Result<()> {
     let room_id: GenericAnswer<RoomId> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_id = room_id.result.unwrap_or_default();
 
-    assert!(room_id.get() != uuid::Uuid::nil());
+    assert!(!room_id.is_empty());
 
     room_manager.send(JoinToRoomRequest {
         user: user_2.clone(),
@@ -300,7 +300,7 @@ async fn create_room_4() -> anyhow::Result<()> {
     let room_id: GenericAnswer<RoomId> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_id = room_id.result.unwrap_or_default();
 
-    assert!(room_id.get() != uuid::Uuid::nil());
+    assert!(!room_id.is_empty());
 
     room_manager.send(JoinToRoomRequest {
         user: user_2.clone(),
@@ -389,7 +389,7 @@ async fn message_to_room() -> anyhow::Result<()> {
     let room_id: GenericAnswer<RoomId> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_id = room_id.result.unwrap_or_default();
 
-    assert!(room_id.get() != uuid::Uuid::nil());
+    assert!(!room_id.is_empty());
 
     // Join to room
     room_manager.send(JoinToRoomRequest {

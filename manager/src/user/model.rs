@@ -64,7 +64,6 @@ pub struct UpdateUser {
     pub access_level: UserMetaAccess
 }
 
-
 #[cfg(test)]
 impl Default for UpdateUser
 {

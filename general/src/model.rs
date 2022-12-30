@@ -16,74 +16,67 @@ use uuid::Uuid;
 use crate::auth::UserJwt;
 use crate::web::GenericAnswer;
 
-#[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash, Ord, PartialOrd)]
-pub struct UserId(Uuid);
+macro_rules! generate_type {
+    ($name:ident) => {
+        
+        #[derive(MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash, Ord, PartialOrd)] // todo: discart cloning
+        pub struct $name(pub Uuid);
 
-impl UserId {
-    pub fn new() -> Self {
-        Self(uuid::Uuid::new_v4())
-    }
+        impl $name {
+            pub fn new() -> Self {
+                Self::default()
+            }
 
-    pub fn from(uuid: Uuid) -> Self {
-        Self(uuid)
-    }
-    
-    pub fn get(&self) -> Uuid {
-        self.0
+            pub fn is_empty(&self) -> bool {
+                self.0 == uuid::Uuid::nil()
+            }
+
+            pub fn get(&self) -> &Uuid {
+                &self.0
+            }
+        }
+
+        impl Default for $name {
+            fn default() -> Self {
+                Self(uuid::Uuid::new_v4())
+            }
+        }
+        impl AsRef<$name> for $name {
+            fn as_ref(&self) -> &$name {
+                self
+            }
+        }
+
+        impl From<String> for $name {
+            fn from(data: String) -> Self {
+                $name(uuid::Uuid::parse_str(&data).unwrap_or_default())
+            }
+        }
+
+        impl From<Uuid> for $name {
+            fn from(data: Uuid) -> Self {
+                $name(data)
+            }
+        }
+
+        impl ToString for $name {
+            fn to_string(&self) -> String {
+                self.0.to_string()
+            }
+        }
+
+        impl From<&str> for $name {
+            fn from(data: &str) -> Self {
+                $name(uuid::Uuid::parse_str(data).unwrap_or_default())
+            }
+        }  
     }
 }
 
-impl ToString for UserId {
-    fn to_string(&self) -> String {
-        self.0.to_string()
-    }
-}
+generate_type!(UserId);
+generate_type!(SessionId);
+generate_type!(RoomId);
 
-#[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Clone, Hash, Ord, PartialOrd)]
-pub struct SessionId(Uuid);
-
-impl SessionId {
-    pub fn new() -> Self {
-        Self(uuid::Uuid::new_v4())
-    }
-    
-    pub fn from(uuid: Uuid) -> Self {
-        Self(uuid)
-    }
-    
-    pub fn get(&self) -> Uuid {
-        self.0
-    }
-}
-
-impl ToString for SessionId {
-    fn to_string(&self) -> String {
-        self.0.to_string()
-    }
-}
-
-#[derive(Default, MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash)]
-pub struct RoomId(Uuid);
-
-impl RoomId {
-    pub fn new() -> Self {
-        Self(uuid::Uuid::new_v4())
-    }
-    
-    pub fn from(uuid: Uuid) -> Self {
-        Self(uuid)
-    }
-    
-    pub fn get(&self) -> Uuid {
-        self.0
-    }
-}
-
-impl ToString for RoomId {
-    fn to_string(&self) -> String {
-        self.0.to_string()
-    }
-}
 
 #[derive(Debug, PartialEq, Eq, Serialize_repr, Deserialize_repr, Clone, Default)]
 #[repr(u8)]
@@ -164,12 +157,22 @@ impl RoomUserInfo {
 #[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CreateRoomAccessType {
     #[default]
-    Public,
-    Private,
-    Friend
+    Public = 0,
+    Private = 1,
+    Friend = 2
 }
 
-#[derive(Default, Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
+impl From<CreateRoomAccessType> for i32 {
+    fn from(item: CreateRoomAccessType) -> Self {
+        match item {
+            CreateRoomAccessType::Public => 0,
+            CreateRoomAccessType::Private => 1,
+            CreateRoomAccessType::Friend => 2,
+        }
+    }
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum RoomUserType {
     #[default]
