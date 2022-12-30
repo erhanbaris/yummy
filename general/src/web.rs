@@ -39,7 +39,7 @@ pub struct GenericAnswer<T> {
 }
 
 impl<T> GenericAnswer<T>
-where T: DeserializeOwned + Serialize {
+where T: Serialize {
     pub fn success(result: T) -> Self {
         Self {
             status: true,

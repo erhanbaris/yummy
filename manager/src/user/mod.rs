@@ -9,11 +9,11 @@ use database::model::UserUpdate;
 
 use actix::{Context, Actor, Handler};
 use actix_broker::BrokerSubscribe;
-use database::{Pool, DatabaseTrait, RowId};
+use database::{Pool, DatabaseTrait};
 
 use general::config::YummyConfig;
 use general::meta::{MetaType, UserMetaAccess};
-use general::model::{UserType, UserId};
+use general::model::UserType;
 use general::state::YummyState;
 use general::web::{GenericAnswer, Answer};
 
@@ -67,35 +67,37 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
 
         let mut connection = self.database.get()?;
 
-        let (user_id, access_type) = match model.query {
+        let mut execute = |connection, user_id, access_type| -> anyhow::Result<()> {
+            let user = DB::get_user_information(connection, user_id, access_type)?;
+            match user {
+                Some(mut user) => {
+                    user.online = self.states.is_user_online(user_id);
+                    model.socket.send(GenericAnswer::success(user).into());
+                    Ok(())
+                },
+                None => Err(anyhow::anyhow!(UserError::UserNotFound))
+            }
+        };
+
+        match model.query {
             GetUserInformationEnum::Me(user) => match user.deref() {
-                Some(user) => (user.user, UserMetaAccess::Me),
-                None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
+                Some(user) => execute(&mut connection, &user.user, UserMetaAccess::Me),
+                None => Err(anyhow::anyhow!(AuthError::TokenNotValid))
             },
-            GetUserInformationEnum::UserViaSystem(user) => (user, UserMetaAccess::System),
+            GetUserInformationEnum::UserViaSystem(user) => execute(&mut connection, &user, UserMetaAccess::System),
             GetUserInformationEnum::User { user, requester } => {
                 match requester.deref() {
                     Some(requester) => {
-                        let user_type = DB::get_user_type::<RowId>(&mut connection, requester.user.into())?;
-                        (user, match user_type {
+                        let user_type = DB::get_user_type(&mut connection, &requester.user)?;
+                        execute(&mut connection, &user, match user_type {
                             UserType::Admin => UserMetaAccess::Admin,
                             UserType::Mod => UserMetaAccess::Mod,
                             UserType::User => UserMetaAccess::User
                         })
                     },
-                    None => (user, UserMetaAccess::Anonymous)
+                    None => execute(&mut connection, &user, UserMetaAccess::Anonymous)
                 }
             }
-        };
-
-        let user = DB::get_user_information(&mut connection, user_id.into(), access_type)?;
-        match user {
-            Some(mut user) => {
-                user.online = self.states.is_user_online(UserId::from(user_id));
-                model.socket.send(GenericAnswer::success(user).into());
-                Ok(())
-            },
-            None => Err(anyhow::anyhow!(UserError::UserNotFound))
         }
     }
 }
@@ -107,8 +109,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
     #[macros::api(name="UpdateUser", socket=true)]
     fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
 
-        let user_id: RowId = match model.user.deref() {
-            Some(user) => user.user.into(),
+        let user_id = match model.user.deref() {
+            Some(user) => &user.user,
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
@@ -121,7 +123,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
         let mut updates = UserUpdate::default();
 
         let mut connection = self.database.get()?;
-        let user = match DB::get_user_information(&mut connection, user_id.clone(), UserMetaAccess::Admin)? { // todo: discart cloning
+        let user = match DB::get_user_information(&mut connection, user_id, UserMetaAccess::Admin)? {
             Some(user) => user,
             None => return Err(anyhow::anyhow!(UserError::UserNotFound))
         };
@@ -154,7 +156,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
                     0 => (),
                     n if n > config.max_user_meta => return Err(anyhow::anyhow!(UserError::MetaLimitOverToMaximum)),
                     _ => {
-                        let user_old_metas = DB::get_user_meta(connection, user_id.clone(), model.access_level)?; // todo: discart cloning
+                        let user_old_metas = DB::get_user_meta(connection, user_id, model.access_level)?;
                         let mut remove_list = Vec::new();
                         let mut insert_list = Vec::new();
 
@@ -175,7 +177,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
                         }
 
                         DB::remove_user_metas(connection, remove_list)?;
-                        DB::insert_user_metas(connection, user_id.clone(), insert_list)?; // todo: discart cloning
+                        DB::insert_user_metas(connection, user_id, insert_list)?;
                     }
                 };
             }

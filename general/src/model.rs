@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::fmt::Debug;
-
+use std::str::FromStr;
+use std::sync::Arc;
 
 use serde::de::DeserializeOwned;
 use parking_lot::Mutex;
@@ -11,6 +12,13 @@ use serde_repr::{Serialize_repr, Deserialize_repr};
 use actix::MessageResponse;
 use actix::prelude::Message;
 
+use diesel::deserialize::FromSql;
+use diesel::serialize::IsNull;
+use diesel::*;
+use diesel::serialize::{ToSql, Output};
+use diesel::sql_types::*;
+use diesel::expression::AsExpression;
+
 use uuid::Uuid;
 
 use crate::auth::UserJwt;
@@ -19,7 +27,9 @@ use crate::web::GenericAnswer;
 macro_rules! generate_type {
     ($name:ident) => {
         
-        #[derive(MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Copy, Clone, Hash, Ord, PartialOrd)] // todo: discart cloning
+        #[derive(MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Clone, Hash, Ord, PartialOrd)]
+        #[derive(AsExpression, FromSqlRow)]
+        #[diesel(sql_type = Text)]
         pub struct $name(pub Uuid);
 
         impl $name {
@@ -69,14 +79,36 @@ macro_rules! generate_type {
             fn from(data: &str) -> Self {
                 $name(uuid::Uuid::parse_str(data).unwrap_or_default())
             }
-        }  
+        }
+
+
+
+        impl ToSql<Text, diesel::sqlite::Sqlite> for $name where String: ToSql<Text, diesel::sqlite::Sqlite> {
+            fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, diesel::sqlite::Sqlite>) -> serialize::Result {
+                out.set_value(self.get().to_string());
+                Ok(IsNull::No)
+            }
+        }
+
+        impl FromSql<Text, diesel::sqlite::Sqlite> for $name where String: FromSql<Text, diesel::sqlite::Sqlite> {
+            fn from_sql(bytes: backend::RawValue<diesel::sqlite::Sqlite>) -> deserialize::Result<Self> {
+                let value = String::from_utf8(<Vec<u8>>::from_sql(bytes)?)?;
+                let row_id = Uuid::from_str(&value)?;
+                Ok($name(row_id))
+            }
+        }
     }
 }
 
 generate_type!(UserId);
+generate_type!(UserMetaId);
 generate_type!(SessionId);
 generate_type!(RoomId);
+generate_type!(RoomMetaId);
+generate_type!(RoomTagId);
+generate_type!(RoomUserId);
 
+impl Copy for RoomId { }
 
 #[derive(Debug, PartialEq, Eq, Serialize_repr, Deserialize_repr, Clone, Default)]
 #[repr(u8)]
@@ -132,7 +164,7 @@ pub struct RoomState {
 
 #[derive(Default, Debug, Eq)]
 pub struct RoomUserInfo {
-    pub user_id: UserId,
+    pub user_id: Arc<UserId>,
     pub room_user_type: RoomUserType
 }
 
@@ -149,7 +181,7 @@ impl PartialEq for RoomUserInfo {
 }
 
 impl RoomUserInfo {
-    pub fn new(user_id: UserId, room_user_type: RoomUserType) -> Self {
+    pub fn new(user_id: Arc<UserId>, room_user_type: RoomUserType) -> Self {
         Self { user_id, room_user_type }
     }
 }
@@ -197,5 +229,28 @@ impl WebsocketMessage {
     pub fn fail<T: Debug + Serialize + DeserializeOwned>(message: T) -> WebsocketMessage {
         let message = serde_json::to_string(&GenericAnswer::fail(message));
         WebsocketMessage(message.unwrap_or_default())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::model::UserId;
+
+    #[test]
+    fn user_id() -> anyhow::Result<()> {
+        let row_id = UserId::default();
+        assert!(!row_id.get().is_nil());
+
+        let row_id = UserId(uuid::Uuid::new_v4());
+        assert!(!row_id.get().is_nil());
+
+        let uuid_data = "85fc32fe-eaa5-46c3-b8e8-60bb658b5de7";
+        let row_id: UserId = uuid_data.to_string().into();
+
+        let new_uuid_data: String = row_id.to_string();
+        assert_eq!(&new_uuid_data, uuid_data);
+
+        Ok(())
     }
 }

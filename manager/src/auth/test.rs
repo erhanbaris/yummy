@@ -66,7 +66,7 @@ async fn login_user_via_email() -> anyhow::Result<()> {
     let auth = socket.clone().auth.lock().unwrap().clone();
     address.send(StartUserTimeout {
         session_id: auth.session.clone(),
-        user_id: auth.id
+        user_id: auth.id.deref().clone()
     }).await??;
 
     actix::clock::sleep(std::time::Duration::new(3, 0)).await;
@@ -139,7 +139,7 @@ async fn login_user_via_device_id() -> anyhow::Result<()> {
     
     address.send(StartUserTimeout {
         session_id: auth.session.clone(),
-        user_id: auth.id
+        user_id: auth.id.deref().clone()
     }).await??;
 
     actix::clock::sleep(std::time::Duration::new(3, 0)).await;
@@ -188,7 +188,7 @@ async fn login_user_via_custom_id() -> anyhow::Result<()> {
 
     address.send(StartUserTimeout {
         session_id: auth.session.clone(),
-        user_id: auth.id
+        user_id: auth.id.deref().clone()
     }).await??;
 
     actix::clock::sleep(std::time::Duration::new(3, 0)).await;

@@ -7,9 +7,9 @@ use actix_web::error::InternalError;
 use actix_web::web::{QueryConfig, JsonConfig};
 use actix_web::{web::Data, App};
 use database::model::UserInformationModel;
-use database::{create_database, create_connection, RowId};
+use database::{create_database, create_connection};
 use general::meta::UserMetaAccess;
-use general::model::UserType;
+use general::model::{UserType, UserId};
 use general::state::YummyState;
 use general::tls::load_temporary_rustls_config;
 use general::web::Answer;
@@ -34,7 +34,7 @@ use general::test::cleanup_redis;
 
 #[derive(Default, Clone, Debug, Deserialize)]
 pub struct UserInformationResponse {
-    pub id: RowId,
+    pub id: UserId,
     pub name: Option<String>,
     pub email: Option<String>,
     pub device_id: Option<String>,

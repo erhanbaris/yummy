@@ -43,9 +43,9 @@ impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
         }
     }
 
-    pub fn generate_token(&self, id: UserId, name: Option<String>, email: Option<String>, session: Option<SessionId>) -> anyhow::Result<(String, UserJwt)> {
+    pub fn generate_token(&self, id: &UserId, name: Option<String>, email: Option<String>, session: Option<SessionId>) -> anyhow::Result<(String, UserJwt)> {
         let user_jwt = UserJwt {
-            id,
+            id: Arc::new(id.clone()),
             session: session.unwrap_or_else(SessionId::new) ,
             name,
             email
@@ -80,22 +80,22 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
                     return Err(anyhow!(AuthError::EmailOrPasswordNotValid));
                 }
 
-                DB::update_last_login(&mut connection, user_info.user_id.clone())?; // todo: discart cloning
+                DB::update_last_login(&mut connection, &user_info.user_id)?;
                 (user_info.user_id, user_info.name)
             },
             (None, true) => (DB::create_user_via_email(&mut connection, &model.email, &model.password)?, None),
             _ => return Err(anyhow!(AuthError::EmailOrPasswordNotValid))
         };
         
-        if self.states.is_user_online(UserId::from(user_id.get())) {
+        if self.states.is_user_online(&user_id) {
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
 
-        let session_id = self.states.new_session(UserId::from(user_id.get()), name.clone());
-        let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, Some(model.email.to_string()), Some(session_id))?;
+        let session_id = self.states.new_session(&user_id, name.clone());
+        let (token, auth) = self.generate_token(&user_id, name, Some(model.email.to_string()), Some(session_id))?;
 
         self.issue_system_async(UserConnected {
-            user_id: UserId::from(user_id.get()),
+            user_id: Arc::new(user_id),
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
@@ -119,15 +119,15 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
             None => (DB::create_user_via_device_id(&mut connection, &model.id)?, None, None)
         };
         
-        if self.states.is_user_online(UserId::from(user_id.get())) {
+        if self.states.is_user_online(&user_id) {
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
         
-        let session_id = self.states.new_session(UserId::from(user_id.get()), name.clone());
-        let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))?;
+        let session_id = self.states.new_session(&user_id, name.clone());
+        let (token, auth) = self.generate_token(&user_id, name, email, Some(session_id))?;
 
         self.issue_system_async(UserConnected {
-            user_id: UserId::from(user_id.get()),
+            user_id: Arc::new(user_id),
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
@@ -151,15 +151,15 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
             None => (DB::create_user_via_custom_id(&mut connection, &model.id)?, None, None)
         };
         
-        if self.states.is_user_online(UserId::from(user_id.get())) {
+        if self.states.is_user_online(&user_id) {
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
         
-        let session_id = self.states.new_session(UserId::from(user_id.get()), name.clone());
-        let (token, auth) = self.generate_token(UserId::from(user_id.get()), name, email, Some(session_id))?;
+        let session_id = self.states.new_session(&user_id, name.clone());
+        let (token, auth) = self.generate_token(&user_id, name, email, Some(session_id))?;
 
         self.issue_system_async(UserConnected {
-            user_id: UserId::from(user_id.get()),
+            user_id: Arc::new(user_id),
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
@@ -192,7 +192,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
     fn handle(&mut self, model: RefreshTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
         match validate_auth(self.config.clone(), model.token) {
             Some(claims) => {
-                let (token, _) = self.generate_token(claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session))?;
+                let (token, _) = self.generate_token(&claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session))?;
                 model.socket.send(GenericAnswer::success(token).into());
                 Ok(())
             },
@@ -215,13 +215,13 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
                     }
                     auth.user.session
                 } else {
-                    self.states.new_session(auth.user.id, auth.user.name.clone())
+                    self.states.new_session(&auth.user.id, auth.user.name.clone())
                 };
 
-                let (token, auth) = self.generate_token(auth.user.id, None, None, Some(session_id))?;
+                let (token, auth) = self.generate_token(&auth.user.id, None, None, Some(session_id))?; 
 
                 self.issue_system_async(UserConnected {
-                    user_id: auth.id,
+                    user_id: auth.id.clone(),
                     socket: model.socket.clone()
                 });
                 model.socket.authenticated(auth);

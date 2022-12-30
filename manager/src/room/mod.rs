@@ -58,12 +58,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisc
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> {
-    pub fn disconnect_from_room(&mut self, room_id: RoomId, user_id: UserId) -> anyhow::Result<bool> {
+    pub fn disconnect_from_room(&mut self, room_id: &RoomId, user_id: &UserId) -> anyhow::Result<bool> {
         let room_removed = self.states.disconnect_from_room(room_id, user_id)?;
         let users = self.states.get_users_from_room(room_id)?;
         
         let mut connection = self.database.get()?;
-        DB::disconnect_from_room(&mut connection, room_id.into(), user_id.into())?;
+        DB::disconnect_from_room(&mut connection, room_id, user_id)?;
 
         let message = serde_json::to_string(&RoomResponse::UserDisconnectedFromRoom {
             user: user_id,
@@ -91,14 +91,14 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
         
         // Check user information
         let user_id = match user.deref() {
-            Some(user) => user.user,
+            Some(user) => &user.user,
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
         // User already joined to room
         if let Some(room_id) = self.states.get_user_room(user_id) {
             match disconnect_from_other_room {
-                true => self.disconnect_from_room(room_id, user_id)?,
+                true => self.disconnect_from_room(&room_id, user_id)?,
                 false => return Err(anyhow::anyhow!(RoomError::UserJoinedOtherRoom))
             };
         }
@@ -109,16 +109,15 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
             let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
             let room_id = DB::create_room(connection, name.clone(), access_type.clone(), max_user, &tags)?;
 
-            DB::join_to_room(connection, room_id.clone(), user_id.into(), RoomUserType::Owner)?; // todo: discart cloning
+            DB::join_to_room(connection, &room_id, user_id, RoomUserType::Owner)?;
 
             if let Some(meta) = meta {
-                DB::insert_metas(connection, room_id.clone(), meta.into_iter().map(|(key, value)| (key, value)).collect::<Vec<_>>())?; // todo: discart cloning
+                DB::insert_metas(connection, &room_id, meta.into_iter().map(|(key, value)| (key, value)).collect::<Vec<_>>())?;
             }
             
-            let room_id: RoomId = room_id.into();
-            self.states.create_room(room_id, insert_date, name, access_type, max_user, tags);
-            self.states.join_to_room(room_id, user_id, RoomUserType::Owner)?;
-            self.states.set_user_room(user_id, room_id);
+            self.states.create_room(&room_id, insert_date, name, access_type, max_user, tags);
+            self.states.join_to_room(&room_id, user_id, RoomUserType::Owner)?;
+            self.states.set_user_room(user_id, &room_id);
 
             anyhow::Ok(room_id)
         })?;
@@ -228,24 +227,24 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
     fn handle(&mut self, model: JoinToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
         // Check user information
         let user_id = match model.user.deref() {
-            Some(user) => user.user,
+            Some(user) => &user.user,
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
         if let Some(room_id) = self.states.get_user_room(user_id) {
             // User already joined to room, disconnect
-            self.disconnect_from_room(room_id, user_id)?;
+            self.disconnect_from_room(&room_id, user_id)?;
         }
 
-        let users = self.states.get_users_from_room(model.room)?;
-        self.states.join_to_room(model.room, user_id, model.room_user_type.clone())?; // todo: discart cloning
+        let users = self.states.get_users_from_room(&model.room)?;
+        self.states.join_to_room(&model.room, user_id, model.room_user_type.clone())?;
         
         let mut connection = self.database.get()?;
-        DB::join_to_room(&mut connection, model.room.into(), user_id.into(), model.room_user_type)?;
+        DB::join_to_room(&mut connection, &model.room, user_id, model.room_user_type)?;
 
         let message = serde_json::to_string(&RoomResponse::UserJoinedToRoom {
             user: user_id,
-            room: model.room
+            room: &model.room
         }).unwrap_or_default();
 
         for user_id in users.into_iter() {
@@ -255,7 +254,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
             });
         }
 
-        let infos = self.states.get_room_info(model.room, vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Users])?;
+        let infos = self.states.get_room_info(&model.room, vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Users])?;
         let room_name = infos.get_item(RoomInfoTypeVariant::RoomName).and_then(|p| try_unpack!(RoomInfoType::RoomName, p)).unwrap_or_default();
         let users = infos.get_item(RoomInfoTypeVariant::Users).and_then(|p| try_unpack!(RoomInfoType::Users, p)).unwrap_or_default();
         
@@ -272,13 +271,13 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<Disconne
     #[macros::api(name="DisconnectFromRoom", socket=true)]
     fn handle(&mut self, model: DisconnectFromRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
         let user_id = match model.user.deref() {
-            Some(user) => user.user,
+            Some(user) => &user.user,
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
         match self.states.get_user_room(user_id) {
             Some(room_id) => {
-                self.disconnect_from_room(room_id, user_id)?;
+                self.disconnect_from_room(&room_id, user_id)?;
                 model.socket.send(Answer::success().into());
             }
             None => return Err(anyhow::anyhow!(RoomError::RoomNotFound))
@@ -297,16 +296,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
         let MessageToRoomRequest { user, room, message, socket } = model;
 
         let sender_user_id = match user.deref() {
-            Some(user) => user.user,
+            Some(user) => &user.user,
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
-        match self.states.get_users_from_room(room) {
+        match self.states.get_users_from_room(&room) {
             Ok(users) => {
-                let message: String = RoomResponse::MessageFromRoom { user: sender_user_id, room: model.room, message: Arc::new(message) }.into();
+                let message: String = RoomResponse::MessageFromRoom { user: sender_user_id, room: &model.room, message: Arc::new(message) }.into();
 
                 for receiver_user in users.into_iter() {
-                    if receiver_user != sender_user_id {
+                    if receiver_user.as_ref() != sender_user_id {
                         self.issue_system_async(SendMessage {
                             message: message.clone(),
                             user_id: receiver_user

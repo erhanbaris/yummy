@@ -1,11 +1,11 @@
 use std::{fmt::Debug, sync::Arc, collections::HashMap};
 
 use actix::prelude::Message;
-use serde::{Serialize, Deserialize};
+use serde::Serialize;
 use thiserror::Error;
 use validator::Validate;
 
-use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::{RoomUserInformation, RoomInfoTypeVariant}, meta::{MetaType, RoomMetaAccess, UserMetaAccess}};
+use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::{RoomUserInformation, RoomInfoTypeVariant}, meta::{MetaType, RoomMetaAccess}};
 
 
 #[derive(Message, Validate, Debug)]
@@ -83,36 +83,30 @@ pub enum RoomError {
     MetaLimitOverToMaximum
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 #[serde(tag = "type")]
-pub enum RoomResponse {
+pub enum RoomResponse<'a> {
     Joined {
         room_name: Option<String>,
         users: Vec<RoomUserInformation>
     },
     UserJoinedToRoom {
-        user: UserId,
-        room: RoomId
+        user: &'a UserId,
+        room: &'a RoomId
     },
     UserDisconnectedFromRoom {
-        user: UserId,
-        room: RoomId
+        user: &'a UserId,
+        room: &'a RoomId
     },
     MessageFromRoom {
-        user: UserId,
-        room: RoomId,
+        user: &'a UserId,
+        room: &'a RoomId,
         message: Arc<String>
     }
 }
 
-impl From<RoomResponse> for String {
+impl<'a> From<RoomResponse<'a>> for String {
     fn from(source: RoomResponse) -> Self {
         serde_json::to_string(&source).unwrap_or_default()
-    }
-}
-
-impl From<String> for RoomResponse {
-    fn from(source: String) -> Self {
-        serde_json::from_str(&source).unwrap()
     }
 }

@@ -11,6 +11,6 @@ use general::model::UserId;
 #[derive(Message, Validate, Debug, Clone)]
 #[rtype(result = "()")]
 pub struct UserConnected {
-    pub user_id: UserId,
+    pub user_id: Arc<UserId>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }

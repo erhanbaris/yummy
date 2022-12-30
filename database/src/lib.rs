@@ -7,24 +7,14 @@ pub mod user;
 pub mod room;
 pub(crate) mod schema;
 
-use std::str::FromStr;
-
 use auth::AuthStoreTrait;
-use diesel::deserialize::FromSql;
-use diesel::serialize::IsNull;
 use diesel::r2d2::ConnectionManager;
 use diesel::SqliteConnection;
 use diesel::*;
 use diesel::Connection;
-use diesel::serialize::{ToSql, Output};
-use diesel::sql_types::*;
-use diesel::expression::AsExpression;
 
-use general::model::{SessionId, UserId, RoomId};
-use serde::{Deserialize, Serialize};
 use user::UserStoreTrait;
 use room::RoomStoreTrait;
-use uuid::Uuid;
 
 pub type ConnectionType = SqliteConnection;
 pub type Pool = r2d2::Pool<ConnectionManager<ConnectionType>>;
@@ -43,80 +33,6 @@ pub trait DatabaseTrait: AuthStoreTrait + UserStoreTrait + RoomStoreTrait + Size
 pub struct SqliteStore;
 
 impl DatabaseTrait for SqliteStore { }
-
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(AsExpression, Clone, FromSqlRow)]
-#[diesel(sql_type = Text)]
-pub struct RowId(pub uuid::Uuid);
-
-impl From<RowId> for RoomId {
-    fn from(row: RowId) -> Self {
-        RoomId(row.0)
-    }
-}
-
-impl From<SessionId> for RowId {
-    fn from(session: SessionId) -> Self {
-        RowId(session.0)
-    }
-}
-
-impl From<UserId> for RowId {
-    fn from(session: UserId) -> Self {
-        RowId(session.0)
-    }
-}
-
-impl From<RoomId> for RowId {
-    fn from(session: RoomId) -> Self {
-        RowId(session.0)
-    }
-}
-
-impl Default for RowId {
-    fn default() -> Self {
-        Self(uuid::Uuid::new_v4())
-    }
-}
-
-impl RowId {
-    pub fn get(&self) -> Uuid {
-        self.0
-    }
-}
-
-impl ToString for RowId {
-    fn to_string(&self) -> String {
-        self.0.to_string()
-    }
-}
-
-impl From<Uuid> for RowId {
-    fn from(id: Uuid) -> Self {
-        RowId(id)
-    }
-}
-
-impl ToSql<Text, diesel::sqlite::Sqlite> for RowId where String: ToSql<Text, diesel::sqlite::Sqlite> {
-    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, diesel::sqlite::Sqlite>) -> serialize::Result {
-        out.set_value(self.get().to_string());
-        Ok(IsNull::No)
-    }
-}
-
-impl FromSql<Text, diesel::sqlite::Sqlite> for RowId where String: FromSql<Text, diesel::sqlite::Sqlite> {
-    fn from_sql(bytes: backend::RawValue<diesel::sqlite::Sqlite>) -> deserialize::Result<Self> {
-        let value = String::from_utf8(<Vec<u8>>::from_sql(bytes)?)?;
-        let row_id = Uuid::from_str(&value)?;
-        Ok(RowId(row_id))
-    }
-}
-
-impl From<String> for RowId {
-    fn from(data: String) -> Self {
-        RowId(Uuid::from_str(&data).unwrap_or_default())
-    }
-}
 
 pub fn create_connection(database_url: &str) -> anyhow::Result<Pool> {
     Ok(r2d2::Pool::builder().build(ConnectionManager::<ConnectionType>::new(database_url))?)
@@ -197,26 +113,4 @@ pub fn create_database(connection: &mut PooledConnection) -> anyhow::Result<()> 
     )
     .execute(connection)?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::RowId;
-
-    #[test]
-    fn row_id() -> anyhow::Result<()> {
-        let row_id = RowId::default();
-        assert!(!row_id.get().is_nil());
-
-        let row_id = RowId(uuid::Uuid::new_v4());
-        assert!(!row_id.get().is_nil());
-
-        let uuid_data = "85fc32fe-eaa5-46c3-b8e8-60bb658b5de7";
-        let row_id: RowId = uuid_data.to_string().into();
-
-        let new_uuid_data: String = row_id.to_string();
-        assert_eq!(&new_uuid_data, uuid_data);
-
-        Ok(())
-    }
 }

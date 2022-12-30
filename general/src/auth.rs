@@ -16,25 +16,32 @@ use crate::{model::{UserId, SessionId}, config::YummyConfig};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UserJwt {
-    pub id: UserId,
+    pub id: Arc<UserId>,
     pub session: SessionId,
     pub name: Option<String>,
     pub email: Option<String>
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Claims {
+#[derive(Debug, Serialize)]
+pub struct ClaimsSerialize<'a> {
+    pub exp: usize,
+    pub user: &'a UserJwt,
+}
+
+
+#[derive(Debug, Deserialize)]
+pub struct ClaimsDeserialize {
     pub exp: usize,
     pub user: UserJwt,
 }
 
-pub fn generate_auth<T: Borrow<UserJwt>>(config: Arc<YummyConfig>, user: T) -> Option<String> {
-    let user = user.borrow();
+pub fn generate_auth<T: Borrow<UserJwt>>(config: Arc<YummyConfig>, token: T) -> Option<String> {
+    let token = token.borrow();
     let iat = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or(Duration::from_secs(0));
     let exp = iat + config.token_lifetime;
-    let claims = Claims {
+    let claims = ClaimsSerialize {
         exp: exp.as_secs() as usize,
-        user: user.clone(),
+        user: token,
     };
 
     match encode(&Header::default(), &claims, &EncodingKey::from_secret(config.salt_key.as_ref())) {
@@ -43,11 +50,11 @@ pub fn generate_auth<T: Borrow<UserJwt>>(config: Arc<YummyConfig>, user: T) -> O
     }
 }
 
-pub fn validate_auth<T: Borrow<str>>(config: Arc<YummyConfig>, token: T) -> Option<Claims> {
+pub fn validate_auth<T: Borrow<str>>(config: Arc<YummyConfig>, token: T) -> Option<ClaimsDeserialize> {
     let token = token.borrow();
     let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as usize).unwrap_or_default();
     let validation = Validation::default();
-    match decode::<Claims>(token, &DecodingKey::from_secret(config.salt_key.as_ref()), &validation) {
+    match decode::<ClaimsDeserialize>(token, &DecodingKey::from_secret(config.salt_key.as_ref()), &validation) {
         Ok(c) => match c.claims.exp > now {
             true =>  Some(c.claims),
             false => None

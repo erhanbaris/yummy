@@ -6,6 +6,7 @@ pub mod model;
 mod test;
 
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::sync::Arc;
 
 use actix::Handler;
@@ -105,7 +106,8 @@ impl Handler<UserConnected> for ConnectionManager {
 
     #[tracing::instrument(name="UserConnected", skip(self, _ctx))]
     fn handle(&mut self, model: UserConnected, _ctx: &mut Self::Context) -> Self::Result {
-        self.users.insert(model.user_id, model.socket);
+        let UserConnected{ user_id, socket } = model;
+        self.users.insert(user_id.deref().clone(), socket);
     }
 }
 
@@ -125,11 +127,11 @@ impl Handler<SendMessage> for ConnectionManager {
     #[tracing::instrument(name="SendMessage", skip(self, _ctx))]
     fn handle(&mut self, model: SendMessage, _ctx: &mut Self::Context) -> Self::Result {
         #[allow(clippy::single_match)]
-        match self.users.get(&model.user_id) {
+        match self.users.get(model.user_id.as_ref()) {
             Some(socket) => socket.send(model.message),
             None => {
                 #[cfg(feature = "stateless")]
-                match self.states.get_user_location(model.user_id) {
+                match self.states.get_user_location(model.user_id.clone()) {
                     Some(server_name) => {
                         if let Ok(mut redis) = self.redis.get() {
                             if let Ok(message) = serde_json::to_string(&model) {

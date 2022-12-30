@@ -40,7 +40,7 @@ macro_rules! email_auth {
 
             let user_jwt = validate_auth($config, token).unwrap().user;
             Arc::new(Some(UserAuth {
-                user: user_jwt.id,
+                user: user_jwt.id.deref().clone(),
                 session: user_jwt.session
             }))
         }
@@ -87,7 +87,7 @@ async fn get_private_user_2() -> anyhow::Result<()> {
 
     let user = validate_auth(config, token).unwrap();
     user_manager.send(GetUserInformation::me(Arc::new(Some(UserAuth {
-        user: user.user.id,
+        user: user.user.id.deref().clone(),
         session: user.user.session
     })), socket.clone())).await??;
 
@@ -123,7 +123,7 @@ async fn fail_update_get_user_2() -> anyhow::Result<()> {
     let user = validate_auth(config, token).unwrap();
     let result = user_manager.send(UpdateUser {
         user: Arc::new(Some(UserAuth {
-            user: user.user.id,
+            user: user.user.id.deref().clone(),
             session: user.user.session
         })),
         socket,
@@ -149,7 +149,7 @@ async fn fail_update_get_user_3() -> anyhow::Result<()> {
     let user = validate_auth(config, token).unwrap();
     let result = user_manager.send(UpdateUser {
         user: Arc::new(Some(UserAuth {
-            user: user.user.id,
+            user: user.user.id.deref().clone(),
             session: user.user.session
         })),
         socket,
@@ -181,7 +181,7 @@ async fn fail_update_get_user_4() -> anyhow::Result<()> {
     let user = validate_auth(config, token).unwrap();
     let result = user_manager.send(UpdateUser {
         user: Arc::new(Some(UserAuth {
-            user: user.user.id,
+            user: user.user.id.deref().clone(),
             session: user.user.session
         })),
         socket,
@@ -211,7 +211,7 @@ async fn fail_update_password() -> anyhow::Result<()> {
 
     let user_jwt = validate_auth(config, token).unwrap().user;
     let user_auth = Arc::new(Some(UserAuth {
-        user: user_jwt.id,
+        user: user_jwt.id.deref().clone(),
         session: user_jwt.session
     }));
     
@@ -246,7 +246,7 @@ async fn fail_update_email() -> anyhow::Result<()> {
 
     let user_jwt = validate_auth(config, token).unwrap().user;
     let user_auth = Arc::new(Some(UserAuth {
-        user: user_jwt.id,
+        user: user_jwt.id.deref().clone(),
         session: user_jwt.session
     }));
 
@@ -281,7 +281,7 @@ async fn update_user_1() -> anyhow::Result<()> {
 
     let user_jwt = validate_auth(config, token).unwrap().user;
     let user_auth = Arc::new(Some(UserAuth {
-        user: user_jwt.id,
+        user: user_jwt.id.deref().clone(),
         session: user_jwt.session
     }));
 
@@ -327,7 +327,7 @@ async fn update_user_2() -> anyhow::Result<()> {
 
     let user_jwt = validate_auth(config, token).unwrap().user;
     let user_auth = Arc::new(Some(UserAuth {
-        user: user_jwt.id,
+        user: user_jwt.id.deref().clone(),
         session: user_jwt.session
     }));
 
@@ -396,7 +396,7 @@ async fn update_user_3() -> anyhow::Result<()> {
 
     let user_jwt = validate_auth(config, token).unwrap().user;
     let user_auth = Arc::new(Some(UserAuth {
-        user: user_jwt.id,
+        user: user_jwt.id.deref().clone(),
         session: user_jwt.session
     }));
 

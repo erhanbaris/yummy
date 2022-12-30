@@ -1,17 +1,23 @@
 use std::collections::HashMap;
 
-use crate::{schema::user, schema::user_meta, schema::room, schema::room_tag, schema::room_user, schema::room_meta, RowId};
+use crate::{schema::user, schema::user_meta, schema::room, schema::room_tag, schema::room_user, schema::room_meta};
 use diesel::*;
 use general::meta::MetaType;
 use general::meta::UserMetaAccess;
+use general::model::RoomId;
+use general::model::RoomMetaId;
+use general::model::RoomTagId;
+use general::model::RoomUserId;
+use general::model::UserId;
+use general::model::UserMetaId;
 use general::model::UserType;
 use serde::Serialize;
 use serde::Deserialize;
 
-#[derive(Default, Debug, Insertable)]
+#[derive(Debug, Insertable)]
 #[diesel(table_name = user)]
 pub struct UserInsert<'a> {
-    pub id: RowId,
+    pub id: &'a UserId,
     pub name: Option<&'a str>,
     pub email: Option<&'a str>,
     pub device_id: Option<&'a str>,
@@ -25,8 +31,8 @@ pub struct UserInsert<'a> {
 #[derive(Debug, Insertable)]
 #[diesel(table_name = user_meta)]
 pub struct UserMetaInsert<'a> {
-    pub id: RowId,
-    pub user_id: &'a RowId,
+    pub id: UserMetaId,
+    pub user_id: &'a UserId,
     pub key: String,
     pub value: String,
     pub meta_type: i32,
@@ -37,7 +43,7 @@ pub struct UserMetaInsert<'a> {
 #[derive(Default, Debug, Insertable)]
 #[diesel(table_name = room)]
 pub struct RoomInsert {
-    pub id: RowId,
+    pub id: RoomId,
     pub name: Option<String>,
     pub access_type: i32,
     pub max_user: i32,
@@ -52,21 +58,21 @@ pub struct RoomUpdate {
     pub access_type: Option<i32>
 }
 
-#[derive(Default, Debug, Insertable)]
+#[derive(Debug, Insertable)]
 #[diesel(table_name = room_tag)]
 pub struct RoomTagInsert<'a> {
-    pub id: RowId,
-    pub room_id: RowId,
+    pub id: RoomTagId,
+    pub room_id: &'a RoomId,
     pub tag: &'a str,
     pub insert_date: i32,
 }
 
-#[derive(Default, Debug, Insertable)]
+#[derive(Debug, Insertable)]
 #[diesel(table_name = room_user)]
-pub struct RoomUserInsert {
-    pub id: RowId,
-    pub room_id: RowId,
-    pub user_id: RowId,
+pub struct RoomUserInsert<'a> {
+    pub id: RoomUserId,
+    pub room_id: &'a RoomId,
+    pub user_id: &'a UserId,
     pub room_user_type: i32,
     pub insert_date: i32,
 }
@@ -74,8 +80,8 @@ pub struct RoomUserInsert {
 #[derive(Debug, Insertable)]
 #[diesel(table_name = room_meta)]
 pub struct RoomMetaInsert<'a> {
-    pub id: RowId,
-    pub room_id: &'a RowId,
+    pub id: UserMetaId,
+    pub room_id: &'a RoomId,
     pub key: String,
     pub value: String,
     pub meta_type: i32,
@@ -86,7 +92,7 @@ pub struct RoomMetaInsert<'a> {
 #[derive(Default, Clone, Debug, Queryable, Serialize, Deserialize, PartialEq, Eq)]
 #[diesel(table_name = room_meta)]
 pub struct RoomMetaModel {
-    pub id: RowId,
+    pub id: RoomMetaId,
     pub key: String,
     pub value: String,
     pub meta_type: i32,
@@ -107,7 +113,7 @@ pub struct UserUpdate {
 #[derive(Default, Clone, Debug, Queryable, Serialize, Deserialize, PartialEq)]
 #[diesel(table_name = user)]
 pub struct UserInformationModel {
-    pub id: RowId,
+    pub id: UserId,
     pub name: Option<String>,
     pub email: Option<String>,
     pub device_id: Option<String>,
@@ -122,7 +128,7 @@ pub struct UserInformationModel {
 #[derive(Default, Clone, Debug, Queryable, Serialize, Deserialize, PartialEq, Eq)]
 #[diesel(table_name = user_meta)]
 pub struct UserMetaModel {
-    pub id: RowId,
+    pub id: UserMetaId,
     pub key: String,
     pub value: String,
     pub meta_type: i32,
@@ -130,7 +136,7 @@ pub struct UserMetaModel {
 }
 
 pub struct LoginInfo {
-    pub user_id: RowId,
+    pub user_id: UserId,
     pub name: Option<String>,
     pub email: Option<String>,
     pub password: Option<String>

@@ -19,6 +19,7 @@ use general::web::GenericAnswer;
 use manager::auth::model::StartUserTimeout;
 use manager::room::RoomManager;
 use manager::user::UserManager;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -129,7 +130,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Actor for GameWebsocket<DB> {
         if let Some(auth) = self.user_auth.as_ref() {
             self.auth_manager.do_send(StartUserTimeout {
                 session_id: auth.session.clone(),
-                user_id: auth.user
+                user_id: auth.user.clone()
             });
         }
 
@@ -185,7 +186,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Handler<UserAuthenticated> fo
     fn handle(&mut self, model: UserAuthenticated, _ctx: &mut Self::Context) {
         log::info!("AUTH:{:?}", model.0);
         self.user_auth = Arc::new(Some(UserAuth {
-            user: model.0.id,
+            user: model.0.id.deref().clone(),
             session: model.0.session
         }));
     }

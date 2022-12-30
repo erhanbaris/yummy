@@ -11,6 +11,7 @@ homepage.workspace = true
 [dependencies]
 actix.workspace = true
 actix-web.workspace = true
+diesel.workspace = true
 
 thiserror.workspace = true
 anyhow.workspace = true

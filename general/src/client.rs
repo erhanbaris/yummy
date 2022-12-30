@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use actix::Recipient;
 
@@ -23,13 +23,13 @@ impl ClientTrait for EmptyClient {
 }
 
 #[derive(Debug)]
-pub struct StatelessClient(UserId, Recipient<SendMessage>);
+pub struct StatelessClient(Arc<UserId>, Recipient<SendMessage>);
 
 impl ClientTrait for StatelessClient {
     fn send(&self, message: String) {
         println!("STATELESS MESSAGE SENT");
         self.1.do_send(SendMessage {
-            user_id: self.0,
+            user_id: self.0.clone(),
             message
         })
     }

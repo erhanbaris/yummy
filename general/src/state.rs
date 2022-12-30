@@ -31,19 +31,19 @@ macro_rules! redis_result {
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct RoomUserInformation {
-    pub user_id: UserId,
+    pub user_id: Arc<UserId>,
     pub name: Option<String>
 }
 
 #[derive(Message, Debug, Clone, Serialize, Deserialize)]
 #[rtype(result = "()")]
 pub struct SendMessage {
-    pub user_id: UserId,
+    pub user_id: Arc<UserId>,
     pub message: String
 }
 
 impl SendMessage {
-    pub fn create<T:  Borrow<T> + Debug + Serialize + DeserializeOwned>(user_id: UserId, message: T) -> SendMessage {
+    pub fn create<T:  Borrow<T> + Debug + Serialize + DeserializeOwned>(user_id: Arc<UserId>, message: T) -> SendMessage {
         let message = serde_json::to_string(message.borrow());
         Self { user_id, message: message.unwrap_or_default() }
     }
@@ -157,7 +157,7 @@ impl YummyState {
     /* STATEFULL functions */
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="is_user_online", skip(self))]
-    pub fn is_user_online<T: Borrow<UserId> + std::fmt::Debug>(&mut self, user_id: T) -> bool {
+    pub fn is_user_online(&mut self, user_id: &UserId) -> bool {
         match self.redis.get() {
             Ok(mut redis) => redis_result!(redis.sismember(format!("{}online-users", self.config.redis_prefix), user_id.borrow().to_string())),
             Err(_) => false
@@ -167,30 +167,32 @@ impl YummyState {
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="is_session_online", skip(self))]
-    pub fn is_session_online<T: Borrow<SessionId> + std::fmt::Debug>(&mut self, session_id: T) -> bool {
+    pub fn is_session_online(&mut self, session_id: &SessionId) -> bool {
         match self.redis.get() {
-            Ok(mut redis) => redis_result!(redis.hexists::<_, _, bool>(format!("{}session-user", self.config.redis_prefix), session_id.borrow().to_string())),
+            Ok(mut redis) => redis_result!(redis.hexists::<_, _, bool>(format!("{}session-user", self.config.redis_prefix), session_id.to_string())),
             Err(_) => false
         }
     }
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="new_session", skip(self))]
-    pub fn new_session(&mut self, user_id: UserId, name: Option<String>) -> SessionId {
+    pub fn new_session(&mut self, user_id: &UserId, name: Option<String>) -> SessionId {
         let session_id = SessionId::new();
         if let Ok(mut redis) = self.redis.get() {
-            
+            let user_id = user_id.to_string();
+            let session_id_str = session_id.to_string();
+        
             redis_result!(redis::pipe()
                 .atomic()
                 .cmd("SADD").arg(format!("{}online-users", self.config.redis_prefix))
-                    .arg(user_id.borrow().to_string())
+                    .arg(&user_id)
                     .ignore()
                 
                 .cmd("HSET").arg(format!("{}session-user", self.config.redis_prefix))
-                    .arg(session_id.to_string()).arg(user_id.borrow().to_string())
+                    .arg(&session_id_str).arg(&user_id)
                     .ignore()
                 
-                .cmd("HSET").arg(format!("{}users:{}", self.config.redis_prefix, user_id.to_string()))
+                .cmd("HSET").arg(format!("{}users:{}", self.config.redis_prefix, &user_id))
                     .arg("room").arg("")
                     .arg("name").arg(name.unwrap_or_default())
                     .arg("loc").arg(&self.config.server_name)
@@ -202,12 +204,11 @@ impl YummyState {
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="close_session", skip(self))]
-    pub fn close_session<T: Borrow<SessionId> + std::fmt::Debug>(&mut self, session_id: T) -> bool {
-        use uuid::Uuid;
-
+    pub fn close_session(&mut self, session_id: &SessionId) -> bool {
+        
         match self.redis.get() {
             Ok(mut redis) => {
-                let user_id = redis_result!(redis.hget::<_, _, String>(format!("{}session-user", self.config.redis_prefix), session_id.borrow().to_string()));
+                let user_id = redis_result!(redis.hget::<_, _, String>(format!("{}session-user", self.config.redis_prefix), session_id.to_string()));
 
                 let (room_id, remove_result) = redis_result!(redis::pipe()
                     .atomic()
@@ -226,7 +227,7 @@ impl YummyState {
                     .query::<(Option<String>, i32)>(&mut redis));
 
                 if let Some(room_id) = room_id {
-                    self.disconnect_from_room(RoomId::from(Uuid::parse_str(&room_id).unwrap_or_default()), UserId::from(Uuid::parse_str(&user_id).unwrap_or_default())).unwrap_or_default();
+                    self.disconnect_from_room(&room_id.into(), &user_id.into()).unwrap_or_default();
                 }
 
                 remove_result > 0
@@ -237,11 +238,11 @@ impl YummyState {
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="get_user_room", skip(self))]
-    pub fn get_user_room<T: Borrow<UserId> + std::fmt::Debug>(&mut self, user_id: T) -> Option<RoomId> {
+    pub fn get_user_room(&mut self, user_id: &UserId) -> Option<RoomId> {
         use std::str::FromStr;
         println!("{}users:{}", self.config.redis_prefix, user_id.borrow().to_string());
         let result = match self.redis.get() {
-            Ok(mut redis) => redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id.borrow().to_string()), "room")),
+            Ok(mut redis) => redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id.to_string()), "room")),
             Err(_) => return None
         };
         
@@ -253,15 +254,15 @@ impl YummyState {
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="set_user_room", skip(self))]
-    pub fn set_user_room<T: Borrow<UserId> + std::fmt::Debug>(&mut self, user_id: T, room_id: RoomId) {
+    pub fn set_user_room(&mut self, user_id: &UserId, room_id: &RoomId) {
         if let Ok(mut redis) = self.redis.get() {
-            redis_result!(redis.hset::<_, _, _, i32>(format!("{}users:{}", self.config.redis_prefix, user_id.borrow().to_string()), "room", room_id.to_string()));
+            redis_result!(redis.hset::<_, _, _, i32>(format!("{}users:{}", self.config.redis_prefix, user_id.to_string()), "room", room_id.to_string()));
         }
     }
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="create_room", skip(self))]
-    pub fn create_room(&self, room_id: RoomId, insert_date: i32, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: Vec<String>) {
+    pub fn create_room(&self, room_id: &RoomId, insert_date: i32, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: Vec<String>) {
         if let Ok(mut redis) = self.redis.get() {
             let room_id = room_id.to_string();
             let access_type = match access_type {
@@ -296,7 +297,7 @@ impl YummyState {
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="join_to_room", skip(self))]
-    pub fn join_to_room(&mut self, room_id: RoomId, user_id: UserId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
+    pub fn join_to_room(&mut self, room_id: &RoomId, user_id: &UserId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
 
         let room_info_key = format!("{}room:{}", self.config.redis_prefix, room_id.get());
         match self.redis.get() {
@@ -341,7 +342,7 @@ impl YummyState {
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="disconnect_from_room", skip(self))]
-    pub fn disconnect_from_room(&mut self, room_id: RoomId, user_id: UserId) -> Result<bool, YummyStateError> {
+    pub fn disconnect_from_room(&mut self, room_id: &RoomId, user_id: &UserId) -> Result<bool, YummyStateError> {
         let room_removed: bool = match self.redis.get() {
             Ok(mut redis) => {
                 let room_id = room_id.to_string();
@@ -363,7 +364,7 @@ impl YummyState {
                         .cmd("DEL").arg(room_users_key).ignore()
                         .cmd("DEL").arg(room_info_key).ignore()
                         .cmd("SMEMBERS").arg(format!("{}room-tag:{}", self.config.redis_prefix, &room_id))
-                        .cmd("DEL").arg(format!("{}room-tag:{}", self.config.redis_prefix, &room_id)).ignore()
+                        .cmd("DEL").arg(format!("{}room-tag:{}", self.config.redis_prefix, room_id)).ignore()
                         .query::<(Vec<String>,)>(&mut redis));
 
                     // Remove tags
@@ -386,7 +387,7 @@ impl YummyState {
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="get_users_from_room", skip(self))]
-    pub fn get_users_from_room(&mut self, room_id: RoomId) -> Result<Vec<UserId>, YummyStateError> {
+    pub fn get_users_from_room(&mut self, room_id: &RoomId) -> Result<Vec<Arc<UserId>>, YummyStateError> {
         use std::str::FromStr;
         let users: std::collections::HashSet<String> = match self.redis.get() {
             Ok(mut redis) => match redis_result!(redis.exists::<_, bool>(&format!("{}room-users:{}", self.config.redis_prefix, room_id.get()))) {
@@ -395,14 +396,14 @@ impl YummyState {
             },
             Err(_) => HashSet::default()
         };
-        Ok(users.into_iter().map(|item| UserId::from(uuid::Uuid::from_str(&item[..]).unwrap_or_default())).collect::<Vec<UserId>>())
+        Ok(users.into_iter().map(|item| Arc::new(UserId::from(uuid::Uuid::from_str(&item[..]).unwrap_or_default()))).collect::<Vec<Arc<UserId>>>())
     }
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="get_user_location", skip(self))]
-    pub fn get_user_location(&self, user_id: UserId) -> Option<String> {
+    pub fn get_user_location(&self, user_id: Arc<UserId>) -> Option<String> {
         match self.redis.get() {
-            Ok(mut redis) => match redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id.to_string()), "loc") {
+            Ok(mut redis) => match redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id.as_ref().to_string()), "loc") {
                 Ok(result) => Some(result),
                 Err(_) => None
             },
@@ -412,7 +413,7 @@ impl YummyState {
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="get_room_info", skip(self))]
-    pub fn get_room_info(&self, room_id: RoomId, query: Vec<RoomInfoTypeVariant>) -> Result<RoomInfoTypeCollection, YummyStateError> {
+    pub fn get_room_info(&self, room_id: &RoomId, query: Vec<RoomInfoTypeVariant>) -> Result<RoomInfoTypeCollection, YummyStateError> {
         use redis::FromRedisValue;
 
         let mut result = RoomInfoTypeCollection::default();
@@ -454,7 +455,7 @@ impl YummyState {
                                 let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id), "name"));
                                 user_infos.push(RoomUserInformation {
                                     name: if name.is_empty() { None } else { Some(name) },
-                                    user_id: UserId::from(uuid::Uuid::parse_str(user_id).unwrap_or_default())
+                                    user_id: Arc::new(UserId::from(uuid::Uuid::parse_str(user_id).unwrap_or_default()))
                                 })
                             }
                             result.items.push(RoomInfoType::Users(user_infos));
@@ -542,7 +543,7 @@ impl YummyState {
                                     let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id), "name"));
                                     user_infos.push(RoomUserInformation {
                                         name: if name.is_empty() { None } else { Some(name) },
-                                        user_id: UserId::from(uuid::Uuid::parse_str(user_id).unwrap_or_default())
+                                        user_id: Arc::new(UserId::from(uuid::Uuid::parse_str(user_id).unwrap_or_default()))
                                     })
                                 }
                                 room_info.items.push(RoomInfoType::Users(user_infos));
@@ -575,8 +576,8 @@ impl YummyState {
     /* STATEFULL functions */
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="is_user_online", skip(self))]
-    pub fn is_user_online<T: Borrow<UserId> + std::fmt::Debug>(&self, user_id: T) -> bool {
-        self.user.lock().contains_key(user_id.borrow())
+    pub fn is_user_online(&self, user_id: &UserId) -> bool {
+        self.user.lock().contains_key(user_id)
     }
     
     #[cfg(not(feature = "stateless"))]
@@ -587,19 +588,19 @@ impl YummyState {
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="new_session", skip(self))]
-    pub fn new_session(&self, user_id: UserId, name: Option<String>) -> SessionId {
+    pub fn new_session(&self, user_id: &UserId, name: Option<String>) -> SessionId {
         use std::cell::Cell;
 
         let session_id = SessionId::new();
-        self.session_to_user.lock().insert(session_id.clone(), user_id);
-        self.user.lock().insert(user_id, crate::model::UserState { user_id, name, session: session_id.clone(), room: Cell::new(None) });
+        self.session_to_user.lock().insert(session_id.clone(), user_id.clone()); // todo: discart cloning
+        self.user.lock().insert(user_id.clone(), crate::model::UserState { user_id: user_id.clone(), name, session: session_id.clone(), room: Cell::new(None) }); // todo: discart cloning
         session_id
     }
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="close_session", skip(self))]
-    pub fn close_session<T: Borrow<SessionId> + std::fmt::Debug>(&self, session_id: T) -> bool {
-        let removed = self.session_to_user.lock().remove(session_id.borrow());
+    pub fn close_session(&self, session_id: &SessionId) -> bool {
+        let removed = self.session_to_user.lock().remove(session_id);
 
         match removed {
             Some(removed) => self.user.lock().remove(&removed).map(|_| true).unwrap_or_default(),
@@ -609,27 +610,27 @@ impl YummyState {
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="get_user_room", skip(self))]
-    pub fn get_user_room<T: Borrow<UserId> + std::fmt::Debug>(&self, user_id: T) -> Option<RoomId> {
+    pub fn get_user_room(&self, user_id: &UserId) -> Option<RoomId> {
         self.user.lock().get(user_id.borrow()).and_then(|user| user.room.get())
     }
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="set_user_room", skip(self))]
-    pub fn set_user_room<T: Borrow<UserId> + std::fmt::Debug>(&self, user_id: T, room_id: RoomId){
-        if let Some(user) = self.user.lock().get(user_id.borrow()) {
-            user.room.set(Some(room_id));
+    pub fn set_user_room(&self, user_id: &UserId, room_id: &RoomId){
+        if let Some(user) = self.user.lock().get(user_id) {
+            user.room.set(Some(*room_id));
         }
     }
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="create_room", skip(self))]
-    pub fn create_room(&self, room_id: RoomId, insert_date: i32, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: Vec<String>) {
-        self.room.lock().insert(room_id, crate::model::RoomState { max_user, room_id, insert_date, users: parking_lot::Mutex::new(HashSet::new()), tags, name, access_type });
+    pub fn create_room(&self, room_id: &RoomId, insert_date: i32, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: Vec<String>) {
+        self.room.lock().insert(*room_id, crate::model::RoomState { max_user, room_id: *room_id, insert_date, users: parking_lot::Mutex::new(HashSet::new()), tags, name, access_type });
     }
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="join_to_room", skip(self))]
-    pub fn join_to_room(&self, room_id: RoomId, user_id: UserId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
+    pub fn join_to_room(&self, room_id: &RoomId, user_id: &UserId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
         use crate::model::RoomUserInfo;
         match self.room.lock().get_mut(room_id.borrow()) {
             Some(room) => {
@@ -640,7 +641,7 @@ impl YummyState {
                 if room.max_user == 0 || room.max_user > users_len {
 
                     // User alread in the room
-                    if !users.insert(RoomUserInfo::new(user_id, user_type)) {
+                    if !users.insert(RoomUserInfo::new(Arc::new(user_id.clone()), user_type)) {
                         return Err(YummyStateError::UserAlreadInRoom);
                     }
                     Ok(())
@@ -654,7 +655,7 @@ impl YummyState {
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="join_to_room", skip(self))]
-    pub fn disconnect_from_room(&self, room_id: RoomId, user_id: UserId) -> Result<bool, YummyStateError> {
+    pub fn disconnect_from_room(&self, room_id: &RoomId, user_id: &UserId) -> Result<bool, YummyStateError> {
         use crate::model::{RoomUserType, RoomUserInfo};
 
         let mut rooms = self.room.lock();
@@ -663,7 +664,7 @@ impl YummyState {
                 let mut users = room.users.lock();
 
                 let user_removed = users.remove(&RoomUserInfo {
-                    user_id,
+                    user_id: Arc::new(user_id.clone()),
                     room_user_type: RoomUserType::default() // Hash only consider user_id, so room_user_type not important in this case
                 });
 
@@ -684,24 +685,24 @@ impl YummyState {
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="get_users_from_room", skip(self))]
-    pub fn get_users_from_room(&self, room_id: RoomId) -> Result<Vec<UserId>, YummyStateError> {
-        match self.room.lock().get_mut(room_id.borrow()) {
-            Some(room) => Ok(room.users.lock().iter().map(|item| item.user_id).collect::<Vec<_>>()),
+    pub fn get_users_from_room(&self, room_id: &RoomId) -> Result<Vec<Arc<UserId>>, YummyStateError> {
+        match self.room.lock().get_mut(room_id) {
+            Some(room) => Ok(room.users.lock().iter().map(|item| item.user_id.clone()).collect::<Vec<_>>()), // todo: discart cloning
             None => Err(YummyStateError::RoomNotFound)
         }
     }
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="get_user_location", skip(self))]
-    pub fn get_user_location(&self, user_id: UserId) -> Option<String> {
+    pub fn get_user_location(&self, user_id: &UserId) -> Option<String> {
         None
     }
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="get_room_info", skip(self))]
-    pub fn get_room_info(&self, room_id: RoomId, query: Vec<RoomInfoTypeVariant>) -> Result<RoomInfoTypeCollection, YummyStateError> {
+    pub fn get_room_info(&self, room_id: &RoomId, query: Vec<RoomInfoTypeVariant>) -> Result<RoomInfoTypeCollection, YummyStateError> {
         let mut result = RoomInfoTypeCollection::default();
-        match self.room.lock().get(&room_id) {
+        match self.room.lock().get(room_id) {
             Some(room) => {
                 for item in query.iter() {
                     let item = match item {
@@ -718,7 +719,7 @@ impl YummyState {
                                     None => None
                                 };
                                 users.push(RoomUserInformation {
-                                    user_id: user.user_id,
+                                    user_id: user.user_id.clone(), // todo: discart cloning
                                     name
                                 });
                             }
@@ -768,7 +769,7 @@ impl YummyState {
                                 None => None
                             };
                             users.push(RoomUserInformation {
-                                user_id: user.user_id,
+                                user_id: user.user_id.clone(), // todo: discart cloning
                                 name
                             });
                         }
@@ -825,15 +826,15 @@ mod tests {
         DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         let user_id = UserId::new();
-        let session_id = state.new_session(user_id, None);
+        let session_id = state.new_session(&user_id, None);
 
-        assert!(state.is_session_online(session_id.clone()));
-        assert!(state.is_user_online(user_id.clone()));
+        assert!(state.is_session_online(&session_id));
+        assert!(state.is_user_online(&user_id));
 
-        state.close_session(session_id.clone());
+        state.close_session(&session_id);
 
-        assert!(!state.is_session_online(session_id.clone()));
-        assert!(!state.is_user_online(user_id.clone()));
+        assert!(!state.is_session_online(&session_id));
+        assert!(!state.is_user_online(&user_id));
 
         Ok(())
     }
@@ -852,10 +853,10 @@ mod tests {
         DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         
-        state.close_session(SessionId::new());
+        state.close_session(&SessionId::new());
 
-        assert!(!state.is_session_online(SessionId::new()));
-        assert!(!state.is_user_online(UserId::new()));
+        assert!(!state.is_session_online(&SessionId::new()));
+        assert!(!state.is_user_online(&UserId::new()));
 
         Ok(())
     }
@@ -875,27 +876,27 @@ mod tests {
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         
         let room_1 = RoomId::new();
-        state.create_room(room_1, 1234, Some("room".to_string()), CreateRoomAccessType::Friend, 2, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()]);
+        state.create_room(&room_1, 1234, Some("room".to_string()), CreateRoomAccessType::Friend, 2, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()]);
 
         let user_1 = UserId::new();
         let user_2 = UserId::new();
         let user_3 = UserId::new();
 
-        state.join_to_room(room_1.clone(), user_1.clone(), RoomUserType::Owner)?;
-        assert_eq!(state.join_to_room(room_1.clone(), user_1.clone(), RoomUserType::Owner).err().unwrap(), YummyStateError::UserAlreadInRoom);
+        state.join_to_room(&room_1, &user_1, RoomUserType::Owner)?;
+        assert_eq!(state.join_to_room(&room_1, &user_1, RoomUserType::Owner).err().unwrap(), YummyStateError::UserAlreadInRoom);
 
-        state.join_to_room(room_1.clone(), user_2.clone(), RoomUserType::Owner)?;
-        assert_eq!(state.join_to_room(room_1.clone(), user_3.clone(), RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
-        assert_eq!(state.join_to_room(room_1.clone(), user_2.clone(), RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
+        state.join_to_room(&room_1, &user_2, RoomUserType::Owner)?;
+        assert_eq!(state.join_to_room(&room_1, &user_3, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
+        assert_eq!(state.join_to_room(&room_1, &user_2, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
 
-        assert_eq!(state.join_to_room(RoomId::new(), UserId::new(), RoomUserType::Owner).err().unwrap(), YummyStateError::RoomNotFound);
-        assert_eq!(state.get_users_from_room(room_1.clone())?.len(), 2);
+        assert_eq!(state.join_to_room(&RoomId::new(), &UserId::new(), RoomUserType::Owner).err().unwrap(), YummyStateError::RoomNotFound);
+        assert_eq!(state.get_users_from_room(&room_1)?.len(), 2);
 
-        assert_eq!(state.disconnect_from_room(room_1.clone(), user_1.clone())?, false);
-        assert_eq!(state.get_users_from_room(room_1.clone())?.len(), 1);
+        assert_eq!(state.disconnect_from_room(&room_1, &user_1)?, false);
+        assert_eq!(state.get_users_from_room(&room_1)?.len(), 1);
 
-        assert_eq!(state.disconnect_from_room(room_1.clone(), user_2.clone())?, true);
-        assert!(state.get_users_from_room(room_1.clone()).is_err());
+        assert_eq!(state.disconnect_from_room(&room_1, &&user_2)?, true);
+        assert!(state.get_users_from_room(&room_1).is_err());
 
         Ok(())
     }
@@ -915,10 +916,10 @@ mod tests {
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
     
         let room = RoomId::new();
-        state.create_room(room, 1234, None, CreateRoomAccessType::Public, 0, Vec::new());
+        state.create_room(&room, 1234, None, CreateRoomAccessType::Public, 0, Vec::new());
 
         for _ in 0..100_000 {
-            state.join_to_room(room, UserId::new(), RoomUserType::Owner)?
+            state.join_to_room(&room, &UserId::new(), RoomUserType::Owner)?
         }
 
         Ok(())
@@ -939,17 +940,17 @@ mod tests {
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
     
         let room = RoomId::new();
-        state.create_room(room, 1234, Some("Room 1".to_string()), CreateRoomAccessType::Private, 10, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()]);
+        state.create_room(&room, 1234, Some("Room 1".to_string()), CreateRoomAccessType::Private, 10, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()]);
 
-        let result = state.get_room_info(room, Vec::new())?;
+        let result = state.get_room_info(&room, Vec::new())?;
         assert_eq!(result.items.len(), 0);
 
-        let result = state.get_room_info(room, vec![RoomInfoTypeVariant::RoomName])?;
+        let result = state.get_room_info(&room, vec![RoomInfoTypeVariant::RoomName])?;
         assert_eq!(result.items.len(), 1);
         assert_eq!(result.get_item(RoomInfoTypeVariant::RoomName).unwrap(), RoomInfoType::RoomName(Some("Room 1".to_string())));
 
 
-        let result = state.get_room_info(room, vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength])?;
+        let result = state.get_room_info(&room, vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength])?;
         assert_eq!(result.items.len(), 7);
         assert_eq!(result.get_item(RoomInfoTypeVariant::RoomName).unwrap(), RoomInfoType::RoomName(Some("Room 1".to_string())));
         assert_eq!(result.get_item(RoomInfoTypeVariant::MaxUser).unwrap(), RoomInfoType::MaxUser(10));
@@ -963,21 +964,21 @@ mod tests {
         let user_2 = UserId::new();
         let user_3 = UserId::new();
 
-        state.new_session(user_1, Some("user1".to_string()));
-        state.new_session(user_2, Some("user2".to_string()));
-        state.new_session(user_3, Some("user3".to_string()));
+        state.new_session(&user_1, Some("user1".to_string()));
+        state.new_session(&user_2, Some("user2".to_string()));
+        state.new_session(&user_3, Some("user3".to_string()));
 
-        state.join_to_room(room.clone(), user_1.clone(), RoomUserType::Owner)?;
-        state.join_to_room(room.clone(), user_2.clone(), RoomUserType::Owner)?;
-        state.join_to_room(room.clone(), user_3.clone(), RoomUserType::Owner)?;
+        state.join_to_room(&room, &user_1, RoomUserType::Owner)?;
+        state.join_to_room(&room, &user_2, RoomUserType::Owner)?;
+        state.join_to_room(&room, &user_3, RoomUserType::Owner)?;
         
-        let result = state.get_room_info(room, vec![RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::Users])?;
+        let result = state.get_room_info(&room, vec![RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::Users])?;
         assert_eq!(result.items.len(), 2);
         assert_eq!(result.get_item(RoomInfoTypeVariant::UserLength).unwrap(), RoomInfoType::UserLength(3));
 
         if let RoomInfoType::Users(mut users) = result.get_item(RoomInfoTypeVariant::Users).unwrap() {
             users.sort_by(|a, b| a.name.partial_cmp(&b.name).unwrap());
-            assert_eq!(users, vec![RoomUserInformation { user_id: user_1, name: Some("user1".to_string()) }, RoomUserInformation { user_id: user_2, name: Some("user2".to_string()) }, RoomUserInformation { user_id: user_3, name: Some("user3".to_string()) }]);
+            assert_eq!(users, vec![RoomUserInformation { user_id: Arc::new(user_1), name: Some("user1".to_string()) }, RoomUserInformation { user_id: Arc::new(user_2), name: Some("user2".to_string()) }, RoomUserInformation { user_id: Arc::new(user_3), name: Some("user3".to_string()) }]);
         } else {
             assert!(false);
         }

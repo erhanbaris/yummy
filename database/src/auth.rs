@@ -1,24 +1,23 @@
 use diesel::*;
-use general::model::UserType;
+use general::model::{UserType, UserId};
 use general::password::Password;
-use uuid::Uuid;
 use std::borrow::Borrow;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::SqliteStore;
 use crate::model::LoginInfo;
-use crate::{PooledConnection, schema::user, RowId, model::UserInsert};
+use crate::{PooledConnection, schema::user, model::UserInsert};
 
 pub trait AuthStoreTrait: Sized {
     fn user_login_via_email(connection: &mut PooledConnection, email: &str) -> anyhow::Result<Option<LoginInfo>>;
     fn user_login_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<Option<LoginInfo>>;
     fn user_login_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<Option<LoginInfo>>;
 
-    fn update_last_login<T: Borrow<RowId> + std::fmt::Debug>(connection: &mut PooledConnection, user_id: T) -> anyhow::Result<()>;
+    fn update_last_login(connection: &mut PooledConnection, user_id: &UserId) -> anyhow::Result<()>;
 
-    fn create_user_via_email(connection: &mut PooledConnection, email: &str, password: &Password) -> anyhow::Result<RowId>;
-    fn create_user_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<RowId>;
-    fn create_user_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<RowId>;
+    fn create_user_via_email(connection: &mut PooledConnection, email: &str, password: &Password) -> anyhow::Result<UserId>;
+    fn create_user_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<UserId>;
+    fn create_user_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<UserId>;
 }
 
 impl AuthStoreTrait for SqliteStore {
@@ -27,7 +26,7 @@ impl AuthStoreTrait for SqliteStore {
         let result = user::table
             .filter(user::email.eq(email))
             .select((user::id, user::name, user::password))
-            .first::<(RowId, Option<String>, Option<String>)>(connection)
+            .first::<(UserId, Option<String>, Option<String>)>(connection)
             .optional()?
             .map(|(id, name, password)| (id, name, password.unwrap_or_default()));
 
@@ -47,7 +46,7 @@ impl AuthStoreTrait for SqliteStore {
         let result = user::table
             .filter(user::device_id.eq(device_id))
             .select((user::id, user::name, user::email))
-            .first::<(RowId, Option<String>, Option<String>)>(connection)
+            .first::<(UserId, Option<String>, Option<String>)>(connection)
             .optional()?;
 
         match result {
@@ -69,7 +68,7 @@ impl AuthStoreTrait for SqliteStore {
         let result = user::table
             .filter(user::custom_id.eq(custom_id))
             .select((user::id, user::name, user::email))
-            .first::<(RowId, Option<String>, Option<String>)>(connection)
+            .first::<(UserId, Option<String>, Option<String>)>(connection)
             .optional()?;
 
         match result {
@@ -87,54 +86,75 @@ impl AuthStoreTrait for SqliteStore {
     }
 
     #[tracing::instrument(name="Update last login", skip(connection))]
-    fn update_last_login<T: Borrow<RowId> + std::fmt::Debug>(connection: &mut PooledConnection, user_id: T) -> anyhow::Result<()> {
+    fn update_last_login(connection: &mut PooledConnection, user_id: &UserId) -> anyhow::Result<()> {
         diesel::update(user::table.filter(user::id.eq(user_id.borrow())))
             .set(user::last_login_date.eq(SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default())).execute(connection)?;
         Ok(())
     }
 
     #[tracing::instrument(name="User create via email", skip(connection))]
-    fn create_user_via_email(connection: &mut PooledConnection, email: &str, password: &Password) -> anyhow::Result<RowId> {
+    fn create_user_via_email(connection: &mut PooledConnection, email: &str, password: &Password) -> anyhow::Result<UserId> {
         
-        let row_id = RowId(Uuid::new_v4());
-        let mut model = UserInsert::default();
-        model.id = row_id.clone(); // todo: discart cloning
-        model.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
-        model.last_login_date = model.insert_date;
-        model.password = Some(password.get());
-        model.email = Some(email);
-        model.user_type = UserType::default().into();
+        let user_id = UserId::default();
+        let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
+        let model = UserInsert {
+            id: &user_id,
+            insert_date,
+            last_login_date: insert_date,
+            password: Some(password.get()),
+            email: Some(email),
+            user_type: UserType::default().into(),
+            custom_id: None,
+            device_id: None,
+            name: None
+        };
         diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
 
-        Ok(row_id)
+        Ok(user_id)
     }
 
     #[tracing::instrument(name="User create via device id", skip(connection))]
-    fn create_user_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<RowId> {
-        let row_id = RowId(Uuid::new_v4());
-        let mut model = UserInsert::default();
-        model.id = row_id.clone(); // todo: discart cloning
-        model.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
-        model.last_login_date = model.insert_date;
-        model.device_id = Some(device_id);
-        model.user_type = UserType::default().into();
+    fn create_user_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<UserId> {
+        
+        let user_id = UserId::default();
+        let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
+        let model = UserInsert {
+            id: &user_id,
+            insert_date,
+            last_login_date: insert_date,
+            device_id: Some(device_id),
+            user_type: UserType::default().into(),
+            custom_id: None,
+            email: None,
+            name: None,
+            password: None
+        };
+        
         diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
 
-        Ok(row_id)
+        Ok(user_id)
     }
 
     #[tracing::instrument(name="User create via custom id", skip(connection))]
-    fn create_user_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<RowId> {
-        let row_id = RowId(Uuid::new_v4());
-        let mut model = UserInsert::default();
-        model.id = row_id.clone(); // todo: discart cloning
-        model.insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
-        model.last_login_date = model.insert_date;
-        model.custom_id = Some(custom_id);
-        model.user_type = UserType::default().into();
+    fn create_user_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<UserId> {
+
+        let user_id = UserId::default();
+        let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
+        let model = UserInsert {
+            id: &user_id,
+            insert_date,
+            last_login_date: insert_date,
+            user_type: UserType::default().into(),
+            custom_id: Some(custom_id),
+            device_id: None,
+            email: None,
+            name: None,
+            password: None
+        };
+        
         diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
 
-        Ok(row_id)
+        Ok(user_id)
     }
 }
 

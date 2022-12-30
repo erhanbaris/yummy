@@ -1,6 +1,5 @@
 use general::config::configure_environment;
 use general::state::RoomUserInformation;
-use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
@@ -43,7 +42,7 @@ macro_rules! email_auth {
         
             let user_jwt = validate_auth($config, token).unwrap().user;
             Arc::new(Some(UserAuth {
-                user: user_jwt.id,
+                user: user_jwt.id.deref().clone(),
                 session: user_jwt.session
             }))
         }
@@ -84,6 +83,7 @@ struct MessageReceivedFromRoom {
 }
 
 fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>, YummyState, Arc<DummyClient>)> {
+    use rand::Rng;
     let mut db_location = temp_dir();
     db_location.push(format!("{}.db", Uuid::new_v4()));
     
@@ -136,7 +136,7 @@ async fn create_room_1() -> anyhow::Result<()> {
     };
 
     assert!(!room_id.is_empty());
-    assert!(states.get_user_room(user_id).is_some());
+    assert!(states.get_user_room(&user_id).is_some());
     
     Ok(())
 }
@@ -166,7 +166,7 @@ async fn create_room_2() -> anyhow::Result<()> {
     };
 
     assert!(!room_id.is_empty());
-    assert!(states.get_user_room(user_id).is_some());
+    assert!(states.get_user_room(&user_id).is_some());
     
     Ok(())
 }
