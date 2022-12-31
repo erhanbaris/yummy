@@ -139,5 +139,6 @@ pub struct LoginInfo {
     pub user_id: UserId,
     pub name: Option<String>,
     pub email: Option<String>,
-    pub password: Option<String>
+    pub password: Option<String>,
+    pub user_type: UserType
 }

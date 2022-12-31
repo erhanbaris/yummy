@@ -51,7 +51,8 @@ pub struct RestoreTokenRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct LogoutRequest {
-    pub user: Arc<Option<UserAuth>>
+    pub user: Arc<Option<UserAuth>>,
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
 #[derive(Message, Validate, Debug)]
@@ -116,5 +117,8 @@ pub enum AuthError {
     TokenNotValid,
 
     #[error("Only one connection allowed per user")]
-    OnlyOneConnectionAllowedPerUser
+    OnlyOneConnectionAllowedPerUser,
+
+    #[error("User not logged in")]
+    UserNotLoggedIn
 }

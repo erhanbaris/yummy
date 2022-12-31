@@ -9,14 +9,18 @@ use std::sync::Arc;
 use actix::{Context, Actor, Handler};
 use actix_broker::{BrokerSubscribe, BrokerIssue};
 use anyhow::anyhow;
+use database::model::RoomUpdate;
 use database::{Pool, DatabaseTrait};
 
 use general::config::YummyConfig;
-use general::model::{RoomId, UserId, RoomUserType};
+use general::meta::MetaType;
+use general::meta::RoomMetaAccess;
+use general::model::{RoomId, UserId, RoomUserType, UserType};
 use general::state::{YummyState, SendMessage, RoomInfoTypeVariant, RoomInfoType};
 use general::web::{GenericAnswer, Answer};
 
 use crate::auth::model::AuthError;
+use crate::user::model::UserError;
 
 use self::model::*;
 
@@ -134,8 +138,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
     #[tracing::instrument(name="UpdateRoom", skip(self, _ctx))]
     #[macros::api(name="UpdateRoom", socket=true)]
     fn handle(&mut self, model: UpdateRoom, _ctx: &mut Context<Self>) -> Self::Result {
-        /*let original_user_id = match model.user.deref() {
-            Some(user) => user.user.get(),
+        let user_id = match model.user.deref() {
+            Some(user) => &user.user,
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
@@ -145,10 +149,20 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
             return Err(anyhow::anyhow!(RoomError::UpdateInformationMissing));
         }
 
-        let mut updates = RoomUpdate::default();
-        let user_id = RowId(original_user_id);
+        // Calculate room access level for user
+        let access_level = match self.states.get_user_type(user_id) {
+            Some(UserType::User) => match self.states.get_users_room_type(user_id, &model.room_id) {
+                Some(RoomUserType::User) => return Err(anyhow::anyhow!(RoomError::UserDoesNotEnoughPermission)),
+                Some(RoomUserType::Moderator) => RoomMetaAccess::Moderator,
+                Some(RoomUserType::Owner) => RoomMetaAccess::Owner,
+                None => return Err(anyhow::anyhow!(UserError::UserNotBelongToRoom))
+            },
+            Some(UserType::Mod) => RoomMetaAccess::Moderator,
+            Some(UserType::Admin) => RoomMetaAccess::Admin,
+            None => return Err(anyhow::anyhow!(UserError::UserNotFound))
+        };
 
-        let mut connection = self.database.get()?;
+        let mut updates = RoomUpdate::default();
 
         updates.max_user = model.max_user.map(|item| item as i32 );
         updates.access_type = model.access_type.map(|item| item.into() );
@@ -164,12 +178,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
                     0 => (),
                     n if n > config.max_room_meta => return Err(anyhow::anyhow!(RoomError::MetaLimitOverToMaximum)),
                     _ => {
-                        let user_old_metas = DB::get_room_meta(connection, user_id, model.access_level)?;
+                        let user_old_metas = DB::get_room_meta(connection, &model.room_id, access_level)?;
                         let mut remove_list = Vec::new();
                         let mut insert_list = Vec::new();
 
                         for (key, value) in meta.into_iter() {
-                            let row= user_old_metas.iter().find(|item| item.1 == key).map(|item| item.0);
+                            let row= user_old_metas.iter().find(|item| item.1 == key).map(|item| item.0.clone());
 
                             /* Remove the key if exists in the database */
                             if let Some(row_id) = row {
@@ -185,14 +199,14 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
                         }
 
                         DB::remove_room_metas(connection, remove_list)?;
-                        DB::insert_room_metas(connection, model.room_id, insert_list)?;
+                        DB::insert_room_metas(connection, &model.room_id, insert_list)?;
                     }
                 };
             }
             
             // Update user
             match has_room_update {
-                true => match DB::update_user(connection, user_id, updates)? {
+                true => match DB::update_room(connection, &model.room_id, updates)? {
                     0 => Err(anyhow::anyhow!(RoomError::RoomNotFound)),
                     _ => {
                         model.socket.send(Answer::success().into());
@@ -204,8 +218,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
                     Ok(())
                 }
             }
-        })*/
-        Ok(())
+        })
     }
 }
 

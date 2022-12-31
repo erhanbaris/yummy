@@ -67,6 +67,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
 
         let mut connection = self.database.get()?;
 
+        #[allow(unused_mut)]
         let mut execute = |connection, user_id, access_type| -> anyhow::Result<()> {
             let user = DB::get_user_information(connection, user_id, access_type)?;
             match user {

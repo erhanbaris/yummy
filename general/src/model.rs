@@ -1,8 +1,7 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::hash::Hash;
 use std::fmt::Debug;
 use std::str::FromStr;
-use std::sync::Arc;
 
 use serde::de::DeserializeOwned;
 use parking_lot::Mutex;
@@ -110,7 +109,7 @@ generate_type!(RoomUserId);
 
 impl Copy for RoomId { }
 
-#[derive(Debug, PartialEq, Eq, Serialize_repr, Deserialize_repr, Clone, Default)]
+#[derive(Debug, PartialEq, Eq, Serialize_repr, Deserialize_repr, Copy, Clone, Default)]
 #[repr(u8)]
 pub enum UserType {
     #[default]
@@ -146,6 +145,7 @@ pub struct UserState {
     pub user_id: UserId,
     pub session: SessionId,
     pub name: Option<String>,
+    pub user_type: UserType,
 
     #[cfg(not(feature = "stateless"))]
     pub room: std::cell::Cell<Option<RoomId>>
@@ -159,31 +159,7 @@ pub struct RoomState {
     pub max_user: usize,
     pub tags: Vec<String>,
     pub insert_date: i32,
-    pub users: Mutex<HashSet<RoomUserInfo>>
-}
-
-#[derive(Default, Debug, Eq)]
-pub struct RoomUserInfo {
-    pub user_id: Arc<UserId>,
-    pub room_user_type: RoomUserType
-}
-
-impl Hash for RoomUserInfo {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.user_id.hash(state)
-    }
-}
-
-impl PartialEq for RoomUserInfo {
-    fn eq(&self, other: &Self) -> bool {
-        self.user_id == other.user_id
-    }
-}
-
-impl RoomUserInfo {
-    pub fn new(user_id: Arc<UserId>, room_user_type: RoomUserType) -> Self {
-        Self { user_id, room_user_type }
-    }
+    pub users: Mutex<HashMap<UserId, RoomUserType>>
 }
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -209,7 +185,8 @@ impl From<CreateRoomAccessType> for i32 {
 pub enum RoomUserType {
     #[default]
     User = 1,
-    Owner = 2
+    Owner = 2,
+    Moderator = 3
 }
 
 #[derive(Message, Debug)]

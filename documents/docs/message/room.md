@@ -1,5 +1,6 @@
 # Room related messages
 
+- [Create room](#Create-room)
 ## Create room
 
 ### Request message
@@ -9,7 +10,7 @@
 | disconnect  | boolean                                       | N        | If user already joined to room, disconnect from it                 | false         |
 | name        | string                                        | N        | Room name                                                          |               |
 | access_type | [CreateRoomAccessType](#CreateRoomAccessType) | N        | Definition for who can access and see the room                     | Public        |
-| max_user    | Number                                        | N        | Maximum number for participants. Use 0 for unlimited participants. | Unlimited     |
+| max_user    | Number                                        | N        | Maximum number for participants. Use 0 for unlimited participants. | 0             |
 
 **Example requests**
 

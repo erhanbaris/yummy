@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::{fmt::Debug, borrow::Borrow};
@@ -16,7 +15,10 @@ use redis::Commands;
 use crate::config::YummyConfig;
 use crate::model::{UserId, RoomId, SessionId};
 use crate::model::CreateRoomAccessType;
+use crate::model::RoomUserType;
+use crate::model::UserType;
 
+#[allow(unused_macros)]
 macro_rules! redis_result {
     ($query: expr) => {
         match $query {
@@ -164,6 +166,35 @@ impl YummyState {
         }
     }
 
+    #[cfg(feature = "stateless")]
+    #[tracing::instrument(name="get_user_type", skip(self))]
+    pub fn get_user_type(&mut self, user_id: &UserId) -> Option<UserType> {
+
+        match self.redis.get() {
+            Ok(mut redis) => match redis_result!(redis.hget(format!("{}users:{}", self.config.redis_prefix, user_id.to_string()), "type")) {
+                Some(1) => Some(UserType::User),
+                Some(2) => Some(UserType::Mod),
+                Some(3) => Some(UserType::Admin),
+                _ => None
+            },
+            Err(_) => None
+        }
+    }
+
+    #[cfg(feature = "stateless")]
+    #[tracing::instrument(name="get_users_room_type", skip(self))]
+    pub fn get_users_room_type(&mut self, user_id: &UserId, room_id: &RoomId) -> Option<RoomUserType> {
+
+        match self.redis.get() {
+            Ok(mut redis) => match redis_result!(redis.hget(format!("{}room-users:{}", self.config.redis_prefix, room_id.to_string()), user_id.to_string())) {
+                Some(1) => Some(RoomUserType::User),
+                Some(2) => Some(RoomUserType::Owner),
+                Some(3) => Some(RoomUserType::Moderator),
+                _ => None
+            },
+            Err(_) => None
+        }
+    }
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="is_session_online", skip(self))]
@@ -176,7 +207,7 @@ impl YummyState {
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="new_session", skip(self))]
-    pub fn new_session(&mut self, user_id: &UserId, name: Option<String>) -> SessionId {
+    pub fn new_session(&mut self, user_id: &UserId, name: Option<String>, user_type: UserType) -> SessionId {
         let session_id = SessionId::new();
         if let Ok(mut redis) = self.redis.get() {
             let user_id = user_id.to_string();
@@ -194,6 +225,7 @@ impl YummyState {
                 
                 .cmd("HSET").arg(format!("{}users:{}", self.config.redis_prefix, &user_id))
                     .arg("room").arg("")
+                    .arg("type").arg(i32::from(user_type))
                     .arg("name").arg(name.unwrap_or_default())
                     .arg("loc").arg(&self.config.server_name)
                     .ignore()
@@ -304,7 +336,7 @@ impl YummyState {
             Ok(mut redis) => match redis_result!(redis.exists::<_, bool>(&room_info_key)) {
                 true => {
                     let room_users_key = format!("{}room-users:{}", self.config.redis_prefix, room_id.get());
-                    let user_id = user_id.borrow().to_string();
+                    let user_id = user_id.to_string();
 
                     let room_info = redis_result!(redis::cmd("HMGET")
                         .arg(format!("{}room:{}", self.config.redis_prefix, room_id.to_string()))
@@ -312,12 +344,12 @@ impl YummyState {
                         .arg("max-user")
                         .query::<Vec<usize>>(&mut redis));
 
-                    let user_len = room_info.first().cloned().unwrap_or_default();
-                    let max_user = room_info.get(1).cloned().unwrap_or_default();
+                    let user_len = room_info.first().map(|item| *item).unwrap_or_default();
+                    let max_user = room_info.get(1).map(|item| *item).unwrap_or_default();
 
                     // If the max_user 0 or lower than users count, add to room
                     if max_user == 0 || max_user > user_len {
-                        let is_member = redis_result!(redis.sismember(&room_users_key, user_id.clone()));
+                        let is_member = redis_result!(redis.hexists(&room_users_key, &user_id));
     
                         // User alread in the room
                         if is_member {
@@ -327,7 +359,11 @@ impl YummyState {
                         redis_result!(redis::pipe()
                             .atomic()
                             .cmd("HINCRBY").arg(&room_info_key).arg("user-len").arg(1).ignore()
-                            .cmd("SADD").arg(room_users_key).arg(user_id).ignore()
+                            .cmd("HSET").arg(room_users_key).arg(&user_id).arg(match user_type {
+                                    crate::model::RoomUserType::User => 1,
+                                    crate::model::RoomUserType::Owner => 2,
+                                    crate::model::RoomUserType::Moderator => 3,
+                                }).ignore()
                             .query::<()>(&mut redis));
                         Ok(())
                     } else {
@@ -351,7 +387,7 @@ impl YummyState {
 
                 let (user_len,) =  redis_result!(redis::pipe()
                     .atomic()
-                    .cmd("SREM").arg(room_users_key).arg(user_id.to_string()).ignore()
+                    .cmd("HDEL").arg(room_users_key).arg(user_id.to_string()).ignore()
                     .cmd("HINCRBY").arg(&room_info_key).arg("user-len").arg(-1)
                     .query::<(i32,)>(&mut redis));
                     
@@ -389,9 +425,10 @@ impl YummyState {
     #[tracing::instrument(name="get_users_from_room", skip(self))]
     pub fn get_users_from_room(&mut self, room_id: &RoomId) -> Result<Vec<Arc<UserId>>, YummyStateError> {
         use std::str::FromStr;
+        use std::collections::HashSet;
         let users: std::collections::HashSet<String> = match self.redis.get() {
             Ok(mut redis) => match redis_result!(redis.exists::<_, bool>(&format!("{}room-users:{}", self.config.redis_prefix, room_id.get()))) {
-                true => redis_result!(redis.smembers(&format!("{}room-users:{}", self.config.redis_prefix, room_id.get()))),
+                true => redis_result!(redis.hkeys(&format!("{}room-users:{}", self.config.redis_prefix, room_id.get()))),
                 false => return Err(YummyStateError::RoomNotFound),
             },
             Err(_) => HashSet::default()
@@ -450,7 +487,7 @@ impl YummyState {
 
                             // This request is slow compare to other. We should change it to lua script to increase performance
                             let mut user_infos = Vec::new();
-                            let users = redis_result!(redis.smembers::<_, Vec<String>>(format!("{}room-users:{}", self.config.redis_prefix, room_id.get())));
+                            let users = redis_result!(redis.hkeys::<_, Vec<String>>(format!("{}room-users:{}", self.config.redis_prefix, room_id.get())));
                             for user_id in users.iter() {
                                 let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id), "name"));
                                 user_infos.push(RoomUserInformation {
@@ -538,7 +575,7 @@ impl YummyState {
     
                                 // This request is slow compare to other. We should change it to lua script to increase performance
                                 let mut user_infos = Vec::new();
-                                let users = redis_result!(redis.smembers::<_, Vec<String>>(format!("{}room-users:{}", self.config.redis_prefix, room_id.get())));
+                                let users = redis_result!(redis.hkeys::<_, Vec<String>>(format!("{}room-users:{}", self.config.redis_prefix, room_id.get())));
                                 for user_id in users.iter() {
                                     let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id), "name"));
                                     user_infos.push(RoomUserInformation {
@@ -579,6 +616,21 @@ impl YummyState {
     pub fn is_user_online(&self, user_id: &UserId) -> bool {
         self.user.lock().contains_key(user_id)
     }
+
+    #[cfg(not(feature = "stateless"))]
+    #[tracing::instrument(name="get_user_type", skip(self))]
+    pub fn get_user_type(&mut self, user_id: &UserId) -> Option<UserType> {
+        self.user.lock().get(user_id).map(|user| user.user_type)
+    }
+    
+    #[cfg(not(feature = "stateless"))]
+    #[tracing::instrument(name="is_user_online", skip(self))]
+    pub fn get_users_room_type(&mut self, user_id: &UserId, room_id: &RoomId) -> Option<RoomUserType> {
+        match self.room.lock().get(room_id) {
+            Some(room) => room.users.lock().get(user_id).cloned(),
+            None => None
+        }
+    }
     
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="is_session_online", skip(self))]
@@ -588,12 +640,12 @@ impl YummyState {
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="new_session", skip(self))]
-    pub fn new_session(&self, user_id: &UserId, name: Option<String>) -> SessionId {
+    pub fn new_session(&self, user_id: &UserId, name: Option<String>, user_type: UserType) -> SessionId {
         use std::cell::Cell;
 
         let session_id = SessionId::new();
         self.session_to_user.lock().insert(session_id.clone(), user_id.clone()); // todo: discart cloning
-        self.user.lock().insert(user_id.clone(), crate::model::UserState { user_id: user_id.clone(), name, session: session_id.clone(), room: Cell::new(None) }); // todo: discart cloning
+        self.user.lock().insert(user_id.clone(), crate::model::UserState { user_id: user_id.clone(), name, session: session_id.clone(), user_type, room: Cell::new(None) }); // todo: discart cloning
         session_id
     }
 
@@ -625,13 +677,14 @@ impl YummyState {
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="create_room", skip(self))]
     pub fn create_room(&self, room_id: &RoomId, insert_date: i32, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: Vec<String>) {
-        self.room.lock().insert(*room_id, crate::model::RoomState { max_user, room_id: *room_id, insert_date, users: parking_lot::Mutex::new(HashSet::new()), tags, name, access_type });
+        use std::collections::HashMap;
+
+        self.room.lock().insert(*room_id, crate::model::RoomState { max_user, room_id: *room_id, insert_date, users: parking_lot::Mutex::new(HashMap::new()), tags, name, access_type });
     }
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="join_to_room", skip(self))]
     pub fn join_to_room(&self, room_id: &RoomId, user_id: &UserId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
-        use crate::model::RoomUserInfo;
         match self.room.lock().get_mut(room_id.borrow()) {
             Some(room) => {
                 let mut users = room.users.lock();
@@ -641,7 +694,7 @@ impl YummyState {
                 if room.max_user == 0 || room.max_user > users_len {
 
                     // User alread in the room
-                    if !users.insert(RoomUserInfo::new(Arc::new(user_id.clone()), user_type)) {
+                    if users.insert(user_id.clone(), user_type).is_some() {
                         return Err(YummyStateError::UserAlreadInRoom);
                     }
                     Ok(())
@@ -656,19 +709,14 @@ impl YummyState {
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="join_to_room", skip(self))]
     pub fn disconnect_from_room(&self, room_id: &RoomId, user_id: &UserId) -> Result<bool, YummyStateError> {
-        use crate::model::{RoomUserType, RoomUserInfo};
-
         let mut rooms = self.room.lock();
         let room_removed = match rooms.get_mut(room_id.borrow()) {
             Some(room) => {
                 let mut users = room.users.lock();
 
-                let user_removed = users.remove(&RoomUserInfo {
-                    user_id: Arc::new(user_id.clone()),
-                    room_user_type: RoomUserType::default() // Hash only consider user_id, so room_user_type not important in this case
-                });
+                let user_removed = users.remove(user_id);
 
-                match user_removed {
+                match user_removed.is_some() {
                     true => Ok(users.is_empty()),
                     false => Err(YummyStateError::UserCouldNotFoundInRoom)
                 }
@@ -687,7 +735,7 @@ impl YummyState {
     #[tracing::instrument(name="get_users_from_room", skip(self))]
     pub fn get_users_from_room(&self, room_id: &RoomId) -> Result<Vec<Arc<UserId>>, YummyStateError> {
         match self.room.lock().get_mut(room_id) {
-            Some(room) => Ok(room.users.lock().iter().map(|item| item.user_id.clone()).collect::<Vec<_>>()), // todo: discart cloning
+            Some(room) => Ok(room.users.lock().keys().map(|item| Arc::new(item.clone())).collect::<Vec<_>>()), // todo: discart cloning
             None => Err(YummyStateError::RoomNotFound)
         }
     }
@@ -713,13 +761,13 @@ impl YummyState {
                         RoomInfoTypeVariant::AccessType => RoomInfoType::AccessType(room.access_type.clone()),
                         RoomInfoTypeVariant::Users => {
                             let  mut users = Vec::new();
-                            for user in room.users.lock().iter() {
-                                let name = match self.user.lock().get(&user.user_id) {
+                            for user_id in room.users.lock().keys() {
+                                let name = match self.user.lock().get(user_id) {
                                     Some(user) => user.name.clone(),
                                     None => None
                                 };
                                 users.push(RoomUserInformation {
-                                    user_id: user.user_id.clone(), // todo: discart cloning
+                                    user_id: Arc::new(user_id.clone()), // todo: discart cloning
                                     name
                                 });
                             }
@@ -763,13 +811,13 @@ impl YummyState {
                     RoomInfoTypeVariant::AccessType => room_info.items.push(RoomInfoType::AccessType(room_state.access_type.clone())),
                     RoomInfoTypeVariant::Users => {
                         let  mut users = Vec::new();
-                        for user in room_state.users.lock().iter() {
-                            let name = match self.user.lock().get(&user.user_id) {
+                        for user_id in room_state.users.lock().keys() {
+                            let name = match self.user.lock().get(user_id) {
                                 Some(user) => user.name.clone(),
                                 None => None
                             };
                             users.push(RoomUserInformation {
-                                user_id: user.user_id.clone(), // todo: discart cloning
+                                user_id: Arc::new(user_id.clone()), // todo: discart cloning
                                 name
                             });
                         }
@@ -826,7 +874,8 @@ mod tests {
         DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         let user_id = UserId::new();
-        let session_id = state.new_session(&user_id, None);
+        let session_id = state.new_session(&user_id, None, UserType::Mod);
+        assert_eq!(state.get_user_type(&user_id), Some(UserType::Mod));
 
         assert!(state.is_session_online(&session_id));
         assert!(state.is_user_online(&user_id));
@@ -883,9 +932,13 @@ mod tests {
         let user_3 = UserId::new();
 
         state.join_to_room(&room_1, &user_1, RoomUserType::Owner)?;
+        assert_eq!(state.get_users_room_type(&user_1, &room_1).unwrap(), RoomUserType::Owner);
+
         assert_eq!(state.join_to_room(&room_1, &user_1, RoomUserType::Owner).err().unwrap(), YummyStateError::UserAlreadInRoom);
 
-        state.join_to_room(&room_1, &user_2, RoomUserType::Owner)?;
+        state.join_to_room(&room_1, &user_2, RoomUserType::User)?;
+        assert_eq!(state.get_users_room_type(&user_2, &room_1).unwrap(), RoomUserType::User);
+
         assert_eq!(state.join_to_room(&room_1, &user_3, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
         assert_eq!(state.join_to_room(&room_1, &user_2, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
 
@@ -964,9 +1017,14 @@ mod tests {
         let user_2 = UserId::new();
         let user_3 = UserId::new();
 
-        state.new_session(&user_1, Some("user1".to_string()));
-        state.new_session(&user_2, Some("user2".to_string()));
-        state.new_session(&user_3, Some("user3".to_string()));
+        state.new_session(&user_1, Some("user1".to_string()), UserType::User);
+        assert_eq!(state.get_user_type(&user_1), Some(UserType::User));
+
+        state.new_session(&user_2, Some("user2".to_string()), UserType::Mod);
+        assert_eq!(state.get_user_type(&user_2), Some(UserType::Mod));
+
+        state.new_session(&user_3, Some("user3".to_string()), UserType::Admin);
+        assert_eq!(state.get_user_type(&user_3), Some(UserType::Admin));
 
         state.join_to_room(&room, &user_1, RoomUserType::Owner)?;
         state.join_to_room(&room, &user_2, RoomUserType::Owner)?;

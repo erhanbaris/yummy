@@ -1,4 +1,5 @@
 use std::time::Duration;
+use general::auth::UserAuth;
 use general::config::YummyConfig;
 use general::auth::validate_auth;
 use general::config::configure_environment;
@@ -333,5 +334,21 @@ async fn token_refresh_test_2() -> anyhow::Result<()> {
 
     assert!(old_claims.exp < new_claims.exp);
 
+    Ok(())
+}
+
+#[actix::test]
+async fn logout() -> anyhow::Result<()> {
+    let (address, socket) = create_actor(::general::config::get_configuration())?;
+    address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
+    let user = socket.clone().auth.lock().unwrap().clone();
+
+    address.send(LogoutRequest {
+        user: Arc::new(Some(UserAuth {
+            user: user.id.deref().clone(),
+            session: user.session
+        })),
+        socket: socket.clone()
+    }).await??;
     Ok(())
 }

@@ -123,5 +123,8 @@ pub enum UserError {
     UpdateInformationMissing,
 
     #[error("Meta limit over to maximum")]
-    MetaLimitOverToMaximum
+    MetaLimitOverToMaximum,
+
+    #[error("User not belong to room")]
+    UserNotBelongToRoom
 }

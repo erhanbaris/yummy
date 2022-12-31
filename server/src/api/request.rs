@@ -81,6 +81,27 @@ pub enum RequestRoomType {
     Message {
         room: RoomId,
         message: String,
+    },
+    Update {
+        room: RoomId,
+
+        #[serde(default)]
+        name: Option<String>,
+
+        #[serde(default)]
+        meta: Option<HashMap<String, MetaType<RoomMetaAccess>>>,
+        
+        #[serde(default)]
+        access_type: Option<CreateRoomAccessType>,
+        
+        #[serde(default)]
+        max_user: Option<usize>,
+        
+        #[serde(default)]
+        tags: Option<Vec<String>>,
+        
+        #[serde(default)]
+        user_permission: Option<HashMap<UserId, RoomUserType>>
     }
 }
 

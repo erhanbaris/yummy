@@ -6,9 +6,12 @@ use std::sync::Arc;
 use actix::Addr;
 use database::DatabaseTrait;
 use general::{meta::UserMetaAccess, auth::UserAuth, client::ClientTrait};
-use manager::{auth::AuthManager, user::UserManager, room::{RoomManager, model::{CreateRoomRequest, JoinToRoomRequest, DisconnectFromRoomRequest, MessageToRoomRequest}}};
+use manager::auth::AuthManager;
+use manager::room::RoomManager;
+use manager::user::UserManager;
 use manager::auth::model::*;
 use manager::user::model::*;
+use manager::room::model::*;
 
 use validator::Validate;
 
@@ -36,7 +39,7 @@ pub(crate) fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type: Reque
         RequestAuthType::CustomId { id } => as_response!(auth_manager, CustomIdAuthRequest::new(id, socket)),
         RequestAuthType::Refresh { token } => as_response!(auth_manager, RefreshTokenRequest { token, socket }),
         RequestAuthType::Restore { token } => as_response!(auth_manager, RestoreTokenRequest { token, socket }),
-        RequestAuthType::Logout => as_response!(auth_manager, LogoutRequest { user: me }),
+        RequestAuthType::Logout => as_response!(auth_manager, LogoutRequest { user: me, socket }),
     };
     Ok(())
 }
@@ -58,6 +61,7 @@ pub(crate) fn process_room<DB: DatabaseTrait + Unpin + 'static>(room_type: Reque
         RequestRoomType::Join { room, room_user_type } => as_response!(room_manager, JoinToRoomRequest { user: me, socket, room, room_user_type }),
         RequestRoomType::Disconnect { room } => as_response!(room_manager, DisconnectFromRoomRequest { user: me, socket, room }),
         RequestRoomType::Message { room, message } => as_response!(room_manager, MessageToRoomRequest { user: me, socket, room, message }),
+        RequestRoomType::Update { room, user_permission, name, max_user, meta, access_type, tags } => as_response!(room_manager, UpdateRoom { user: me, socket, room_id: room , user_permission, name, max_user, meta, access_type, tags }),
     };
     Ok(())
 }

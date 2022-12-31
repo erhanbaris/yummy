@@ -66,6 +66,7 @@ pub struct UpdateRoom {
     pub access_type: Option<CreateRoomAccessType>,
     pub max_user: Option<usize>,
     pub tags: Option<Vec<String>>,
+    pub user_permission: Option<HashMap<UserId, RoomUserType>>
 }
 
 #[derive(Error, Debug)]
@@ -80,7 +81,10 @@ pub enum RoomError {
     UpdateInformationMissing,
 
     #[error("Meta limit over to maximum")]
-    MetaLimitOverToMaximum
+    MetaLimitOverToMaximum,
+
+    #[error("User does not enough permission")]
+    UserDoesNotEnoughPermission
 }
 
 #[derive(Serialize, Debug, Clone)]

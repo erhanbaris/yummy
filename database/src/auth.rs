@@ -25,17 +25,18 @@ impl AuthStoreTrait for SqliteStore {
     fn user_login_via_email(connection: &mut PooledConnection, email: &str) -> anyhow::Result<Option<LoginInfo>> {
         let result = user::table
             .filter(user::email.eq(email))
-            .select((user::id, user::name, user::password))
-            .first::<(UserId, Option<String>, Option<String>)>(connection)
+            .select((user::id, user::name, user::password, user::user_type))
+            .first::<(UserId, Option<String>, Option<String>, i32)>(connection)
             .optional()?
-            .map(|(id, name, password)| (id, name, password.unwrap_or_default()));
+            .map(|(id, name, password, user_type)| (id, name, password.unwrap_or_default(), user_type.into()));
 
         match result {
-            Some((user_id, name, password)) => Ok(Some(LoginInfo {
+            Some((user_id, name, password, user_type)) => Ok(Some(LoginInfo {
                 user_id,
                 name,
                 email: None,
-                password: Some(password)
+                password: Some(password),
+                user_type
             })),
             None => Ok(None)
         }
@@ -45,18 +46,19 @@ impl AuthStoreTrait for SqliteStore {
     fn user_login_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<Option<LoginInfo>> {
         let result = user::table
             .filter(user::device_id.eq(device_id))
-            .select((user::id, user::name, user::email))
-            .first::<(UserId, Option<String>, Option<String>)>(connection)
+            .select((user::id, user::name, user::email, user::user_type))
+            .first::<(UserId, Option<String>, Option<String>, i32)>(connection)
             .optional()?;
 
         match result {
-            Some((user_id, name, email)) => {
+            Some((user_id, name, email, user_type)) => {
                 Self::update_last_login(connection, &user_id)?;
                 Ok(Some(LoginInfo {
                     user_id,
                     name,
                     password: None,
-                    email
+                    email,
+                    user_type: user_type.into()
                 }))
             },
             None => Ok(None)
@@ -67,18 +69,19 @@ impl AuthStoreTrait for SqliteStore {
     fn user_login_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<Option<LoginInfo>> {
         let result = user::table
             .filter(user::custom_id.eq(custom_id))
-            .select((user::id, user::name, user::email))
-            .first::<(UserId, Option<String>, Option<String>)>(connection)
+            .select((user::id, user::name, user::email, user::user_type))
+            .first::<(UserId, Option<String>, Option<String>, i32)>(connection)
             .optional()?;
 
         match result {
-            Some((user_id, name, email)) => {
+            Some((user_id, name, email, user_type)) => {
                 Self::update_last_login(connection, &user_id)?;
                 Ok(Some(LoginInfo {
                     user_id,
                     name,
                     password: None,
-                    email
+                    email,
+                    user_type: user_type.into()
                 }))
             },
             None => Ok(None)

@@ -12,6 +12,7 @@ use actix_web::dev::Payload;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::*;
 
+use crate::model::UserType;
 use crate::{model::{UserId, SessionId}, config::YummyConfig};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -19,7 +20,8 @@ pub struct UserJwt {
     pub id: Arc<UserId>,
     pub session: SessionId,
     pub name: Option<String>,
-    pub email: Option<String>
+    pub email: Option<String>,
+    pub user_type: UserType
 }
 
 #[derive(Debug, Serialize)]
@@ -27,7 +29,6 @@ pub struct ClaimsSerialize<'a> {
     pub exp: usize,
     pub user: &'a UserJwt,
 }
-
 
 #[derive(Debug, Deserialize)]
 pub struct ClaimsDeserialize {

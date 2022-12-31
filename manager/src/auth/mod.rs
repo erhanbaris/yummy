@@ -5,7 +5,7 @@ mod test;
 
 use std::{ops::Deref, fmt::Debug};
 use actix_broker::BrokerIssue;
-use general::{auth::{generate_auth, UserJwt, validate_auth}, state::YummyState, web::GenericAnswer};
+use general::{auth::{generate_auth, UserJwt, validate_auth}, state::YummyState, web::{GenericAnswer, Answer}, model::UserType};
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -43,12 +43,13 @@ impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
         }
     }
 
-    pub fn generate_token(&self, id: &UserId, name: Option<String>, email: Option<String>, session: Option<SessionId>) -> anyhow::Result<(String, UserJwt)> {
+    pub fn generate_token(&self, id: &UserId, name: Option<String>, email: Option<String>, session: Option<SessionId>, user_type: UserType) -> anyhow::Result<(String, UserJwt)> {
         let user_jwt = UserJwt {
             id: Arc::new(id.clone()),
             session: session.unwrap_or_else(SessionId::new) ,
             name,
-            email
+            email,
+            user_type
         };
 
         let token = match generate_auth(self.config.clone(), &user_jwt) {
@@ -72,18 +73,17 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
     fn handle(&mut self, model: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
         let mut connection = self.database.get()?;
         let user_info = DB::user_login_via_email(&mut connection, &model.email)?;
-        log::info!("{:?}", model);
 
-        let (user_id, name) = match (user_info, model.if_not_exist_create) {
+        let (user_id, name, user_type) = match (user_info, model.if_not_exist_create) {
             (Some(user_info), _) => {
                 if model.password.get() != &user_info.password.unwrap_or_default() {
                     return Err(anyhow!(AuthError::EmailOrPasswordNotValid));
                 }
 
                 DB::update_last_login(&mut connection, &user_info.user_id)?;
-                (user_info.user_id, user_info.name)
+                (user_info.user_id, user_info.name, user_info.user_type)
             },
-            (None, true) => (DB::create_user_via_email(&mut connection, &model.email, &model.password)?, None),
+            (None, true) => (DB::create_user_via_email(&mut connection, &model.email, &model.password)?, None, UserType::default()),
             _ => return Err(anyhow!(AuthError::EmailOrPasswordNotValid))
         };
         
@@ -91,8 +91,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
 
-        let session_id = self.states.new_session(&user_id, name.clone());
-        let (token, auth) = self.generate_token(&user_id, name, Some(model.email.to_string()), Some(session_id))?;
+        let session_id = self.states.new_session(&user_id, name.clone(), user_type);
+        let (token, auth) = self.generate_token(&user_id, name, Some(model.email.to_string()), Some(session_id), user_type)?;
 
         self.issue_system_async(UserConnected {
             user_id: Arc::new(user_id),
@@ -114,17 +114,17 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
         let mut connection = self.database.get()?;
         let user_info = DB::user_login_via_device_id(&mut connection, &model.id)?;
 
-        let (user_id, name, email) = match user_info {
-            Some(user_info) => (user_info.user_id, user_info.name, user_info.email),
-            None => (DB::create_user_via_device_id(&mut connection, &model.id)?, None, None)
+        let (user_id, name, email, user_type) = match user_info {
+            Some(user_info) => (user_info.user_id, user_info.name, user_info.email, user_info.user_type),
+            None => (DB::create_user_via_device_id(&mut connection, &model.id)?, None, None, UserType::default())
         };
         
         if self.states.is_user_online(&user_id) {
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
         
-        let session_id = self.states.new_session(&user_id, name.clone());
-        let (token, auth) = self.generate_token(&user_id, name, email, Some(session_id))?;
+        let session_id = self.states.new_session(&user_id, name.clone(), user_type);
+        let (token, auth) = self.generate_token(&user_id, name, email, Some(session_id), user_type)?;
 
         self.issue_system_async(UserConnected {
             user_id: Arc::new(user_id),
@@ -146,17 +146,17 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
         let mut connection = self.database.get()?;
         let user_info = DB::user_login_via_custom_id(&mut connection, &model.id)?;
 
-        let (user_id, name, email) = match user_info {
-            Some(user_info) => (user_info.user_id, user_info.name, user_info.email),
-            None => (DB::create_user_via_custom_id(&mut connection, &model.id)?, None, None)
+        let (user_id, name, email, user_type) = match user_info {
+            Some(user_info) => (user_info.user_id, user_info.name, user_info.email, user_info.user_type),
+            None => (DB::create_user_via_custom_id(&mut connection, &model.id)?, None, None, UserType::default())
         };
         
         if self.states.is_user_online(&user_id) {
             return Err(anyhow!(AuthError::OnlyOneConnectionAllowedPerUser));
         }
         
-        let session_id = self.states.new_session(&user_id, name.clone());
-        let (token, auth) = self.generate_token(&user_id, name, email, Some(session_id))?;
+        let session_id = self.states.new_session(&user_id, name.clone(), user_type);
+        let (token, auth) = self.generate_token(&user_id, name, email, Some(session_id), user_type)?;
 
         self.issue_system_async(UserConnected {
             user_id: Arc::new(user_id),
@@ -172,14 +172,15 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRe
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="Logout", skip(self, _ctx))]
-    #[macros::api(name="Logout")]
+    #[macros::api(name="Logout", socket=true)]
     fn handle(&mut self, model: LogoutRequest, _ctx: &mut Context<Self>) -> Self::Result {
         match model.user.deref() {
             Some(user) => {
                 self.states.close_session(&user.session);
+                model.socket.send(Answer::success().into());
                 Ok(())
             },
-            None => Err(anyhow::anyhow!(AuthError::TokenNotValid))
+            None => Err(anyhow::anyhow!(AuthError::UserNotLoggedIn))
         }
     }
 }
@@ -192,7 +193,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
     fn handle(&mut self, model: RefreshTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
         match validate_auth(self.config.clone(), model.token) {
             Some(claims) => {
-                let (token, _) = self.generate_token(&claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session))?;
+                let (token, _) = self.generate_token(&claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session), claims.user.user_type)?;
                 model.socket.send(GenericAnswer::success(token).into());
                 Ok(())
             },
@@ -215,10 +216,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
                     }
                     auth.user.session
                 } else {
-                    self.states.new_session(&auth.user.id, auth.user.name.clone())
+                    self.states.new_session(&auth.user.id, auth.user.name.clone(), auth.user.user_type)
                 };
 
-                let (token, auth) = self.generate_token(&auth.user.id, None, None, Some(session_id))?; 
+                let (token, auth) = self.generate_token(&auth.user.id, None, None, Some(session_id), auth.user.user_type)?; 
 
                 self.issue_system_async(UserConnected {
                     user_id: auth.id.clone(),
