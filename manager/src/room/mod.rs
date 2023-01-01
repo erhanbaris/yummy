@@ -162,11 +162,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
             None => return Err(anyhow::anyhow!(UserError::UserNotFound))
         };
 
-        let mut updates = RoomUpdate::default();
-
-        updates.max_user = model.max_user.map(|item| item as i32 );
-        updates.access_type = model.access_type.map(|item| item.into() );
-        updates.name = model.name.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
+        let updates = RoomUpdate {
+            max_user: model.max_user.map(|item| item as i32 ),
+            access_type: model.access_type.map(|item| item.into() ),
+            name: model.name.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} )
+        };
 
         let mut connection = self.database.get()?;
         let config = self.config.clone();

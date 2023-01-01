@@ -4,6 +4,7 @@ use general::auth::validate_auth;
 use general::config::YummyConfig;
 use general::config::configure_environment;
 use general::config::get_configuration;
+use general::meta::MetaAction;
 use general::meta::UserMetaAccess;
 use general::web::GenericAnswer;
 use std::collections::HashMap;
@@ -314,6 +315,14 @@ async fn update_user_1() -> anyhow::Result<()> {
 #[actix::test]
 async fn update_user_2() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
+    let admin = email_auth!(auth_manager, config.clone(), "admin@gmail.com".to_string(), "erhan".into(), true, socket.clone());
+    
+    user_manager.send(UpdateUser {
+        user: admin.clone(),
+        user_type : Some(UserType::Admin),
+        socket: socket.clone(),
+        ..Default::default()
+    }).await??;
 
     auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
@@ -340,7 +349,8 @@ async fn update_user_2() -> anyhow::Result<()> {
     assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
     
     user_manager.send(UpdateUser {
-        user: user_auth.clone(),
+        user: admin.clone(),
+        target_user_id: Some(user_jwt.id.deref().clone()),
         socket: socket.clone(),
         name: Some("Erhan".to_string()),
         meta: Some(HashMap::from([
@@ -383,6 +393,14 @@ async fn update_user_2() -> anyhow::Result<()> {
 #[actix::test]
 async fn update_user_3() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
+    let admin = email_auth!(auth_manager, config.clone(), "admin@gmail.com".to_string(), "erhan".into(), true, socket.clone());
+    
+    user_manager.send(UpdateUser {
+        user: admin.clone(),
+        user_type : Some(UserType::Admin),
+        socket: socket.clone(),
+        ..Default::default()
+    }).await??;
 
     auth_manager.send(EmailAuthRequest {
         email: "erhanbaris@gmail.com".to_string(),
@@ -409,7 +427,8 @@ async fn update_user_3() -> anyhow::Result<()> {
 
     /*Max meta must be 10, this request is valid */
     user_manager.send(UpdateUser {
-        user: user_auth.clone(),
+        user: admin.clone(),
+        target_user_id: Some(user_jwt.id.deref().clone()),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
         meta: Some(HashMap::from([
@@ -429,7 +448,8 @@ async fn update_user_3() -> anyhow::Result<()> {
     
     /*Max meta must be 10, this request is NOT valid */
     let response = user_manager.send(UpdateUser {
-        user: user_auth.clone(),
+        user: admin.clone(),
+        target_user_id: Some(user_jwt.id.deref().clone()),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
         meta: Some(HashMap::from([
@@ -453,9 +473,8 @@ async fn update_user_3() -> anyhow::Result<()> {
     Ok(())
 }
 
-
 #[actix::test]
-async fn meta_manupulation_test() -> anyhow::Result<()> {
+async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
 
     let admin = email_auth!(auth_manager, config.clone(), "admin@gmail.com".to_string(), "erhan".into(), true, socket.clone());
@@ -484,9 +503,10 @@ async fn meta_manupulation_test() -> anyhow::Result<()> {
 
     /* Update user's meta information to test */
     user_manager.send(UpdateUser {
-        user: user.clone(),
+        user: admin.clone(),
+        target_user_id: Some(user_id.clone()),
         meta: Some(HashMap::from([
-            ("system".to_string(), MetaType::Number(112233.0, UserMetaAccess::System)),
+            //("system".to_string(), MetaType::Number(112233.0, UserMetaAccess::System)),
             ("admin".to_string(), MetaType::Number(123456789.0, UserMetaAccess::Admin)),
             ("moderator".to_string(), MetaType::String("Copennhagen".to_string(), UserMetaAccess::Mod)),
             ("me".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
@@ -549,14 +569,14 @@ async fn meta_manupulation_test() -> anyhow::Result<()> {
 
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
-    assert_eq!(information_meta.len(), 7);
+    assert_eq!(information_meta.len(), 6);
     assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
     assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
     assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), UserMetaAccess::Anonymous)));
     assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, UserMetaAccess::Anonymous)));
     assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), UserMetaAccess::Anonymous)));
     assert_eq!(information_meta.get("admin"), Some(&MetaType::Number(123456789.0, UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("system"), Some(&MetaType::Number(112233.0, UserMetaAccess::Anonymous)));
+    //assert_eq!(information_meta.get("system"), Some(&MetaType::Number(112233.0, UserMetaAccess::Anonymous)));
 
     /* Check for other user */
     user_manager.send(GetUserInformation::user(user_id.clone(), other_user.clone(), socket.clone())).await??;
@@ -580,4 +600,124 @@ async fn meta_manupulation_test() -> anyhow::Result<()> {
     assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
 
     Ok(())
+}
+
+#[actix::test]
+async fn meta_manupulation_test_2() -> anyhow::Result<()> {
+    let (user_manager, auth_manager, config, socket) = create_actor()?;
+    let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".into(), true, socket.clone());
+
+    user_manager.send(UpdateUser {
+        user: user.clone(),
+        name: Some("Erhan".to_string()),
+        socket: socket.clone(),
+        meta: Some(HashMap::from([
+            ("1".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+            ("2".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+            ("3".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+            ("4".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+            ("5".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+            ("6".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+            ("7".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+            ("8".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+            ("9".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+            ("10".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+        ])),
+        ..Default::default()
+    }).await??;
+
+    // Remove unused metas
+    user_manager.send(UpdateUser {
+        user: user.clone(),
+        name: Some("Erhan".to_string()),
+        socket: socket.clone(),
+        meta: Some(HashMap::from([
+            ("1".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+            ("2".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+            ("3".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+            ("4".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+            ("5".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+        ])),
+        meta_action: Some(MetaAction::RemoveUnusedMetas),
+        ..Default::default()
+    }).await??;
+
+    /* Check for my informations */
+    user_manager.send(GetUserInformation::me(user.clone(), socket.clone())).await??;
+    
+    let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let information = information.result.unwrap_or_default();
+
+    assert!(information.meta.is_some());
+    let information_meta = information.meta.unwrap();
+    assert_eq!(information_meta.len(), 5);
+
+
+
+    // Remove unused metas
+    user_manager.send(UpdateUser {
+        user: user.clone(),
+        name: Some("Erhan".to_string()),
+        socket: socket.clone(),
+        meta: Some(HashMap::from([
+            ("6".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
+        ])),
+        meta_action: Some(MetaAction::OnlyAddOrUpdate),
+        ..Default::default()
+    }).await??;
+
+    /* Check for my informations */
+    user_manager.send(GetUserInformation::me(user.clone(), socket.clone())).await??;
+    
+    let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let information = information.result.unwrap_or_default();
+
+    assert!(information.meta.is_some());
+    let information_meta = information.meta.unwrap();
+    assert_eq!(information_meta.len(), 6);
+
+
+
+    // Remove single meta
+    user_manager.send(UpdateUser {
+        user: user.clone(),
+        name: Some("Erhan".to_string()),
+        socket: socket.clone(),
+        meta: Some(HashMap::from([
+            ("6".to_string(), MetaType::Null),
+        ])),
+        ..Default::default()
+    }).await??;
+
+    /* Check for my informations */
+    user_manager.send(GetUserInformation::me(user.clone(), socket.clone())).await??;
+    
+    let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let information = information.result.unwrap_or_default();
+
+    assert!(information.meta.is_some());
+    let information_meta = information.meta.unwrap();
+    assert_eq!(information_meta.len(), 5);
+
+
+
+    // Remove all metas
+    user_manager.send(UpdateUser {
+        user: user.clone(),
+        name: Some("Erhan".to_string()),
+        socket: socket.clone(),
+        meta_action: Some(MetaAction::RemoveAllMetas),
+        ..Default::default()
+    }).await??;
+
+
+    /* Check for my informations */
+    user_manager.send(GetUserInformation::me(user.clone(), socket.clone())).await??;
+    
+    let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let information = information.result.unwrap_or_default();
+
+    assert!(information.meta.is_none());
+
+    Ok(())  
 }

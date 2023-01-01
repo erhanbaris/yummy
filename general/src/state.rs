@@ -206,6 +206,24 @@ impl YummyState {
     }
 
     #[cfg(feature = "stateless")]
+    #[tracing::instrument(name="set_user_type", skip(self))]
+    pub fn set_user_type(&self, user_id: &UserId, user_type: UserType) {
+        match self.redis.get() {
+            Ok(mut redis) => redis_result!(redis.hset::<_, _, _, i32>(format!("{}users:{}", self.config.redis_prefix, user_id.to_string()), "type", i32::from(user_type))),
+            Err(_) => 0
+        };
+    }
+
+    #[cfg(feature = "stateless")]
+    #[tracing::instrument(name="set_user_name", skip(self))]
+    pub fn set_user_name(&self, user_id: &UserId, name: String) {
+        match self.redis.get() {
+            Ok(mut redis) => redis_result!(redis.hset::<_, _, _, i32>(format!("{}users:{}", self.config.redis_prefix, user_id.to_string()), "name", name)),
+            Err(_) => 0
+        };
+    }
+
+    #[cfg(feature = "stateless")]
     #[tracing::instrument(name="new_session", skip(self))]
     pub fn new_session(&mut self, user_id: &UserId, name: Option<String>, user_type: UserType) -> SessionId {
         let session_id = SessionId::new();
@@ -272,7 +290,6 @@ impl YummyState {
     #[tracing::instrument(name="get_user_room", skip(self))]
     pub fn get_user_room(&mut self, user_id: &UserId) -> Option<RoomId> {
         use std::str::FromStr;
-        println!("{}users:{}", self.config.redis_prefix, user_id.borrow().to_string());
         let result = match self.redis.get() {
             Ok(mut redis) => redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id.to_string()), "room")),
             Err(_) => return None
@@ -344,8 +361,8 @@ impl YummyState {
                         .arg("max-user")
                         .query::<Vec<usize>>(&mut redis));
 
-                    let user_len = room_info.first().map(|item| *item).unwrap_or_default();
-                    let max_user = room_info.get(1).map(|item| *item).unwrap_or_default();
+                    let user_len = room_info.first().copied().unwrap_or_default();
+                    let max_user = room_info.get(1).copied().unwrap_or_default();
 
                     // If the max_user 0 or lower than users count, add to room
                     if max_user == 0 || max_user > user_len {
@@ -647,6 +664,22 @@ impl YummyState {
         self.session_to_user.lock().insert(session_id.clone(), user_id.clone()); // todo: discart cloning
         self.user.lock().insert(user_id.clone(), crate::model::UserState { user_id: user_id.clone(), name, session: session_id.clone(), user_type, room: Cell::new(None) }); // todo: discart cloning
         session_id
+    }
+
+    #[cfg(not(feature = "stateless"))]
+    #[tracing::instrument(name="set_user_type", skip(self))]
+    pub fn set_user_type(&self, user_id: &UserId, user_type: UserType) {
+        if let Some(user) = self.user.lock().get_mut(user_id) {
+            user.user_type = user_type
+        }
+    }
+
+    #[cfg(not(feature = "stateless"))]
+    #[tracing::instrument(name="set_user_name", skip(self))]
+    pub fn set_user_name(&self, user_id: &UserId, name: String) {
+        if let Some(user) = self.user.lock().get_mut(user_id) {
+            user.name = Some(name)
+        }
     }
 
     #[cfg(not(feature = "stateless"))]

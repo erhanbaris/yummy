@@ -3,6 +3,14 @@ use serde_json::Value;
 use std::{fmt::{self, Debug}, marker::PhantomData};
 use serde::de::{self};
 
+#[derive(Debug, PartialEq, Eq, Clone, Default, Serialize, Deserialize)]
+pub enum MetaAction {
+    #[default]
+    OnlyAddOrUpdate = 0,
+    RemoveUnusedMetas = 1,
+    RemoveAllMetas = 2
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Default, Serialize)]
 pub enum UserMetaAccess {
     #[default]
@@ -88,6 +96,17 @@ pub enum MetaType<T: Default + Debug + PartialEq + Clone> {
     Number(f64, T),
     String(String, T),
     Bool(bool, T)
+}
+
+impl<T: Default + Debug + PartialEq + Clone> MetaType<T> {
+    pub fn get_access_level(&self) -> T {
+        match self {
+            MetaType::Null => T::default(),
+            MetaType::Number(_, access_level) => access_level.clone(),
+            MetaType::String(_, access_level) => access_level.clone(),
+            MetaType::Bool(_, access_level) => access_level.clone(),
+        }
+    }
 }
 
 impl<'de, T: Default + Debug + PartialEq + Clone + From<i32>> Deserialize<'de> for MetaType<T> {

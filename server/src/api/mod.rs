@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use actix::Addr;
 use database::DatabaseTrait;
-use general::{meta::UserMetaAccess, auth::UserAuth, client::ClientTrait};
+use general::{auth::UserAuth, client::ClientTrait};
 use manager::auth::AuthManager;
 use manager::room::RoomManager;
 use manager::user::UserManager;
@@ -49,7 +49,7 @@ pub(crate) fn process_user<DB: DatabaseTrait + Unpin + 'static>(user_type: Reque
      match user_type {
         RequestUserType::Me => as_response!(user_manager, GetUserInformation::me(me, socket)),
         RequestUserType::Get { user } => as_response!(user_manager, GetUserInformation::user(user, me, socket)),
-        RequestUserType::Update { name, email, password, device_id, custom_id, user_type, meta } => as_response!(user_manager, UpdateUser { user: me, name, email, password, device_id, custom_id, meta, user_type, access_level: UserMetaAccess::Me, socket }),
+        RequestUserType::Update { name, email, password, device_id, custom_id, user_type, meta, meta_action } => as_response!(user_manager, UpdateUser { user: me, name, email, password, device_id, custom_id, meta, meta_action, user_type, socket, target_user_id: None }),
     };
     Ok(())
 }

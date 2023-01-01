@@ -1,7 +1,7 @@
 use std::{fmt::Debug, sync::Arc, collections::HashMap};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use general::client::ClientTrait;
+use general::{client::ClientTrait, meta::MetaAction};
 
 use actix::prelude::Message;
 use validator::Validate;
@@ -51,6 +51,7 @@ pub enum GetUserInformationEnum {
 #[rtype(result = "anyhow::Result<()>")]
 pub struct UpdateUser {
     pub user: Arc<Option<UserAuth>>,
+    pub target_user_id: Option<UserId>,
     pub name: Option<String>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>,
 
@@ -61,7 +62,7 @@ pub struct UpdateUser {
     pub custom_id: Option<String>,
     pub user_type: Option<UserType>,
     pub meta: Option<HashMap<String, MetaType<UserMetaAccess>>>,
-    pub access_level: UserMetaAccess
+    pub meta_action: Option<MetaAction>
 }
 
 #[cfg(test)]
@@ -70,15 +71,16 @@ impl Default for UpdateUser
     fn default() -> Self {
         Self {
             user: Arc::new(None),
+            target_user_id: None,
             name: None,
             socket: Arc::new(general::test::DummyClient::default()),
             email: None,
             password: None,
             device_id: None,
-            access_level: UserMetaAccess::default(),
             custom_id: None,
             meta: None,
-            user_type: None
+            meta_action: None,
+            user_type: None,
         }
     }
 }
@@ -126,5 +128,8 @@ pub enum UserError {
     MetaLimitOverToMaximum,
 
     #[error("User not belong to room")]
-    UserNotBelongToRoom
+    UserNotBelongToRoom,
+
+    #[error("'{0}' meta access level cannot be bigger than users access level")]
+    MetaAccessLevelCannotBeBiggerThanUsersAccessLevel(String)
 }

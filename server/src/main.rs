@@ -2,14 +2,19 @@
 mod api;
 
 use general::config::{get_configuration, configure_environment};
+use general::meta::{MetaType, UserMetaAccess};
+use general::model::UserType;
 use general::tls::load_rustls_config;
 use manager::conn::ConnectionManager;
 use manager::user::UserManager;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use manager::auth::AuthManager;
 
 use actix_web::error::InternalError;
+
+use crate::api::request::*;
 
 use actix::Actor;
 use actix_web::error::{JsonPayloadError};
@@ -29,6 +34,21 @@ pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::
 async fn main() -> std::io::Result<()> {
     use general::state::YummyState;
     use manager::{room::RoomManager};
+
+    let req = Request::User {
+        user_type: RequestUserType::Update { 
+            name: Some("erhan".to_string()),
+            email: Some("erhan".to_string()),
+            password: Some("erhan".to_string()),
+            device_id: Some("erhan".to_string()),
+            custom_id: Some("erhan".to_string()),
+            user_type: Some(UserType::Mod),
+            meta: Some(HashMap::from([("lat".to_string(), MetaType::<UserMetaAccess>::Number(123.0, UserMetaAccess::Mod)), ("lon".to_string(), MetaType::<UserMetaAccess>::Number(321.0, UserMetaAccess::Mod))])),
+            meta_action: Some(general::meta::MetaAction::RemoveAllMetas)
+        }
+    };
+
+    println!("{}", serde_json::to_string(&req).unwrap());
 
     configure_environment();
     let config = get_configuration();

@@ -13,7 +13,7 @@ use database::{Pool, DatabaseTrait};
 
 use general::config::YummyConfig;
 use general::meta::{MetaType, UserMetaAccess};
-use general::model::UserType;
+use general::model::{UserType, UserId};
 use general::state::YummyState;
 use general::web::{GenericAnswer, Answer};
 
@@ -37,6 +37,19 @@ impl<DB: DatabaseTrait + ?Sized> UserManager<DB> {
             database,
             states,
             _marker: PhantomData
+        }
+    }
+
+    fn get_user_access_level(&mut self, current_user_id: &UserId, target_user_id: &UserId) -> anyhow::Result<UserMetaAccess> {
+        if current_user_id == target_user_id {
+            return Ok(UserMetaAccess::Me);
+        }
+
+        match self.states.get_user_type(current_user_id) {
+            Some(UserType::User) => Ok(UserMetaAccess::User),
+            Some(UserType::Mod) => Ok(UserMetaAccess::Mod),
+            Some(UserType::Admin) => Ok(UserMetaAccess::Admin),
+            None => Err(anyhow::anyhow!(UserError::UserNotFound))
         }
     }
 }
@@ -109,39 +122,47 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
     #[tracing::instrument(name="UpdateUser", skip(self, _ctx))]
     #[macros::api(name="UpdateUser", socket=true)]
     fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
+        let UpdateUser { user, name, socket, email, password, device_id, custom_id, user_type, meta, meta_action, target_user_id } = model;
 
-        let user_id = match model.user.deref() {
+        let user_id = match user.deref() {
             Some(user) => &user.user,
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
-        let has_user_update = model.custom_id.is_some() || model.device_id.is_some() || model.email.is_some() || model.name.is_some() || model.password.is_some() || model.user_type.is_some();
+        let target_user_id = match &target_user_id {
+            Some(target_user_id) => target_user_id,
+            None => user_id
+        };
 
-        if !has_user_update && model.meta.as_ref().map(|dict| dict.len()).unwrap_or_default() == 0 {
+        let has_user_update = custom_id.is_some() || device_id.is_some() || email.is_some() || name.is_some() || password.is_some() || user_type.is_some();
+
+        if !has_user_update && meta.as_ref().map(|dict| dict.len()).unwrap_or_default() == 0 {
             return Err(anyhow::anyhow!(UserError::UpdateInformationMissing));
         }
 
         let mut updates = UserUpdate::default();
 
         let mut connection = self.database.get()?;
-        let user = match DB::get_user_information(&mut connection, user_id, UserMetaAccess::Admin)? {
+        let user_access_level = self.get_user_access_level(user_id, target_user_id)?;
+
+        let user = match DB::get_user_information(&mut connection, target_user_id, user_access_level.clone())? {
             Some(user) => user,
             None => return Err(anyhow::anyhow!(UserError::UserNotFound))
         };
 
-        updates.custom_id = model.custom_id.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
-        updates.device_id = model.device_id.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
-        updates.name = model.name.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
-        updates.user_type = model.user_type.map(|item| item.into());
+        updates.custom_id = custom_id.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
+        updates.device_id = device_id.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
+        updates.name = name.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
+        updates.user_type = user_type.map(|item| item.into());
 
-        if let Some(password) = model.password {
+        if let Some(password) = password {
             if password.trim().len() < 4 {
                 return Err(anyhow::anyhow!(UserError::PasswordIsTooSmall))
             }
             updates.password = Some(password);
         }
 
-        if let Some(email) = model.email {
+        if let Some(email) = email {
             if user.email.is_some() {
                 return Err(anyhow::anyhow!(UserError::CannotChangeEmail));
             }
@@ -151,52 +172,123 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
         let config = self.config.clone();
 
         DB::transaction::<_, anyhow::Error, _>(&mut connection, move |connection| {
-            if let Some(meta) = model.meta {
 
-                match meta.len() {
-                    0 => (),
-                    n if n > config.max_user_meta => return Err(anyhow::anyhow!(UserError::MetaLimitOverToMaximum)),
-                    _ => {
-                        let user_old_metas = DB::get_user_meta(connection, user_id, model.access_level)?;
-                        let mut remove_list = Vec::new();
-                        let mut insert_list = Vec::new();
+            let meta_action = meta_action.unwrap_or_default();
+            let user_access_level_code = user_access_level.clone() as u8;
 
-                        for (key, value) in meta.into_iter() {
-                            let row = user_old_metas.iter().find(|item| item.1 == key).map(|item| item.0.clone()); // todo: discard cloning
+            let (to_be_inserted, to_be_removed, total_metas) = match meta_action {
 
-                            /* Remove the key if exists in the database */
-                            if let Some(row_id) = row {
-                                remove_list.push(row_id);
+                // Dont remove old metas
+                general::meta::MetaAction::OnlyAddOrUpdate => {
+
+                    // Check for metas
+                    match meta {
+                        Some(meta) => {
+                            let user_old_metas = DB::get_user_meta(connection, target_user_id, user_access_level)?;
+                            let mut remove_list = Vec::new();
+                            let mut insert_list = Vec::new();
+
+                            for (key, value) in meta.into_iter() {
+
+                                let meta_access_level = value.get_access_level() as u8;
+                                if meta_access_level > user_access_level_code {
+                                    return Err(anyhow::anyhow!(UserError::MetaAccessLevelCannotBeBiggerThanUsersAccessLevel(key)));
+                                }
+
+                                // Check for meta already added into the user
+                                let row = user_old_metas.iter().find(|item| item.1 == key).map(|item| item.0.clone());
+        
+                                /* Remove the key if exists in the database */
+                                if let Some(row_id) = row {
+                                    remove_list.push(row_id);
+                                }
+        
+                                /* Remove meta */
+                                if let MetaType::Null = value {
+                                    continue;
+                                }
+        
+                                insert_list.push((key, value));
                             }
+                            
+                            let total_metas = (user_old_metas.len() - remove_list.len()) + insert_list.len();
+                            let insert_list = (!insert_list.is_empty()).then_some(insert_list);
+                            let remove_list = (!remove_list.is_empty()).then_some(remove_list);
 
-                            /* Remove meta */
-                            if let MetaType::Null = value {
-                                continue;
-                            }
-
-                            insert_list.push((key, value));
-                        }
-
-                        DB::remove_user_metas(connection, remove_list)?;
-                        DB::insert_user_metas(connection, user_id, insert_list)?;
+                            (insert_list, remove_list, total_metas)
+                        },
+                        None => (None, None, 0)
                     }
-                };
+                },
+
+                // Add ne metas than remove all old meta informations
+                general::meta::MetaAction::RemoveUnusedMetas => {
+
+                    // Check for metas
+                    match meta {
+                        Some(meta) => {
+                            let remove_list = DB::get_user_meta(connection, target_user_id, user_access_level.clone())?.into_iter().map(|meta| meta.0).collect::<Vec<_>>();
+                            let mut insert_list = Vec::new();
+
+                            for (key, value) in meta.into_iter() {
+                                
+                                let meta_access_level = value.get_access_level() as u8;
+                                if meta_access_level > user_access_level_code {
+                                    return Err(anyhow::anyhow!(UserError::MetaAccessLevelCannotBeBiggerThanUsersAccessLevel(key)));
+                                }
+
+                                if let MetaType::Null = value {
+                                    continue;
+                                }
+        
+                                insert_list.push((key, value));
+                            }
+                            
+                            let total_metas = insert_list.len();
+                            let insert_list = (!insert_list.is_empty()).then_some(insert_list);
+                            let remove_list = (!remove_list.is_empty()).then_some(remove_list);
+
+                            (insert_list, remove_list, total_metas)
+                        },
+                        None => (None, None, 0)
+                    }
+                },
+                general::meta::MetaAction::RemoveAllMetas => {
+                    // Discard all new meta insertion list and remove all old meta that based on user access level.
+                    (None, Some(DB::get_user_meta(connection, target_user_id, user_access_level)?.into_iter().map(|meta| meta.0).collect::<Vec<_>>()), 0)
+                },    
+            };
+
+            if total_metas > config.max_user_meta {
+                return Err(anyhow::anyhow!(UserError::MetaLimitOverToMaximum));
+            }
+
+            if let Some(to_be_removed) = to_be_removed {
+                DB::remove_user_metas(connection, to_be_removed)?;
+            }
+
+            if let Some(to_be_inserted) = to_be_inserted {
+                DB::insert_user_metas(connection, target_user_id, to_be_inserted)?;
             }
             
             // Update user
             match has_user_update {
-                true => match DB::update_user(connection, user_id, updates)? {
-                    0 => Err(anyhow::anyhow!(UserError::UserNotFound)),
-                    _ => {
-                        model.socket.send(Answer::success().into());
-                        Ok(())
-                    }
+                true => match DB::update_user(connection, target_user_id, &updates)? {
+                    0 => return Err(anyhow::anyhow!(UserError::UserNotFound)),
+                    _ => socket.send(Answer::success().into())
                 },
-                false => {
-                    model.socket.send(Answer::success().into());
-                    Ok(())
-                }
+                false => socket.send(Answer::success().into())
+            };
+
+            // todo: convert to single execution
+            if let Some(user_type) = user_type {
+                self.states.set_user_type(target_user_id, user_type);
             }
+
+            if let Some(Some(name)) = updates.name {
+                self.states.set_user_name(target_user_id, name);
+            }
+            Ok(())
         })
     }
 }

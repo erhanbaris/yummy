@@ -1019,7 +1019,7 @@ async fn user_update_3() -> anyhow::Result<()> {
         "lat": 3.11133,
         "lon": 5.444,
         "gender": {
-            "access": 4,
+            "access": 3,
             "value": "Male"
         }
     });
@@ -1036,10 +1036,6 @@ async fn user_update_4() -> anyhow::Result<()> {
     update_meta!(client, {
         "lat": 3.11133,
         "lon": 5.444,
-        "admin type": {
-            "access": UserMetaAccess::Admin as u32,
-            "value": 10
-        },
         "me type": {
             "access": UserMetaAccess::Me as u32,
             "value": 9
@@ -1054,7 +1050,6 @@ async fn user_update_4() -> anyhow::Result<()> {
     assert!(me.meta.is_some());
 
     let me = me.meta.unwrap();
-    assert!(me.get("admin type").is_none());
     assert_eq!(me.get("me type"), Some(&serde_json::Value::Number(serde_json::Number::from_f64(9.0).unwrap())));
     assert_eq!(me.get("user type"), Some(&serde_json::Value::Number(serde_json::Number::from_f64(8.0).unwrap())));
     

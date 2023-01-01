@@ -22,7 +22,7 @@ use crate::schema::user_meta;
 use crate::{PooledConnection, schema::user};
 
 pub trait UserStoreTrait: Sized {
-    fn update_user(connection: &mut PooledConnection, user_id: &UserId, update_request: UserUpdate) -> anyhow::Result<usize>;
+    fn update_user(connection: &mut PooledConnection, user_id: &UserId, update_request: &UserUpdate) -> anyhow::Result<usize>;
     fn get_user_meta(connection: &mut PooledConnection, user_id: &UserId, filter: UserMetaAccess) -> anyhow::Result<Vec<(UserMetaId, String, MetaType<UserMetaAccess>)>>;
     fn remove_user_metas(connection: &mut PooledConnection, meta_ids: Vec<UserMetaId>) -> anyhow::Result<()>;
     fn insert_user_metas(connection: &mut PooledConnection, user_id: &UserId, metas: Vec<(String, MetaType<UserMetaAccess>)>) -> anyhow::Result<()>;
@@ -33,8 +33,8 @@ pub trait UserStoreTrait: Sized {
 
 impl UserStoreTrait for SqliteStore {
     #[tracing::instrument(name="Update user", skip(connection))]
-    fn update_user(connection: &mut PooledConnection, user_id: &UserId, update_request: UserUpdate) -> anyhow::Result<usize> {
-        Ok(diesel::update(user::table.filter(user::id.eq(user_id))).set(&update_request).execute(connection)?)
+    fn update_user(connection: &mut PooledConnection, user_id: &UserId, update_request: &UserUpdate) -> anyhow::Result<usize> {
+        Ok(diesel::update(user::table.filter(user::id.eq(user_id))).set(update_request).execute(connection)?)
     }
 
     #[tracing::instrument(name="Get user", skip(connection))]
@@ -220,7 +220,7 @@ mod tests {
     fn fail_update_user_1() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
-        assert!(SqliteStore::update_user(&mut connection, &UserId::default(), UserUpdate::default()).is_err());
+        assert!(SqliteStore::update_user(&mut connection, &UserId::default(), &UserUpdate::default()).is_err());
         Ok(())
     }
 
@@ -228,14 +228,14 @@ mod tests {
     fn fail_update_user_2() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
-        assert!(SqliteStore::update_user(&mut connection, &UserId::default(), UserUpdate::default()).is_err());
+        assert!(SqliteStore::update_user(&mut connection, &UserId::default(), &UserUpdate::default()).is_err());
         Ok(())
     }
     #[test]
     fn fail_update_user_3() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
-        assert_eq!(SqliteStore::update_user(&mut connection, &UserId::default(), UserUpdate {
+        assert_eq!(SqliteStore::update_user(&mut connection, &UserId::default(), &UserUpdate {
             name: Some(Some("123456".to_string())),
             ..Default::default()
         })?, 0);
@@ -246,7 +246,7 @@ mod tests {
     fn fail_update_user_4() -> anyhow::Result<()> {
         let mut connection = db_conection()?;
 
-        assert_eq!(SqliteStore::update_user(&mut connection, &UserId::default(), UserUpdate {
+        assert_eq!(SqliteStore::update_user(&mut connection, &UserId::default(), &UserUpdate {
             name: Some(Some("123456".to_string())),
             ..Default::default()
         })?, 0);
@@ -258,7 +258,7 @@ mod tests {
         let mut connection = db_conection()?;
 
         let user_id = SqliteStore::create_user_via_custom_id(&mut connection, "123456789")?;
-        assert_eq!(SqliteStore::update_user(&mut connection, &user_id, UserUpdate {
+        assert_eq!(SqliteStore::update_user(&mut connection, &user_id, &UserUpdate {
             name: Some(Some("123456".to_string())),
             ..Default::default()
         })?, 1);

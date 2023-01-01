@@ -10,6 +10,15 @@ Requires Rust Language to build the Yummy.
 cargo run --release
 ```
 
+## Unit test executions 
+
+To execute all unit test, need to execute following commands. The second command require Redis instance.
+
+```bash
+cargo test --all
+cargo test --all  --features stateless
+```
+
 ## Documentation
 [Link](documents/README.md)
 
@@ -19,39 +28,3 @@ cargo run --release
 - Different authentication methods
 - Supports for vertical and horizontal scaling
 - Observability via OpenTelemetry integration
-
-### Todo list
-
-- [ ] Remove all unnecessary copy and clone
-- [ ] Add parameter for OpenTelemetry configuration
-- [X] TLS support
-- [X] Remove room at redis state when no user in the room
-- [ ] Room metadata
-- [ ] Design document
-- [ ] Example projects
-- [ ] Friend add/remove/list integration
-- [ ] RabbitMQ integration
-- [X] Redis integration
-- [ ] Create Lua scripts for Redis operations
-- [ ] Server disconnect detection [Stateless]
-- [ ] Support for pre and post API calls
-- [ ] Web interface for system control
-- [ ] Lua, JS, .NET Core runtimes
-- [ ] Client libraries (JS, Python, Rust, Godot, Unity, etc.)
-
----
-
-### General Unit Test
-
-- [ ] Room integration
-- [ ] Multiple server communication
-- [ ] Integration test
-
-
-## Coverage report generation procedures
-
-RUSTFLAGS='-Cinstrument-coverage' LLVM_PROFILE_FILE='cargo-test-%p-%m.profraw' cargo test --all
-
-grcov . --binary-path ./target/debug/deps/ -s . -t html --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o html
-
-find . -name "*.profraw" -type f -delete

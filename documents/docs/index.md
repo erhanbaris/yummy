@@ -9,6 +9,15 @@ Requires Rust Language to build the Yummy.
 cargo run --release
 ```
 
+## Unit test executions 
+
+To execute all unit test, need to execute following commands. The second command requires Redis instance.
+
+```bash
+cargo test --all
+cargo test --all  --features stateless
+```
+
 ### Features
 - Custom user metadata
 - Custom rooms
@@ -18,22 +27,26 @@ cargo run --release
 
 ### Todo list
 
-- [ ] Remove all unnecessary copy and clone
+- [ ] Close inactive connections
+- [ ] Dispose inactive rooms
 - [ ] Add parameter for OpenTelemetry configuration
-- [X] TLS support
-- [X] Remove room at redis state when no user in the room
 - [ ] Room metadata
 - [ ] Design document
 - [ ] Example projects
 - [ ] Friend add/remove/list integration
 - [ ] RabbitMQ integration
-- [X] Redis integration
+- [ ] Protocol Buffers or FlatBuffers integration
 - [ ] Create Lua scripts for Redis operations
 - [ ] Server disconnect detection [Stateless]
 - [ ] Support for pre and post API calls
 - [ ] Web interface for system control
 - [ ] Lua, JS, .NET Core runtimes
 - [ ] Client libraries (JS, Python, Rust, Godot, Unity, etc.)
+- [ ] Create websocket tester application that control multiple connections
+- [X] Redis integration
+- [X] TLS support
+- [X] Remove room at redis state when no user in the room
+- [X] Remove all unnecessary copy and clone
 
 ---
 
