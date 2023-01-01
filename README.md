@@ -4,27 +4,7 @@
 Yummy is the multiplayer game engine to make it easier to develop game. Supports websocket communication to give wider range of the platform. Web, Android, Ios, desktop and all modern browser have inbuild websocket support and **Yummy** can be used almost all platforms.
 Our main goal of the developing this application is support game developer to make better games. Most of the time developing multiplayer games are more complicated than the single player games and with **Yummy** some of the difficulties can be solved more easier.
 
-## Installation
-Requires Rust Language to build the Yummy.
-```bash
-cargo run --release
-```
-
-## Unit test executions 
-
-To execute all unit test, need to execute following commands. The second command require Redis instance.
-
-```bash
-cargo test --all
-cargo test --all  --features stateless
-```
-
 ## Documentation
-[Link](documents/README.md)
+Please follow to [documentation](https://erhanbaris.github.io/yummy/)
 
-### Features
-- Custom user metadata
-- Custom rooms
-- Different authentication methods
-- Supports for vertical and horizontal scaling
-- Observability via OpenTelemetry integration
+**Note:** Yummy still under development and there are too many missing feature. But, we are heavy working on integrating all necessary feature. There is a documentation about how to connect and use but some informations still missing. Feel free to ask question and create pull request and we will be happy to see your feedback.
