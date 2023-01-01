@@ -27,7 +27,7 @@ pub trait RoomStoreTrait: Sized {
     fn get_room_meta(connection: &mut PooledConnection, room_id: &RoomId, filter: RoomMetaAccess) -> anyhow::Result<Vec<(RoomMetaId, String, MetaType<RoomMetaAccess>)>>;
     fn remove_room_metas(connection: &mut PooledConnection, ids: Vec<RoomMetaId>) -> anyhow::Result<()>;
     fn insert_room_metas(connection: &mut PooledConnection, room_id: &RoomId, metas: Vec<(String, MetaType<RoomMetaAccess>)>) -> anyhow::Result<()>;
-    fn update_room(connection: &mut PooledConnection, room_id: &RoomId, update_request: RoomUpdate) -> anyhow::Result<usize>;
+    fn update_room(connection: &mut PooledConnection, room_id: &RoomId, update_request: &RoomUpdate) -> anyhow::Result<usize>;
 }
 
 impl RoomStoreTrait for SqliteStore {
@@ -75,8 +75,8 @@ impl RoomStoreTrait for SqliteStore {
     }
     
     #[tracing::instrument(name="Update user", skip(connection))]
-    fn update_room<'a>(connection: &mut PooledConnection, room_id: &RoomId, update_request: RoomUpdate) -> anyhow::Result<usize> {
-        Ok(diesel::update(room::table.filter(room::id.eq(room_id))).set(&update_request).execute(connection)?)
+    fn update_room(connection: &mut PooledConnection, room_id: &RoomId, update_request: &RoomUpdate) -> anyhow::Result<usize> {
+        Ok(diesel::update(room::table.filter(room::id.eq(room_id))).set(update_request).execute(connection)?)
     }
 
     #[tracing::instrument(name="Join to room", skip(connection))]

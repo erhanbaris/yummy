@@ -5,7 +5,7 @@ use serde::Serialize;
 use thiserror::Error;
 use validator::Validate;
 
-use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::{RoomUserInformation, RoomInfoTypeVariant}, meta::{MetaType, RoomMetaAccess}};
+use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::{RoomUserInformation, RoomInfoTypeVariant}, meta::{MetaType, RoomMetaAccess, MetaAction}};
 
 
 #[derive(Message, Validate, Debug)]
@@ -63,6 +63,7 @@ pub struct UpdateRoom {
     pub name: Option<String>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>,
     pub meta: Option<HashMap<String, MetaType<RoomMetaAccess>>>,
+    pub meta_action: Option<MetaAction>,
     pub access_type: Option<CreateRoomAccessType>,
     pub max_user: Option<usize>,
     pub tags: Option<Vec<String>>,

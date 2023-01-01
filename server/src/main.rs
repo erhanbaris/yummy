@@ -2,19 +2,14 @@
 mod api;
 
 use general::config::{get_configuration, configure_environment};
-use general::meta::{MetaType, UserMetaAccess};
-use general::model::UserType;
 use general::tls::load_rustls_config;
 use manager::conn::ConnectionManager;
 use manager::user::UserManager;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use manager::auth::AuthManager;
 
 use actix_web::error::InternalError;
-
-use crate::api::request::*;
 
 use actix::Actor;
 use actix_web::error::{JsonPayloadError};

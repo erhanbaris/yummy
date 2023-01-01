@@ -138,20 +138,23 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
     #[tracing::instrument(name="UpdateRoom", skip(self, _ctx))]
     #[macros::api(name="UpdateRoom", socket=true)]
     fn handle(&mut self, model: UpdateRoom, _ctx: &mut Context<Self>) -> Self::Result {
-        let user_id = match model.user.deref() {
+
+        let UpdateRoom { user, room_id, name, socket, meta, meta_action, access_type, max_user, tags, user_permission } = model;
+
+        let user_id = match user.deref() {
             Some(user) => &user.user,
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
-        let has_room_update = model.access_type.is_some() || model.max_user.is_some() || model.name.is_some() || model.tags.is_some();
+        let has_room_update = access_type.is_some() || max_user.is_some() || name.is_some() || tags.is_some();
 
-        if !has_room_update && model.meta.as_ref().map(|dict| dict.len()).unwrap_or_default() == 0 {
+        if !has_room_update && meta.as_ref().map(|dict| dict.len()).unwrap_or_default() == 0 {
             return Err(anyhow::anyhow!(RoomError::UpdateInformationMissing));
         }
 
         // Calculate room access level for user
         let access_level = match self.states.get_user_type(user_id) {
-            Some(UserType::User) => match self.states.get_users_room_type(user_id, &model.room_id) {
+            Some(UserType::User) => match self.states.get_users_room_type(user_id, &room_id) {
                 Some(RoomUserType::User) => return Err(anyhow::anyhow!(RoomError::UserDoesNotEnoughPermission)),
                 Some(RoomUserType::Moderator) => RoomMetaAccess::Moderator,
                 Some(RoomUserType::Owner) => RoomMetaAccess::Owner,
@@ -163,61 +166,137 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
         };
 
         let updates = RoomUpdate {
-            max_user: model.max_user.map(|item| item as i32 ),
-            access_type: model.access_type.map(|item| item.into() ),
-            name: model.name.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} )
+            max_user: max_user.map(|item| item as i32 ),
+            access_type: access_type.map(|item| item.into() ),
+            name: name.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} )
         };
 
         let mut connection = self.database.get()?;
         let config = self.config.clone();
 
         DB::transaction::<_, anyhow::Error, _>(&mut connection, move |connection| {
-            if let Some(meta) = model.meta {
 
-                match meta.len() {
-                    0 => (),
-                    n if n > config.max_room_meta => return Err(anyhow::anyhow!(RoomError::MetaLimitOverToMaximum)),
-                    _ => {
-                        let user_old_metas = DB::get_room_meta(connection, &model.room_id, access_level)?;
-                        let mut remove_list = Vec::new();
-                        let mut insert_list = Vec::new();
+            let meta_action = meta_action.unwrap_or_default();
+            let room_access_level_code = access_level.clone() as u8;
 
-                        for (key, value) in meta.into_iter() {
-                            let row= user_old_metas.iter().find(|item| item.1 == key).map(|item| item.0.clone());
+            let (to_be_inserted, to_be_removed, total_metas) = match meta_action {
 
-                            /* Remove the key if exists in the database */
-                            if let Some(row_id) = row {
-                                remove_list.push(row_id);
+                // Dont remove old metas
+                general::meta::MetaAction::OnlyAddOrUpdate => {
+
+                    // Check for metas
+                    match meta {
+                        Some(meta) => {
+                            let room_old_metas = DB::get_room_meta(connection, &model.room_id, access_level)?;
+                            let mut remove_list = Vec::new();
+                            let mut insert_list = Vec::new();
+
+                            for (key, value) in meta.into_iter() {
+
+                                let meta_access_level = value.get_access_level() as u8;
+                                if meta_access_level > room_access_level_code {
+                                    return Err(anyhow::anyhow!(UserError::MetaAccessLevelCannotBeBiggerThanUsersAccessLevel(key)));
+                                }
+
+                                // Check for meta already added into the user
+                                let row = room_old_metas.iter().find(|item| item.1 == key).map(|item| item.0.clone());
+        
+                                /* Remove the key if exists in the database */
+                                if let Some(row_id) = row {
+                                    remove_list.push(row_id);
+                                }
+        
+                                /* Remove meta */
+                                if let MetaType::Null = value {
+                                    continue;
+                                }
+        
+                                insert_list.push((key, value));
                             }
+                            
+                            let total_metas = (room_old_metas.len() - remove_list.len()) + insert_list.len();
+                            let insert_list = (!insert_list.is_empty()).then_some(insert_list);
+                            let remove_list = (!remove_list.is_empty()).then_some(remove_list);
 
-                            /* Remove meta */
-                            if let MetaType::<RoomMetaAccess>::Null = value {
-                                continue;
-                            }
-
-                            insert_list.push((key, value));
-                        }
-
-                        DB::remove_room_metas(connection, remove_list)?;
-                        DB::insert_room_metas(connection, &model.room_id, insert_list)?;
+                            (insert_list, remove_list, total_metas)
+                        },
+                        None => (None, None, 0)
                     }
-                };
+                },
+
+                // Add ne metas than remove all old meta informations
+                general::meta::MetaAction::RemoveUnusedMetas => {
+
+                    // Check for metas
+                    match meta {
+                        Some(meta) => {
+                            let remove_list = DB::get_room_meta(connection, &model.room_id, access_level)?.into_iter().map(|meta| meta.0).collect::<Vec<_>>();
+                            let mut insert_list = Vec::new();
+
+                            for (key, value) in meta.into_iter() {
+                                
+                                let meta_access_level = value.get_access_level() as u8;
+                                if meta_access_level > room_access_level_code {
+                                    return Err(anyhow::anyhow!(UserError::MetaAccessLevelCannotBeBiggerThanUsersAccessLevel(key)));
+                                }
+
+                                if let MetaType::Null = value {
+                                    continue;
+                                }
+        
+                                insert_list.push((key, value));
+                            }
+                            
+                            let total_metas = insert_list.len();
+                            let insert_list = (!insert_list.is_empty()).then_some(insert_list);
+                            let remove_list = (!remove_list.is_empty()).then_some(remove_list);
+
+                            (insert_list, remove_list, total_metas)
+                        },
+                        None => (None, None, 0)
+                    }
+                },
+                general::meta::MetaAction::RemoveAllMetas => {
+                    // Discard all new meta insertion list and remove all old meta that based on user access level.
+                    (None, Some(DB::get_room_meta(connection, &model.room_id, access_level)?.into_iter().map(|meta| meta.0).collect::<Vec<_>>()), 0)
+                },    
+            };
+
+            if total_metas > config.max_user_meta {
+                return Err(anyhow::anyhow!(UserError::MetaLimitOverToMaximum));
+            }
+
+            if let Some(to_be_removed) = to_be_removed {
+                DB::remove_room_metas(connection, to_be_removed)?;
+            }
+
+            if let Some(to_be_inserted) = to_be_inserted {
+                DB::insert_room_metas(connection, &model.room_id, to_be_inserted)?;
             }
             
             // Update user
             match has_room_update {
-                true => match DB::update_room(connection, &model.room_id, updates)? {
-                    0 => Err(anyhow::anyhow!(RoomError::RoomNotFound)),
-                    _ => {
-                        model.socket.send(Answer::success().into());
-                        Ok(())
-                    }
+                true => match DB::update_room(connection, &model.room_id, &updates)? {
+                    0 => return Err(anyhow::anyhow!(UserError::UserNotFound)),
+                    _ => socket.send(Answer::success().into())
                 },
-                false => {
-                    model.socket.send(Answer::success().into());
-                    Ok(())
-                }
+                false => socket.send(Answer::success().into())
+            };
+
+            // Update all caches
+            let mut room_update_query = Vec::new();
+            if let Some(name) = updates.name {
+                room_update_query.push(RoomInfoType::RoomName(name));
             }
+
+            if let Some(max_user) = updates.max_user {
+                room_update_query.push(RoomInfoType::MaxUser(max_user as usize));
+            }
+
+            if !room_update_query.is_empty() {
+                self.states.set_room_info(&room_id, room_update_query)?;
+            }
+            Ok(())
         })
     }
 }

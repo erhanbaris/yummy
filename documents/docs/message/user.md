@@ -193,14 +193,14 @@ It keeps the information about the user together. It is object type.
 | `insert_date`     | number                                        | N        |                         |
 | `last_login_date` | number                                        | N        |                         |
 
-### UserType
+### :material-table: UserType
 It is the type of authorization at the entire system level of the user. The administrator and moderator levels differ among themselves, and the administrator level is the highest level that can be recognized.
 
-| Value | Description |
-|-------|-------------|
-| 1     | User        |
-| 2     | Mod         |
-| 3     | Admin       |
+| Value   | Description |
+|:-------:|-------------|
+| `1`     | User        |
+| `2`     | Mod         |
+| `3`     | Admin       |
 
 ### :material-table: UserMeta
 
@@ -247,22 +247,22 @@ If the **null** is assigned into the key, that key will be removed from user.
 
 ### :material-table: User meta access level
 
-| Value | Information     |
-|-------|-----------------|
-| 0     | Anonymous       |
-| 1     | Registered user |
-| 2     | Friend          |
-| 3     | Me              |
-| 4     | Moderator       |
-| 5     | Admin           |
-| 6     | System          |
+| Value   | Information     |
+|:-------:|-----------------|
+| `0`     | Anonymous       |
+| `1`     | Registered user |
+| `2`     | Friend          |
+| `3`     | Me              |
+| `4`     | Moderator       |
+| `5`     | Admin           |
+| `6`     | System          |
 
 
 ### :material-table: Meta actions
 It is the choice of algorithm to be used to add or delete new meta.
 
-| Value | Information                                                    |
-|-------|----------------------------------------------------------------|
-| 0     | Only add new item or update                                    |
-| 1     | Add new item or update then remove unused metas                |
-| 2     | Remove all metas. Note: new meta definitions will be discarded |
+| Value   | Information                                                    |
+|:-------:|----------------------------------------------------------------|
+| `0`     | Only add new item or update                                    |
+| `1`     | Add new item or update then remove unused metas                |
+| `2`     | Remove all metas. Note: new meta definitions will be discarded |

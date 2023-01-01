@@ -93,6 +93,9 @@ pub enum RequestRoomType {
         meta: Option<HashMap<String, MetaType<RoomMetaAccess>>>,
         
         #[serde(default)]
+        meta_action: Option<MetaAction>,
+
+        #[serde(default)]
         access_type: Option<CreateRoomAccessType>,
         
         #[serde(default)]

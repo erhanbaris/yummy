@@ -61,7 +61,7 @@ pub(crate) fn process_room<DB: DatabaseTrait + Unpin + 'static>(room_type: Reque
         RequestRoomType::Join { room, room_user_type } => as_response!(room_manager, JoinToRoomRequest { user: me, socket, room, room_user_type }),
         RequestRoomType::Disconnect { room } => as_response!(room_manager, DisconnectFromRoomRequest { user: me, socket, room }),
         RequestRoomType::Message { room, message } => as_response!(room_manager, MessageToRoomRequest { user: me, socket, room, message }),
-        RequestRoomType::Update { room, user_permission, name, max_user, meta, access_type, tags } => as_response!(room_manager, UpdateRoom { user: me, socket, room_id: room , user_permission, name, max_user, meta, access_type, tags }),
+        RequestRoomType::Update { room, user_permission, name, max_user, meta, meta_action, access_type, tags } => as_response!(room_manager, UpdateRoom { user: me, socket, room_id: room , user_permission, name, max_user, meta, meta_action, access_type, tags }),
     };
     Ok(())
 }

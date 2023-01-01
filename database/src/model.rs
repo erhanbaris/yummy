@@ -55,7 +55,7 @@ pub struct RoomInsert {
 pub struct RoomUpdate {
     pub name: Option<Option<String>>,
     pub max_user: Option<i32>,
-    pub access_type: Option<i32>
+    pub access_type: Option<i32>,
 }
 
 #[derive(Debug, Insertable)]

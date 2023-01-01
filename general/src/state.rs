@@ -537,6 +537,38 @@ impl YummyState {
     }
 
     #[cfg(feature = "stateless")]
+    #[tracing::instrument(name="set_room_info", skip(self))]
+    pub fn set_room_info(&self, room_id: &RoomId, query: Vec<RoomInfoType>) -> Result<(), YummyStateError> {
+        if query.is_empty() {
+            return Ok(());
+        }
+
+        match self.redis.get() {
+            Ok(mut redis) => {
+                let mut command = &mut redis::pipe();
+                let room_id = room_id.to_string();
+
+                for item in query.into_iter() {
+                    match item {
+                        RoomInfoType::RoomName(name) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("name").arg(name.unwrap_or_default()),
+                        RoomInfoType::Users(_) => (),
+                        RoomInfoType::MaxUser(max_user) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("max-user").arg(max_user),
+                        RoomInfoType::UserLength(_) => (),
+                        RoomInfoType::AccessType(access_type) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("access").arg(i32::from(access_type)),
+                        RoomInfoType::Tags(_) => (),
+                        RoomInfoType::InsertDate(_) => (),
+                    };
+                }
+
+                redis_result!(command.query::<()>(&mut redis));
+
+                Ok(())
+            },
+            Err(_) => Err(YummyStateError::CacheCouldNotReaded)
+        }
+    }
+
+    #[cfg(feature = "stateless")]
     #[tracing::instrument(name="get_rooms", skip(self))]
     pub fn get_rooms(&self, tag: Option<String>, query: Vec<RoomInfoTypeVariant>) -> Result<Vec<RoomInfoTypeCollection>, YummyStateError> {
         use redis::FromRedisValue;
@@ -814,6 +846,29 @@ impl YummyState {
                 }
 
                 Ok(result)
+            },
+            None => Err(YummyStateError::RoomNotFound)
+        }
+    }
+
+    #[cfg(not(feature = "stateless"))]
+    #[tracing::instrument(name="set_room_info", skip(self))]
+    pub fn set_room_info(&self, room_id: &RoomId, query: Vec<RoomInfoType>) -> Result<(), YummyStateError> {
+        match self.room.lock().get_mut(room_id) {
+            Some(room) => {
+                for item in query.into_iter() {
+                    match item {
+                        RoomInfoType::RoomName(name) => room.name = name,
+                        RoomInfoType::Users(_) => (),
+                        RoomInfoType::MaxUser(max_user) => room.max_user = max_user,
+                        RoomInfoType::UserLength(_) => (),
+                        RoomInfoType::AccessType(access_type) => room.access_type = access_type,
+                        RoomInfoType::Tags(tags) => room.tags = tags,
+                        RoomInfoType::InsertDate(_) => (),
+                    };
+                }
+
+                Ok(())
             },
             None => Err(YummyStateError::RoomNotFound)
         }
