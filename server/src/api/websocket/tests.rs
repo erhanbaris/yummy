@@ -1109,7 +1109,7 @@ async fn join_room() -> anyhow::Result<()> {
         "type": "Room",
         "room_type": "Join",
         "room": room_id,
-        "room_user_type": "User"
+        "room_user_type": 1
     })).await;
 
     let receive = client_2.get_text().await;

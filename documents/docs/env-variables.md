@@ -56,6 +56,10 @@ JWT lifetime. That parameter used for session and connection restoration. This p
 Websocket's HTTP GET parameter name. <br/>
 :octicons-milestone-24: **Default**: `x-yummy-api` <br/>
 
+### `INTEGRATION_KEY` <br/>
+Websocket's integration key to communicate. <br/>
+:octicons-milestone-24: **Default**: `YummyYummy` <br/>
+
 ### `SALT_KEY` <br/>
 Secret key for JWT. <br/>
 :octicons-milestone-24: **Default**: `YUMMY-SALT` <br/>

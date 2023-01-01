@@ -176,7 +176,7 @@ Please check [User information response](#user-information-response)
 
 # Message objects
 
-### UserInfoObject
+### :material-table:  UserInfoObject
 
 It keeps the information about the user together. It is object type.
 
@@ -196,13 +196,13 @@ It keeps the information about the user together. It is object type.
 ### UserType
 It is the type of authorization at the entire system level of the user. The administrator and moderator levels differ among themselves, and the administrator level is the highest level that can be recognized.
 
-| Name    | Value |
-|---------|-------|
-| `User`  | 1     |
-| `Mod`   | 2     |
-| `Admin` | 3     |
+| Value | Description |
+|-------|-------------|
+| 1     | User        |
+| 2     | Mod         |
+| 3     | Admin       |
 
-### UserMeta
+### :material-table: UserMeta
 
 This area is used to store user-based private or public information. Information can be kept dynamically and access to this information can be arranged. However, only certain data types are supported. number, boolean and string types are supported. nested declaration and array are not supported. It must be defined as a key-value. Value part may contain a value or if it is desired to determine the authorization level, it should be defined as an object and authorization information should be given. Access level of all created meta is defined as **0**.
 
@@ -245,7 +245,7 @@ If the **null** is assigned into the key, that key will be removed from user.
         }
         ```
 
-### User meta access level
+### :material-table: User meta access level
 
 | Value | Information     |
 |-------|-----------------|
@@ -258,7 +258,7 @@ If the **null** is assigned into the key, that key will be removed from user.
 | 6     | System          |
 
 
-### Meta actions
+### :material-table: Meta actions
 It is the choice of algorithm to be used to add or delete new meta.
 
 | Value | Information                                                    |

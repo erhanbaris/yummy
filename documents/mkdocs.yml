@@ -1,15 +1,21 @@
 site_name: Yummy Game Server
 nav:
     - Home: index.md
+    - Installation: installation.md
+    - Connection: connection.md
     - Messages:
         - Authentication: message/auth.md
         - User: message/user.md
         - Room: message/room.md
     - Environtment variables: env-variables.md
+    - Unit test: unit-test.md
     - Code coverage: code-coverage.md
     
 theme:
   name: material
+
+extra_css:
+  - css/extra.css
 
 repo_url: https://github.com/erhanbaris/yummy
 
