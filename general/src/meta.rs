@@ -2,8 +2,10 @@ use serde::{Serialize, de::Visitor, de::MapAccess, Deserialize, Deserializer, Se
 use serde_json::Value;
 use std::{fmt::{self, Debug}, marker::PhantomData};
 use serde::de::{self};
+use serde_repr::{Serialize_repr, Deserialize_repr};
 
-#[derive(Debug, PartialEq, Eq, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Default, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
 pub enum MetaAction {
     #[default]
     OnlyAddOrUpdate = 0,
@@ -11,7 +13,8 @@ pub enum MetaAction {
     RemoveAllMetas = 2
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Default, Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Default, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
 pub enum UserMetaAccess {
     #[default]
     Anonymous = 0,
@@ -52,7 +55,8 @@ impl From<i32> for UserMetaAccess {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Default, Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Default, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
 pub enum RoomMetaAccess {
     #[default]
     Anonymous = 0,

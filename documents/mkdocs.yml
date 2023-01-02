@@ -20,7 +20,11 @@ extra_css:
 repo_url: https://github.com/erhanbaris/yummy
 
 markdown_extensions:
-  - pymdownx.highlight
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
   - pymdownx.superfences
   - admonition
   - pymdownx.superfences

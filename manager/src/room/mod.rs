@@ -127,7 +127,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
         })?;
         
 
-        socket.send(GenericAnswer::success(room_id).into());
+        socket.send(GenericAnswer::success(RoomResponse::RoomCreated { room: room_id }).into());
         Ok(())
     }
 }
@@ -176,10 +176,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
 
         DB::transaction::<_, anyhow::Error, _>(&mut connection, move |connection| {
 
+            /* Room's meta configuration */
             let meta_action = meta_action.unwrap_or_default();
             let room_access_level_code = access_level.clone() as u8;
 
-            let (to_be_inserted, to_be_removed, total_metas) = match meta_action {
+            let (to_be_inserted_metas, to_be_removed_metas, total_metas) = match meta_action {
 
                 // Dont remove old metas
                 general::meta::MetaAction::OnlyAddOrUpdate => {
@@ -266,12 +267,35 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
                 return Err(anyhow::anyhow!(UserError::MetaLimitOverToMaximum));
             }
 
-            if let Some(to_be_removed) = to_be_removed {
-                DB::remove_room_metas(connection, to_be_removed)?;
+            if let Some(to_be_removed_metas) = to_be_removed_metas {
+                DB::remove_room_metas(connection, to_be_removed_metas)?;
             }
 
-            if let Some(to_be_inserted) = to_be_inserted {
-                DB::insert_room_metas(connection, &model.room_id, to_be_inserted)?;
+            if let Some(to_be_inserted_metas) = to_be_inserted_metas {
+                DB::insert_room_metas(connection, &model.room_id, to_be_inserted_metas)?;
+            }
+
+            /* Tag configuration */
+            if let Some(to_be_inserted_tags) = tags {
+                let to_be_removed_tags = DB::get_room_tag(connection, &model.room_id)?.into_iter().map(|item| item.0).collect::<Vec<_>>();
+                
+                if !to_be_removed_tags.is_empty() {
+                    DB::remove_room_tags(connection, to_be_removed_tags)?;
+                }
+                
+                if !to_be_inserted_tags.is_empty() {
+                    DB::insert_room_tags(connection, &model.room_id, to_be_inserted_tags)?;
+                }    
+            }
+
+            /* Change user permission */
+
+            if let Some(user_permission) = user_permission {
+                DB::update_room_user_permissions(connection, &model.room_id, &user_permission)?;
+                
+                for (user_id, user_type) in user_permission.into_iter() {
+                    self.states.set_users_room_type(&user_id, &model.room_id, user_type);
+                }
             }
             
             // Update user
@@ -413,12 +437,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
     }
 }
 
-impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomListRequet> for RoomManager<DB> {
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomListRequest> for RoomManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="MessageToRoomRequest", skip(self, _ctx))]
-    #[macros::api(name="MessageToRoomRequest", socket=true)]
-    fn handle(&mut self, model: RoomListRequet, _ctx: &mut Context<Self>) -> Self::Result {
+    #[tracing::instrument(name="RoomListRequest", skip(self, _ctx))]
+    #[macros::api(name="RoomListRequest", socket=true)]
+    fn handle(&mut self, model: RoomListRequest, _ctx: &mut Context<Self>) -> Self::Result {
         let members = if model.members.is_empty() {
             vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength]
         } else {
@@ -426,7 +450,25 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomList
         };
 
         let rooms = self.states.get_rooms(model.tag, members)?;
-        model.socket.send(GenericAnswer::success(rooms).into());
+        model.socket.send(GenericAnswer::success(RoomResponse::RoomList { rooms }).into());
+        Ok(())
+    }
+}
+
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetRoomRequest> for RoomManager<DB> {
+    type Result = anyhow::Result<()>;
+
+    #[tracing::instrument(name="GetRoomRequest", skip(self, _ctx))]
+    #[macros::api(name="GetRoomRequest", socket=true)]
+    fn handle(&mut self, model: GetRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
+        let members = if model.members.is_empty() {
+            vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength]
+        } else {
+            model.members
+        };
+
+        let room = self.states.get_room_info(&model.room, members)?;
+        model.socket.send(GenericAnswer::success(RoomResponse::RoomInfo { room }).into());
         Ok(())
     }
 }

@@ -162,7 +162,8 @@ pub struct RoomState {
     pub users: Mutex<HashMap<UserId, RoomUserType>>
 }
 
-#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Default, Clone, Debug, Serialize_repr, Deserialize_repr, PartialEq, Eq)]
+#[repr(u8)]
 pub enum CreateRoomAccessType {
     #[default]
     Public = 0,
@@ -180,7 +181,7 @@ impl From<CreateRoomAccessType> for i32 {
     }
 }
 
-#[derive(Default, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Eq, PartialEq, PartialOrd, Clone, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
 pub enum RoomUserType {
     #[default]

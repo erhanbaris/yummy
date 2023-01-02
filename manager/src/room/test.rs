@@ -1,4 +1,5 @@
 use general::config::configure_environment;
+use general::model::CreateRoomAccessType;
 use general::state::RoomUserInformation;
 use serde::Deserialize;
 use serde::Serialize;
@@ -66,6 +67,13 @@ struct UserJoinedToRoom {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+struct RoomCreated {
+    #[serde(rename = "type")]
+    class_type: String,
+    room: RoomId,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct UserDisconnectedFromRoom {
     #[serde(rename = "type")]
     class_type: String,
@@ -127,8 +135,8 @@ async fn create_room_1() -> anyhow::Result<()> {
         socket:recipient.clone()
     }).await??;
 
-    let room_id: GenericAnswer<RoomId> = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let room_id = room_id.result.unwrap_or_default();
+    let room_id: GenericAnswer<RoomCreated> = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id = room_id.result.unwrap().room;
 
     let user_id = match user.as_ref() {
         Some(user) => user.user.clone(),
@@ -157,15 +165,15 @@ async fn create_room_2() -> anyhow::Result<()> {
         socket:recipient.clone()
     }).await??;
 
-    let room_id: GenericAnswer<RoomId> = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let room_id = room_id.result.unwrap_or_default();
+    let room_created: GenericAnswer<RoomCreated> = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_created = room_created.result.unwrap();
 
     let user_id = match user.as_ref() {
         Some(user) => user.user.clone(),
         None => return Err(anyhow::anyhow!("UserId not found"))
     };
 
-    assert!(!room_id.is_empty());
+    assert!(!room_created.room.is_empty());
     assert!(states.get_user_room(&user_id).is_some());
     
     Ok(())
@@ -194,8 +202,8 @@ async fn create_room_3() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let room_id: GenericAnswer<RoomId> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let room_id = room_id.result.unwrap_or_default();
+    let room_id: GenericAnswer<RoomCreated> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id = room_id.result.unwrap().room;
 
     assert!(!room_id.is_empty());
 
@@ -297,8 +305,8 @@ async fn create_room_4() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let room_id: GenericAnswer<RoomId> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let room_id = room_id.result.unwrap_or_default();
+    let room_id: GenericAnswer<RoomCreated> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id = room_id.result.unwrap().room;
 
     assert!(!room_id.is_empty());
 
@@ -386,8 +394,8 @@ async fn message_to_room() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let room_id: GenericAnswer<RoomId> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let room_id = room_id.result.unwrap_or_default();
+    let room_id: GenericAnswer<RoomCreated> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id = room_id.result.unwrap().room;
 
     assert!(!room_id.is_empty());
 
@@ -474,7 +482,7 @@ async fn get_rooms() -> anyhow::Result<()> {
         }).await??;
     }
 
-    room_manager.send(RoomListRequet {
+    room_manager.send(RoomListRequest {
         socket: user_1_socket.clone(),
         members: Vec::new(),
         tag: None
@@ -485,7 +493,7 @@ async fn get_rooms() -> anyhow::Result<()> {
     assert!(result.status);
     assert!(result.result.is_some());
     let items = result.result.unwrap();
-    if let serde_json::Value::Array(items) = items {
+    if let Some(serde_json::Value::Array(items)) = items.get("rooms") {
         assert_eq!(items.len(), 100);
         let first_item = items.get(0).unwrap();
 
@@ -502,8 +510,81 @@ async fn get_rooms() -> anyhow::Result<()> {
             assert!(false, "Item is not object");
         }
     } else { 
-        assert!(false, "Return valus is not array");
+        assert!(false, "Return value is not array");
     }
+
+    Ok(())
+}
+
+#[actix::test]
+async fn room_update() -> anyhow::Result<()> {
+    let (room_manager, auth_manager, config, _, user_1_socket) = create_actor()?;
+    let user_1 = email_auth!(auth_manager, config.clone(), "user1@gmail.com".to_string(), "erhan".into(), true, user_1_socket);
+    let user_1_id = user_1.clone().deref().as_ref().unwrap().user.clone();
+
+    let user_2_socket = Arc::new(DummyClient::default());
+    let user_2 = email_auth!(auth_manager, config.clone(), "user2@gmail.com".to_string(), "erhan".into(), true, user_2_socket);
+    let user_2_id = user_2.clone().deref().as_ref().unwrap().user.clone();
+
+    room_manager.send(CreateRoomRequest {
+        user: user_1.clone(),
+        disconnect_from_other_room: false,
+        name: None,
+        access_type: general::model::CreateRoomAccessType::Public,
+        max_user: 4,
+        meta: None,
+        tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
+        socket:user_1_socket.clone()
+    }).await??;
+
+    let room_id: GenericAnswer<RoomCreated> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    assert!(room_id.status);
+    assert!(room_id.result.is_some());
+
+    let room_id = room_id.result.unwrap().room;
+
+    room_manager.send(JoinToRoomRequest {
+        user: user_2.clone(),
+        room: room_id,
+        room_user_type: RoomUserType::User,
+        socket:user_2_socket.clone()
+    }).await??;
+
+    // Get room information
+    room_manager.send(GetRoomRequest {
+        socket: user_1_socket.clone(),
+        members: Vec::new(),
+        room: room_id.clone()
+    }).await??;
+
+    let room_info: GenericAnswer<serde_json::Value> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    assert!(room_info.status);
+    assert!(room_info.result.is_some());
+
+    let room_info = room_info.result.unwrap();
+    println!("{}", room_info);
+
+    let access_type: CreateRoomAccessType = serde_json::from_value(room_info.get("access-type").unwrap().clone())?;
+    let max_user: i32 = serde_json::from_value(room_info.get("max-user").unwrap().clone())?;
+    let mut tags: Vec<String> = serde_json::from_value(room_info.get("tags").unwrap().clone())?;
+    let mut users: Vec<RoomUserInformation> = serde_json::from_value(room_info.get("users").unwrap().clone())?;
+
+
+    assert_eq!(access_type, CreateRoomAccessType::Public);
+    assert_eq!(max_user, 4);
+    tags.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    assert_eq!(tags, vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()]);
+    assert_eq!(users.len(), 2);
+    
+    users.sort_by(|a, b| a.user_type.partial_cmp(&b.user_type).unwrap());
+    assert_eq!(users[1].user_type, RoomUserType::Owner);
+    assert_eq!(users[1].name, None);
+    assert_eq!(users[1].user_id.deref(), &user_1_id);
+
+    assert_eq!(users[0].user_type, RoomUserType::User);
+    assert_eq!(users[0].name, None);
+    assert_eq!(users[0].user_id.deref(), &user_2_id);
+
 
     Ok(())
 }

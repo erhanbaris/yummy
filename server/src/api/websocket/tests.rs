@@ -9,7 +9,7 @@ use actix_web::{web::Data, App};
 use database::model::UserInformationModel;
 use database::{create_database, create_connection};
 use general::meta::UserMetaAccess;
-use general::model::{UserType, UserId};
+use general::model::{UserType, UserId, RoomId};
 use general::state::YummyState;
 use general::tls::load_temporary_rustls_config;
 use general::web::Answer;
@@ -31,6 +31,13 @@ use crate::json_error_handler;
 
 #[cfg(feature = "stateless")]
 use general::test::cleanup_redis;
+
+#[derive(Debug, Deserialize)]
+struct RoomCreated {
+    #[serde(rename = "type")]
+    class_type: String,
+    room: RoomId,
+}
 
 #[derive(Default, Clone, Debug, Deserialize)]
 pub struct UserInformationResponse {
@@ -1057,8 +1064,6 @@ async fn user_update_4() -> anyhow::Result<()> {
 }
 
 // Room test cases
-
-
 #[actix_web::test]
 async fn create_room() -> anyhow::Result<()> {
     let server = create_websocket_server(::general::config::get_configuration());
@@ -1067,7 +1072,6 @@ async fn create_room() -> anyhow::Result<()> {
 
     custom_id_auth!(client, "1234567890");
 
-    // Error
     client.send(json!({
         "type": "Room",
         "room_type": "Create"
@@ -1075,9 +1079,9 @@ async fn create_room() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<GenericAnswer<RoomCreated>>(&receive.unwrap())?;
     assert!(response.status);
-    assert!(uuid::Uuid::from_str(&response.result.unwrap()).is_ok());
+    assert!(response.result.is_some());
     Ok(())
 }
 
@@ -1099,12 +1103,11 @@ async fn join_room() -> anyhow::Result<()> {
     let receive = client_1.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<GenericAnswer<RoomCreated>>(&receive.unwrap())?;
     assert!(response.status);
 
-    let room_id = response.result.unwrap();
-    assert!(uuid::Uuid::from_str(&room_id).is_ok());
-
+    let room_id = response.result.unwrap().room;
+    
     client_2.send(json!({
         "type": "Room",
         "room_type": "Join",

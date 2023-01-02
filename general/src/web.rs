@@ -64,7 +64,13 @@ where T: Serialize {
 
 impl<T: Serialize> From<GenericAnswer<T>> for String {
     fn from(source: GenericAnswer<T>) -> Self {
-        serde_json::to_string(&source).unwrap_or_default()
+        match serde_json::to_string(&source) {
+            Ok(data) => data,
+            Err(error) => {
+                println!("{}", error.to_string());
+                String::new()
+            }
+        }
     }
 }
 

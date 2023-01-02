@@ -47,13 +47,11 @@ pub fn api(args: TokenStream, input: TokenStream) -> TokenStream {
     let block = quote! {
         {
             #prepare_socket
-            println!("before call");
             let mut call = move || -> Self::Result {
                 #block
             };
     
             let response = call();
-            println!("after call");
 
             #send_message
             response

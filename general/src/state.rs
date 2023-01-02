@@ -34,7 +34,10 @@ macro_rules! redis_result {
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct RoomUserInformation {
     pub user_id: Arc<UserId>,
-    pub name: Option<String>
+    pub name: Option<String>,
+
+    #[serde(rename = "type")]
+    pub user_type: RoomUserType
 }
 
 #[derive(Message, Debug, Clone, Serialize, Deserialize)]
@@ -64,7 +67,7 @@ pub enum RoomInfoType {
     InsertDate(i32)
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct RoomInfoTypeCollection {
     pub room_id: Option<RoomId>,
     pub items: Vec<RoomInfoType>
@@ -193,6 +196,14 @@ impl YummyState {
                 _ => None
             },
             Err(_) => None
+        }
+    }
+
+    #[cfg(feature = "stateless")]
+    #[tracing::instrument(name="set_users_room_type", skip(self))]
+    pub fn set_users_room_type(&mut self, user_id: &UserId, room_id: &RoomId, user_type: RoomUserType) {
+        if let Ok(mut redis) =  self.redis.get() {
+            redis_result!(redis.hset::<_, _, _, i32>(format!("{}room-users:{}", self.config.redis_prefix, room_id.to_string()), user_id.to_string(), user_type as i32));
         }
     }
 
@@ -468,6 +479,8 @@ impl YummyState {
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="get_room_info", skip(self))]
     pub fn get_room_info(&self, room_id: &RoomId, query: Vec<RoomInfoTypeVariant>) -> Result<RoomInfoTypeCollection, YummyStateError> {
+        use std::collections::HashMap;
+
         use redis::FromRedisValue;
 
         let mut result = RoomInfoTypeCollection::default();
@@ -504,12 +517,18 @@ impl YummyState {
 
                             // This request is slow compare to other. We should change it to lua script to increase performance
                             let mut user_infos = Vec::new();
-                            let users = redis_result!(redis.hkeys::<_, Vec<String>>(format!("{}room-users:{}", self.config.redis_prefix, room_id.get())));
-                            for user_id in users.iter() {
+                            let users = redis_result!(redis.hgetall::<_, HashMap<String, i32>>(format!("{}room-users:{}", self.config.redis_prefix, room_id.get())));
+                            for (user_id, user_type) in users.iter() {
                                 let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id), "name"));
                                 user_infos.push(RoomUserInformation {
                                     name: if name.is_empty() { None } else { Some(name) },
-                                    user_id: Arc::new(UserId::from(uuid::Uuid::parse_str(user_id).unwrap_or_default()))
+                                    user_id: Arc::new(UserId::from(uuid::Uuid::parse_str(user_id).unwrap_or_default())),
+                                    user_type: match user_type {
+                                        1 => RoomUserType::User,
+                                        2 => RoomUserType::Owner,
+                                        3 => RoomUserType::Moderator,
+                                        _ => RoomUserType::User
+                                    }
                                 })
                             }
                             result.items.push(RoomInfoType::Users(user_infos));
@@ -550,12 +569,34 @@ impl YummyState {
 
                 for item in query.into_iter() {
                     match item {
-                        RoomInfoType::RoomName(name) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("name").arg(name.unwrap_or_default()),
+                        RoomInfoType::RoomName(name) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("name").arg(name.unwrap_or_default()).ignore(),
                         RoomInfoType::Users(_) => (),
-                        RoomInfoType::MaxUser(max_user) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("max-user").arg(max_user),
+                        RoomInfoType::MaxUser(max_user) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("max-user").arg(max_user).ignore(),
                         RoomInfoType::UserLength(_) => (),
-                        RoomInfoType::AccessType(access_type) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("access").arg(i32::from(access_type)),
-                        RoomInfoType::Tags(_) => (),
+                        RoomInfoType::AccessType(access_type) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("access").arg(i32::from(access_type)).ignore(),
+                        RoomInfoType::Tags(tags) => {
+                            
+                            // Remove old tags
+                            let saved_tags = redis_result!(redis.smembers::<_, Vec<String>>(format!("{}room-tag:{}", self.config.redis_prefix, room_id.to_string())));
+                            for tag in saved_tags.iter() {
+                                command = command.cmd("SREM").arg(format!("{}tag:{}", self.config.redis_prefix, &tag)).arg(&room_id).ignore()
+                            }
+
+                            command = command.cmd("DEL").arg(format!("{}room-tag:{}", self.config.redis_prefix, room_id)).ignore();
+                            
+                            if !tags.is_empty() {
+                                // Add to 
+                                command = command.cmd("SADD").arg(format!("{}room-tag:{}", self.config.redis_prefix, &room_id));
+                                for tag in tags.iter() {
+                                    command = command.arg(tag);
+                                }
+                                command = command.ignore();
+                                
+                                for tag in tags.iter() {
+                                    command = command.cmd("SADD").arg(format!("{}tag:{}", self.config.redis_prefix, &tag)).arg(&room_id).ignore();
+                                }
+                            }
+                        },
                         RoomInfoType::InsertDate(_) => (),
                     };
                 }
@@ -571,6 +612,8 @@ impl YummyState {
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="get_rooms", skip(self))]
     pub fn get_rooms(&self, tag: Option<String>, query: Vec<RoomInfoTypeVariant>) -> Result<Vec<RoomInfoTypeCollection>, YummyStateError> {
+        use std::collections::HashMap;
+
         use redis::FromRedisValue;
         
         match self.redis.get() {
@@ -624,12 +667,18 @@ impl YummyState {
     
                                 // This request is slow compare to other. We should change it to lua script to increase performance
                                 let mut user_infos = Vec::new();
-                                let users = redis_result!(redis.hkeys::<_, Vec<String>>(format!("{}room-users:{}", self.config.redis_prefix, room_id.get())));
-                                for user_id in users.iter() {
+                                let users = redis_result!(redis.hgetall::<_, HashMap<String, i32>>(format!("{}room-users:{}", self.config.redis_prefix, room_id.get())));
+                                for (user_id, user_type) in users.iter() {
                                     let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id), "name"));
                                     user_infos.push(RoomUserInformation {
                                         name: if name.is_empty() { None } else { Some(name) },
-                                        user_id: Arc::new(UserId::from(uuid::Uuid::parse_str(user_id).unwrap_or_default()))
+                                        user_id: Arc::new(UserId::from(uuid::Uuid::parse_str(user_id).unwrap_or_default())),
+                                        user_type: match user_type {
+                                            1 => RoomUserType::User,
+                                            2 => RoomUserType::Owner,
+                                            3 => RoomUserType::Moderator,
+                                            _ => RoomUserType::User
+                                        }
                                     })
                                 }
                                 room_info.items.push(RoomInfoType::Users(user_infos));
@@ -646,7 +695,7 @@ impl YummyState {
                             RoomInfoTypeVariant::Tags => {
                                 let tags = redis_result!(redis.smembers::<_, Vec<String>>(format!("{}room-tag:{}", self.config.redis_prefix, room_id.to_string())));
                                 room_info.items.push(RoomInfoType::Tags(tags));
-                            } 
+                            }
                         }
                     }
         
@@ -680,7 +729,18 @@ impl YummyState {
             None => None
         }
     }
-    
+
+    #[cfg(not(feature = "stateless"))]
+    #[tracing::instrument(name="set_users_room_type", skip(self))]
+    pub fn set_users_room_type(&mut self, user_id: &UserId, room_id: &RoomId, user_type: RoomUserType) {
+        if let Some(room) = self.room.lock().get_mut(room_id.borrow()) {
+            match room.users.lock().get_mut(user_id) {
+                Some(user) => *user = user_type,
+                None => ()
+            };
+        }
+    }
+
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="is_session_online", skip(self))]
     pub fn is_session_online<T: Borrow<SessionId> + std::fmt::Debug>(&self, session_id: T) -> bool {
@@ -826,14 +886,15 @@ impl YummyState {
                         RoomInfoTypeVariant::AccessType => RoomInfoType::AccessType(room.access_type.clone()),
                         RoomInfoTypeVariant::Users => {
                             let  mut users = Vec::new();
-                            for user_id in room.users.lock().keys() {
+                            for (user_id, user_type) in room.users.lock().iter() {
                                 let name = match self.user.lock().get(user_id) {
                                     Some(user) => user.name.clone(),
                                     None => None
                                 };
                                 users.push(RoomUserInformation {
                                     user_id: Arc::new(user_id.clone()), // todo: discart cloning
-                                    name
+                                    name,
+                                    user_type: user_type.clone()
                                 });
                             }
 
@@ -899,14 +960,15 @@ impl YummyState {
                     RoomInfoTypeVariant::AccessType => room_info.items.push(RoomInfoType::AccessType(room_state.access_type.clone())),
                     RoomInfoTypeVariant::Users => {
                         let  mut users = Vec::new();
-                        for user_id in room_state.users.lock().keys() {
+                        for (user_id, user_type) in room_state.users.lock().iter() {
                             let name = match self.user.lock().get(user_id) {
                                 Some(user) => user.name.clone(),
                                 None => None
                             };
                             users.push(RoomUserInformation {
-                                user_id: Arc::new(user_id.clone()), // todo: discart cloning
-                                name
+                                user_id: Arc::new(user_id.clone()),
+                                name,
+                                user_type: user_type.clone()
                             });
                         }
                         room_info.items.push(RoomInfoType::Users(users))
@@ -1090,16 +1152,51 @@ mod tests {
         assert_eq!(result.items.len(), 1);
         assert_eq!(result.get_item(RoomInfoTypeVariant::RoomName).unwrap(), RoomInfoType::RoomName(Some("Room 1".to_string())));
 
+        state.set_room_info(&room, vec![RoomInfoType::RoomName(Some("New room".to_string()))])?;
+
+        let result = state.get_room_info(&room, vec![RoomInfoTypeVariant::RoomName])?;
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.get_item(RoomInfoTypeVariant::RoomName).unwrap(), RoomInfoType::RoomName(Some("New room".to_string())));
 
         let result = state.get_room_info(&room, vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength])?;
         assert_eq!(result.items.len(), 7);
-        assert_eq!(result.get_item(RoomInfoTypeVariant::RoomName).unwrap(), RoomInfoType::RoomName(Some("Room 1".to_string())));
+        assert_eq!(result.get_item(RoomInfoTypeVariant::RoomName).unwrap(), RoomInfoType::RoomName(Some("New room".to_string())));
         assert_eq!(result.get_item(RoomInfoTypeVariant::MaxUser).unwrap(), RoomInfoType::MaxUser(10));
         assert_eq!(result.get_item(RoomInfoTypeVariant::UserLength).unwrap(), RoomInfoType::UserLength(0));
         assert_eq!(result.get_item(RoomInfoTypeVariant::AccessType).unwrap(), RoomInfoType::AccessType(CreateRoomAccessType::Private));
         assert!(result.get_item(RoomInfoTypeVariant::Users).is_some());
         assert!(result.get_item(RoomInfoTypeVariant::Tags).is_some());
         assert!(result.get_item(RoomInfoTypeVariant::InsertDate).is_some());
+
+        // Tag update test
+        let tags = result.get_item(RoomInfoTypeVariant::Tags);
+        if let Some(RoomInfoType::Tags(mut tags)) = tags {
+            tags.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            assert_eq!(tags, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()]);
+        } else {
+            assert!(false, "tags not found")
+        }
+
+        state.set_room_info(&room, vec![RoomInfoType::Tags(vec!["yummy1".to_string(), "yummy2".to_string(), "yummy3".to_string()])])?;
+        let result = state.get_room_info(&room, vec![RoomInfoTypeVariant::Tags])?;
+        
+        let tags = result.get_item(RoomInfoTypeVariant::Tags);
+        if let Some(RoomInfoType::Tags(mut tags)) = tags {
+            tags.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            assert_eq!(tags, vec!["yummy1".to_string(), "yummy2".to_string(), "yummy3".to_string()]);
+        } else {
+            assert!(false, "tags not found")
+        }
+
+        state.set_room_info(&room, vec![RoomInfoType::Tags(Vec::new())])?;
+        let result = state.get_room_info(&room, vec![RoomInfoTypeVariant::Tags])?;
+        
+        let tags = result.get_item(RoomInfoTypeVariant::Tags);
+        if let Some(RoomInfoType::Tags(tags)) = tags {
+            assert_eq!(tags, Vec::<String>::new());
+        } else {
+            assert!(false, "tags not found")
+        }
 
         let user_1 = UserId::new();
         let user_2 = UserId::new();
@@ -1124,7 +1221,20 @@ mod tests {
 
         if let RoomInfoType::Users(mut users) = result.get_item(RoomInfoTypeVariant::Users).unwrap() {
             users.sort_by(|a, b| a.name.partial_cmp(&b.name).unwrap());
-            assert_eq!(users, vec![RoomUserInformation { user_id: Arc::new(user_1), name: Some("user1".to_string()) }, RoomUserInformation { user_id: Arc::new(user_2), name: Some("user2".to_string()) }, RoomUserInformation { user_id: Arc::new(user_3), name: Some("user3".to_string()) }]);
+            assert_eq!(users, vec![RoomUserInformation { user_id: Arc::new(user_1.clone()), name: Some("user1".to_string()), user_type: RoomUserType::Owner }, RoomUserInformation { user_id: Arc::new(user_2.clone()), name: Some("user2".to_string()), user_type: RoomUserType::Owner }, RoomUserInformation { user_id: Arc::new(user_3.clone()), name: Some("user3".to_string()), user_type: RoomUserType::Owner }]);
+        } else {
+            assert!(false);
+        }
+
+        // Change user permission
+        state.set_users_room_type(&user_1, &room, RoomUserType::User);
+        
+        let result = state.get_room_info(&room, vec![RoomInfoTypeVariant::Users])?;
+        assert_eq!(result.items.len(), 1);
+
+        if let RoomInfoType::Users(mut users) = result.get_item(RoomInfoTypeVariant::Users).unwrap() {
+            users.sort_by(|a, b| a.name.partial_cmp(&b.name).unwrap());
+            assert_eq!(users, vec![RoomUserInformation { user_id: Arc::new(user_1), name: Some("user1".to_string()), user_type: RoomUserType::User }, RoomUserInformation { user_id: Arc::new(user_2), name: Some("user2".to_string()), user_type: RoomUserType::Owner }, RoomUserInformation { user_id: Arc::new(user_3), name: Some("user3".to_string()), user_type: RoomUserType::Owner }]);
         } else {
             assert!(false);
         }

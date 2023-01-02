@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use diesel::RunQueryDsl;
@@ -25,9 +26,13 @@ pub trait RoomStoreTrait: Sized {
     fn disconnect_from_room(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId) -> anyhow::Result<()>;
     fn insert_metas(connection: &mut PooledConnection, room_id: &RoomId, metas: Vec<(String, MetaType<RoomMetaAccess>)>) -> anyhow::Result<()>;
     fn get_room_meta(connection: &mut PooledConnection, room_id: &RoomId, filter: RoomMetaAccess) -> anyhow::Result<Vec<(RoomMetaId, String, MetaType<RoomMetaAccess>)>>;
+    fn get_room_tag(connection: &mut PooledConnection, room_id: &RoomId) -> anyhow::Result<Vec<(RoomTagId, String)>>;
+    fn remove_room_tags(connection: &mut PooledConnection, ids: Vec<RoomTagId>) -> anyhow::Result<()>;
     fn remove_room_metas(connection: &mut PooledConnection, ids: Vec<RoomMetaId>) -> anyhow::Result<()>;
     fn insert_room_metas(connection: &mut PooledConnection, room_id: &RoomId, metas: Vec<(String, MetaType<RoomMetaAccess>)>) -> anyhow::Result<()>;
+    fn insert_room_tags(connection: &mut PooledConnection, room_id: &RoomId, tags: Vec<String>) -> anyhow::Result<()>;
     fn update_room(connection: &mut PooledConnection, room_id: &RoomId, update_request: &RoomUpdate) -> anyhow::Result<usize>;
+    fn update_room_user_permissions(connection: &mut PooledConnection, room_id: &RoomId, permissions: &HashMap<UserId, RoomUserType>) -> anyhow::Result<()>;
 }
 
 impl RoomStoreTrait for SqliteStore {
@@ -73,10 +78,39 @@ impl RoomStoreTrait for SqliteStore {
 
         Ok(room_id)
     }
+
+    fn insert_room_tags(connection: &mut PooledConnection, room_id: &RoomId, tags: Vec<String>) -> anyhow::Result<()> {
+        let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
+
+        let mut tag_inserts = Vec::new();
+        for tag in tags.iter() {
+            let insert = RoomTagInsert {
+                room_id: &room_id,
+                tag: &tag[..],
+                insert_date,
+                id: RoomTagId::default()
+            };
+            tag_inserts.push(insert);
+        }
+
+        if !tag_inserts.is_empty() {
+            diesel::insert_into(room_tag::table).values(&tag_inserts).execute(connection)?;
+        }
+
+        Ok(())
+    }
     
     #[tracing::instrument(name="Update user", skip(connection))]
     fn update_room(connection: &mut PooledConnection, room_id: &RoomId, update_request: &RoomUpdate) -> anyhow::Result<usize> {
         Ok(diesel::update(room::table.filter(room::id.eq(room_id))).set(update_request).execute(connection)?)
+    }
+
+    #[tracing::instrument(name="update room user permissions", skip(connection))]
+    fn update_room_user_permissions(connection: &mut PooledConnection, room_id: &RoomId, permissions: &HashMap<UserId, RoomUserType>) -> anyhow::Result<()> {
+        for (user_id, permission) in permissions.into_iter() {
+            diesel::update(room_user::table.filter(room_user::room_id.eq(room_id))).set((room_user::user_id.eq(user_id), room_user::room_user_type.eq(permission.clone() as i32))).execute(connection)?;
+        }
+        Ok(())
     }
 
     #[tracing::instrument(name="Join to room", skip(connection))]
@@ -136,7 +170,7 @@ impl RoomStoreTrait for SqliteStore {
     }
     
 
-    #[tracing::instrument(name="Get user meta", skip(connection))]
+    #[tracing::instrument(name="Get room meta", skip(connection))]
     fn get_room_meta(connection: &mut PooledConnection, room_id: &RoomId, filter: RoomMetaAccess) -> anyhow::Result<Vec<(RoomMetaId, String, MetaType<RoomMetaAccess>)>> {
         let records: Vec<RoomMetaModel> = room_meta::table
             .select((room_meta::id, room_meta::key, room_meta::value, room_meta::meta_type, room_meta::access))
@@ -158,6 +192,22 @@ impl RoomStoreTrait for SqliteStore {
         }).collect();
             
         Ok(records)
+    }
+
+    #[tracing::instrument(name="Get room tags", skip(connection))]
+    fn get_room_tag(connection: &mut PooledConnection, room_id: &RoomId) -> anyhow::Result<Vec<(RoomTagId, String)>> {
+        let records: Vec<(RoomTagId, String)> = room_tag::table
+            .select((room_tag::id, room_tag::tag))
+            .filter(room_tag::room_id.eq(room_id))
+            .get_results::<(RoomTagId, String)>(connection)?;
+
+        Ok(records)
+    }
+
+    #[tracing::instrument(name="Remove room tags", skip(connection))]
+    fn remove_room_tags(connection: &mut PooledConnection, ids: Vec<RoomTagId>) -> anyhow::Result<()> {
+        diesel::delete(room_tag::table.filter(room_tag::id.eq_any(ids))).execute(connection)?;
+        Ok(())
     }
 
     #[tracing::instrument(name="Remove metas", skip(connection))]

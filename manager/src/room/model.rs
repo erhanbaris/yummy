@@ -5,7 +5,7 @@ use serde::Serialize;
 use thiserror::Error;
 use validator::Validate;
 
-use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::{RoomUserInformation, RoomInfoTypeVariant}, meta::{MetaType, RoomMetaAccess, MetaAction}};
+use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::{RoomUserInformation, RoomInfoTypeVariant, RoomInfoTypeCollection}, meta::{MetaType, RoomMetaAccess, MetaAction}};
 
 
 #[derive(Message, Validate, Debug)]
@@ -49,8 +49,16 @@ pub struct MessageToRoomRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
-pub struct RoomListRequet {
+pub struct RoomListRequest {
     pub tag: Option<String>,
+    pub members: Vec<RoomInfoTypeVariant>,
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
+}
+
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<()>")]
+pub struct GetRoomRequest {
+    pub room: RoomId,
     pub members: Vec<RoomInfoTypeVariant>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
@@ -91,6 +99,7 @@ pub enum RoomError {
 #[derive(Serialize, Debug, Clone)]
 #[serde(tag = "type")]
 pub enum RoomResponse<'a> {
+    RoomCreated { room: RoomId },
     Joined {
         room_name: Option<String>,
         users: Vec<RoomUserInformation>
@@ -107,6 +116,13 @@ pub enum RoomResponse<'a> {
         user: &'a UserId,
         room: &'a RoomId,
         message: Arc<String>
+    },
+    RoomList {
+        rooms: Vec<RoomInfoTypeCollection>
+    },
+    RoomInfo {
+        #[serde(flatten)]
+        room: RoomInfoTypeCollection
     }
 }
 
