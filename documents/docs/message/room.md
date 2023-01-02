@@ -37,7 +37,7 @@
 
 === ":outbox_tray: Response message"
     !!! success ""
-        === "Success"
+        === ":material-check: Success"
             | Field name | Type    | Nullable | Description                   |
             |------------|---------|----------|-------------------------------|
             | `status`   | boolean | N        | Value should be **true**      |
@@ -53,7 +53,7 @@
                 "room": "8e4d7516-1ee7-47d2-9387-438de3db37b9"
             }
             ```
-        === "Fail"
+        === ":octicons-x-16: Fail"
 
             | Field name | Type    | Nullable | Description                 |
             |------------|---------|----------|-----------------------------|

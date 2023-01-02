@@ -122,7 +122,7 @@ Update user information. Current implementation only allow to update own informa
 
 ## User information response
 !!! abstract ""
-    === "Success"
+    === ":material-check: Success"
         | Field name        | Type                  | Nullable | Description                  |
         |-------------------|-----------------------|----------|------------------------------|
         | `status`          | boolean               | N        | Value should be **true**     |
@@ -156,7 +156,7 @@ Update user information. Current implementation only allow to update own informa
         }
         ```
 
-    === "Fail"
+    === ":octicons-x-16: Fail"
 
         | Field name   | Type    | Nullable | Description                   |
         |--------------|---------|----------|-------------------------------|

@@ -161,7 +161,7 @@ Terminates the current session and active game and player will be informed.
 === ":outbox_tray: Response message"
 
     !!! abstract ""
-        === "Success"
+        === ":material-check: Success"
 
             | Field name   | Type    | Nullable | Description                 |
             |--------------|---------|----------|-----------------------------|
@@ -174,7 +174,7 @@ Terminates the current session and active game and player will be informed.
             }
             ```
 
-        === "Fail"
+        === ":octicons-x-16: Fail"
 
             | Field name   | Type    | Nullable | Description                 |
             |--------------|---------|----------|-----------------------------|
@@ -196,7 +196,7 @@ Terminates the current session and active game and player will be informed.
 All authentication response message structure is the same.
 
 !!! abstract ""
-    === "Success"
+    === ":material-check: Success"
 
         | Field name | Type    | Nullable | Description                       |
         |------------|---------|----------|-----------------------------------|
@@ -214,7 +214,7 @@ All authentication response message structure is the same.
         }
         ```
 
-    === "Fail"
+    === ":octicons-x-16: Fail"
 
         | Field name   | Type    | Nullable | Description                 |
         |--------------|---------|----------|-----------------------------|
