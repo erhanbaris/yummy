@@ -82,7 +82,10 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
     fn execute_message(&mut self, message: String, ctx: &mut ws::WebsocketContext<Self>) -> anyhow::Result<()> {
         let message = match serde_json::from_str::<Request>(&message) {
             Ok(message) => message,
-            Err(_) => return Err(anyhow::anyhow!("Wrong message format"))
+            Err(_) => {
+                ctx.text(serde_json::to_string(&GenericAnswer::fail("Wrong message format")).unwrap());
+                return Ok(());
+            }
         };
 
         let auth_manager = self.auth_manager.clone();
@@ -98,7 +101,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
         };
 
         if let Err(error) = validation {
-            ctx.text(serde_json::to_string(&GenericAnswer::fail(error.to_string())).unwrap_or_default())
+            ctx.text(serde_json::to_string(&GenericAnswer::fail(error.to_string())).unwrap())
         }
 
         Ok(())

@@ -2,73 +2,73 @@
 
 ## Create room
 
-### Request message
-
-!!! success ""
-    | Field name    | Type                                          | Required | Description                                                        | Default value |
-    |---------------|-----------------------------------------------|----------|--------------------------------------------------------------------|---------------|
-    | `type`        | string                                        | Y        | Value must be **Room**                                             |               |
-    | `room_type`   | string                                        | Y        | Value must be **Create**                                           |               |
-    | `disconnect`  | boolean                                       | N        | If user already joined to room, disconnect from it                 | false         |
-    | `name`        | string                                        | N        | Room name                                                          |               |
-    | `access_type` | [CreateRoomAccessType](#createroomaccesstype) | N        | Definition for who can access and see the room                     | 0             |
-    | `max_user`    | number                                        | N        | Maximum number for participants. Use 0 for unlimited participants. | 0             |
-
-    **Example requests:**
-
-    === "Example 1"
-        ```json
-        {
-            "type": "Room",
-            "room_type": "Create",
-            "disconnect": true,
-            "access_type": 1,
-            "max_user": 1
-        }
-        ```
-    === "Example 2"
-        ```json
-        {
-            "type": "Room",
-            "room_type": "Create",
-            "tags": ["test 1", "test 2", "test 3"],
-        }
-        ```
-
-
-### Response
-
-!!! success ""
-    === "Success"
-        | Field name | Type    | Required | Description                 |
-        |------------|---------|----------|-----------------------------|
-        | `status`     | boolean | Y        | Value should be 'true'      |
-        | `result`     | string  | Y        | Room ID as uuid |
+=== ":inbox_tray: Request message"
+    !!! success ""
+        | Field name    | Type                                          | Required | Description                                                        | Default value |
+        |---------------|-----------------------------------------------|----------|--------------------------------------------------------------------|---------------|
+        | `type`        | string                                        | Y        | Value must be **Room**                                             |               |
+        | `room_type`   | string                                        | Y        | Value must be **Create**                                           |               |
+        | `disconnect`  | boolean                                       | N        | If user already joined to room, disconnect from it                 | false         |
+        | `name`        | string                                        | N        | Room name                                                          |               |
+        | `access_type` | [CreateRoomAccessType](#createroomaccesstype) | N        | Definition for who can access and see the room                     | 0             |
+        | `max_user`    | number                                        | N        | Maximum number for participants. Use 0 for unlimited participants. | 0             |
 
         **Example requests:**
 
-        ```json
-        {
-            "status": true,
-            "result": "4077a478-d01f-4c09-9462-c54f7ea0e2a7"
-        }
-        ```
-    === "Fail"
+        === "Example 1"
+            ```json
+            {
+                "type": "Room",
+                "room_type": "Create",
+                "disconnect": true,
+                "access_type": 1,
+                "max_user": 1
+            }
+            ```
+        === "Example 2"
+            ```json
+            {
+                "type": "Room",
+                "room_type": "Create",
+                "tags": ["test 1", "test 2", "test 3"],
+            }
+            ```
 
-        | Field name | Type    | Required | Description                 |
-        |------------|---------|----------|-----------------------------|
-        | `status`     | boolean | Y        | Value should be 'false'   |
-        | `result`     | string  | Y        | Error message             |
+
+=== ":outbox_tray: Response message"
+    !!! success ""
+        === "Success"
+            | Field name | Type    | Nullable | Description                   |
+            |------------|---------|----------|-------------------------------|
+            | `status`   | boolean | N        | Value should be **true**      |
+            | `type`     | string  | N        | Value must be **RoomCreated** |
+            | `room`     | string  | N        | Room's ID                     |
+
+            **Example requests:**
+
+            ```json
+            {
+                "status": true,
+                "type": "RoomCreated",
+                "room": "8e4d7516-1ee7-47d2-9387-438de3db37b9"
+            }
+            ```
+        === "Fail"
+
+            | Field name | Type    | Nullable | Description                 |
+            |------------|---------|----------|-----------------------------|
+            | `status`     | boolean | N        | Value should be **false** |
+            | `error`      | string  | N        | Error message             |
 
 
-        **Example response:**:
+            **Example response:**:
 
-        ```json
-        {
-            "status": false,
-            "result": "User joined to other room"
-        }
-        ```
+            ```json
+            {
+                "status": false,
+                "error" "User joined to other room"
+            }
+            ```
 
 
 # Message objects

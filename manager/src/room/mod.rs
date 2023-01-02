@@ -72,7 +72,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         let message = serde_json::to_string(&RoomResponse::UserDisconnectedFromRoom {
             user: user_id,
             room: room_id
-        }).unwrap_or_default();
+        }).unwrap();
 
         for user_id in users.into_iter() {
             self.issue_system_async(SendMessage {
@@ -361,7 +361,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
         let message = serde_json::to_string(&RoomResponse::UserJoinedToRoom {
             user: user_id,
             room: &model.room
-        }).unwrap_or_default();
+        }).unwrap();
 
         for user_id in users.into_iter() {
             self.issue_system_async(SendMessage {

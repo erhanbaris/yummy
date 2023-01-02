@@ -128,6 +128,6 @@ pub enum RoomResponse<'a> {
 
 impl<'a> From<RoomResponse<'a>> for String {
     fn from(source: RoomResponse) -> Self {
-        serde_json::to_string(&source).unwrap_or_default()
+        serde_json::to_string(&source).unwrap()
     }
 }

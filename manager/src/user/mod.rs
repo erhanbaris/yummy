@@ -86,7 +86,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
             match user {
                 Some(mut user) => {
                     user.online = self.states.is_user_online(user_id);
-                    model.socket.send(GenericAnswer::success(user).into());
+                    model.socket.send(GenericAnswer::success(UserResponse::UserInfo { user }).into());
                     Ok(())
                 },
                 None => Err(anyhow::anyhow!(UserError::UserNotFound))

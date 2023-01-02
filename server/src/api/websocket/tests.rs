@@ -6,53 +6,25 @@ use actix_web::HttpResponse;
 use actix_web::error::InternalError;
 use actix_web::web::{QueryConfig, JsonConfig};
 use actix_web::{web::Data, App};
-use database::model::UserInformationModel;
 use database::{create_database, create_connection};
 use general::meta::UserMetaAccess;
-use general::model::{UserType, UserId, RoomId};
 use general::state::YummyState;
+use general::test::model::{ReceiveError, AuthenticatedModel, RoomCreated};
 use general::tls::load_temporary_rustls_config;
 use general::web::Answer;
 use manager::auth::AuthManager;
 use manager::conn::ConnectionManager;
-use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
-use std::collections::HashMap;
 use std::env::temp_dir;
 use std::ops::Deref;
-use std::str::FromStr;
+use general::test::model::MeModel;
 use std::sync::Arc;
 use std::time::Duration;
 
 use super::*;
 use super::client::*;
 use crate::json_error_handler;
-
-#[cfg(feature = "stateless")]
-use general::test::cleanup_redis;
-
-#[derive(Debug, Deserialize)]
-struct RoomCreated {
-    #[serde(rename = "type")]
-    class_type: String,
-    room: RoomId,
-}
-
-#[derive(Default, Clone, Debug, Deserialize)]
-pub struct UserInformationResponse {
-    pub id: UserId,
-    pub name: Option<String>,
-    pub email: Option<String>,
-    pub device_id: Option<String>,
-    pub custom_id: Option<String>,
-    pub meta: Option<HashMap<String, serde_json::Value>>,
-    pub user_type: UserType,
-    pub online: bool,
-    pub insert_date: i32,
-    pub last_login_date: i32,
-}
-
 
 macro_rules! custom_id_auth {
     ($client: expr, $custom_id: expr) => {
@@ -86,10 +58,10 @@ macro_rules! get_my_id {
             let receive = $client.get_text().await;
             assert!(receive.is_some());
         
-            let response = serde_json::from_str::<GenericAnswer<UserInformationModel>>(&receive.unwrap())?;
+            let response = serde_json::from_str::<MeModel>(&receive.unwrap())?;
             assert!(response.status);
         
-            response.result.unwrap().id.to_string()
+            response.id.to_string()
         }
     };
 }
@@ -105,10 +77,10 @@ macro_rules! get_me {
             let receive = $client.get_text().await;
             assert!(receive.is_some());
         
-            let response = serde_json::from_str::<GenericAnswer<UserInformationResponse>>(&receive.unwrap())?;
+            let response = serde_json::from_str::<MeModel>(&receive.unwrap())?;
             assert!(response.status);
         
-            response.result.unwrap()
+            response
         }
     };
 }
@@ -153,8 +125,6 @@ pub fn create_websocket_server_with_config(config: Arc<YummyConfig>, test_server
         #[cfg(feature = "stateless")]
         let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-        #[cfg(feature = "stateless")]
-        cleanup_redis(conn.clone());
         let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
 
         ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
@@ -323,9 +293,9 @@ async fn fail_auth_via_device_id_2() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<ReceiveError>(&receive.unwrap())?;
     assert!(!response.status);
-    assert_eq!(response.result.unwrap(), "id: Length should be between 8 to 128 chars".to_string());
+    assert_eq!(response.error, "id: Length should be between 8 to 128 chars".to_string());
     Ok(())
 }
 
@@ -375,7 +345,7 @@ async fn fail_auth_via_custom_id_1() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
+    let response = serde_json::from_str::<ReceiveError>(&receive.unwrap())?;
     assert!(!response.status);
     Ok(())
 }
@@ -395,9 +365,9 @@ async fn fail_auth_via_custom_id_2() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<ReceiveError>(&receive.unwrap())?;
     assert!(!response.status);
-    assert_eq!(response.result.unwrap(), "id: Length should be between 8 to 128 chars".to_string());
+    assert_eq!(response.error, "id: Length should be between 8 to 128 chars".to_string());
     Ok(())
 }
 
@@ -438,9 +408,8 @@ async fn auth_via_email_1() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<AuthenticatedModel>(&receive.unwrap())?;
     assert!(response.status);
-    assert!(&response.result.is_some());
     Ok(())
 }
 
@@ -460,9 +429,9 @@ async fn auth_via_email_2() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<ReceiveError>(&receive.unwrap())?;
     assert!(!response.status);
-    assert_eq!(&response.result.unwrap(), "Email and/or password not valid");
+    assert_eq!(&response.error, "Email and/or password not valid");
     Ok(())
 }
 
@@ -483,9 +452,9 @@ async fn auth_via_email_3() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<ReceiveError>(&receive.unwrap())?;
     assert!(!response.status);
-    assert_eq!(&response.result.unwrap(), "Email and/or password not valid");
+    assert_eq!(&response.error, "Email and/or password not valid");
     Ok(())
 }
 
@@ -505,10 +474,10 @@ async fn auth_via_email_4() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<ReceiveError>(&receive.unwrap())?;
     assert!(!response.status);
 
-    let error_message = response.result.unwrap();
+    let error_message = response.error;
     assert!(error_message == "password: Length should be between 3 to 32 chars\nemail: Email address is not valid"
             || error_message ==  "email: Email address is not valid\npassword: Length should be between 3 to 32 chars"
     );
@@ -537,7 +506,7 @@ async fn auth_via_email_5() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<ReceiveError>(&receive.unwrap())?;
     assert!(!response.status);
 
     // Register with right information
@@ -552,7 +521,7 @@ async fn auth_via_email_5() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<AuthenticatedModel>(&receive.unwrap())?;
     assert!(response.status);
 
     client.disconnect().await;
@@ -571,7 +540,7 @@ async fn auth_via_email_5() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<AuthenticatedModel>(&receive.unwrap())?;
     assert!(response.status);
 
     Ok(())
@@ -599,7 +568,7 @@ async fn auth_via_email_6() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<ReceiveError>(&receive.unwrap())?;
     assert!(!response.status);
 
     // Register with right information
@@ -614,7 +583,7 @@ async fn auth_via_email_6() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<AuthenticatedModel>(&receive.unwrap())?;
     assert!(response.status);
 
     client.disconnect().await;
@@ -632,7 +601,7 @@ async fn auth_via_email_6() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<AuthenticatedModel>(&receive.unwrap())?;
     assert!(response.status);
 
     Ok(())
@@ -656,7 +625,7 @@ async fn success_logout() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<AuthenticatedModel>(&receive.unwrap())?;
     assert!(response.status);
 
     // Logout
@@ -714,9 +683,9 @@ async fn fail_token_refresh_1() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<ReceiveError>(&receive.unwrap())?;
     assert!(!response.status);
-    assert_eq!(&response.result.unwrap(), "token: Length should be between 275 to 1024 chars");
+    assert_eq!(&response.error, "token: Length should be between 275 to 1024 chars");
 
     Ok(())
 }
@@ -736,9 +705,9 @@ async fn fail_token_refresh_2() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<ReceiveError>(&receive.unwrap())?;
     assert!(!response.status);
-    assert_eq!(&response.result.unwrap(), "Wrong message format");
+    assert_eq!(&response.error, "Wrong message format");
 
     Ok(())
 }
@@ -759,7 +728,7 @@ async fn token_refresh_1() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let token = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?.result.unwrap();
+    let token = serde_json::from_str::<AuthenticatedModel>(&receive.unwrap())?.token;
 
     // Not valid
     let request = json!({
@@ -771,7 +740,7 @@ async fn token_refresh_1() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<AuthenticatedModel>(&receive.unwrap())?;
     assert!(response.status);
 
     Ok(())
@@ -797,7 +766,7 @@ async fn token_restore_1() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let token = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?.result.unwrap();
+    let token = serde_json::from_str::<AuthenticatedModel>(&receive.unwrap())?.token;
 
     client.disconnect().await;
     
@@ -812,7 +781,7 @@ async fn token_restore_1() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<AuthenticatedModel>(&receive.unwrap())?;
     assert!(response.status);
 
     Ok(())
@@ -837,7 +806,7 @@ async fn fail_token_restore_1() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let token = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?.result.unwrap();
+    let token = serde_json::from_str::<AuthenticatedModel>(&receive.unwrap())?.token;
 
     client.disconnect().await;
 
@@ -856,7 +825,7 @@ async fn fail_token_restore_1() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<ReceiveError>(&receive.unwrap())?;
     assert_eq!(response.status, false);
 
     Ok(())
@@ -921,10 +890,9 @@ async fn user_online_status_change() -> anyhow::Result<()> {
 
     let receive = client.get_text().await;
     assert!(receive.is_some());
-    let response = serde_json::from_str::<GenericAnswer<UserInformationModel>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<MeModel>(&receive.unwrap())?;
     assert!(response.status);
 
-    let response = response.result.unwrap();
     assert!(response.online);
     client.disconnect().await;
 
@@ -941,11 +909,10 @@ async fn user_online_status_change() -> anyhow::Result<()> {
 
     let receive = client.get_text().await;
     assert!(receive.is_some());
-    let response = serde_json::from_str::<GenericAnswer<UserInformationModel>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<MeModel>(&receive.unwrap())?;
     assert!(response.status);
 
     // Connection timeout
-    let response = response.result.unwrap();
     assert!(!response.online);
     
     Ok(())
@@ -970,7 +937,7 @@ async fn user_update_1() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<String>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
     assert!(response.status);
 
     client.send(json!({
@@ -981,9 +948,9 @@ async fn user_update_1() -> anyhow::Result<()> {
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
-    let response = serde_json::from_str::<GenericAnswer<UserInformationModel>>(&receive.unwrap())?;
+    let response = serde_json::from_str::<MeModel>(&receive.unwrap())?;
     assert!(response.status);
-    let response = response.result.unwrap();
+    let response = response;
 
     assert_eq!(response.custom_id.unwrap().as_str(), "1234567890");
     assert_eq!(response.device_id.unwrap().as_str(), "987654321");
@@ -1054,9 +1021,8 @@ async fn user_update_4() -> anyhow::Result<()> {
     });
 
     let me = get_me!(client);
-    assert!(me.meta.is_some());
 
-    let me = me.meta.unwrap();
+    let me = me.meta;
     assert_eq!(me.get("me type"), Some(&serde_json::Value::Number(serde_json::Number::from_f64(9.0).unwrap())));
     assert_eq!(me.get("user type"), Some(&serde_json::Value::Number(serde_json::Number::from_f64(8.0).unwrap())));
     
@@ -1081,7 +1047,6 @@ async fn create_room() -> anyhow::Result<()> {
 
     let response = serde_json::from_str::<GenericAnswer<RoomCreated>>(&receive.unwrap())?;
     assert!(response.status);
-    assert!(response.result.is_some());
     Ok(())
 }
 
@@ -1106,7 +1071,7 @@ async fn join_room() -> anyhow::Result<()> {
     let response = serde_json::from_str::<GenericAnswer<RoomCreated>>(&receive.unwrap())?;
     assert!(response.status);
 
-    let room_id = response.result.unwrap().room;
+    let room_id = response.result.room;
     
     client_2.send(json!({
         "type": "Room",

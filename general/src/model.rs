@@ -201,12 +201,12 @@ pub struct WebsocketMessage(pub String);
 impl WebsocketMessage {
     pub fn success<T: Debug + Serialize + DeserializeOwned>(message: T) -> WebsocketMessage {
         let message = serde_json::to_string(&GenericAnswer::success(message));
-        WebsocketMessage(message.unwrap_or_default())
+        WebsocketMessage(message.unwrap())
     }
     
     pub fn fail<T: Debug + Serialize + DeserializeOwned>(message: T) -> WebsocketMessage {
         let message = serde_json::to_string(&GenericAnswer::fail(message));
-        WebsocketMessage(message.unwrap_or_default())
+        WebsocketMessage(message.unwrap())
     }
 }
 

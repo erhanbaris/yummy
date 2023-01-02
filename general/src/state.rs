@@ -50,7 +50,7 @@ pub struct SendMessage {
 impl SendMessage {
     pub fn create<T:  Borrow<T> + Debug + Serialize + DeserializeOwned>(user_id: Arc<UserId>, message: T) -> SendMessage {
         let message = serde_json::to_string(message.borrow());
-        Self { user_id, message: message.unwrap_or_default() }
+        Self { user_id, message: message.unwrap() }
     }
 }
 
@@ -989,8 +989,6 @@ mod tests {
     use crate::config::configure_environment;
     use crate::{model::*, config::get_configuration};
 
-    #[cfg(feature = "stateless")]
-    use crate::test::cleanup_redis;
     use actix::Actor;
     use actix::Context;
     use actix::Handler;
@@ -1018,8 +1016,6 @@ mod tests {
         #[cfg(feature = "stateless")]
         let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-        #[cfg(feature = "stateless")]
-        cleanup_redis(conn.clone());
 
         DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
@@ -1046,8 +1042,6 @@ mod tests {
         #[cfg(feature = "stateless")]
         let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-        #[cfg(feature = "stateless")]
-        cleanup_redis(conn.clone());
 
         DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
@@ -1068,8 +1062,6 @@ mod tests {
         #[cfg(feature = "stateless")]
         let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-        #[cfg(feature = "stateless")]
-        cleanup_redis(conn.clone());
 
         DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
@@ -1112,8 +1104,6 @@ mod tests {
         #[cfg(feature = "stateless")]
         let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-        #[cfg(feature = "stateless")]
-        cleanup_redis(conn.clone());
 
         DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
@@ -1136,8 +1126,6 @@ mod tests {
         #[cfg(feature = "stateless")]
         let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-        #[cfg(feature = "stateless")]
-        cleanup_redis(conn.clone());
 
         DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);

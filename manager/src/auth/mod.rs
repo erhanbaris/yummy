@@ -21,7 +21,7 @@ use self::model::*;
 use crate::conn::model::UserConnected;
 
 pub fn generate_response<T: Debug + Serialize + DeserializeOwned>(model: T) -> String {
-    serde_json::to_string(&model).unwrap_or_default()
+    serde_json::to_string(&model).unwrap()
 }
 
 pub struct AuthManager<DB: DatabaseTrait + ?Sized> {
@@ -99,7 +99,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
-        model.socket.send(GenericAnswer::success(token).into());
+        model.socket.send(GenericAnswer::success(AuthResponse::Authenticated { token }).into());
         Ok(())
     }
 }
@@ -131,7 +131,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
-        model.socket.send(GenericAnswer::success(token).into());
+        model.socket.send(GenericAnswer::success(AuthResponse::Authenticated { token }).into());
         Ok(())
     }
 }
@@ -163,7 +163,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
-        model.socket.send(GenericAnswer::success(token).into());
+        model.socket.send(GenericAnswer::success(AuthResponse::Authenticated { token }).into());
         Ok(())
     }
 }
@@ -194,7 +194,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
         match validate_auth(self.config.clone(), model.token) {
             Some(claims) => {
                 let (token, _) = self.generate_token(&claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session), claims.user.user_type)?;
-                model.socket.send(GenericAnswer::success(token).into());
+                model.socket.send(GenericAnswer::success(AuthResponse::Authenticated { token }).into());
                 Ok(())
             },
             None => Err(anyhow!(AuthError::TokenNotValid))
@@ -226,7 +226,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
                     socket: model.socket.clone()
                 });
                 model.socket.authenticated(auth);
-                model.socket.send(GenericAnswer::success(token).into());
+                model.socket.send(GenericAnswer::success(AuthResponse::Authenticated { token }).into());
                 Ok(())
             },
             None => Err(anyhow!(AuthError::TokenNotValid))

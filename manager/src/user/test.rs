@@ -6,6 +6,7 @@ use general::config::configure_environment;
 use general::config::get_configuration;
 use general::meta::MetaAction;
 use general::meta::UserMetaAccess;
+use general::test::model::AuthenticatedModel;
 use general::web::GenericAnswer;
 use std::collections::HashMap;
 use std::env::temp_dir;
@@ -23,8 +24,6 @@ use crate::conn::ConnectionManager;
 use database::model::UserInformationModel;
 use general::test::DummyClient;
 
-#[cfg(feature = "stateless")]
-use general::test::cleanup_redis;
 
 macro_rules! email_auth {
     ($auth_manager: expr, $config: expr, $email: expr, $password: expr, $create: expr, $socket: expr) => {
@@ -36,8 +35,8 @@ macro_rules! email_auth {
                 socket: $socket
             }).await??;
         
-            let token: GenericAnswer<String> = $socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-            let token = token.result.unwrap_or_default();
+            let token: AuthenticatedModel = $socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+            let token = token.token;
 
             let user_jwt = validate_auth($config, token).unwrap().user;
             Arc::new(Some(UserAuth {
@@ -58,8 +57,6 @@ fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, A
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-    #[cfg(feature = "stateless")]
-    cleanup_redis(conn.clone());
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
@@ -83,8 +80,8 @@ async fn get_private_user_2() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
     auth_manager.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
     let token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
-    let token: GenericAnswer<String> = token.into();
-    let token = token.result.unwrap_or_default();
+    let token: AuthenticatedModel = token.into();
+    let token = token.token;
 
     let user = validate_auth(config, token).unwrap();
     user_manager.send(GetUserInformation::me(Arc::new(Some(UserAuth {
@@ -94,7 +91,7 @@ async fn get_private_user_2() -> anyhow::Result<()> {
 
    
     let user: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let user = user.result.unwrap_or_default();
+    let user = user.result;
 
     assert_eq!(user.device_id, Some("1234567890".to_string()));
     Ok(())
@@ -117,8 +114,8 @@ async fn fail_update_get_user_2() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
     auth_manager.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
     let token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
-    let token: GenericAnswer<String> = token.into();
-    let token = token.result.unwrap_or_default();
+    let token: AuthenticatedModel = token.into();
+    let token = token.token;
 
 
     let user = validate_auth(config, token).unwrap();
@@ -144,8 +141,8 @@ async fn fail_update_get_user_3() -> anyhow::Result<()> {
         socket: socket.clone()
     }).await??;
     
-    let token: GenericAnswer<String> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let token = token.result.unwrap_or_default();
+    let token: AuthenticatedModel = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let token = token.token;
 
     let user = validate_auth(config, token).unwrap();
     let result = user_manager.send(UpdateUser {
@@ -176,8 +173,8 @@ async fn fail_update_get_user_4() -> anyhow::Result<()> {
         socket: socket.clone()
     }).await??;
     
-    let token: GenericAnswer<String> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let token = token.result.unwrap_or_default();
+    let token: AuthenticatedModel = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let token = token.token;
 
     let user = validate_auth(config, token).unwrap();
     let result = user_manager.send(UpdateUser {
@@ -207,8 +204,8 @@ async fn fail_update_password() -> anyhow::Result<()> {
         socket: socket.clone()
     }).await??;
 
-    let token: GenericAnswer<String> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let token = token.result.unwrap_or_default();
+    let token: AuthenticatedModel = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let token = token.token;
 
     let user_jwt = validate_auth(config, token).unwrap().user;
     let user_auth = Arc::new(Some(UserAuth {
@@ -242,8 +239,8 @@ async fn fail_update_email() -> anyhow::Result<()> {
         socket: socket.clone()
     }).await??;
 
-    let token: GenericAnswer<String> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let token = token.result.unwrap_or_default();
+    let token: AuthenticatedModel = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let token = token.token;
 
     let user_jwt = validate_auth(config, token).unwrap().user;
     let user_auth = Arc::new(Some(UserAuth {
@@ -277,8 +274,8 @@ async fn update_user_1() -> anyhow::Result<()> {
         socket: socket.clone()
     }).await??;
 
-    let token: GenericAnswer<String> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let token = token.result.unwrap_or_default();
+    let token: AuthenticatedModel = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let token = token.token;
 
     let user_jwt = validate_auth(config, token).unwrap().user;
     let user_auth = Arc::new(Some(UserAuth {
@@ -289,7 +286,7 @@ async fn update_user_1() -> anyhow::Result<()> {
     user_manager.send(GetUserInformation::me(user_auth.clone(), socket.clone())).await??;
 
     let user: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let user = user.result.unwrap_or_default();
+    let user = user.result;
     
     assert_eq!(user.name, None);
     assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
@@ -304,7 +301,7 @@ async fn update_user_1() -> anyhow::Result<()> {
     user_manager.send(GetUserInformation::me(user_auth.clone(), socket.clone())).await??;
     
     let user: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let user = user.result.unwrap_or_default();
+    let user = user.result;
 
     assert_eq!(user.name, Some("Erhan".to_string()));
     assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
@@ -331,8 +328,8 @@ async fn update_user_2() -> anyhow::Result<()> {
         socket: socket.clone()
     }).await??;
     
-    let token: GenericAnswer<String> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let token = token.result.unwrap_or_default();
+    let token: AuthenticatedModel = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let token = token.token;
 
     let user_jwt = validate_auth(config, token).unwrap().user;
     let user_auth = Arc::new(Some(UserAuth {
@@ -343,7 +340,7 @@ async fn update_user_2() -> anyhow::Result<()> {
     user_manager.send(GetUserInformation::me(user_auth.clone(), socket.clone())).await??;
 
     let user: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let user = user.result.unwrap_or_default();
+    let user = user.result;
     
     assert_eq!(user.name, None);
     assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
@@ -366,7 +363,7 @@ async fn update_user_2() -> anyhow::Result<()> {
     user_manager.send(GetUserInformation::me(user_auth.clone(), socket.clone())).await??;
 
     let user: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let user = user.result.unwrap_or_default();
+    let user = user.result;
 
     assert_eq!(user.name, Some("Erhan".to_string()));
     assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
@@ -382,7 +379,7 @@ async fn update_user_2() -> anyhow::Result<()> {
     user_manager.send(GetUserInformation::me(user_auth.clone(), socket.clone())).await??;
 
     let user: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let user = user.result.unwrap_or_default();
+    let user = user.result;
 
     assert_eq!(user.name, Some("Erhan".to_string()));
     assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
@@ -409,8 +406,8 @@ async fn update_user_3() -> anyhow::Result<()> {
         socket: socket.clone()
     }).await??;
 
-    let token: GenericAnswer<String> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let token = token.result.unwrap_or_default();
+    let token: AuthenticatedModel = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let token = token.token;
 
     let user_jwt = validate_auth(config, token).unwrap().user;
     let user_auth = Arc::new(Some(UserAuth {
@@ -420,7 +417,7 @@ async fn update_user_3() -> anyhow::Result<()> {
 
     user_manager.send(GetUserInformation::me(user_auth.clone(), socket.clone())).await??;
     let user: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let user = user.result.unwrap_or_default();
+    let user = user.result;
     
     assert_eq!(user.name, None);
     assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
@@ -521,7 +518,7 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     user_manager.send(GetUserInformation::me(user.clone(), socket.clone())).await??;
     
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let information = information.result.unwrap_or_default();
+    let information = information.result;
 
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
@@ -535,7 +532,7 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     user_manager.send(GetUserInformation::user(user_id.clone(), moderator.clone(), socket.clone())).await??;
     
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let information = information.result.unwrap_or_default();
+    let information = information.result;
 
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
@@ -550,7 +547,7 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     /* Check for admin */
     user_manager.send(GetUserInformation::user(user_id.clone(), admin.clone(), socket.clone())).await??;
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let information = information.result.unwrap_or_default();
+    let information = information.result;
 
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
@@ -565,7 +562,7 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     /* Check for system */
     user_manager.send(GetUserInformation::user_via_system(user_id.clone(), socket.clone())).await??;
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let information = information.result.unwrap_or_default();
+    let information = information.result;
 
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
@@ -581,7 +578,7 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     /* Check for other user */
     user_manager.send(GetUserInformation::user(user_id.clone(), other_user.clone(), socket.clone())).await??;
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let information = information.result.unwrap_or_default();
+    let information = information.result;
 
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
@@ -592,7 +589,7 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     /* Check for anonymous */
     user_manager.send(GetUserInformation::user(user_id.clone(), Arc::new(None), socket.clone())).await??;
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let information = information.result.unwrap_or_default();
+    let information = information.result;
 
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
@@ -646,7 +643,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
     user_manager.send(GetUserInformation::me(user.clone(), socket.clone())).await??;
     
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let information = information.result.unwrap_or_default();
+    let information = information.result;
 
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
@@ -670,7 +667,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
     user_manager.send(GetUserInformation::me(user.clone(), socket.clone())).await??;
     
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let information = information.result.unwrap_or_default();
+    let information = information.result;
 
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
@@ -693,7 +690,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
     user_manager.send(GetUserInformation::me(user.clone(), socket.clone())).await??;
     
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let information = information.result.unwrap_or_default();
+    let information = information.result;
 
     assert!(information.meta.is_some());
     let information_meta = information.meta.unwrap();
@@ -715,7 +712,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
     user_manager.send(GetUserInformation::me(user.clone(), socket.clone())).await??;
     
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let information = information.result.unwrap_or_default();
+    let information = information.result;
 
     assert!(information.meta.is_none());
 

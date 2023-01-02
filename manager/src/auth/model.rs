@@ -1,6 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
 use actix::prelude::Message;
 use general::{model::{SessionId, UserId}, auth::UserAuth, password::Password};
+use serde::Serialize;
 use thiserror::Error;
 use validator::{Validate, ValidationError};
 use general::client::ClientTrait;
@@ -121,4 +122,16 @@ pub enum AuthError {
 
     #[error("User not logged in")]
     UserNotLoggedIn
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(tag = "type")]
+pub enum AuthResponse {
+    Authenticated { token: String }
+}
+
+impl<'a> From<AuthResponse> for String {
+    fn from(source: AuthResponse) -> Self {
+        serde_json::to_string(&source).unwrap()
+    }
 }

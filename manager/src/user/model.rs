@@ -1,4 +1,5 @@
 use std::{fmt::Debug, sync::Arc, collections::HashMap};
+use database::model::UserInformationModel;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use general::{client::ClientTrait, meta::MetaAction};
@@ -132,4 +133,13 @@ pub enum UserError {
 
     #[error("'{0}' meta access level cannot be bigger than users access level")]
     MetaAccessLevelCannotBeBiggerThanUsersAccessLevel(String)
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(tag = "type")]
+pub enum UserResponse {
+    UserInfo {
+        #[serde(flatten)]
+        user: UserInformationModel
+    },
 }

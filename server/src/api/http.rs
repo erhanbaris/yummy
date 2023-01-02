@@ -77,8 +77,6 @@ pub mod tests {
         #[cfg(feature = "stateless")]
         let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-        #[cfg(feature = "stateless")]
-        cleanup_redis(conn.clone());
 
         let states = YummyState::new(#[cfg(feature = "stateless")] conn);
         let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
@@ -131,8 +129,7 @@ pub mod tests {
 
         let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, false);
-        assert!(res.result.is_some());
-        assert_eq!(res.result.unwrap(), "Email and/or password not valid".to_string());
+        assert_eq!(res.result, "Email and/or password not valid".to_string());
     }
 
     #[actix_web::test]
@@ -151,8 +148,7 @@ pub mod tests {
 
         let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
-        assert!(res.result.is_some());
-        assert!(!res.result.unwrap().is_empty());
+        assert!(!res.result.is_empty());
     }
 
     #[actix_web::test]
@@ -169,8 +165,7 @@ pub mod tests {
 
         let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
-        assert!(res.result.is_some());
-        assert!(!res.result.unwrap().is_empty());
+        assert!(!res.result.is_empty());
     }
 
     #[actix_web::test]
@@ -186,8 +181,7 @@ pub mod tests {
 
         let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, false);
-        assert!(res.result.is_some());
-        assert!(!res.result.unwrap().is_empty());
+        assert!(!res.result.is_empty());
     }
 
     #[actix_web::test]
@@ -212,14 +206,13 @@ pub mod tests {
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Refresh",
-                "token": response.result.unwrap()
+                "token": response.result
             }))
             .to_request();
 
         let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
-        assert!(res.result.is_some());
-        assert!(!res.result.unwrap().is_empty());
+        assert!(!res.result.is_empty());
     }
 
     #[actix_web::test]
@@ -242,14 +235,13 @@ pub mod tests {
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Refresh",
-                "token": response.result.unwrap()
+                "token": response.result
             }))
             .to_request();
 
         let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
-        assert!(res.result.is_some());
-        assert!(!res.result.unwrap().is_empty());
+        assert!(!res.result.is_empty());
     }
 
     #[actix_web::test]
@@ -265,8 +257,7 @@ pub mod tests {
 
         let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, false);
-        assert!(res.result.is_some());
-        assert!(!res.result.unwrap().is_empty());
+        assert!(!res.result.is_empty());
     }
 
     #[actix_web::test]
@@ -283,8 +274,7 @@ pub mod tests {
 
         let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, false);
-        assert!(res.result.is_some());
-        assert!(!res.result.unwrap().is_empty());
+        assert!(!res.result.is_empty());
     }
 
     #[actix_web::test]
@@ -301,7 +291,6 @@ pub mod tests {
 
         let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
-        assert!(res.result.is_some());
 
         let token = res.result.as_ref().unwrap();
         assert!(!token.is_empty());
@@ -317,7 +306,6 @@ pub mod tests {
 
         let res: GenericAnswer<serde_json::Value> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
-        assert!(res.result.is_some());
     }
 
     #[actix_web::test]
@@ -350,7 +338,6 @@ pub mod tests {
 
         let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
-        assert!(res.result.is_some());
 
         let token = res.result.as_ref().unwrap();
         assert!(!token.is_empty());
@@ -366,7 +353,7 @@ pub mod tests {
 
         let res: GenericAnswer<UserInformationModel> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
-        let original_user_model = res.result.unwrap();
+        let original_user_model = res.result;
 
         let req = test::TestRequest::post().uri("/v1/query")
             .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
@@ -380,7 +367,7 @@ pub mod tests {
 
         let res: GenericAnswer<UserInformationModel> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
-        let fetched_user_model = res.result.unwrap();
+        let fetched_user_model = res.result;
 
         assert_eq!(original_user_model.id, fetched_user_model.id);
     
@@ -416,7 +403,6 @@ pub mod tests {
 
         let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
-        assert!(res.result.is_some());
 
         let token = res.result.as_ref().unwrap();
         assert!(!token.is_empty());
@@ -449,7 +435,6 @@ pub mod tests {
 
         let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
-        assert!(res.result.is_some());
 
         let token = res.result.as_ref().unwrap();
         assert!(!token.is_empty());
@@ -485,7 +470,6 @@ pub mod tests {
 
         let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
-        assert!(res.result.is_some());
 
         let token = res.result.as_ref().unwrap();
         assert!(!token.is_empty());
@@ -527,7 +511,6 @@ pub mod tests {
 
     let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
     assert_eq!(res.status, true);
-    assert!(res.result.is_some());
     }
 
 
@@ -547,7 +530,6 @@ pub mod tests {
 
         let res: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
-        assert!(res.result.is_some());
 
         let token = res.result.as_ref().unwrap();
         assert!(!token.is_empty());
@@ -578,9 +560,8 @@ pub mod tests {
 
         let res: GenericAnswer<UserInformationModel> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
-        assert!(res.result.is_some());
 
-        let me = res.result.unwrap();
+        let me = res.result;
         assert_eq!(me.custom_id, Some("1234567890".to_string()));
         assert_eq!(me.device_id, Some("987654321".to_string()));
         assert_eq!(me.name, Some("Erhan BARIS".to_string()));
@@ -612,9 +593,8 @@ pub mod tests {
 
         let res: GenericAnswer<UserInformationModel> = test::call_and_read_body_json(&app, req).await;
         assert_eq!(res.status, true);
-        assert!(res.result.is_some());
 
-        let me = res.result.unwrap();
+        let me = res.result;
         assert_eq!(me.custom_id, None);
         assert_eq!(me.device_id, None);
     }

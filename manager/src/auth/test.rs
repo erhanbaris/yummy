@@ -4,9 +4,8 @@ use general::config::YummyConfig;
 use general::auth::validate_auth;
 use general::config::configure_environment;
 use general::state::YummyState;
+use general::test::model::AuthenticatedModel;
 
-#[cfg(feature = "stateless")]
-use general::test::cleanup_redis;
 use std::sync::Arc;
 
 use actix::Actor;
@@ -26,8 +25,6 @@ fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<da
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-    #[cfg(feature = "stateless")]
-    cleanup_redis(conn.clone());
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
@@ -221,14 +218,14 @@ async fn token_restore_test_1() -> anyhow::Result<()> {
     let config = ::general::config::get_configuration();
     let (address, socket) = create_actor(config.clone())?;
     address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
-    let old_token: GenericAnswer<String> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let old_token = old_token.result.unwrap_or_default();
+    let old_token: AuthenticatedModel = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let old_token = old_token.token;
 
     // Wait 1 second
     actix::clock::sleep(std::time::Duration::new(1, 0)).await;
     address.send(RestoreTokenRequest { token: old_token.to_string(), socket: socket.clone() }).await??;
-    let new_token: GenericAnswer<String> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let new_token = new_token.result.unwrap_or_default();
+    let new_token: AuthenticatedModel = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let new_token = new_token.token;
     
     assert_ne!(old_token.clone(), new_token.clone());
 
@@ -254,12 +251,11 @@ async fn fail_token_restore_test_1() -> anyhow::Result<()> {
     address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
     
     let old_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
-    let old_token: GenericAnswer<String> = old_token.into();
-    let old_token = old_token.result.unwrap_or_default();
+    let old_token: AuthenticatedModel = old_token.into();
 
     // Wait 3 seconds
     actix::clock::sleep(std::time::Duration::new(3, 0)).await;
-    assert!(address.send(RestoreTokenRequest { token: old_token.to_string(), socket: socket.clone() }).await?.is_err());
+    assert!(address.send(RestoreTokenRequest { token: old_token.token.to_string(), socket: socket.clone() }).await?.is_err());
     let message = socket.clone().messages.lock().unwrap().pop_back().unwrap();
     assert!(message.contains("User token is not valid"));
     Ok(())
@@ -273,16 +269,16 @@ async fn token_refresh_test_1() -> anyhow::Result<()> {
     let (address, socket) = create_actor(config.clone())?;
     address.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
     let old_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
-    let old_token: GenericAnswer<String> = old_token.into();
-    let old_token = old_token.result.unwrap_or_default();
+    let old_token: AuthenticatedModel = old_token.into();
+    let old_token = old_token.token;
 
     // Wait 1 second
     actix::clock::sleep(std::time::Duration::new(1, 0)).await;
     address.send(RefreshTokenRequest { token: old_token.to_string(), socket: socket.clone() }).await??;
 
     let new_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
-    let new_token: GenericAnswer<String> = new_token.into();
-    let new_token = new_token.result.unwrap_or_default();
+    let new_token: AuthenticatedModel = new_token.into();
+    let new_token = new_token.token;
 
     assert_ne!(old_token.clone(), new_token.clone());
 
@@ -312,15 +308,15 @@ async fn token_refresh_test_2() -> anyhow::Result<()> {
 
 
     let old_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
-    let old_token: GenericAnswer<String> = old_token.into();
-    let old_token = old_token.result.unwrap_or_default();
+    let old_token: AuthenticatedModel = old_token.into();
+    let old_token = old_token.token;
     
     // Wait 1 second
     actix::clock::sleep(std::time::Duration::new(1, 0)).await;
     address.send(RefreshTokenRequest{ token: old_token.clone(), socket: socket.clone() }).await??;
     let new_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
-    let new_token: GenericAnswer<String> = new_token.into();
-    let new_token = new_token.result.unwrap_or_default();
+    let new_token: AuthenticatedModel = new_token.into();
+    let new_token = new_token.token;
     
     assert_ne!(old_token.clone(), new_token.clone());
 

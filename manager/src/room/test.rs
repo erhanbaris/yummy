@@ -1,8 +1,7 @@
 use general::config::configure_environment;
 use general::model::CreateRoomAccessType;
 use general::state::RoomUserInformation;
-use serde::Deserialize;
-use serde::Serialize;
+use general::test::model::*;
 use uuid::Uuid;
 
 use general::auth::UserAuth;
@@ -25,8 +24,6 @@ use crate::conn::ConnectionManager;
 use general::web::GenericAnswer;
 use general::test::DummyClient;
 
-#[cfg(feature = "stateless")]
-use general::test::cleanup_redis;
 
 macro_rules! email_auth {
     ($auth_manager: expr, $config: expr, $email: expr, $password: expr, $create: expr, $recipient: expr) => {
@@ -38,8 +35,8 @@ macro_rules! email_auth {
                 socket: $recipient.clone()
             }).await??;
         
-            let token: GenericAnswer<String> = $recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
-            let token = token.result.unwrap_or_default();
+            let token: AuthenticatedModel = $recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
+            let token = token.token;
         
             let user_jwt = validate_auth($config, token).unwrap().user;
             Arc::new(Some(UserAuth {
@@ -48,46 +45,6 @@ macro_rules! email_auth {
             }))
         }
     };
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Joined {
-    #[serde(rename = "type")]
-    class_type: String,
-    room_name: Option<String>,
-    users: Vec<RoomUserInformation>
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct UserJoinedToRoom {
-    #[serde(rename = "type")]
-    class_type: String,
-    user: UserId,
-    room: RoomId,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct RoomCreated {
-    #[serde(rename = "type")]
-    class_type: String,
-    room: RoomId,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct UserDisconnectedFromRoom {
-    #[serde(rename = "type")]
-    class_type: String,
-    user: UserId,
-    room: RoomId
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct MessageReceivedFromRoom {
-    #[serde(rename = "type")]
-    class_type: String,
-    user: UserId,
-    room: RoomId,
-    message: String
 }
 
 fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>, YummyState, Arc<DummyClient>)> {
@@ -108,8 +65,6 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-    #[cfg(feature = "stateless")]
-    cleanup_redis(conn.clone());
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
@@ -135,8 +90,8 @@ async fn create_room_1() -> anyhow::Result<()> {
         socket:recipient.clone()
     }).await??;
 
-    let room_id: GenericAnswer<RoomCreated> = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let room_id = room_id.result.unwrap().room;
+    let room_id: RoomCreated = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id = room_id.room;
 
     let user_id = match user.as_ref() {
         Some(user) => user.user.clone(),
@@ -165,8 +120,7 @@ async fn create_room_2() -> anyhow::Result<()> {
         socket:recipient.clone()
     }).await??;
 
-    let room_created: GenericAnswer<RoomCreated> = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let room_created = room_created.result.unwrap();
+    let room_created: RoomCreated = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
 
     let user_id = match user.as_ref() {
         Some(user) => user.user.clone(),
@@ -202,8 +156,8 @@ async fn create_room_3() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let room_id: GenericAnswer<RoomCreated> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let room_id = room_id.result.unwrap().room;
+    let room_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id = room_id.room;
 
     assert!(!room_id.is_empty());
 
@@ -215,7 +169,7 @@ async fn create_room_3() -> anyhow::Result<()> {
     }).await??;
 
     let message: GenericAnswer<Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
-    let message = message.result.unwrap();
+    let message = message.result;
     assert_eq!(&message.class_type[..], "Joined");
 
     room_manager.send(JoinToRoomRequest {
@@ -226,7 +180,7 @@ async fn create_room_3() -> anyhow::Result<()> {
     }).await??;
 
     let message: GenericAnswer<Joined> = serde_json::from_str(&user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
-    let message = message.result.unwrap();
+    let message = message.result;
     assert_eq!(&message.class_type[..], "Joined");
 
     let user_1_id = user_1.clone().deref().as_ref().unwrap().user.clone();
@@ -305,8 +259,8 @@ async fn create_room_4() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let room_id: GenericAnswer<RoomCreated> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let room_id = room_id.result.unwrap().room;
+    let room_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id = room_id.room;
 
     assert!(!room_id.is_empty());
 
@@ -318,7 +272,7 @@ async fn create_room_4() -> anyhow::Result<()> {
     }).await??;
 
     let message: GenericAnswer<Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
-    let message = message.result.unwrap();
+    let message = message.result;
     assert_eq!(&message.class_type[..], "Joined");
 
     room_manager.send(JoinToRoomRequest {
@@ -329,7 +283,7 @@ async fn create_room_4() -> anyhow::Result<()> {
     }).await??;
 
     let message: GenericAnswer<Joined> = serde_json::from_str(&user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
-    let message = message.result.unwrap();
+    let message = message.result;
     assert_eq!(&message.class_type[..], "Joined");
 
     let user_1_id = user_1.clone().deref().as_ref().unwrap().user.clone();
@@ -394,8 +348,8 @@ async fn message_to_room() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let room_id: GenericAnswer<RoomCreated> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let room_id = room_id.result.unwrap().room;
+    let room_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id = room_id.room;
 
     assert!(!room_id.is_empty());
 
@@ -491,8 +445,7 @@ async fn get_rooms() -> anyhow::Result<()> {
     let result: GenericAnswer<serde_json::Value> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
 
     assert!(result.status);
-    assert!(result.result.is_some());
-    let items = result.result.unwrap();
+    let items = result.result;
     if let Some(serde_json::Value::Array(items)) = items.get("rooms") {
         assert_eq!(items.len(), 100);
         let first_item = items.get(0).unwrap();
@@ -537,11 +490,8 @@ async fn room_update() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let room_id: GenericAnswer<RoomCreated> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    assert!(room_id.status);
-    assert!(room_id.result.is_some());
-
-    let room_id = room_id.result.unwrap().room;
+    let room_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id = room_id.room;
 
     room_manager.send(JoinToRoomRequest {
         user: user_2.clone(),
@@ -559,9 +509,8 @@ async fn room_update() -> anyhow::Result<()> {
 
     let room_info: GenericAnswer<serde_json::Value> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     assert!(room_info.status);
-    assert!(room_info.result.is_some());
 
-    let room_info = room_info.result.unwrap();
+    let room_info = room_info.result;
     println!("{}", room_info);
 
     let access_type: CreateRoomAccessType = serde_json::from_value(room_info.get("access-type").unwrap().clone())?;
