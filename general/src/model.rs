@@ -21,6 +21,7 @@ use diesel::expression::AsExpression;
 use uuid::Uuid;
 
 use crate::auth::UserJwt;
+use crate::meta::{MetaType, RoomMetaAccess};
 use crate::web::GenericAnswer;
 
 macro_rules! generate_type {
@@ -159,7 +160,8 @@ pub struct RoomState {
     pub max_user: usize,
     pub tags: Vec<String>,
     pub insert_date: i32,
-    pub users: Mutex<HashMap<UserId, RoomUserType>>
+    pub users: Mutex<HashMap<UserId, RoomUserType>>,
+    pub metas: HashMap<String, MetaType<RoomMetaAccess>>
 }
 
 #[derive(Default, Clone, Debug, Serialize_repr, Deserialize_repr, PartialEq, Eq)]
@@ -186,8 +188,8 @@ impl From<CreateRoomAccessType> for i32 {
 pub enum RoomUserType {
     #[default]
     User = 1,
-    Owner = 2,
-    Moderator = 3
+    Moderator = 2,
+    Owner = 3,
 }
 
 #[derive(Message, Debug)]

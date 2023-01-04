@@ -82,7 +82,7 @@ pub struct RoomUserInsert<'a> {
 pub struct RoomMetaInsert<'a> {
     pub id: UserMetaId,
     pub room_id: &'a RoomId,
-    pub key: String,
+    pub key: &'a String,
     pub value: String,
     pub meta_type: i32,
     pub access: i32,

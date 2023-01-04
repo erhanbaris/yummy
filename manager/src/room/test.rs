@@ -85,7 +85,7 @@ async fn create_room_1() -> anyhow::Result<()> {
         name: None,
         access_type: general::model::CreateRoomAccessType::Friend,
         max_user: 4,
-        meta: None,
+        metas: HashMap::default(),
         tags: Vec::new(),
         socket:recipient.clone()
     }).await??;
@@ -115,7 +115,7 @@ async fn create_room_2() -> anyhow::Result<()> {
         name: None,
         access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
-        meta: None,
+        metas: HashMap::default(),
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:recipient.clone()
     }).await??;
@@ -151,7 +151,7 @@ async fn create_room_3() -> anyhow::Result<()> {
         name: None,
         access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
-        meta: None,
+        metas: HashMap::default(),
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:user_1_socket.clone()
     }).await??;
@@ -206,7 +206,7 @@ async fn create_room_3() -> anyhow::Result<()> {
         name: None,
         access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
-        meta: None,
+        metas: HashMap::default(),
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:user_1_socket.clone()
     }).await??;
@@ -254,7 +254,7 @@ async fn create_room_4() -> anyhow::Result<()> {
         name: None,
         access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
-        meta: None,
+        metas: HashMap::default(),
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:user_1_socket.clone()
     }).await??;
@@ -343,7 +343,7 @@ async fn message_to_room() -> anyhow::Result<()> {
         name: None,
         access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
-        meta: None,
+        metas: HashMap::default(),
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:user_1_socket.clone()
     }).await??;
@@ -430,7 +430,7 @@ async fn get_rooms() -> anyhow::Result<()> {
             name: None,
             access_type: general::model::CreateRoomAccessType::Public,
             max_user: 4,
-            meta: None,
+            metas: HashMap::default(),
             tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
             socket:user_socket.clone()
         }).await??;
@@ -485,7 +485,11 @@ async fn room_update() -> anyhow::Result<()> {
         name: None,
         access_type: general::model::CreateRoomAccessType::Public,
         max_user: 4,
-        meta: None,
+        metas: HashMap::from([
+            ("gender".to_string(), MetaType::String("Male".to_string(), RoomMetaAccess::User)),
+            ("location".to_string(), MetaType::String("Copenhagen".to_string(), RoomMetaAccess::User)),
+            ("score".to_string(), MetaType::Number(15.3, RoomMetaAccess::Anonymous)),
+        ]),
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
         socket:user_1_socket.clone()
     }).await??;
@@ -502,6 +506,7 @@ async fn room_update() -> anyhow::Result<()> {
 
     // Get room information
     room_manager.send(GetRoomRequest {
+        user: user_1,
         socket: user_1_socket.clone(),
         members: Vec::new(),
         room: room_id.clone()
@@ -515,8 +520,13 @@ async fn room_update() -> anyhow::Result<()> {
 
     let access_type: CreateRoomAccessType = serde_json::from_value(room_info.get("access-type").unwrap().clone())?;
     let max_user: i32 = serde_json::from_value(room_info.get("max-user").unwrap().clone())?;
+    let mut metas: HashMap<String, serde_json::Value> = serde_json::from_value(room_info.get("metas").unwrap().clone())?;
     let mut tags: Vec<String> = serde_json::from_value(room_info.get("tags").unwrap().clone())?;
     let mut users: Vec<RoomUserInformation> = serde_json::from_value(room_info.get("users").unwrap().clone())?;
+
+    assert_eq!(serde_json::from_value::<String>(metas.get("gender").unwrap().clone()).unwrap(), "Male".to_string());
+    assert_eq!(serde_json::from_value::<String>(metas.get("location").unwrap().clone()).unwrap(), "Copenhagen".to_string());
+    assert_eq!(serde_json::from_value::<f64>(metas.get("score").unwrap().clone()).unwrap(), 15.3);
 
 
     assert_eq!(access_type, CreateRoomAccessType::Public);

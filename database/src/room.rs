@@ -24,13 +24,12 @@ pub trait RoomStoreTrait: Sized {
     fn create_room(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: &[String]) -> anyhow::Result<RoomId>;
     fn join_to_room(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, user_type: RoomUserType) -> anyhow::Result<()>;
     fn disconnect_from_room(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId) -> anyhow::Result<()>;
-    fn insert_metas(connection: &mut PooledConnection, room_id: &RoomId, metas: Vec<(String, MetaType<RoomMetaAccess>)>) -> anyhow::Result<()>;
     fn get_room_meta(connection: &mut PooledConnection, room_id: &RoomId, filter: RoomMetaAccess) -> anyhow::Result<Vec<(RoomMetaId, String, MetaType<RoomMetaAccess>)>>;
     fn get_room_tag(connection: &mut PooledConnection, room_id: &RoomId) -> anyhow::Result<Vec<(RoomTagId, String)>>;
     fn remove_room_tags(connection: &mut PooledConnection, ids: Vec<RoomTagId>) -> anyhow::Result<()>;
     fn remove_room_metas(connection: &mut PooledConnection, ids: Vec<RoomMetaId>) -> anyhow::Result<()>;
-    fn insert_room_metas(connection: &mut PooledConnection, room_id: &RoomId, metas: Vec<(String, MetaType<RoomMetaAccess>)>) -> anyhow::Result<()>;
-    fn insert_room_tags(connection: &mut PooledConnection, room_id: &RoomId, tags: Vec<String>) -> anyhow::Result<()>;
+    fn insert_room_metas(connection: &mut PooledConnection, room_id: &RoomId, metas: &Vec<(&String, &MetaType<RoomMetaAccess>)>) -> anyhow::Result<()>;
+    fn insert_room_tags(connection: &mut PooledConnection, room_id: &RoomId, tags: &Vec<String>) -> anyhow::Result<()>;
     fn update_room(connection: &mut PooledConnection, room_id: &RoomId, update_request: &RoomUpdate) -> anyhow::Result<usize>;
     fn update_room_user_permissions(connection: &mut PooledConnection, room_id: &RoomId, permissions: &HashMap<UserId, RoomUserType>) -> anyhow::Result<()>;
 }
@@ -79,7 +78,7 @@ impl RoomStoreTrait for SqliteStore {
         Ok(room_id)
     }
 
-    fn insert_room_tags(connection: &mut PooledConnection, room_id: &RoomId, tags: Vec<String>) -> anyhow::Result<()> {
+    fn insert_room_tags(connection: &mut PooledConnection, room_id: &RoomId, tags: &Vec<String>) -> anyhow::Result<()> {
         let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
 
         let mut tag_inserts = Vec::new();
@@ -140,36 +139,6 @@ impl RoomStoreTrait for SqliteStore {
         Ok(())
     }
 
-    #[tracing::instrument(name="Insert metas", skip(connection))]
-    fn insert_metas(connection: &mut PooledConnection, room_id: &RoomId, metas: Vec<(String, MetaType<RoomMetaAccess>)>) -> anyhow::Result<()> {
-        let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
-        let mut inserts = Vec::new();
-
-        for (key, meta) in metas.into_iter() {
-            let (value, access, meta_type) = match meta {
-                MetaType::Null => continue,
-                MetaType::Number(value, access) => (value.to_string(), access, 1),
-                MetaType::String(value, access) => (value, access, 2),
-                MetaType::Bool(value, access) => (value.to_string(), access, 3),
-            };
-
-            let insert = RoomMetaInsert {
-                id: UserMetaId::default(),
-                room_id,
-                key,
-                value,
-                access: access.into(),
-                meta_type,
-                insert_date
-            };
-
-            inserts.push(insert);
-        }
-        diesel::insert_into(room_meta::table).values(&inserts).execute(connection)?;
-        Ok(())
-    }
-    
-
     #[tracing::instrument(name="Get room meta", skip(connection))]
     fn get_room_meta(connection: &mut PooledConnection, room_id: &RoomId, filter: RoomMetaAccess) -> anyhow::Result<Vec<(RoomMetaId, String, MetaType<RoomMetaAccess>)>> {
         let records: Vec<RoomMetaModel> = room_meta::table
@@ -217,15 +186,15 @@ impl RoomStoreTrait for SqliteStore {
     }
 
     #[tracing::instrument(name="Insert metas", skip(connection))]
-    fn insert_room_metas(connection: &mut PooledConnection, room_id: &RoomId, metas: Vec<(String, MetaType<RoomMetaAccess>)>) -> anyhow::Result<()> {
+    fn insert_room_metas(connection: &mut PooledConnection, room_id: &RoomId, metas: &Vec<(&String, &MetaType<RoomMetaAccess>)>) -> anyhow::Result<()> {
         let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
         let mut inserts = Vec::new();
 
-        for (key, meta) in metas.into_iter() {
+        for (key, meta) in metas.iter() {
             let (value, access, meta_type) = match meta {
                 MetaType::Null => continue,
                 MetaType::Number(value, access) => (value.to_string(), access, 1),
-                MetaType::String(value, access) => (value, access, 2),
+                MetaType::String(value, access) => (value.clone(), access, 2),
                 MetaType::Bool(value, access) => (value.to_string(), access, 3),
             };
 
@@ -234,7 +203,7 @@ impl RoomStoreTrait for SqliteStore {
                 room_id,
                 key,
                 value,
-                access: access.into(),
+                access: i32::from(access.clone()),
                 meta_type,
                 insert_date
             };
@@ -306,7 +275,7 @@ mod tests {
         let room = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Friend, 2, &Vec::new())?;
         
         // New meta
-        SqliteStore::insert_metas(&mut connection, &room, vec![("game-type".to_string(), MetaType::String("war".to_string(), RoomMetaAccess::Owner))])?;
+        SqliteStore::insert_room_metas(&mut connection, &room, &vec![(&"game-type".to_string(), &MetaType::String("war".to_string(), RoomMetaAccess::Owner))])?;
 
 
         let meta = SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::System)?;
@@ -318,9 +287,9 @@ mod tests {
         assert_eq!(SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::Anonymous)?.len(), 0);
         assert_eq!(SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::System)?.len(), 0);
 
-        SqliteStore::insert_room_metas(&mut connection, &room, vec![
-            ("location".to_string(), MetaType::String("copenhagen".to_string(), RoomMetaAccess::Anonymous)),
-            ("score".to_string(), MetaType::Number(123.0, RoomMetaAccess::Owner))])?;
+        SqliteStore::insert_room_metas(&mut connection, &room, &vec![
+            (&"location".to_string(), &MetaType::String("copenhagen".to_string(), RoomMetaAccess::Anonymous)),
+            (&"score".to_string(), &MetaType::Number(123.0, RoomMetaAccess::Owner))])?;
 
         assert_eq!(SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::Owner)?.len(), 2);
         assert_eq!(SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::System)?.len(), 2);

@@ -17,7 +17,7 @@ pub struct CreateRoomRequest {
     pub access_type: CreateRoomAccessType,
     pub max_user: usize,
     pub tags: Vec<String>,
-    pub meta: Option<HashMap<String, MetaType<RoomMetaAccess>>>,
+    pub metas: HashMap<String, MetaType<RoomMetaAccess>>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
@@ -58,6 +58,7 @@ pub struct RoomListRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct GetRoomRequest {
+    pub user: Arc<Option<UserAuth>>,
     pub room: RoomId,
     pub members: Vec<RoomInfoTypeVariant>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
@@ -70,7 +71,7 @@ pub struct UpdateRoom {
     pub room_id: RoomId,
     pub name: Option<String>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>,
-    pub meta: Option<HashMap<String, MetaType<RoomMetaAccess>>>,
+    pub meta: HashMap<String, MetaType<RoomMetaAccess>>,
     pub meta_action: Option<MetaAction>,
     pub access_type: Option<CreateRoomAccessType>,
     pub max_user: Option<usize>,
@@ -92,8 +93,8 @@ pub enum RoomError {
     #[error("Meta limit over to maximum")]
     MetaLimitOverToMaximum,
 
-    #[error("User does not enough permission")]
-    UserDoesNotEnoughPermission
+    #[error("User does not have enough permission")]
+    UserDoesNotHaveEnoughPermission
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -101,8 +102,10 @@ pub enum RoomError {
 pub enum RoomResponse<'a> {
     RoomCreated { room: RoomId },
     Joined {
+        room: &'a RoomId,
         room_name: Option<String>,
-        users: Vec<RoomUserInformation>
+        users: Vec<RoomUserInformation>,
+        metas: HashMap<String, MetaType<RoomMetaAccess>>
     },
     UserJoinedToRoom {
         user: &'a UserId,

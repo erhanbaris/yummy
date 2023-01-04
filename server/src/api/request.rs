@@ -70,10 +70,12 @@ pub enum RequestRoomType {
         tags: Vec<String>,
 
         #[serde(default)]
-        meta: Option<HashMap<String, MetaType<RoomMetaAccess>>>
+        metas: HashMap<String, MetaType<RoomMetaAccess>>
     },
     Join {
         room: RoomId,
+
+        #[serde(default)]
         room_user_type: RoomUserType,
     },
     Disconnect {
@@ -90,7 +92,7 @@ pub enum RequestRoomType {
         name: Option<String>,
 
         #[serde(default)]
-        meta: Option<HashMap<String, MetaType<RoomMetaAccess>>>,
+        meta: HashMap<String, MetaType<RoomMetaAccess>>,
         
         #[serde(default)]
         meta_action: Option<MetaAction>,

@@ -68,8 +68,8 @@ Update user information. Current implementation only allow to update own informa
         | `device_id`   | string                      | Y        |                                                                                                                                |
         | `custom_id`   | string                      | Y        |                                                                                                                                |
         | `type`        | [UserType](#usertype)       | Y        |                                                                                                                                |
-        | `meta`        | [[UserMeta]](#usermeta)     | Y        | Array of [UserMeta](#usermeta) information. This is user based information and have access level to whom see that information. |
-        | `meta_action` | [MetaAction](#meta-actions) | Y        | Default value is **0**                                                                                                         |
+        | `meta`        | [[Meta]](general-objects.md#meta)     | Y        | Array of [Meta](general-objects.md#meta) information. This is user based information and have access level to whom see that information. |
+        | `meta_action` | [MetaAction](general-objects.md#meta-actions) | Y        | Default value is **0**                                                                                                         |
         
         **Example request:**
 
@@ -170,70 +170,3 @@ Update user information. Current implementation only allow to update own informa
             "error" "Email and/or password not valid"
         }
         ```
-
-
-# Message objects
-### :material-table: UserMeta
-
-This area is used to store user-based private or public information. Information can be kept dynamically and access to this information can be arranged. However, only certain data types are supported. number, boolean and string types are supported. nested declaration and array are not supported. It must be defined as a key-value. Value part may contain a value or if it is desired to determine the authorization level, it should be defined as an object and authorization information should be given. Access level of all created meta is defined as **0**.
-
-When the query is made, meta information that has been assigned a lower authority than the user's authority can also be seen. In other words, if the user has the moderator authority, they can see all the metas with **Anonymous**, **Registered user**, **Friend**, **Me** and **Moderator** privileges.
-
-If the **null** is assigned into the key, that key will be removed from user.
-
-[:material-table: See the access level table.](#user-meta-access-level)
-
-!!! success "Examples"
-    === "Single definition"
-        ```json
-        {
-            "location": "Copenhagen"
-        }
-        ```
-    === "Multiple definition"
-        ```json
-        {
-            "location": "Copenhagen",
-            "age": 18,
-            "maried": true
-        }
-        ```
-    === "Definition with access level"
-        ```json
-        {
-            "location": {
-                "access": 4,
-                "value": "Copenhagen"
-            },
-            "age": 18,
-            "maried": true
-        }
-        ```
-    === "Remove meta from user"
-        ```json
-        {
-            "location": null
-        }
-        ```
-
-### :material-table: User meta access level
-
-| Value   | Information     |
-|:-------:|-----------------|
-| `0`     | Anonymous       |
-| `1`     | Registered user |
-| `2`     | Friend          |
-| `3`     | Me              |
-| `4`     | Moderator       |
-| `5`     | Admin           |
-| `6`     | System          |
-
-
-### :material-table: Meta actions
-It is the choice of algorithm to be used to add or delete new meta.
-
-| Value   | Information                                                    |
-|:-------:|----------------------------------------------------------------|
-| `0`     | Only add new item or update                                    |
-| `1`     | Add new item or update then remove unused metas                |
-| `2`     | Remove all metas. Note: new meta definitions will be discarded |

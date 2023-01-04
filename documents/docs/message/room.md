@@ -4,14 +4,16 @@
 
 === ":inbox_tray: Request message"
     !!! success ""
-        | Field name    | Type                                          | Required | Description                                                        | Default value |
-        |---------------|-----------------------------------------------|----------|--------------------------------------------------------------------|---------------|
-        | `type`        | string                                        | Y        | Value must be **Room**                                             |               |
-        | `room_type`   | string                                        | Y        | Value must be **Create**                                           |               |
-        | `disconnect`  | boolean                                       | N        | If user already joined to room, disconnect from it                 | false         |
-        | `name`        | string                                        | N        | Room name                                                          |               |
-        | `access_type` | [CreateRoomAccessType](#createroomaccesstype) | N        | Definition for who can access and see the room                     | 0             |
-        | `max_user`    | number                                        | N        | Maximum number for participants. Use 0 for unlimited participants. | 0             |
+        | Field name    | Type                                          | Required | Description                                                                                                                              | Default value |
+        |---------------|-----------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------|---------------|
+        | `type`        | string                                        | Y        | Value must be **Room**                                                                                                                   |               |
+        | `room_type`   | string                                        | Y        | Value must be **Create**                                                                                                                 |               |
+        | `disconnect`  | boolean                                       | N        | If user already joined to room, disconnect from it                                                                                       | false         |
+        | `name`        | string                                        | N        | Room name                                                                                                                                |               |
+        | `access_type` | [CreateRoomAccessType](#createroomaccesstype) | N        | Definition for who can access and see the room                                                                                           | 0             |
+        | `max_user`    | number                                        | N        | Maximum number for participants. Use 0 for unlimited participants.                                                                       | 0             |
+        | `tags`        | [string]                                      | N        | Array of tag.                                                                                                                            |               |
+        | `metas`       | [[Meta]](general-objects.md#meta)             | N        | Array of [Meta](general-objects.md#meta) information. This is room based information and have access level to whom see that information. |               |
 
         **Example requests:**
 
@@ -22,7 +24,11 @@
                 "room_type": "Create",
                 "disconnect": true,
                 "access_type": 1,
-                "max_user": 1
+                "max_user": 1,
+                "metas": {
+                    "min-score": 5000,
+                    "country": "DK"
+                }
             }
             ```
         === "Example 2"
@@ -70,6 +76,88 @@
             }
             ```
 
+## Join to room
+
+=== ":inbox_tray: Request message"
+    !!! success ""
+        | Field name       | Type                          | Required | Description            | Default value |
+        |------------------|-------------------------------|----------|------------------------|---------------|
+        | `type`           | string                        | Y        | Value must be **Room** |               |
+        | `room_type`      | string                        | Y        | Value must be **Join** |               |
+        | `room`           | string                        | Y        | Room's ID              |               |
+        | `room_user_type` | [RoomUserType](#roomusertype) | N        | User type at the room  | 1             |
+
+        **Example requests:**
+
+        === "Example 1"
+            ```json
+            {
+                "type": "Room",
+                "room_type": "Join",
+                "room": "8c366421-f7d8-47e1-8eed-82915280ce30"
+            }
+            ```
+        === "Example 2"
+            ```json
+            {
+                "type": "Room",
+                "room_type": "Join",
+                "room": "8c366421-f7d8-47e1-8eed-82915280ce30",
+                "room_user_type": 3
+            }
+            ```
+
+
+=== ":outbox_tray: Response message"
+    !!! success ""
+        === ":material-check: Success"
+            | Field name  | Type                    | Nullable | Description                                                                                                                    |
+            |-------------|-------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------|
+            | `status`    | boolean                 | N        | Value should be **true**                                                                                                       |
+            | `type`      | string                  | N        | Value must be **Joined**                                                                                                       |
+            | `room`      | string                  | N        | Room's ID                                                                                                                      |
+            | `room_name` | string                  | Y        | Room's name                                                                                                                    |
+            | `users`     | [RoomUser](#roomuser)   | N        | Array of [RoomUser](#roomuser).                                                                                                |
+            | `meta`      | [[Meta]](general-objects.md#meta) | N        | Array of [Meta](general-objects.md#meta) information. This is room based information and have access level to whom see that information. |
+            
+            **Example requests:**
+
+            ```json
+            {
+                "status": true,
+                "type": "Joined",
+                "room_name": null,
+                "users": [
+                    {
+                        "user_id": "bf66435f-705a-48aa-aeed-da06e5e29833",
+                        "name": null,
+                        "type": 1
+                    },
+                    {
+                        "user_id": "8c365226-06cd-4140-9e31-f6b9a73d6b78",
+                        "name": null,
+                        "type": 3
+                    }
+                ]
+            }
+            ```
+        === ":octicons-x-16: Fail"
+
+            | Field name | Type    | Nullable | Description                 |
+            |------------|---------|----------|-----------------------------|
+            | `status`     | boolean | N        | Value should be **false** |
+            | `error`      | string  | N        | Error message             |
+
+
+            **Example response:**:
+
+            ```json
+            {
+                "status": false,
+                "error" "User joined to other room"
+            }
+            ```
+
 
 # Message objects
 
@@ -83,3 +171,12 @@ Who can access the room.
 | `1`   | Private | The room available only with the key                                |
 | `2`   | Friend  | Friends can see and can join to room                                |
 
+### :material-table: RoomUserType
+
+User's authorization in this room
+
+| Value | Meaning   |
+|-------|-----------|
+| `1`   | User      |
+| `2`   | Moderator |
+| `3`   | Owner     |
