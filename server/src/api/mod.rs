@@ -57,11 +57,11 @@ pub(crate) fn process_user<DB: DatabaseTrait + Unpin + 'static>(user_type: Reque
 #[tracing::instrument(name="process_room", skip(room_manager))]
 pub(crate) fn process_room<DB: DatabaseTrait + Unpin + 'static>(room_type: RequestRoomType, room_manager: Addr<RoomManager<DB>>, me: Arc<Option<UserAuth>>, socket: Arc<dyn ClientTrait + Sync + Send>) -> anyhow::Result<()> {
     match room_type {
-        RequestRoomType::Create { disconnect_from_other_room, name, access_type, max_user, tags, metas } => as_response!(room_manager, CreateRoomRequest { user: me, socket, disconnect_from_other_room, name, access_type, max_user, tags, metas }),
+        RequestRoomType::Create { name, description, access_type, max_user, tags, metas, join_request } => as_response!(room_manager, CreateRoomRequest { user: me, socket, name, description, access_type, max_user, tags, metas, join_request }),
         RequestRoomType::Join { room, room_user_type } => as_response!(room_manager, JoinToRoomRequest { user: me, socket, room, room_user_type }),
         RequestRoomType::Disconnect { room } => as_response!(room_manager, DisconnectFromRoomRequest { user: me, socket, room }),
         RequestRoomType::Message { room, message } => as_response!(room_manager, MessageToRoomRequest { user: me, socket, room, message }),
-        RequestRoomType::Update { room, user_permission, name, max_user, meta, meta_action, access_type, tags } => as_response!(room_manager, UpdateRoom { user: me, socket, room_id: room , user_permission, name, max_user, meta, meta_action, access_type, tags }),
+        RequestRoomType::Update { room, user_permission, name, description, max_user, join_request, metas, meta_action, access_type, tags } => as_response!(room_manager, UpdateRoom { user: me, socket, room_id: room , user_permission, name, description, max_user, metas, meta_action, access_type, join_request, tags }),
     };
     Ok(())
 }

@@ -47,6 +47,7 @@ pub struct RoomInsert {
     pub name: Option<String>,
     pub access_type: i32,
     pub max_user: i32,
+    pub join_request: i32,
     pub insert_date: i32,
 }
 
@@ -54,7 +55,9 @@ pub struct RoomInsert {
 #[diesel(table_name = room)]
 pub struct RoomUpdate {
     pub name: Option<Option<String>>,
+    pub description: Option<Option<String>>,
     pub max_user: Option<i32>,
+    pub join_request: Option<i32>,
     pub access_type: Option<i32>,
 }
 

@@ -29,9 +29,11 @@ table! {
     room {
         id -> Text,
         name ->  Nullable<Text>,
+        description ->  Nullable<Text>,
         max_user -> Integer,
         password -> Nullable<Text>,
         access_type -> Integer,
+        join_request -> Integer,
         insert_date -> Integer,
     }
 }

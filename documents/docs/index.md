@@ -29,6 +29,9 @@ Our main goal of the developing this application is support game developer to ma
 - [ ] Client libraries (JS, Python, Rust, Godot, Unity, etc.)
 - [ ] Create websocket tester application that control multiple connections
 - [ ] Create **system** user at startup to configure system remotely
+- [ ] Multiple room support for user
+- [ ] Room join request
+- [ ] Ban and kick from room
 - [X] Redis integration
 - [X] TLS support
 - [X] Remove room at redis state when no user in the room

@@ -35,6 +35,8 @@ async fn main() -> std::io::Result<()> {
     
     tracing_subscriber::fmt::init();
 
+    println!("{}" , std::mem::size_of::<general::state::RoomInfoTypeCollection>());
+
     let server_bind = format!("{}:{}", config.bind_ip, config.bind_port);
     log::info!("Yummy is starting...");
     log::info!("Binding at   \"{}\"", server_bind);

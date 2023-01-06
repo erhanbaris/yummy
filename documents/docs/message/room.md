@@ -4,16 +4,17 @@
 
 === ":inbox_tray: Request message"
     !!! success ""
-        | Field name    | Type                                          | Required | Description                                                                                                                              | Default value |
-        |---------------|-----------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------|---------------|
-        | `type`        | string                                        | Y        | Value must be **Room**                                                                                                                   |               |
-        | `room_type`   | string                                        | Y        | Value must be **Create**                                                                                                                 |               |
-        | `disconnect`  | boolean                                       | N        | If user already joined to room, disconnect from it                                                                                       | false         |
-        | `name`        | string                                        | N        | Room name                                                                                                                                |               |
-        | `access_type` | [CreateRoomAccessType](#createroomaccesstype) | N        | Definition for who can access and see the room                                                                                           | 0             |
-        | `max_user`    | number                                        | N        | Maximum number for participants. Use 0 for unlimited participants.                                                                       | 0             |
-        | `tags`        | [string]                                      | N        | Array of tag.                                                                                                                            |               |
-        | `metas`       | [[Meta]](general-objects.md#meta)             | N        | Array of [Meta](general-objects.md#meta) information. This is room based information and have access level to whom see that information. |               |
+        | Field name     | Type                              | Required | Description                                                                                                                              |
+        |----------------|-----------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------|
+        | `type`         | string                            | Y        | Value must be **Room**                                                                                                                   |
+        | `room_type`    | string                            | Y        | Value must be **Create**                                                                                                                 |
+        | `join_request` | boolean                           | N        | User need an approvement from moderator or admin to join the room. Default: **false**                                                    |
+        | `name`         | string                            | N        | Room name                                                                                                                                |
+        | `description`  | string                            | N        | Room description                                                                                                                         |
+        | `access_type`  | [AccessType](#accesstype)         | N        | Definition for who can access and see the room. Default: **0**                                                                           |
+        | `max_user`     | number                            | N        | Maximum number for participants. Use 0 for unlimited participants. Default:  **0**                                                       |
+        | `tags`         | [string]                          | N        | Array of tag.                                                                                                                            |
+        | `metas`        | [[Meta]](general-objects.md#meta) | N        | Array of [Meta](general-objects.md#meta) information. This is room based information and have access level to whom see that information. |
 
         **Example requests:**
 
@@ -22,7 +23,6 @@
             {
                 "type": "Room",
                 "room_type": "Create",
-                "disconnect": true,
                 "access_type": 1,
                 "max_user": 1,
                 "metas": {
@@ -118,7 +118,7 @@
             | `room`      | string                  | N        | Room's ID                                                                                                                      |
             | `room_name` | string                  | Y        | Room's name                                                                                                                    |
             | `users`     | [RoomUser](#roomuser)   | N        | Array of [RoomUser](#roomuser).                                                                                                |
-            | `meta`      | [[Meta]](general-objects.md#meta) | N        | Array of [Meta](general-objects.md#meta) information. This is room based information and have access level to whom see that information. |
+            | `metas`     | [[Meta]](general-objects.md#meta) | N        | Array of [Meta](general-objects.md#meta) information. This is room based information and have access level to whom see that information. |
             
             **Example requests:**
 
@@ -161,7 +161,7 @@
 
 # Message objects
 
-### :material-table: CreateRoomAccessType
+### :material-table: AccessType
 
 Who can access the room.
 

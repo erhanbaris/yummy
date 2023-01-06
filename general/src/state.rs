@@ -61,13 +61,15 @@ impl SendMessage {
 #[strum_discriminants(name(RoomInfoTypeVariant), derive(Serialize, Deserialize))]
 pub enum RoomInfoType {
     RoomName(Option<String>),
+    Description(Option<String>),
     Users(Vec<RoomUserInformation>),
     MaxUser(usize),
     UserLength(usize),
     AccessType(CreateRoomAccessType),
     Tags(Vec<String>),
     Metas(HashMap<String, MetaType<RoomMetaAccess>>),
-    InsertDate(i32)
+    InsertDate(i32),
+    JoinRequest(bool)
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -95,6 +97,7 @@ impl Serialize for RoomInfoTypeCollection {
         for entry in self.items.iter() {
             match entry {
                 RoomInfoType::RoomName(name) => items.serialize_entry("name", name),
+                RoomInfoType::Description(description) => items.serialize_entry("description", description),
                 RoomInfoType::Users(users) => items.serialize_entry("users", users),
                 RoomInfoType::MaxUser(max_user) => items.serialize_entry("max-user", max_user),
                 RoomInfoType::UserLength(user_length) => items.serialize_entry("user-length", user_length),
@@ -102,6 +105,7 @@ impl Serialize for RoomInfoTypeCollection {
                 RoomInfoType::Tags(tags) => items.serialize_entry("tags", tags),
                 RoomInfoType::Metas(tags) => items.serialize_entry("metas", tags),
                 RoomInfoType::InsertDate(insert_date) => items.serialize_entry("insert-date", insert_date),
+                RoomInfoType::JoinRequest(join_request) => items.serialize_entry("join-request", join_request),
             }?;
         }
         
@@ -321,7 +325,7 @@ impl YummyState {
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="create_room", skip(self))]
-    pub fn create_room(&self, room_id: &RoomId, insert_date: i32, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: Vec<String>, metas: HashMap<String, MetaType<RoomMetaAccess>>) {
+    pub fn create_room(&self, room_id: &RoomId, insert_date: i32, name: Option<String>,  description: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: Vec<String>, metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>, join_request: bool) {
         if let Ok(mut redis) = self.redis.get() {
             let room_id = room_id.to_string();
             let access_type = match access_type {
@@ -341,6 +345,8 @@ impl YummyState {
                     .arg("name").arg(name.unwrap_or_default())
                     .arg("access").arg(access_type)
                     .arg("idate").arg(insert_date)
+                    .arg("join").arg(join_request)
+                    .arg("desc").arg(description.unwrap_or_default())
                     .ignore();
 
             if !tags.is_empty() {
@@ -350,7 +356,7 @@ impl YummyState {
                 }
             }
 
-            if !metas.is_empty() {
+            if let Some(metas) = metas {
                 let room_meta_value = format!("{}room-meta-val:{}", self.config.redis_prefix, &room_id);
                 let room_meta_type = format!("{}room-meta-type:{}", self.config.redis_prefix, &room_id);
                 let room_meta_per = format!("{}room-meta-acc:{}", self.config.redis_prefix, &room_id);
@@ -527,10 +533,12 @@ impl YummyState {
                 for item in query.iter() {
                     match item {
                         RoomInfoTypeVariant::RoomName => request = request.arg("name"),
+                        RoomInfoTypeVariant::Description => request = request.arg("desc"),
                         RoomInfoTypeVariant::Users => request = request.arg("users"),
                         RoomInfoTypeVariant::MaxUser => request = request.arg("max-user"),
                         RoomInfoTypeVariant::UserLength => request = request.arg("user-len"),
                         RoomInfoTypeVariant::AccessType => request = request.arg("access"),
+                        RoomInfoTypeVariant::JoinRequest => request = request.arg("join"),
                         RoomInfoTypeVariant::InsertDate => request = request.arg("idate"),
                         RoomInfoTypeVariant::Tags => request = request.arg("tags"), // Dummy data, dont remove
                         RoomInfoTypeVariant::Metas => request = request.arg("metas"), // Dummy data, dont remove
@@ -544,6 +552,10 @@ impl YummyState {
                         RoomInfoTypeVariant::RoomName => {
                             let room_name: String = FromRedisValue::from_redis_value(&room_info).unwrap_or_default();
                             result.items.push(RoomInfoType::RoomName(if room_name.is_empty() { None } else { Some(room_name) }));
+                        },
+                        RoomInfoTypeVariant::Description => {
+                            let description: String = FromRedisValue::from_redis_value(&room_info).unwrap_or_default();
+                            result.items.push(RoomInfoType::Description(if description.is_empty() { None } else { Some(description) }));
                         },
                         RoomInfoTypeVariant::Users => {
 
@@ -571,6 +583,7 @@ impl YummyState {
                             3 => CreateRoomAccessType::Friend,
                             _ => CreateRoomAccessType::Public
                         })),
+                        RoomInfoTypeVariant::JoinRequest => result.items.push(RoomInfoType::JoinRequest(FromRedisValue::from_redis_value(&room_info).unwrap_or_default())),
                         RoomInfoTypeVariant::InsertDate => result.items.push(RoomInfoType::InsertDate(FromRedisValue::from_redis_value(&room_info).unwrap_or_default())),
                         RoomInfoTypeVariant::MaxUser => result.items.push(RoomInfoType::MaxUser(FromRedisValue::from_redis_value(&room_info).unwrap_or_default())),
                         RoomInfoTypeVariant::UserLength => result.items.push(RoomInfoType::UserLength(FromRedisValue::from_redis_value(&room_info).unwrap_or_default())),
@@ -653,10 +666,12 @@ impl YummyState {
                 for item in query.into_iter() {
                     match item {
                         RoomInfoType::RoomName(name) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("name").arg(name.unwrap_or_default()).ignore(),
+                        RoomInfoType::Description(description) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("desc").arg(description.unwrap_or_default()).ignore(),
                         RoomInfoType::Users(_) => (),
                         RoomInfoType::MaxUser(max_user) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("max-user").arg(max_user).ignore(),
                         RoomInfoType::UserLength(_) => (),
                         RoomInfoType::AccessType(access_type) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("access").arg(i32::from(access_type)).ignore(),
+                        RoomInfoType::JoinRequest(join_request) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("join").arg(i32::from(join_request)).ignore(),
                         RoomInfoType::Tags(tags) => {
                             
                             // Remove old tags
@@ -681,7 +696,37 @@ impl YummyState {
                             }
                         },
                         RoomInfoType::InsertDate(_) => (),
-                        RoomInfoType::Metas(_) => (),
+                        RoomInfoType::Metas(metas) => {
+                            command = command
+                                .cmd("DEL").arg(format!("{}room-meta-val:{}", self.config.redis_prefix, &room_id)).ignore()
+                                .cmd("DEL").arg(format!("{}room-meta-type:{}", self.config.redis_prefix, &room_id)).ignore()
+                                .cmd("DEL").arg(format!("{}room-meta-acc:{}", self.config.redis_prefix, &room_id)).ignore();
+
+                            let room_meta_value = format!("{}room-meta-val:{}", self.config.redis_prefix, &room_id);
+                            let room_meta_type = format!("{}room-meta-type:{}", self.config.redis_prefix, &room_id);
+                            let room_meta_per = format!("{}room-meta-acc:{}", self.config.redis_prefix, &room_id);
+            
+                            for (meta, value) in metas.iter() {
+                                command = match value {
+                                    MetaType::Null => command,
+                                    MetaType::Number(value, per) => {
+                                        command.cmd("HSET").arg(&room_meta_value).arg(meta).arg(value).ignore();
+                                        command.cmd("HSET").arg(&room_meta_type).arg(meta).arg(1).ignore();
+                                        command.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(per.clone())).ignore()
+                                    },
+                                    MetaType::String(value, per) => {
+                                        command.cmd("HSET").arg(&room_meta_value).arg(meta).arg(value).ignore();
+                                        command.cmd("HSET").arg(&room_meta_type).arg(meta).arg(2).ignore();
+                                        command.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(per.clone())).ignore()
+                                    },
+                                    MetaType::Bool(value, per) => {
+                                        command.cmd("HSET").arg(&room_meta_value).arg(meta).arg(value).ignore();
+                                        command.cmd("HSET").arg(&room_meta_type).arg(meta).arg(3).ignore();
+                                        command.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(per.clone())).ignore()
+                                    }
+                                }
+                            }
+                        },
                     };
                 }
 
@@ -714,11 +759,13 @@ impl YummyState {
                     for item in query.iter() {
                         match item {
                             RoomInfoTypeVariant::RoomName => command = command.arg("name"),
+                            RoomInfoTypeVariant::Description => command = command.arg("desc"),
                             RoomInfoTypeVariant::Users => command = command.arg("users"),
                             RoomInfoTypeVariant::MaxUser => command = command.arg("max-user"),
                             RoomInfoTypeVariant::UserLength => command = command.arg("user-len"),
                             RoomInfoTypeVariant::AccessType => command = command.arg("access"),
                             RoomInfoTypeVariant::InsertDate => command = command.arg("idate"),
+                            RoomInfoTypeVariant::JoinRequest => command = command.arg("join"),
                             RoomInfoTypeVariant::Tags => command = command.arg("tags"), // Dummy data, dont remove
                             RoomInfoTypeVariant::Metas => command = command.arg("metas"), // Dummy data, dont remove
                         };
@@ -745,6 +792,10 @@ impl YummyState {
                             RoomInfoTypeVariant::RoomName => {
                                 let room_name: String = FromRedisValue::from_redis_value(redis_value).unwrap_or_default();
                                 room_info.items.push(RoomInfoType::RoomName(if room_name.is_empty() { None } else { Some(room_name) }));
+                            },
+                            RoomInfoTypeVariant::Description => {
+                                let description: String = FromRedisValue::from_redis_value(redis_value).unwrap_or_default();
+                                room_info.items.push(RoomInfoType::Description(if description.is_empty() { None } else { Some(description) }));
                             },
                             RoomInfoTypeVariant::Users => {
     
@@ -773,6 +824,7 @@ impl YummyState {
                                 _ => CreateRoomAccessType::Public
                             })),
                             RoomInfoTypeVariant::InsertDate => room_info.items.push(RoomInfoType::InsertDate(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
+                            RoomInfoTypeVariant::JoinRequest => room_info.items.push(RoomInfoType::JoinRequest(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
                             RoomInfoTypeVariant::MaxUser => room_info.items.push(RoomInfoType::MaxUser(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
                             RoomInfoTypeVariant::UserLength => room_info.items.push(RoomInfoType::UserLength(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
                             RoomInfoTypeVariant::Tags => {
@@ -878,10 +930,21 @@ impl YummyState {
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="create_room", skip(self))]
-    pub fn create_room(&self, room_id: &RoomId, insert_date: i32, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: Vec<String>, metas: HashMap<String, MetaType<RoomMetaAccess>>) {
+    pub fn create_room(&self, room_id: &RoomId, insert_date: i32, name: Option<String>, description: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: Vec<String>, metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>, join_request: bool) {
         use std::collections::HashMap;
 
-        self.room.lock().insert(*room_id, crate::model::RoomState { max_user, room_id: *room_id, insert_date, users: parking_lot::Mutex::new(HashMap::new()), tags, name, access_type, metas });
+        self.room.lock().insert(*room_id, crate::model::RoomState {
+            max_user,
+            room_id: *room_id,
+            insert_date,
+            users: parking_lot::Mutex::new(HashMap::new()),
+            tags,
+            name,
+            description,
+            access_type,
+            metas:metas.unwrap_or_default(),
+            join_request
+        });
     }
 
     #[cfg(not(feature = "stateless"))]
@@ -964,8 +1027,10 @@ impl YummyState {
                         RoomInfoTypeVariant::InsertDate => RoomInfoType::InsertDate(room.insert_date),
                         RoomInfoTypeVariant::MaxUser => RoomInfoType::MaxUser(room.max_user),
                         RoomInfoTypeVariant::RoomName => RoomInfoType::RoomName(room.name.clone()),
+                        RoomInfoTypeVariant::Description => RoomInfoType::Description(room.description.clone()),
                         RoomInfoTypeVariant::UserLength => RoomInfoType::UserLength(room.users.lock().len()),
                         RoomInfoTypeVariant::AccessType => RoomInfoType::AccessType(room.access_type.clone()),
+                        RoomInfoTypeVariant::JoinRequest => RoomInfoType::JoinRequest(room.join_request),
                         RoomInfoTypeVariant::Users => {
                             let  mut users = Vec::new();
                             for (user_id, user_type) in room.users.lock().iter() {
@@ -1010,10 +1075,12 @@ impl YummyState {
                 for item in query.into_iter() {
                     match item {
                         RoomInfoType::RoomName(name) => room.name = name,
+                        RoomInfoType::Description(description) => room.description = description,
                         RoomInfoType::Users(_) => (),
                         RoomInfoType::MaxUser(max_user) => room.max_user = max_user,
                         RoomInfoType::UserLength(_) => (),
                         RoomInfoType::AccessType(access_type) => room.access_type = access_type,
+                        RoomInfoType::JoinRequest(join_request) => room.join_request = join_request,
                         RoomInfoType::Tags(tags) => room.tags = tags,
                         RoomInfoType::Metas(metas) => room.metas = metas,
                         RoomInfoType::InsertDate(_) => (),
@@ -1044,7 +1111,9 @@ impl YummyState {
                 match item {
                     RoomInfoTypeVariant::InsertDate => room_info.items.push(RoomInfoType::InsertDate(room_state.insert_date)),
                     RoomInfoTypeVariant::MaxUser => room_info.items.push(RoomInfoType::MaxUser(room_state.max_user)),
+                    RoomInfoTypeVariant::JoinRequest => room_info.items.push(RoomInfoType::JoinRequest(room_state.join_request)),
                     RoomInfoTypeVariant::RoomName => room_info.items.push(RoomInfoType::RoomName(room_state.name.clone())),
+                    RoomInfoTypeVariant::Description => room_info.items.push(RoomInfoType::Description(room_state.description.clone())),
                     RoomInfoTypeVariant::UserLength => room_info.items.push(RoomInfoType::UserLength(room_state.users.lock().len())),
                     RoomInfoTypeVariant::AccessType => room_info.items.push(RoomInfoType::AccessType(room_state.access_type.clone())),
                     RoomInfoTypeVariant::Users => {
@@ -1157,13 +1226,13 @@ mod tests {
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         
         let room_1 = RoomId::new();
-        state.create_room(&room_1, 1234, Some("room".to_string()), CreateRoomAccessType::Friend, 2, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()], HashMap::from([
+        state.create_room(&room_1, 1234, Some("room".to_string()), None, CreateRoomAccessType::Friend, 2, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()], Some(HashMap::from([
             ("gender".to_string(), MetaType::String("Male".to_string(), RoomMetaAccess::User)),
             ("location".to_string(), MetaType::String("Copenhagen".to_string(), RoomMetaAccess::User)),
             ("postcode".to_string(), MetaType::Number(1000.0, RoomMetaAccess::Moderator)),
             ("score".to_string(), MetaType::Number(15.3, RoomMetaAccess::Anonymous)),
             ("temp_admin".to_string(), MetaType::Bool(true, RoomMetaAccess::Admin)),
-        ]));
+        ])), false);
 
         let user_1 = UserId::new();
         let user_2 = UserId::new();
@@ -1209,7 +1278,7 @@ mod tests {
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
     
         let room = RoomId::new();
-        state.create_room(&room, 1234, None, CreateRoomAccessType::Public, 0, Vec::new(), HashMap::default());
+        state.create_room(&room, 1234, None, None, CreateRoomAccessType::Public, 0, Vec::new(), None, false);
 
         for _ in 0..100_000 {
             let user_id = UserId::new();
@@ -1233,7 +1302,7 @@ mod tests {
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
     
         let room = RoomId::new();
-        state.create_room(&room, 1234, Some("Room 1".to_string()), CreateRoomAccessType::Private, 10, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()], HashMap::default());
+        state.create_room(&room, 1234, Some("Room 1".to_string()), None, CreateRoomAccessType::Private, 10, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()], None, false);
 
         let result = state.get_room_info(&room, RoomMetaAccess::Admin, Vec::new())?;
         assert_eq!(result.items.len(), 0);
@@ -1337,8 +1406,6 @@ mod tests {
             let metas = $state.get_room_info(&$room_id, $access, vec![RoomInfoTypeVariant::Metas])?;
             let item = metas.get_item(RoomInfoTypeVariant::Metas);
             assert!(item.is_some());
-
-            println!("{:?}", metas);
     
             if let Some(RoomInfoType::Metas(metas)) = item {
                 assert_eq!(metas.len(), $len);
@@ -1361,13 +1428,13 @@ mod tests {
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         
         let room_id = RoomId::new();
-        state.create_room(&room_id, 1234, Some("room".to_string()), CreateRoomAccessType::Friend, 2, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()], HashMap::from([
+        state.create_room(&room_id, 1234, Some("room".to_string()), None, CreateRoomAccessType::Friend, 2, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()], Some(HashMap::from([
             ("gender".to_string(), MetaType::String("Male".to_string(), RoomMetaAccess::User)),
             ("location".to_string(), MetaType::String("Copenhagen".to_string(), RoomMetaAccess::User)),
             ("postcode".to_string(), MetaType::Number(1000.0, RoomMetaAccess::Moderator)),
             ("score".to_string(), MetaType::Number(15.3, RoomMetaAccess::Anonymous)),
             ("temp_admin".to_string(), MetaType::Bool(true, RoomMetaAccess::Admin)),
-        ]));
+        ])), false);
 
         meta_validation!(state, room_id, RoomMetaAccess::Anonymous, 1, HashMap::from([
             ("score".to_string(), MetaType::Number(15.3, RoomMetaAccess::Anonymous))
@@ -1392,6 +1459,92 @@ mod tests {
             ("postcode".to_string(), MetaType::Number(1000.0, RoomMetaAccess::Moderator)),
             ("score".to_string(), MetaType::Number(15.3, RoomMetaAccess::Anonymous)),
             ("temp_admin".to_string(), MetaType::Bool(true, RoomMetaAccess::Admin)),
+        ]));
+
+        Ok(())
+    }
+
+    #[actix::test]
+    async fn room_meta_update_test() -> anyhow::Result<()> {
+        configure_environment();
+        let config = get_configuration();
+        
+        #[cfg(feature = "stateless")]
+        let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
+
+        DummyActor{}.start().recipient::<SendMessage>();
+        let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
+        
+        let room_id = RoomId::new();
+        state.create_room(&room_id, 1234, Some("room".to_string()), None, CreateRoomAccessType::Friend, 2, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()], Some(HashMap::from([
+            ("gender".to_string(), MetaType::String("Male".to_string(), RoomMetaAccess::User)),
+            ("location".to_string(), MetaType::String("Copenhagen".to_string(), RoomMetaAccess::User)),
+            ("postcode".to_string(), MetaType::Number(1000.0, RoomMetaAccess::Moderator)),
+            ("score".to_string(), MetaType::Number(15.3, RoomMetaAccess::Anonymous)),
+            ("temp_admin".to_string(), MetaType::Bool(true, RoomMetaAccess::Admin)),
+        ])), false);
+
+        meta_validation!(state, room_id, RoomMetaAccess::Anonymous, 1, HashMap::from([
+            ("score".to_string(), MetaType::Number(15.3, RoomMetaAccess::Anonymous))
+        ]));
+
+        meta_validation!(state, room_id, RoomMetaAccess::User, 3, HashMap::from([
+            ("gender".to_string(), MetaType::String("Male".to_string(), RoomMetaAccess::User)),
+            ("location".to_string(), MetaType::String("Copenhagen".to_string(), RoomMetaAccess::User)),
+            ("score".to_string(), MetaType::Number(15.3, RoomMetaAccess::Anonymous)),
+        ]));
+
+        meta_validation!(state, room_id, RoomMetaAccess::Moderator, 4, HashMap::from([
+            ("gender".to_string(), MetaType::String("Male".to_string(), RoomMetaAccess::User)),
+            ("location".to_string(), MetaType::String("Copenhagen".to_string(), RoomMetaAccess::User)),
+            ("postcode".to_string(), MetaType::Number(1000.0, RoomMetaAccess::Moderator)),
+            ("score".to_string(), MetaType::Number(15.3, RoomMetaAccess::Anonymous)),
+        ]));
+
+        meta_validation!(state, room_id, RoomMetaAccess::Admin, 5, HashMap::from([
+            ("gender".to_string(), MetaType::String("Male".to_string(), RoomMetaAccess::User)),
+            ("location".to_string(), MetaType::String("Copenhagen".to_string(), RoomMetaAccess::User)),
+            ("postcode".to_string(), MetaType::Number(1000.0, RoomMetaAccess::Moderator)),
+            ("score".to_string(), MetaType::Number(15.3, RoomMetaAccess::Anonymous)),
+            ("temp_admin".to_string(), MetaType::Bool(true, RoomMetaAccess::Admin)),
+        ]));
+
+        // Update room
+        state.set_room_info(&room_id, vec![RoomInfoType::Metas(HashMap::from([
+            ("gender".to_string(), MetaType::String("Female".to_string(), RoomMetaAccess::User)),
+            ("location".to_string(), MetaType::String("Oslo".to_string(), RoomMetaAccess::User)),
+            ("postcode".to_string(), MetaType::Number(2000.0, RoomMetaAccess::Moderator)),
+            ("score".to_string(), MetaType::Number(30.0, RoomMetaAccess::Anonymous)),
+            ("test".to_string(), MetaType::Number(1.0, RoomMetaAccess::Anonymous)),
+        ]))]);
+
+
+        meta_validation!(state, room_id, RoomMetaAccess::Anonymous, 2, HashMap::from([
+            ("score".to_string(), MetaType::Number(30.0, RoomMetaAccess::Anonymous)),
+            ("test".to_string(), MetaType::Number(1.0, RoomMetaAccess::Anonymous))
+        ]));
+
+        meta_validation!(state, room_id, RoomMetaAccess::User, 4, HashMap::from([
+            ("gender".to_string(), MetaType::String("Female".to_string(), RoomMetaAccess::User)),
+            ("location".to_string(), MetaType::String("Oslo".to_string(), RoomMetaAccess::User)),
+            ("score".to_string(), MetaType::Number(30.0, RoomMetaAccess::Anonymous)),
+            ("test".to_string(), MetaType::Number(1.0, RoomMetaAccess::Anonymous))
+        ]));
+
+        meta_validation!(state, room_id, RoomMetaAccess::Moderator, 5, HashMap::from([
+            ("gender".to_string(), MetaType::String("Female".to_string(), RoomMetaAccess::User)),
+            ("location".to_string(), MetaType::String("Oslo".to_string(), RoomMetaAccess::User)),
+            ("postcode".to_string(), MetaType::Number(2000.0, RoomMetaAccess::Moderator)),
+            ("score".to_string(), MetaType::Number(30.0, RoomMetaAccess::Anonymous)),
+            ("test".to_string(), MetaType::Number(1.0, RoomMetaAccess::Anonymous))
+        ]));
+
+        meta_validation!(state, room_id, RoomMetaAccess::Admin, 5, HashMap::from([
+            ("gender".to_string(), MetaType::String("Female".to_string(), RoomMetaAccess::User)),
+            ("location".to_string(), MetaType::String("Oslo".to_string(), RoomMetaAccess::User)),
+            ("postcode".to_string(), MetaType::Number(2000.0, RoomMetaAccess::Moderator)),
+            ("score".to_string(), MetaType::Number(30.0, RoomMetaAccess::Anonymous)),
+            ("test".to_string(), MetaType::Number(1.0, RoomMetaAccess::Anonymous))
         ]));
 
         Ok(())

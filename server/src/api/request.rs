@@ -54,14 +54,17 @@ pub enum RequestUserType {
 #[serde(tag = "room_type")]
 pub enum RequestRoomType {
     Create {
-        #[serde(default, rename="disconnect")]
-        disconnect_from_other_room: bool,
-
         #[serde(default)]
         name: Option<String>,
 
         #[serde(default)]
+        description: Option<String>,
+
+        #[serde(default)]
         access_type: CreateRoomAccessType,
+
+        #[serde(default)]
+        join_request: bool,
 
         #[serde(default)]
         max_user: usize,
@@ -70,7 +73,7 @@ pub enum RequestRoomType {
         tags: Vec<String>,
 
         #[serde(default)]
-        metas: HashMap<String, MetaType<RoomMetaAccess>>
+        metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>
     },
     Join {
         room: RoomId,
@@ -92,13 +95,19 @@ pub enum RequestRoomType {
         name: Option<String>,
 
         #[serde(default)]
-        meta: HashMap<String, MetaType<RoomMetaAccess>>,
+        description: Option<String>,
+
+        #[serde(default)]
+        metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>,
         
         #[serde(default)]
         meta_action: Option<MetaAction>,
 
         #[serde(default)]
         access_type: Option<CreateRoomAccessType>,
+
+        #[serde(default)]
+        join_request: Option<bool>,
         
         #[serde(default)]
         max_user: Option<usize>,

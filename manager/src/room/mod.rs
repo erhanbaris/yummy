@@ -27,6 +27,8 @@ use self::model::*;
 
 use super::auth::model::UserDisconnectRequest;
 
+type ConfigureMetasResult = anyhow::Result<(Option<HashMap<String, MetaType<RoomMetaAccess>>>, HashMap<String, MetaType<RoomMetaAccess>>)>;
+
 pub struct RoomManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
@@ -85,17 +87,17 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         Ok(room_removed)
     }
 
-    fn configure_metas(&self, connection: &mut PooledConnection, room_id: &RoomId, metas: HashMap<String, MetaType<RoomMetaAccess>>, meta_action: Option<MetaAction>, access_level: RoomMetaAccess) -> anyhow::Result<HashMap<String, MetaType<RoomMetaAccess>>> {
+    fn configure_metas(&self, connection: &mut PooledConnection, room_id: &RoomId, metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>, meta_action: Option<MetaAction>, access_level: RoomMetaAccess) -> ConfigureMetasResult {
         let meta_action = meta_action.unwrap_or_default();
         let room_access_level_code = access_level.clone() as u8;
 
-        let (to_be_inserted_metas, to_be_removed_metas, total_metas) = match meta_action {
+        let (to_be_inserted_metas, to_be_removed_metas, total_metas, remaining) = match meta_action {
 
             // Dont remove old metas
             general::meta::MetaAction::OnlyAddOrUpdate => {
 
                 // Check for metas
-                if metas.len() > 0 {
+                if let Some(ref metas) = metas {
                     let mut room_old_metas = DB::get_room_meta(connection, room_id, access_level)?;
                     let mut remove_list = Vec::new();
                     let mut insert_list = Vec::new();
@@ -124,13 +126,13 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
                         insert_list.push((key, value));
                     }
                     
-                    let total_metas = (room_old_metas.len() - remove_list.len()) + insert_list.len();
+                    let total_metas = (room_old_metas.len().checked_sub(remove_list.len()).unwrap_or_default()) + insert_list.len();
                     let insert_list = (!insert_list.is_empty()).then_some(insert_list);
                     let remove_list = (!remove_list.is_empty()).then_some(remove_list);
 
-                    (insert_list, remove_list, total_metas)
+                    (insert_list, remove_list, total_metas, room_old_metas.into_iter().map(|(_, key, value)| (key, value)).collect::<HashMap<_, _>>())
                 } else {
-                    (None, None, 0)
+                    (None, None, 0, HashMap::default())
                 }
             },
 
@@ -138,7 +140,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
             general::meta::MetaAction::RemoveUnusedMetas => {
 
                 // Check for metas
-                if metas.len() > 0 {
+                if let Some(ref metas) = metas {
                     let remove_list = DB::get_room_meta(connection, room_id, access_level)?.into_iter().map(|meta| meta.0).collect::<Vec<_>>();
                     let mut insert_list = Vec::new();
 
@@ -160,14 +162,14 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
                     let insert_list = (!insert_list.is_empty()).then_some(insert_list);
                     let remove_list = (!remove_list.is_empty()).then_some(remove_list);
 
-                    (insert_list, remove_list, total_metas)
+                    (insert_list, remove_list, total_metas, HashMap::default())
                 } else {
-                    (None, None, 0)
+                    (None, None, 0, HashMap::default())
                 }
             },
             general::meta::MetaAction::RemoveAllMetas => {
                 // Discard all new meta insertion list and remove all old meta that based on user access level.
-                (None, Some(DB::get_room_meta(connection, room_id, access_level)?.into_iter().map(|meta| meta.0).collect::<Vec<_>>()), 0)
+                (None, Some(DB::get_room_meta(connection, room_id, access_level)?.into_iter().map(|meta| meta.0).collect::<Vec<_>>()), 0, HashMap::default())
             },
         };
 
@@ -183,7 +185,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
             DB::insert_room_metas(connection, room_id, &to_be_inserted_metas)?;
         }
 
-        Ok(metas)
+        Ok((metas, remaining))
     }
 
     fn configure_tags(&self, connection: &mut PooledConnection, room_id: &RoomId, tags: &Option<Vec<String>>) -> anyhow::Result<()> {
@@ -223,7 +225,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
     #[tracing::instrument(name="CreateRoom", skip(self, _ctx))]
     #[macros::api(name="CreateRoom", socket=true)]
     fn handle(&mut self, model: CreateRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
-        let CreateRoomRequest { access_type, disconnect_from_other_room, max_user, name, tags, user, metas, socket } = model;
+        let CreateRoomRequest { access_type, max_user, name, description, tags, user, metas, join_request, socket } = model;
         
         // Check user information
         let user_id = match user.deref() {
@@ -233,17 +235,14 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
 
         // User already joined to room
         if let Some(room_id) = self.states.get_user_room(user_id) {
-            match disconnect_from_other_room {
-                true => self.disconnect_from_room(&room_id, user_id)?,
-                false => return Err(anyhow::anyhow!(RoomError::UserJoinedOtherRoom))
-            };
+            self.disconnect_from_room(&room_id, user_id)?;
         }
 
         let mut connection = self.database.get()?;
 
         let room_id = DB::transaction(&mut connection, move |connection| {
             let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
-            let room_id = DB::create_room(connection, name.clone(), access_type.clone(), max_user, &tags)?;
+            let room_id = DB::create_room(connection, name.clone(), access_type.clone(), max_user, join_request, &tags)?;
 
             DB::join_to_room(connection, &room_id, user_id, RoomUserType::Owner)?;
 
@@ -254,9 +253,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
                 None => return Err(anyhow::anyhow!(UserError::UserNotFound))
             };
             
-            let meta = self.configure_metas(connection, &room_id, metas, Some(MetaAction::OnlyAddOrUpdate), access_level)?;
+            let (mut meta, _) = self.configure_metas(connection, &room_id, metas, Some(MetaAction::OnlyAddOrUpdate), access_level)?;
             
-            self.states.create_room(&room_id, insert_date, name, access_type, max_user, tags, meta);
+            self.states.create_room(&room_id, insert_date, name, description, access_type, max_user, tags, meta, join_request);
             self.states.join_to_room(&room_id, user_id, RoomUserType::Owner)?;
            
             anyhow::Ok(room_id)
@@ -275,16 +274,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
     #[macros::api(name="UpdateRoom", socket=true)]
     fn handle(&mut self, model: UpdateRoom, _ctx: &mut Context<Self>) -> Self::Result {
 
-        let UpdateRoom { user, room_id, name, socket, meta, meta_action, access_type, max_user, tags, user_permission } = model;
+        let UpdateRoom { user, room_id, name, description, socket, metas, meta_action, access_type, max_user, tags, user_permission, join_request } = model;
 
         let user_id = match user.deref() {
             Some(user) => &user.user,
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
-        let has_room_update = access_type.is_some() || max_user.is_some() || name.is_some() || tags.is_some();
+        let has_room_update = access_type.is_some() || max_user.is_some() || name.is_some() || description.is_some();
 
-        if !has_room_update && meta.len() == 0 {
+        if !has_room_update && metas.is_none() {
             return Err(anyhow::anyhow!(RoomError::UpdateInformationMissing));
         }
 
@@ -294,7 +293,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
         let updates = RoomUpdate {
             max_user: max_user.map(|item| item as i32 ),
             access_type: access_type.map(|item| item.into() ),
-            name: name.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} )
+            join_request: join_request.map(|item| item.into() ),
+            name: name.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} ),
+            description: description.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} )
         };
 
         let mut connection = self.database.get()?;
@@ -302,7 +303,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
         DB::transaction::<_, anyhow::Error, _>(&mut connection, move |connection| {
 
             /* Meta configuration */
-            self.configure_metas(connection, &model.room_id, meta, meta_action, access_level)?;
+            let (mut metas, mut remaining) = self.configure_metas(connection, &model.room_id, metas, meta_action, access_level)?;
 
             /* Tag configuration */
             self.configure_tags(connection, &model.room_id, &tags)?;
@@ -330,6 +331,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
             if let Some(name) = updates.name {
                 room_update_query.push(RoomInfoType::RoomName(name));
             }
+            if let Some(description) = updates.description {
+                room_update_query.push(RoomInfoType::Description(description));
+            }
 
             if let Some(max_user) = updates.max_user {
                 room_update_query.push(RoomInfoType::MaxUser(max_user as usize));
@@ -337,6 +341,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
 
             if let Some(tags) = tags {
                 room_update_query.push(RoomInfoType::Tags(tags));
+            }
+
+            if let Some(mut metas) = metas {
+                metas.extend(remaining.into_iter());
+                room_update_query.push(RoomInfoType::Metas(metas));
             }
 
             if !room_update_query.is_empty() {

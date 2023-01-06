@@ -12,12 +12,13 @@ use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType
 #[rtype(result = "anyhow::Result<()>")]
 pub struct CreateRoomRequest {
     pub user: Arc<Option<UserAuth>>,
-    pub disconnect_from_other_room: bool,
     pub name: Option<String>,
+    pub description: Option<String>,
     pub access_type: CreateRoomAccessType,
+    pub join_request: bool,
     pub max_user: usize,
     pub tags: Vec<String>,
-    pub metas: HashMap<String, MetaType<RoomMetaAccess>>,
+    pub metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
@@ -70,8 +71,10 @@ pub struct UpdateRoom {
     pub user: Arc<Option<UserAuth>>,
     pub room_id: RoomId,
     pub name: Option<String>,
+    pub description: Option<String>,
+    pub join_request: Option<bool>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>,
-    pub meta: HashMap<String, MetaType<RoomMetaAccess>>,
+    pub metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>,
     pub meta_action: Option<MetaAction>,
     pub access_type: Option<CreateRoomAccessType>,
     pub max_user: Option<usize>,

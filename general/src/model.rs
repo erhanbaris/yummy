@@ -156,10 +156,12 @@ pub struct UserState {
 pub struct RoomState {
     pub room_id: RoomId,
     pub name: Option<String>,
+    pub description: Option<String>,
     pub access_type: CreateRoomAccessType,
     pub max_user: usize,
     pub tags: Vec<String>,
     pub insert_date: i32,
+    pub join_request: bool,
     pub users: Mutex<HashMap<UserId, RoomUserType>>,
     pub metas: HashMap<String, MetaType<RoomMetaAccess>>
 }

@@ -71,9 +71,11 @@ pub fn create_database(connection: &mut PooledConnection) -> anyhow::Result<()> 
         CREATE TABLE room (
             id TEXT PRIMARY KEY,
             name TEXT,
+            description TEXT,
             max_user INTEGER NOT NULL,
             password TEXT,
             access_type INTEGER NOT NULL,
+            join_request INTEGER NOT NULL,
             insert_date INTEGER NOT NULL
         );"#,
     )
