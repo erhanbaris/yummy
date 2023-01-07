@@ -16,7 +16,7 @@ use database::{Pool, DatabaseTrait, PooledConnection};
 use general::config::YummyConfig;
 use general::meta::{MetaType, MetaAction};
 use general::meta::RoomMetaAccess;
-use general::model::{RoomId, UserId, RoomUserType, UserType};
+use general::model::{RoomId, UserId, RoomUserType, UserType, SessionId};
 use general::state::{YummyState, SendMessage, RoomInfoTypeVariant, RoomInfoType};
 use general::web::{GenericAnswer, Answer};
 
@@ -25,7 +25,7 @@ use crate::user::model::UserError;
 
 use self::model::*;
 
-use super::auth::model::UserDisconnectRequest;
+use super::auth::model::UserDisconnect;
 
 type ConfigureMetasResult = anyhow::Result<(Option<HashMap<String, MetaType<RoomMetaAccess>>>, HashMap<String, MetaType<RoomMetaAccess>>)>;
 
@@ -51,22 +51,14 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for RoomMa
     type Context = Context<Self>;
     
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.subscribe_system_async::<UserDisconnectRequest>(ctx);
-    }
-}
-
-impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisconnectRequest> for RoomManager<DB> {
-    type Result = ();
-
-    #[tracing::instrument(name="Room::User disconnected", skip(self, _ctx))]
-    fn handle(&mut self, model: UserDisconnectRequest, _ctx: &mut Self::Context) -> Self::Result {
-        println!("room:UserDisconnectRequest {:?}", model);
+        self.subscribe_system_async::<UserDisconnect>(ctx);
+        self.subscribe_system_async::<DisconnectFromRoomRequest>(ctx);
     }
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> {
-    fn disconnect_from_room(&mut self, room_id: &RoomId, user_id: &UserId) -> anyhow::Result<bool> {
-        let room_removed = self.states.disconnect_from_room(room_id, user_id)?;
+    fn disconnect_from_room(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId) -> anyhow::Result<bool> {
+        let room_removed = self.states.disconnect_from_room(room_id, user_id, session_id)?;
         let users = self.states.get_users_from_room(room_id)?;
         
         let mut connection = self.database.get()?;
@@ -219,6 +211,25 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
     }
 }
 
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisconnect> for RoomManager<DB> {
+    type Result = ();
+
+    #[tracing::instrument(name="Room::User UserDisconnect", skip(self, _ctx))]
+    fn handle(&mut self, model: UserDisconnect, _ctx: &mut Self::Context) -> Self::Result {
+        println!("room:UserDisconnect");
+
+        if let Some(user) = model.user.deref() {
+            let rooms = self.states.get_user_rooms(&user.user, &user.session);
+    
+            if let Some(rooms) = rooms {
+                for room in rooms.into_iter() {
+                    self.disconnect_from_room(&room, &user.user, &user.session).unwrap_or_default();
+                }
+            }
+        }
+    }
+}
+
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRoomRequest> for RoomManager<DB> {
     type Result = anyhow::Result<()>;
 
@@ -228,15 +239,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
         let CreateRoomRequest { access_type, max_user, name, description, tags, user, metas, join_request, socket } = model;
         
         // Check user information
-        let user_id = match user.deref() {
-            Some(user) => &user.user,
+        let (user_id, session_id) = match user.deref() {
+            Some(user) => (&user.user, &user.session),
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
-
-        // User already joined to room
-        if let Some(room_id) = self.states.get_user_room(user_id) {
-            self.disconnect_from_room(&room_id, user_id)?;
-        }
 
         let mut connection = self.database.get()?;
 
@@ -256,7 +262,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
             let (mut meta, _) = self.configure_metas(connection, &room_id, metas, Some(MetaAction::OnlyAddOrUpdate), access_level)?;
             
             self.states.create_room(&room_id, insert_date, name, description, access_type, max_user, tags, meta, join_request);
-            self.states.join_to_room(&room_id, user_id, RoomUserType::Owner)?;
+            self.states.join_to_room(&room_id, user_id, session_id, RoomUserType::Owner)?;
            
             anyhow::Ok(room_id)
         })?;
@@ -373,18 +379,13 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
     #[macros::api(name="JoinToRoom", socket=true)]
     fn handle(&mut self, model: JoinToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
         // Check user information
-        let user_id = match model.user.deref() {
-            Some(user) => &user.user,
+        let (user_id, session_id) = match model.user.deref() {
+            Some(user) => (&user.user, &user.session),
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
-        if let Some(room_id) = self.states.get_user_room(user_id) {
-            // User already joined to room, disconnect
-            self.disconnect_from_room(&room_id, user_id)?;
-        }
-
         let users = self.states.get_users_from_room(&model.room)?;
-        self.states.join_to_room(&model.room, user_id, model.room_user_type.clone())?;
+        self.states.join_to_room(&model.room, user_id, session_id, model.room_user_type.clone())?;
         
         let mut connection = self.database.get()?;
         DB::join_to_room(&mut connection, &model.room, user_id, model.room_user_type)?;
@@ -416,25 +417,20 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DisconnectFromRoomRequest> for RoomManager<DB> {
-    type Result = anyhow::Result<()>;
+    type Result = ();
 
-    #[tracing::instrument(name="DisconnectFromRoom", skip(self, _ctx))]
-    #[macros::api(name="DisconnectFromRoom", socket=true)]
+    #[tracing::instrument(name="DisconnectFromRoomRequest", skip(self, _ctx))]
+    #[macros::simple_api(name="DisconnectFromRoomRequest", socket=true)]
     fn handle(&mut self, model: DisconnectFromRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
-        let user_id = match model.user.deref() {
-            Some(user) => &user.user,
-            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
+        let (user_id, session_id) = match model.user.deref() {
+            Some(user) => (&user.user, &user.session),
+            None => return ()
         };
 
-        match self.states.get_user_room(user_id) {
-            Some(room_id) => {
-                self.disconnect_from_room(&room_id, user_id)?;
-                model.socket.send(Answer::success().into());
-            }
-            None => return Err(anyhow::anyhow!(RoomError::RoomNotFound))
-        }
+        println!("room:DisconnectFromRoomRequest");
 
-        Ok(())
+        self.disconnect_from_room(&model.room, user_id, session_id).unwrap_or_default();
+        model.socket.send(Answer::success().into());
     }
 }
 

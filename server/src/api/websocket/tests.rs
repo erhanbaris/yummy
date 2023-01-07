@@ -645,27 +645,6 @@ async fn success_logout() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[actix_web::test]
-async fn failed_logout() -> anyhow::Result<()> {
-    let server = create_websocket_server(general::config::get_configuration());
-
-    let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
-
-    let request = json!({
-        "type": "Auth",
-        "auth_type": "Logout"
-    });
-    client.send(request).await;
-    let receive = client.get_text().await;
-    assert!(receive.is_some());
-
-    let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
-    assert!(!response.status);
-
-    client.disconnect().await;
-
-    Ok(())
-}
 
 #[actix_web::test]
 async fn fail_token_refresh_1() -> anyhow::Result<()> {

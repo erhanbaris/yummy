@@ -29,6 +29,7 @@ macro_rules! email_auth {
     ($auth_manager: expr, $config: expr, $email: expr, $password: expr, $create: expr, $socket: expr) => {
         {
             $auth_manager.send(EmailAuthRequest {
+                user: Arc::new(None),
                 email: $email,
                 password: $password,
                 if_not_exist_create: $create,
@@ -78,7 +79,7 @@ async fn get_private_user_1() -> anyhow::Result<()> {
 #[actix::test]
 async fn get_private_user_2() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
-    auth_manager.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
+    auth_manager.send(DeviceIdAuthRequest::new(Arc::new(None), "1234567890".to_string(), socket.clone())).await??;
     let token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
     let token: AuthenticatedModel = token.into();
     let token = token.token;
@@ -112,7 +113,7 @@ async fn fail_update_get_user_1() -> anyhow::Result<()> {
 #[actix::test]
 async fn fail_update_get_user_2() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
-    auth_manager.send(DeviceIdAuthRequest::new("1234567890".to_string(), socket.clone())).await??;
+    auth_manager.send(DeviceIdAuthRequest::new(Arc::new(None), "1234567890".to_string(), socket.clone())).await??;
     let token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
     let token: AuthenticatedModel = token.into();
     let token = token.token;
@@ -135,6 +136,7 @@ async fn fail_update_get_user_2() -> anyhow::Result<()> {
 async fn fail_update_get_user_3() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
     auth_manager.send(EmailAuthRequest {
+        user: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -167,6 +169,7 @@ async fn fail_update_get_user_3() -> anyhow::Result<()> {
 async fn fail_update_get_user_4() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
     auth_manager.send(EmailAuthRequest {
+        user: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -198,6 +201,7 @@ async fn fail_update_get_user_4() -> anyhow::Result<()> {
 async fn fail_update_password() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
     auth_manager.send(EmailAuthRequest {
+        user: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -233,6 +237,7 @@ async fn fail_update_email() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
 
     auth_manager.send(EmailAuthRequest {
+        user: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -268,6 +273,7 @@ async fn update_user_1() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
 
     auth_manager.send(EmailAuthRequest {
+        user: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -322,6 +328,7 @@ async fn update_user_2() -> anyhow::Result<()> {
     }).await??;
 
     auth_manager.send(EmailAuthRequest {
+        user: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -400,6 +407,7 @@ async fn update_user_3() -> anyhow::Result<()> {
     }).await??;
 
     auth_manager.send(EmailAuthRequest {
+        user: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::fmt::Debug;
 use std::str::FromStr;
@@ -81,7 +81,16 @@ macro_rules! generate_type {
             }
         }
 
-
+        #[cfg(feature = "stateless")]
+        impl redis::FromRedisValue for $name {
+            fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
+                let result: redis::RedisResult<String> = redis::FromRedisValue::from_redis_value(v);
+                match result {
+                    Ok(value) => Ok($name::from(value)),
+                    Err(_) => Ok($name::default())
+                }
+            }
+        }
 
         impl ToSql<Text, diesel::sqlite::Sqlite> for $name where String: ToSql<Text, diesel::sqlite::Sqlite> {
             fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, diesel::sqlite::Sqlite>) -> serialize::Result {
@@ -144,12 +153,11 @@ impl From<i32> for UserType {
 #[derive(Debug)]
 pub struct UserState {
     pub user_id: UserId,
-    pub session: SessionId,
     pub name: Option<String>,
     pub user_type: UserType,
 
     #[cfg(not(feature = "stateless"))]
-    pub room: std::cell::Cell<Option<RoomId>>
+    pub sessions: std::collections::HashSet<SessionId>,
 }
 
 #[derive(Default, Debug)]

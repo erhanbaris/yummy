@@ -21,7 +21,7 @@ use crate::auth::model::AuthError;
 
 use self::model::*;
 
-use super::auth::model::UserDisconnectRequest;
+use super::auth::model::UserDisconnect;
 
 pub struct UserManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
@@ -58,16 +58,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for UserMa
     type Context = Context<Self>;
 
     fn started(&mut self,ctx: &mut Self::Context) {
-        self.subscribe_system_async::<UserDisconnectRequest>(ctx);
+        self.subscribe_system_async::<UserDisconnect>(ctx);
     }
 }
 
-impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisconnectRequest> for UserManager<DB> {
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisconnect> for UserManager<DB> {
     type Result = ();
 
     #[tracing::instrument(name="User::User disconnected", skip(self, _ctx))]
-    fn handle(&mut self, user: UserDisconnectRequest, _ctx: &mut Self::Context) -> Self::Result {
-        println!("user:UserDisconnectRequest {:?}", user);
+    fn handle(&mut self, user: UserDisconnect, _ctx: &mut Self::Context) -> Self::Result {
+        println!("user:UserDisconnect");
     }
 }
 

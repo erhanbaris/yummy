@@ -25,7 +25,7 @@ use redis::Commands;
 
 use self::model::UserConnected;
 
-use super::auth::model::UserDisconnectRequest;
+use super::auth::model::UserDisconnect;
 
 pub struct ConnectionManager {
     #[allow(dead_code)]
@@ -93,7 +93,7 @@ impl Actor for ConnectionManager {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         self.subscribe_system_async::<UserConnected>(ctx);
-        self.subscribe_system_async::<UserDisconnectRequest>(ctx);
+        self.subscribe_system_async::<UserDisconnect>(ctx);
         self.subscribe_system_async::<SendMessage>(ctx);
 
         #[cfg(feature = "stateless")]
@@ -111,13 +111,18 @@ impl Handler<UserConnected> for ConnectionManager {
     }
 }
 
-impl Handler<UserDisconnectRequest> for ConnectionManager {
+impl Handler<UserDisconnect> for ConnectionManager {
     type Result = ();
 
-    #[tracing::instrument(name="UserDisconnectRequest", skip(self, _ctx))]
-    fn handle(&mut self, model: UserDisconnectRequest, _ctx: &mut Self::Context) -> Self::Result {
-        println!("conn:UserDisconnectRequest {:?}", model);
-        self.users.remove(&model.user_id);
+    #[tracing::instrument(name="UserDisconnect", skip(self, _ctx))]
+    fn handle(&mut self, model: UserDisconnect, _ctx: &mut Self::Context) -> Self::Result {
+        let user_id = match model.user.deref() {
+            Some(user) => &user.user,
+            None => return ()
+        };
+
+        println!("conn:UserDisconnect");
+        self.users.remove(user_id);
     }
 }
 

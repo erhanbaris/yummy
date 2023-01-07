@@ -130,12 +130,10 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Actor for GameWebsocket<DB> {
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
-        if let Some(auth) = self.user_auth.as_ref() {
-            self.auth_manager.do_send(StartUserTimeout {
-                session_id: auth.session.clone(),
-                user_id: auth.user.clone()
-            });
-        }
+        self.auth_manager.do_send(StartUserTimeout {
+            user: self.user_auth.clone(),
+            socket: self.client.clone()
+        });
 
         Running::Stop
     }

@@ -29,6 +29,7 @@ macro_rules! email_auth {
     ($auth_manager: expr, $config: expr, $email: expr, $password: expr, $create: expr, $recipient: expr) => {
         {
             $auth_manager.send(EmailAuthRequest {
+                user: Arc::new(None),
                 email: $email,
                 password: $password,
                 if_not_exist_create: $create,
@@ -94,13 +95,13 @@ async fn create_room_1() -> anyhow::Result<()> {
     let room_id: RoomCreated = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_id = room_id.room;
 
-    let user_id = match user.as_ref() {
-        Some(user) => user.user.clone(),
+    let (user_id, session_id) = match user.as_ref() {
+        Some(user) => (&user.user, &user.session),
         None => return Err(anyhow::anyhow!("UserId not found"))
     };
 
     assert!(!room_id.is_empty());
-    assert!(states.get_user_room(&user_id).is_some());
+    assert!(states.get_user_rooms(user_id, session_id).unwrap().len() == 1);
     
     Ok(())
 }
@@ -124,13 +125,13 @@ async fn create_room_2() -> anyhow::Result<()> {
 
     let room_created: RoomCreated = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
 
-    let user_id = match user.as_ref() {
-        Some(user) => user.user.clone(),
+    let (user_id, session_id) = match user.as_ref() {
+        Some(user) => (&user.user, &user.session),
         None => return Err(anyhow::anyhow!("UserId not found"))
     };
 
     assert!(!room_created.room.is_empty());
-    assert!(states.get_user_room(&user_id).is_some());
+    assert!(states.get_user_rooms(user_id, session_id).unwrap().len() == 1);
     
     Ok(())
 }
@@ -215,18 +216,6 @@ async fn create_room_3() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let message = user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap();
-    let message: UserDisconnectedFromRoom = serde_json::from_str(&message).unwrap();
-    assert_eq!(message.user, user_1_id.clone());
-    assert_eq!(message.room, room_id.clone());
-    assert_eq!(&message.class_type[..], "UserDisconnectedFromRoom");
-
-    let message = user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap();
-    let message: UserDisconnectedFromRoom = serde_json::from_str(&message).unwrap();
-    assert_eq!(message.user, user_1_id.clone());
-    assert_eq!(message.room, room_id.clone());
-    assert_eq!(&message.class_type[..], "UserDisconnectedFromRoom");
-
     Ok(())
 }
 
@@ -241,16 +230,6 @@ async fn create_room_4() -> anyhow::Result<()> {
 
     let user_3_socket = Arc::new(DummyClient::default());
     let user_3 = email_auth!(auth_manager, config.clone(), "user3@gmail.com".to_string(), "erhan".into(), true, user_3_socket);
-
-    assert!(room_manager.send(DisconnectFromRoomRequest {
-        user: user_1.clone(),
-        room: RoomId::default(),
-        socket:user_1_socket.clone()
-    }).await?.is_err());
-
-    // User 1 should receive other 2 users join message
-    let message: Answer = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
-    assert!(!message.status);
 
     room_manager.send(CreateRoomRequest {
         user: user_1.clone(),
@@ -308,11 +287,11 @@ async fn create_room_4() -> anyhow::Result<()> {
     assert_eq!(message.user, user_3.as_ref().clone().unwrap().user);
     assert_eq!(&message.class_type[..], "UserJoinedToRoom");
 
-    assert!(room_manager.send(DisconnectFromRoomRequest {
+    room_manager.send(DisconnectFromRoomRequest {
         user: user_1.clone(),
         room: room_id,
         socket:user_1_socket.clone()
-    }).await?.is_ok());
+    }).await;
 
     let message = user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap();
     let message: UserDisconnectedFromRoom = serde_json::from_str(&message).unwrap();

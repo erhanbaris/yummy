@@ -31,8 +31,8 @@ pub struct JoinToRoomRequest {
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
-#[derive(Message, Validate, Debug)]
-#[rtype(result = "anyhow::Result<()>")]
+#[derive(Message, Validate, Debug, Clone)]
+#[rtype(result = "()")]
 pub struct DisconnectFromRoomRequest {
     pub user: Arc<Option<UserAuth>>,
     pub room: RoomId,

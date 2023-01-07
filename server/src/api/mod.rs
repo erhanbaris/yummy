@@ -34,11 +34,11 @@ macro_rules! as_response {
 #[tracing::instrument(name="process_auth", skip(auth_manager))]
 pub(crate) fn process_auth<DB: DatabaseTrait + Unpin + 'static>(auth_type: RequestAuthType, auth_manager: Addr<AuthManager<DB>>, me: Arc<Option<UserAuth>>, socket: Arc<dyn ClientTrait + Sync + Send>) -> anyhow::Result<()> {
     match auth_type {
-        RequestAuthType::Email { email, password, if_not_exist_create } => as_response!(auth_manager, EmailAuthRequest { email, password, if_not_exist_create, socket }),
-        RequestAuthType::DeviceId { id } => as_response!(auth_manager, DeviceIdAuthRequest::new(id, socket)),
-        RequestAuthType::CustomId { id } => as_response!(auth_manager, CustomIdAuthRequest::new(id, socket)),
-        RequestAuthType::Refresh { token } => as_response!(auth_manager, RefreshTokenRequest { token, socket }),
-        RequestAuthType::Restore { token } => as_response!(auth_manager, RestoreTokenRequest { token, socket }),
+        RequestAuthType::Email { email, password, if_not_exist_create } => as_response!(auth_manager, EmailAuthRequest { user: me, email, password, if_not_exist_create, socket }),
+        RequestAuthType::DeviceId { id } => as_response!(auth_manager, DeviceIdAuthRequest::new(me, id, socket)),
+        RequestAuthType::CustomId { id } => as_response!(auth_manager, CustomIdAuthRequest::new(me, id, socket)),
+        RequestAuthType::Refresh { token } => as_response!(auth_manager, RefreshTokenRequest { user: me, token, socket }),
+        RequestAuthType::Restore { token } => as_response!(auth_manager, RestoreTokenRequest { user: me, token, socket }),
         RequestAuthType::Logout => as_response!(auth_manager, LogoutRequest { user: me, socket }),
     };
     Ok(())

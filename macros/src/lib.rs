@@ -64,3 +64,31 @@ pub fn api(args: TokenStream, input: TokenStream) -> TokenStream {
     use quote::ToTokens;
     item.into_token_stream().into()
 }
+
+#[proc_macro_attribute]
+pub fn simple_api(_: TokenStream, input: TokenStream) -> TokenStream {
+
+    let mut item: syn::Item = syn::parse(input).unwrap();
+    let fn_item = match &mut item {
+        syn::Item::Fn(fn_item) => fn_item,
+        _ => panic!("expected function")
+    };
+
+    let ItemFn { block, ..} = fn_item;
+
+    let block = quote! {
+        {
+            let mut call = move || -> Self::Result {
+                #block
+            };
+    
+            call();
+        }
+    };
+
+    fn_item.block.stmts.clear();
+    fn_item.block.stmts.insert(0,syn::parse(block.into()).unwrap());
+
+    use quote::ToTokens;
+    item.into_token_stream().into()
+}

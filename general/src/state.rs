@@ -28,6 +28,7 @@ macro_rules! redis_result {
             Err(error) => {
                 log::error!("Redis error: {}", error.to_string());
                 Default::default()
+                //panic!("{}", error);
             }
         }   
     }
@@ -128,6 +129,9 @@ pub struct YummyState {
     #[cfg(not(feature = "stateless"))]
     session_to_user: Arc<parking_lot::Mutex<std::collections::HashMap<SessionId, UserId>>>,
 
+    #[cfg(not(feature = "stateless"))]
+    session_to_room: Arc<parking_lot::Mutex<std::collections::HashMap<SessionId, std::collections::HashSet<RoomId>>>>,
+
     // Fields for stateless informations
     #[cfg(feature = "stateless")]
     redis: r2d2::Pool<redis::Client>
@@ -141,6 +145,7 @@ impl YummyState {
             #[cfg(not(feature = "stateless"))] user: Arc::new(parking_lot::Mutex::default()),
             #[cfg(not(feature = "stateless"))] room: Arc::new(parking_lot::Mutex::default()),
             #[cfg(not(feature = "stateless"))] session_to_user: Arc::new(parking_lot::Mutex::default()),
+            #[cfg(not(feature = "stateless"))] session_to_room: Arc::new(parking_lot::Mutex::default()),
             
             #[cfg(feature = "stateless")] redis
         }
@@ -171,6 +176,18 @@ pub enum YummyStateError {
 impl YummyState {
 
     /* STATEFULL functions */
+    #[cfg(feature = "stateless")]
+    #[tracing::instrument(name="is_user_online", skip(self))]
+    pub fn is_empty(&self) -> bool {
+        match self.redis.get() {
+            Ok(mut redis) => {
+                let keys = redis_result!(redis::cmd("KEYS").arg(&format!("{}*", self.config.redis_prefix)).query::<Vec<String>>(&mut redis));
+                keys.len() == 0
+            },
+            Err(_) => false
+        }
+    }
+
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="is_user_online", skip(self))]
     pub fn is_user_online(&mut self, user_id: &UserId) -> bool {
@@ -264,7 +281,6 @@ impl YummyState {
                     .ignore()
                 
                 .cmd("HSET").arg(format!("{}users:{}", self.config.redis_prefix, &user_id))
-                    .arg("room").arg("")
                     .arg("type").arg(i32::from(user_type))
                     .arg("name").arg(name.unwrap_or_default())
                     .arg("loc").arg(&self.config.server_name)
@@ -276,31 +292,29 @@ impl YummyState {
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="close_session", skip(self))]
-    pub fn close_session(&mut self, session_id: &SessionId) -> bool {
+    pub fn close_session(&mut self, user_id: &UserId, session_id: &SessionId) -> bool {
         
         match self.redis.get() {
             Ok(mut redis) => {
-                let user_id = redis_result!(redis.hget::<_, _, String>(format!("{}session-user", self.config.redis_prefix), session_id.to_string()));
+                let user_id_str = user_id.to_string();
+                let session_id_str = session_id.to_string();
 
-                let (room_id, remove_result) = redis_result!(redis::pipe()
+                let (remove_result,) = redis_result!(redis::pipe()
                     .atomic()
                     .cmd("HDEL").arg(format!("{}session-user", self.config.redis_prefix))
-                        .arg(session_id.borrow().to_string())
+                        .arg(&session_id_str)
                         .ignore()
                     
-                    .cmd("HGET").arg(format!("{}users:{}", self.config.redis_prefix, user_id))
+                    .cmd("HGET").arg(format!("{}users:{}", self.config.redis_prefix, user_id_str))
                         .arg("room")
+                        .ignore()
 
-                    .cmd("DEL").arg(format!("{}users:{}", self.config.redis_prefix, user_id))
+                    .cmd("DEL").arg(format!("{}users:{}", self.config.redis_prefix, user_id_str))
                         .ignore()
                     
                     .cmd("SREM").arg(format!("{}online-users", self.config.redis_prefix))
-                        .arg(&user_id)
-                    .query::<(Option<String>, i32)>(&mut redis));
-
-                if let Some(room_id) = room_id {
-                    self.disconnect_from_room(&room_id.into(), &user_id.into()).unwrap_or_default();
-                }
+                        .arg(&user_id_str)
+                    .query::<(i32,)>(&mut redis));
 
                 remove_result > 0
             },
@@ -309,17 +323,11 @@ impl YummyState {
     }
 
     #[cfg(feature = "stateless")]
-    #[tracing::instrument(name="get_user_room", skip(self))]
-    pub fn get_user_room(&mut self, user_id: &UserId) -> Option<RoomId> {
-        use std::str::FromStr;
-        let result = match self.redis.get() {
-            Ok(mut redis) => redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id.to_string()), "room")),
+    #[tracing::instrument(name="get_user_rooms", skip(self))]
+    pub fn get_user_rooms(&mut self, user_id: &UserId, session_id: &SessionId) -> Option<Vec<RoomId>> {
+        match self.redis.get() {
+            Ok(mut redis) => Some(redis_result!(redis.smembers::<_, Vec<RoomId>>(format!("{}session-room:{}", self.config.redis_prefix, session_id.to_string())))),
             Err(_) => return None
-        };
-        
-        match uuid::Uuid::from_str(&result) {
-            Ok(item) => Some(RoomId::from(item)),
-            Err(_) => None
         }
     }
 
@@ -389,7 +397,7 @@ impl YummyState {
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="join_to_room", skip(self))]
-    pub fn join_to_room(&mut self, room_id: &RoomId, user_id: &UserId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
+    pub fn join_to_room(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
 
         let room_info_key = format!("{}room:{}", self.config.redis_prefix, room_id.get());
         match self.redis.get() {
@@ -397,9 +405,10 @@ impl YummyState {
                 true => {
                     let room_users_key = format!("{}room-users:{}", self.config.redis_prefix, room_id.get());
                     let user_id = user_id.to_string();
+                    let room_id = room_id.to_string();
 
                     let room_info = redis_result!(redis::cmd("HMGET")
-                        .arg(format!("{}room:{}", self.config.redis_prefix, room_id.to_string()))
+                        .arg(format!("{}room:{}", self.config.redis_prefix, &room_id))
                         .arg("user-len")
                         .arg("max-user")
                         .query::<Vec<usize>>(&mut redis));
@@ -418,7 +427,7 @@ impl YummyState {
 
                         redis_result!(redis::pipe()
                             .atomic()
-                            .cmd("HSET").arg(format!("{}users:{}", self.config.redis_prefix, &user_id)).arg("room").arg(room_id.to_string()).ignore()
+                            .cmd("SADD").arg(format!("{}session-room:{}", self.config.redis_prefix, session_id.to_string())).arg(&room_id)
                             .cmd("HINCRBY").arg(&room_info_key).arg("user-len").arg(1).ignore()
                             .cmd("HSET").arg(room_users_key).arg(&user_id).arg(match user_type {
                                     crate::model::RoomUserType::User => 1,
@@ -439,15 +448,17 @@ impl YummyState {
 
     #[cfg(feature = "stateless")]
     #[tracing::instrument(name="disconnect_from_room", skip(self))]
-    pub fn disconnect_from_room(&mut self, room_id: &RoomId, user_id: &UserId) -> Result<bool, YummyStateError> {
+    pub fn disconnect_from_room(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId) -> Result<bool, YummyStateError> {
         let room_removed: bool = match self.redis.get() {
             Ok(mut redis) => {
                 let room_id = room_id.to_string();
+                let session_id = session_id.to_string();
                 let room_info_key = format!("{}room:{}", self.config.redis_prefix, &room_id);
                 let room_users_key = &format!("{}room-users:{}", self.config.redis_prefix, &room_id);
 
                 let (user_len,) =  redis_result!(redis::pipe()
                     .atomic()
+                    .cmd("SREM").arg(format!("{}session-room:{}", self.config.redis_prefix, &session_id)).arg(&room_id).ignore()
                     .cmd("HDEL").arg(room_users_key).arg(user_id.to_string()).ignore()
                     .cmd("HINCRBY").arg(&room_info_key).arg("user-len").arg(-1)
                     .query::<(i32,)>(&mut redis));
@@ -607,40 +618,43 @@ impl YummyState {
                             
                             let mut pipe = redis::pipe();
 
-                            {
-                                let command = pipe.cmd("HMGET");
-                                let mut query = command.arg(format!("{}room-meta-val:{}", self.config.redis_prefix, &room_id));
+                            if keys.len() > 0 {
+                                {
+                                    let command = pipe.cmd("HMGET");
+                                    let mut query = command.arg(format!("{}room-meta-val:{}", self.config.redis_prefix, &room_id));
 
-                                for key in keys.iter() {
-                                    query = query.arg(key);
+                                    for key in keys.iter() {
+                                        query = query.arg(key);
+                                    }
                                 }
-                            }
 
-                            {
-                                let command = pipe.cmd("HMGET");
-                                let mut query = command.arg(format!("{}room-meta-type:{}", self.config.redis_prefix, &room_id));
+                                {
+                                    let command = pipe.cmd("HMGET");
+                                    let mut query = command.arg(format!("{}room-meta-type:{}", self.config.redis_prefix, &room_id));
 
-                                for key in keys.iter() {
-                                    query = query.arg(key);
+                                    for key in keys.iter() {
+                                        query = query.arg(key);
+                                    }
                                 }
+
+                                let (values, types) = redis_result!(pipe.query::<(Vec<redis::Value>, Vec<i32>)>(&mut redis));
+                                let mut metas = HashMap::new();
+                                
+                                for (((key, type_info), value), access) in keys.into_iter().zip(types.into_iter()).zip(values.into_iter()).zip(access.into_iter()) {
+                                    let value = match type_info {
+                                        1 => MetaType::Number(FromRedisValue::from_redis_value(&value).unwrap_or_default(), RoomMetaAccess::from(access)),
+                                        2 => MetaType::String(FromRedisValue::from_redis_value(&value).unwrap_or_default(), RoomMetaAccess::from(access)),
+                                        3 => MetaType::Bool(FromRedisValue::from_redis_value(&value).unwrap_or_default(), RoomMetaAccess::from(access)),
+                                        _ => MetaType::Number(FromRedisValue::from_redis_value(&value).unwrap_or_default(), RoomMetaAccess::from(access)),
+                                    };
+    
+                                    metas.insert(key, value);
+                                }
+    
+                                result.items.push(RoomInfoType::Metas(metas));
+                            } else {
+                                result.items.push(RoomInfoType::Metas(HashMap::new()));
                             }
-
-
-                            let (values, types) = redis_result!(pipe.query::<(Vec<redis::Value>, Vec<i32>)>(&mut redis));
-                            let mut metas = HashMap::new();
-                            
-                            for (((key, type_info), value), access) in keys.into_iter().zip(types.into_iter()).zip(values.into_iter()).zip(access.into_iter()) {
-                                let value = match type_info {
-                                    1 => MetaType::Number(FromRedisValue::from_redis_value(&value).unwrap_or_default(), RoomMetaAccess::from(access)),
-                                    2 => MetaType::String(FromRedisValue::from_redis_value(&value).unwrap_or_default(), RoomMetaAccess::from(access)),
-                                    3 => MetaType::Bool(FromRedisValue::from_redis_value(&value).unwrap_or_default(), RoomMetaAccess::from(access)),
-                                    _ => MetaType::Number(FromRedisValue::from_redis_value(&value).unwrap_or_default(), RoomMetaAccess::from(access)),
-                                };
-
-                                metas.insert(key, value);
-                            }
-
-                            result.items.push(RoomInfoType::Metas(metas));
                         },
                     };
                 }
@@ -847,6 +861,15 @@ impl YummyState {
 
     /* STATEFULL functions */
     #[cfg(not(feature = "stateless"))]
+    #[tracing::instrument(name="is_empty", skip(self))]
+    pub fn is_empty(&self) -> bool {
+        self.room.lock().len() == 0 &&
+            self.user.lock().len() == 0 &&
+            self.session_to_room.lock().len() == 0 &&
+            self.session_to_user.lock().len() == 0
+    }
+
+    #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="is_user_online", skip(self))]
     pub fn is_user_online(&self, user_id: &UserId) -> bool {
         self.user.lock().contains_key(user_id)
@@ -859,7 +882,7 @@ impl YummyState {
     }
     
     #[cfg(not(feature = "stateless"))]
-    #[tracing::instrument(name="is_user_online", skip(self))]
+    #[tracing::instrument(name="get_users_room_type", skip(self))]
     pub fn get_users_room_type(&mut self, user_id: &UserId, room_id: &RoomId) -> Option<RoomUserType> {
         match self.room.lock().get(room_id) {
             Some(room) => room.users.lock().get(user_id).cloned(),
@@ -887,11 +910,21 @@ impl YummyState {
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="new_session", skip(self))]
     pub fn new_session(&self, user_id: &UserId, name: Option<String>, user_type: UserType) -> SessionId {
-        use std::cell::Cell;
+        use std::collections::HashSet;
 
         let session_id = SessionId::new();
-        self.session_to_user.lock().insert(session_id.clone(), user_id.clone()); // todo: discart cloning
-        self.user.lock().insert(user_id.clone(), crate::model::UserState { user_id: user_id.clone(), name, session: session_id.clone(), user_type, room: Cell::new(None) }); // todo: discart cloning
+        self.session_to_user.lock().insert(session_id.clone(), user_id.clone());
+
+        let mut users = self.user.lock();
+
+        match users.get_mut(&user_id) {
+            Some(user) => {
+                user.sessions.insert(session_id.clone());
+            },
+            None => {
+                users.insert(user_id.clone(), crate::model::UserState { user_id: user_id.clone(), name, sessions: HashSet::from([session_id.clone()]), user_type });
+            }
+        }
         session_id
     }
 
@@ -913,19 +946,33 @@ impl YummyState {
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="close_session", skip(self))]
-    pub fn close_session(&self, session_id: &SessionId) -> bool {
-        let removed = self.session_to_user.lock().remove(session_id);
+    pub fn close_session(&self, user_id: &UserId, session_id: &SessionId) -> bool {
+        let user_id = self.session_to_user.lock().remove(session_id);
 
-        match removed {
-            Some(removed) => self.user.lock().remove(&removed).map(|_| true).unwrap_or_default(),
+        match user_id {
+            Some(user_id) => {
+                let session_count = match self.user.lock().get_mut(&user_id) {
+                    Some(user) => {
+                        user.sessions.remove(session_id);
+                        user.sessions.len()
+                    }
+                    None => 0
+                };
+
+                if session_count == 0 {
+                    self.user.lock().remove(&user_id);
+                }
+                
+                true
+            },
             None => false
         }
     }
 
     #[cfg(not(feature = "stateless"))]
-    #[tracing::instrument(name="get_user_room", skip(self))]
-    pub fn get_user_room(&self, user_id: &UserId) -> Option<RoomId> {
-        self.user.lock().get(user_id.borrow()).and_then(|user| user.room.get())
+    #[tracing::instrument(name="get_user_rooms", skip(self))]
+    pub fn get_user_rooms(&self, user_id: &UserId, session_id: &SessionId) -> Option<Vec<RoomId>> {
+        self.session_to_room.lock().get(session_id).map(|rooms| rooms.iter().cloned().collect::<Vec<_>>())
     }
 
     #[cfg(not(feature = "stateless"))]
@@ -942,14 +989,14 @@ impl YummyState {
             name,
             description,
             access_type,
-            metas:metas.unwrap_or_default(),
+            metas: metas.unwrap_or_default(),
             join_request
         });
     }
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="join_to_room", skip(self))]
-    pub fn join_to_room(&self, room_id: &RoomId, user_id: &UserId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
+    pub fn join_to_room(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
         match self.room.lock().get_mut(room_id.borrow()) {
             Some(room) => {
                 let mut users = room.users.lock();
@@ -963,9 +1010,14 @@ impl YummyState {
                         return Err(YummyStateError::UserAlreadInRoom);
                     }
                     
-                    match self.user.lock().get(user_id) {
-                        Some(user) => user.room.set(Some(room_id.clone())),
-                        None => return Err(YummyStateError::UserNotFound)
+                    let mut session_to_room =  self.session_to_room.lock();
+                    match session_to_room.get_mut(session_id) {
+                        Some(session_rooms) => {
+                            session_rooms.insert(room_id.clone());
+                        },
+                        None => {
+                            session_to_room.insert(session_id.clone(), std::collections::HashSet::from([room_id.clone()]));
+                        }
                     };
                     Ok(())
                 } else {
@@ -978,11 +1030,24 @@ impl YummyState {
 
     #[cfg(not(feature = "stateless"))]
     #[tracing::instrument(name="join_to_room", skip(self))]
-    pub fn disconnect_from_room(&self, room_id: &RoomId, user_id: &UserId) -> Result<bool, YummyStateError> {
+    pub fn disconnect_from_room(&self, room_id: &RoomId, user_id: &UserId, session: &SessionId) -> Result<bool, YummyStateError> {
         let mut rooms = self.room.lock();
         let room_removed = match rooms.get_mut(room_id.borrow()) {
             Some(room) => {
                 let mut users = room.users.lock();
+                let mut session_to_room = self.session_to_room.lock();
+                
+                let room_count = match session_to_room.get_mut(session) {
+                    Some(rooms) => {
+                        rooms.remove(room_id);
+                        rooms.len()
+                    },
+                    None => 0
+                };
+
+                if room_count == 0 {
+                    session_to_room.remove(session);
+                }
 
                 let user_removed = users.remove(user_id);
 
@@ -1185,7 +1250,7 @@ mod tests {
         assert!(state.is_session_online(&session_id));
         assert!(state.is_user_online(&user_id));
 
-        state.close_session(&session_id);
+        state.close_session(&user_id, &session_id);
 
         assert!(!state.is_session_online(&session_id));
         assert!(!state.is_user_online(&user_id));
@@ -1205,7 +1270,7 @@ mod tests {
         DummyActor{}.start().recipient::<SendMessage>();
         let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
         
-        state.close_session(&SessionId::new());
+        state.close_session(&UserId::new(), &SessionId::new());
 
         assert!(!state.is_session_online(&SessionId::new()));
         assert!(!state.is_user_online(&UserId::new()));
@@ -1216,7 +1281,14 @@ mod tests {
     #[actix::test]
     async fn room_tests() -> anyhow::Result<()> {
         configure_environment();
-        let config = get_configuration();
+        let mut config = get_configuration().deref().clone();
+
+        #[cfg(feature = "stateless")] {  
+            use rand::Rng;     
+            config.redis_prefix = format!("{}:", rand::thread_rng().gen::<usize>().to_string());
+        }
+    
+        let config = Arc::new(config);
         
         #[cfg(feature = "stateless")]
         let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
@@ -1238,29 +1310,37 @@ mod tests {
         let user_2 = UserId::new();
         let user_3 = UserId::new();
 
-        state.new_session(&user_1, None, UserType::User);
-        state.new_session(&user_2, None, UserType::User);
-        state.new_session(&user_3, None, UserType::User);
+        let user_1_session = state.new_session(&user_1, None, UserType::User);
+        let user_2_session = state.new_session(&user_2, None, UserType::User);
+        let user_3_session = state.new_session(&user_3, None, UserType::User);
         
-        state.join_to_room(&room_1, &user_1, RoomUserType::Owner)?;
+        state.join_to_room(&room_1, &user_1, &user_1_session, RoomUserType::Owner)?;
         assert_eq!(state.get_users_room_type(&user_1, &room_1).unwrap(), RoomUserType::Owner);
 
-        assert_eq!(state.join_to_room(&room_1, &user_1, RoomUserType::Owner).err().unwrap(), YummyStateError::UserAlreadInRoom);
+        assert_eq!(state.join_to_room(&room_1, &user_1, &user_1_session, RoomUserType::Owner).err().unwrap(), YummyStateError::UserAlreadInRoom);
 
-        state.join_to_room(&room_1, &user_2, RoomUserType::User)?;
+        state.join_to_room(&room_1, &user_2, &user_2_session, RoomUserType::User)?;
         assert_eq!(state.get_users_room_type(&user_2, &room_1).unwrap(), RoomUserType::User);
 
-        assert_eq!(state.join_to_room(&room_1, &user_3, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
-        assert_eq!(state.join_to_room(&room_1, &user_2, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
+        assert_eq!(state.join_to_room(&room_1, &user_3, &user_3_session, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
+        assert_eq!(state.join_to_room(&room_1, &user_2, &user_2_session, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
 
-        assert_eq!(state.join_to_room(&RoomId::new(), &UserId::new(), RoomUserType::Owner).err().unwrap(), YummyStateError::RoomNotFound);
+        assert_eq!(state.join_to_room(&RoomId::new(), &UserId::new(), &SessionId::new(), RoomUserType::Owner).err().unwrap(), YummyStateError::RoomNotFound);
         assert_eq!(state.get_users_from_room(&room_1)?.len(), 2);
 
-        assert_eq!(state.disconnect_from_room(&room_1, &user_1)?, false);
+        assert_eq!(state.disconnect_from_room(&room_1, &user_1, &user_1_session)?, false);
         assert_eq!(state.get_users_from_room(&room_1)?.len(), 1);
 
-        assert_eq!(state.disconnect_from_room(&room_1, &&user_2)?, true);
+        assert_eq!(state.disconnect_from_room(&room_1, &user_2, &user_2_session)?, true);
         assert!(state.get_users_from_room(&room_1).is_err());
+
+        assert!(!state.is_empty());
+
+        state.close_session(&user_1, &user_1_session);
+        state.close_session(&user_2, &user_2_session);
+        state.close_session(&user_3, &user_3_session);
+
+        assert!(state.is_empty());
 
         Ok(())
     }
@@ -1282,8 +1362,9 @@ mod tests {
 
         for _ in 0..100_000 {
             let user_id = UserId::new();
+            let session_id = SessionId::new();
             state.new_session(&user_id, None, UserType::User);
-            state.join_to_room(&room, &user_id, RoomUserType::Owner)?
+            state.join_to_room(&room, &user_id, &session_id, RoomUserType::Owner)?
         }
 
         Ok(())
@@ -1361,6 +1442,10 @@ mod tests {
         let user_2 = UserId::new();
         let user_3 = UserId::new();
 
+        let user_1_session = SessionId::new();
+        let user_2_session = SessionId::new();
+        let user_3_session = SessionId::new();
+
         state.new_session(&user_1, Some("user1".to_string()), UserType::User);
         assert_eq!(state.get_user_type(&user_1), Some(UserType::User));
 
@@ -1370,9 +1455,9 @@ mod tests {
         state.new_session(&user_3, Some("user3".to_string()), UserType::Admin);
         assert_eq!(state.get_user_type(&user_3), Some(UserType::Admin));
 
-        state.join_to_room(&room, &user_1, RoomUserType::Owner)?;
-        state.join_to_room(&room, &user_2, RoomUserType::Owner)?;
-        state.join_to_room(&room, &user_3, RoomUserType::Owner)?;
+        state.join_to_room(&room, &user_1, &user_1_session, RoomUserType::Owner)?;
+        state.join_to_room(&room, &user_2, &user_2_session, RoomUserType::Owner)?;
+        state.join_to_room(&room, &user_3, &user_3_session, RoomUserType::Owner)?;
         
         let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::Users])?;
         assert_eq!(result.items.len(), 2);
