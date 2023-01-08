@@ -31,7 +31,11 @@ jobs:
       run: cargo check
       env:
         RUSTFLAGS: "-Cinstrument-coverage"
-    
+  
+
+    - name: Start Redis
+      uses: supercharge/redis-github-action@1.4.0
+
     - name: Check stateless
       run: cargo check --features stateless
       env:
@@ -40,6 +44,13 @@ jobs:
     - name: Run tests
       run: cargo test --all
       env:
+        LLVM_PROFILE_FILE: "target/coverage/prof/%p-%m.profraw"
+        RUSTFLAGS: "-Cinstrument-coverage"
+    
+    - name: Run tests
+      run: cargo test --all --features stateless
+      env:
+        DEFAULT_REDIS_URL: "redis://redis/"
         LLVM_PROFILE_FILE: "target/coverage/prof/%p-%m.profraw"
         RUSTFLAGS: "-Cinstrument-coverage"
 
@@ -54,6 +65,7 @@ jobs:
             --ignore 'tests/*' \
             --ignore server/src/main.rs \
             --ignore server/src/api/websocket/client.rs \
+            --ignore general/src/client.rs \
             --ignore "*test.rs" \
             --ignore "*tests.rs" \
             -t lcov \
