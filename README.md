@@ -1,5 +1,6 @@
 # Yummy Game Server
-[![Rust](https://github.com/erhanbaris/yummy/actions/workflows/rust.yml/badge.svg)](https://github.com/erhanbaris/yummy/actions/workflows/rust.yml) 
+![GitHub top language](https://img.shields.io/github/languages/top/erhanbaris/yummy)
+[![Build](https://github.com/erhanbaris/yummy/actions/workflows/rust.yml/badge.svg)](https://github.com/erhanbaris/yummy/actions/workflows/rust.yml) 
 [![Rust](https://img.shields.io/github/license/erhanbaris/yummy)](https://github.com/erhanbaris/yummy/actions/workflows/rust.yml) 
 [![codecov](https://codecov.io/github/erhanbaris/yummy/branch/main/graph/badge.svg?token=KBTUWBX3YB)](https://codecov.io/github/erhanbaris/yummy)
 
