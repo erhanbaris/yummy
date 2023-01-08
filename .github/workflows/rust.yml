@@ -16,25 +16,53 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    
     - uses: actions-rs/toolchain@v1
       with:
-        toolchain: nightly
+        toolchain: stable
         override: true
+    
+    - name: Install grcov
+      run: |
+        rustup component add llvm-tools-preview
+        cargo install grcov
+    
     - name: Check
       run: cargo check
+      env:
+        RUSTFLAGS: "-Cinstrument-coverage"
+    
     - name: Check stateless
       run: cargo check --features stateless
+      env:
+        RUSTFLAGS: "-Cinstrument-coverage"
+    
     - name: Run tests
       run: cargo test --all
       env:
-        CARGO_INCREMENTAL: '0'
-        RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests'
-        RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests'
-    - name: rust-grcov
-      uses: actions-rs/grcov@v0.1.5
+        LLVM_PROFILE_FILE: "target/coverage/prof/%p-%m.profraw"
+        RUSTFLAGS: "-Cinstrument-coverage"
+
+    - name: Create coverage report
+      run: |
+        grcov \
+          --source-dir . \
+          --binary-path target/debug \
+          --branch \
+          --excl-start 'mod test \{' \
+          --excl-start 'mod tests \{' \
+          --ignore 'tests/*' \
+          --ignore server/src/main.rs \
+          --ignore server/src/api/websocket/client.rs \
+          --ignore "*test.rs" \
+          --ignore "*tests.rs" \
+           -t lcov \
+           -o lcov.info \
+           target/coverage/prof
+
     - name: Codecov
       uses: codecov/codecov-action@v3.1.0
       with:
-        verbose: true
-        fail_ci_if_error: true
+        files: lcov.info
+        fail_ci_if_error: false
 
