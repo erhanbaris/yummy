@@ -45,20 +45,19 @@ jobs:
 
     - name: Create coverage report
       run: |
-        grcov \
-          --source-dir . \
-          --binary-path target/debug \
-          --branch \
-          --excl-start 'mod test \{' \
-          --excl-start 'mod tests \{' \
-          --ignore 'tests/*' \
-          --ignore server/src/main.rs \
-          --ignore server/src/api/websocket/client.rs \
-          --ignore "*test.rs" \
-          --ignore "*tests.rs" \
-           -t lcov \
-           -o lcov.info \
-           target/coverage/prof
+        grcov . \
+            --binary-path ./target/debug/deps/ \
+            --source-dir . \
+            --ignore-not-existing \
+            --branch \
+            --excl-start 'mod test* \{' \
+            --ignore 'tests/*' \
+            --ignore server/src/main.rs \
+            --ignore server/src/api/websocket/client.rs \
+            --ignore "*test.rs" \
+            --ignore "*tests.rs" \
+            -t lcov \
+            -o lcov.info
 
     - name: Codecov
       uses: codecov/codecov-action@v3.1.0
