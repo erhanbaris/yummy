@@ -1,6 +1,6 @@
 use std::{fmt::Debug, sync::Arc};
 use actix::prelude::Message;
-use general::{model::{SessionId, UserId}, auth::UserAuth, password::Password};
+use general::{model::SessionId, auth::UserAuth, password::Password};
 use serde::Serialize;
 use thiserror::Error;
 use validator::{Validate, ValidationError};

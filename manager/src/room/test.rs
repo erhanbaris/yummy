@@ -781,7 +781,93 @@ async fn multi_room_support() -> anyhow::Result<()> {
     }).await??;
 
     message_received_from_room!(user_1_socket, user_2_auth_jwt.id.deref(), room_2_id, "world 2");
+    /* #endregion */
 
+    return Ok(());
+}
+
+#[actix::test]
+async fn room_join_request() -> anyhow::Result<()> {
+
+    let config = ::general::config::get_configuration();
+    let connection = create_connection(":memory:")?;
+
+    #[cfg(feature = "stateless")]
+    let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
+    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+
+    ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
+
+    create_database(&mut connection.clone().get()?)?;
+
+    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start();
+    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start();
+
+    let user_1_socket = Arc::new(DummyClient::default());
+    let user_2_socket = Arc::new(DummyClient::default());
+
+    /* #region Auth */
+    auth_manager.send(EmailAuthRequest {
+        user: Arc::new(None),
+        email: "erhan@gmail.com".to_string(),
+        password:"erhan".into(),
+        if_not_exist_create: true,
+        socket: user_1_socket.clone()
+    }).await??;
+
+    let user_1_auth_jwt = user_1_socket.clone().auth.lock().unwrap().clone();
+    let user_1_auth = Arc::new(Some(UserAuth {
+        user: user_1_auth_jwt.id.deref().clone(),
+        session: user_1_auth_jwt.session.clone()
+    }));
+
+    auth_manager.send(EmailAuthRequest {
+        user: Arc::new(None),
+        email: "baris@gmail.com".to_string(),
+        password:"erhan".into(),
+        if_not_exist_create: true,
+        socket: user_2_socket.clone()
+    }).await??;
+
+    let user_2_auth_jwt = user_2_socket.clone().auth.lock().unwrap().clone();
+    let user_2_auth = Arc::new(Some(UserAuth {
+        user: user_2_auth_jwt.id.deref().clone(),
+        session: user_2_auth_jwt.session.clone()
+    }));
+    /* #endregion */
+
+    /* #region Room configuration */
+    room_manager.send(CreateRoomRequest {
+        user: user_1_auth.clone(),
+        name: None,
+        description: None,
+        join_request: true,
+        access_type: general::model::CreateRoomAccessType::Public,
+        max_user: 4,
+        metas: None,
+        tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
+        socket:user_1_socket.clone()
+    }).await??;
+    
+    let room_1_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_1_id = room_1_id.room;
+
+    room_manager.send(JoinToRoomRequest {
+        user: user_2_auth.clone(),
+        room: room_1_id,
+        room_user_type: RoomUserType::User,
+        socket:user_2_socket.clone()
+    }).await??;
+
+    let message: NewRoomJoinRequest = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    assert_eq!(&message.class_type[..], "NewJoinRequest");
+    assert_eq!(&message.room, &room_1_id);
+    assert_eq!(&message.user, user_2_auth_jwt.id.deref());
+    assert_eq!(message.user_type, RoomUserType::User);
+
+    let message: JoinRequested = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    assert_eq!(&message.class_type[..], "JoinRequested");
+    assert_eq!(&message.room, &room_1_id);
     /* #endregion */
 
     return Ok(());

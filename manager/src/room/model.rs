@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc, collections::HashMap};
+use std::{fmt::Debug, sync::Arc, collections::HashMap, borrow::Cow};
 
 use actix::prelude::Message;
 use serde::Serialize;
@@ -106,9 +106,17 @@ pub enum RoomResponse<'a> {
     RoomCreated { room: RoomId },
     Joined {
         room: &'a RoomId,
-        room_name: Option<String>,
-        users: Vec<RoomUserInformation>,
-        metas: HashMap<String, MetaType<RoomMetaAccess>>
+        room_name: Cow<'a, Option<String>>,
+        users: Cow<'a, Vec<RoomUserInformation>>,
+        metas: Cow<'a, HashMap<String, MetaType<RoomMetaAccess>>>
+    },
+    JoinRequested {
+        room: &'a RoomId,
+    },
+    NewJoinRequest {
+        room: &'a RoomId,
+        user: &'a UserId,
+        user_type: RoomUserType
     },
     UserJoinedToRoom {
         user: &'a UserId,

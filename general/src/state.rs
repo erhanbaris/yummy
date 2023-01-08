@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::ops::Deref;
+use std::borrow::Cow;
 use std::sync::Arc;
 use std::{fmt::Debug, borrow::Borrow};
 
@@ -79,10 +79,33 @@ pub struct RoomInfoTypeCollection {
     pub items: Vec<RoomInfoType>
 }
 
-impl RoomInfoTypeCollection {
-    pub fn get_item(&self, query: RoomInfoTypeVariant) -> Option<RoomInfoType> {
-        self.items.iter().find(|item| query == RoomInfoTypeVariant::from(item.deref())).cloned()
+macro_rules! generate_room_type_getter {
+    ($name: ident, $variant: path, $response: ty) => {
+        pub fn $name(&self) -> Cow<'_, $response> {        
+            for item in self.items.iter() {
+                match item {
+                    $variant(value) => return Cow::Borrowed(value),
+                    _ => ()
+                };
+            }
+    
+            Cow::Owned(<$response>::default())
+        }
     }
+}
+
+impl RoomInfoTypeCollection {       
+    generate_room_type_getter!(get_room_name, RoomInfoType::RoomName, Option<String>);
+    generate_room_type_getter!(get_description, RoomInfoType::Description, Option<String>);
+    generate_room_type_getter!(get_users, RoomInfoType::Users, Vec<RoomUserInformation>);
+    generate_room_type_getter!(get_max_user, RoomInfoType::MaxUser, usize);
+    generate_room_type_getter!(get_user_length, RoomInfoType::UserLength, usize);
+    generate_room_type_getter!(get_access_type, RoomInfoType::AccessType, CreateRoomAccessType);
+    generate_room_type_getter!(get_tags, RoomInfoType::Tags, Vec<String>);
+    generate_room_type_getter!(get_metas, RoomInfoType::Metas, HashMap<String, MetaType<RoomMetaAccess>>);
+    generate_room_type_getter!(get_insert_date, RoomInfoType::InsertDate, i32);
+    generate_room_type_getter!(get_join_request, RoomInfoType::JoinRequest, bool);
+
 }
 
 impl Serialize for RoomInfoTypeCollection {
@@ -392,6 +415,57 @@ impl YummyState {
             }
             
             redis_result!(pipes.query::<()>(&mut redis));
+        }
+    }
+
+    #[cfg(feature = "stateless")]
+    #[tracing::instrument(name="join_to_room_request", skip(self))]
+    pub fn join_to_room_request(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
+
+        let room_info_key = format!("{}room:{}", self.config.redis_prefix, room_id.get());
+        match self.redis.get() {
+            Ok(mut redis) => match redis_result!(redis.exists::<_, bool>(&room_info_key)) {
+                true => {
+                    let room_users_key = format!("{}room-users:{}", self.config.redis_prefix, room_id.get());
+                    let user_id = user_id.to_string();
+                    let room_id = room_id.to_string();
+
+                    let room_info = redis_result!(redis::cmd("HMGET")
+                        .arg(format!("{}room:{}", self.config.redis_prefix, &room_id))
+                        .arg("user-len")
+                        .arg("max-user")
+                        .query::<Vec<usize>>(&mut redis));
+
+                    let user_len = room_info.first().copied().unwrap_or_default();
+                    let max_user = room_info.get(1).copied().unwrap_or_default();
+
+                    // If the max_user 0 or lower than users count, add to room
+                    if max_user == 0 || max_user > user_len {
+                        let is_member = redis_result!(redis.hexists(&room_users_key, &user_id));
+    
+                        // User alread in the room
+                        if is_member {
+                            return Err(YummyStateError::UserAlreadInRoom);
+                        }
+
+                        redis_result!(redis::pipe()
+                            .atomic()
+                            .cmd("SADD").arg(format!("{}session-room:{}", self.config.redis_prefix, session_id.to_string())).arg(&room_id)
+                            .cmd("HINCRBY").arg(&room_info_key).arg("user-len").arg(1).ignore()
+                            .cmd("HSET").arg(room_users_key).arg(&user_id).arg(match user_type {
+                                    crate::model::RoomUserType::User => 1,
+                                    crate::model::RoomUserType::Moderator => 2,
+                                    crate::model::RoomUserType::Owner => 3,
+                                }).ignore()
+                            .query::<()>(&mut redis));
+                        Ok(())
+                    } else {
+                        Err(YummyStateError::RoomHasMaxUsers)
+                    }
+                }
+                false => Err(YummyStateError::RoomNotFound)
+            },
+            Err(_) => Err(YummyStateError::RoomNotFound)
         }
     }
 
@@ -990,8 +1064,33 @@ impl YummyState {
             description,
             access_type,
             metas: metas.unwrap_or_default(),
-            join_request
+            join_request,
+            join_requests: parking_lot::Mutex::default()
         });
+    }
+
+    #[cfg(not(feature = "stateless"))]
+    #[tracing::instrument(name="join_to_room_request", skip(self))]
+    pub fn join_to_room_request(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
+        match self.room.lock().get_mut(room_id.borrow()) {
+            Some(room) => {
+
+                if room.users.lock().contains_key(user_id) {
+                    return Err(YummyStateError::UserAlreadInRoom);
+                }
+                
+                let users_len = room.users.lock().len();
+
+                // If the max_user 0 or lower than users count, add to room
+                if room.max_user == 0 || room.max_user > users_len {
+                    room.join_requests.lock().insert(user_id.clone(), user_type);
+                    Ok(())
+                } else {
+                    Err(YummyStateError::RoomHasMaxUsers)
+                }
+            }
+            None => Err(YummyStateError::RoomNotFound)
+        }
     }
 
     #[cfg(not(feature = "stateless"))]
@@ -1210,6 +1309,8 @@ impl YummyState {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::Deref;
+
     use crate::config::configure_environment;
     use crate::{model::*, config::get_configuration};
 
@@ -1390,53 +1491,40 @@ mod tests {
 
         let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::RoomName])?;
         assert_eq!(result.items.len(), 1);
-        assert_eq!(result.get_item(RoomInfoTypeVariant::RoomName).unwrap(), RoomInfoType::RoomName(Some("Room 1".to_string())));
+        assert_eq!(result.get_room_name().into_owned(), Some("Room 1".to_string()));
 
         state.set_room_info(&room, vec![RoomInfoType::RoomName(Some("New room".to_string()))]);
 
         let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::RoomName])?;
         assert_eq!(result.items.len(), 1);
-        assert_eq!(result.get_item(RoomInfoTypeVariant::RoomName).unwrap(), RoomInfoType::RoomName(Some("New room".to_string())));
+        assert_eq!(result.get_room_name().into_owned(), Some("New room".to_string()));
 
         let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength])?;
         assert_eq!(result.items.len(), 7);
-        assert_eq!(result.get_item(RoomInfoTypeVariant::RoomName).unwrap(), RoomInfoType::RoomName(Some("New room".to_string())));
-        assert_eq!(result.get_item(RoomInfoTypeVariant::MaxUser).unwrap(), RoomInfoType::MaxUser(10));
-        assert_eq!(result.get_item(RoomInfoTypeVariant::UserLength).unwrap(), RoomInfoType::UserLength(0));
-        assert_eq!(result.get_item(RoomInfoTypeVariant::AccessType).unwrap(), RoomInfoType::AccessType(CreateRoomAccessType::Private));
-        assert!(result.get_item(RoomInfoTypeVariant::Users).is_some());
-        assert!(result.get_item(RoomInfoTypeVariant::Tags).is_some());
-        assert!(result.get_item(RoomInfoTypeVariant::InsertDate).is_some());
+        assert_eq!(result.get_room_name().into_owned(), Some("New room".to_string()));
+        assert_eq!(result.get_max_user().into_owned(), 10);
+        assert_eq!(result.get_user_length().into_owned(), 0);
+        assert_eq!(result.get_access_type().into_owned(), CreateRoomAccessType::Private);
+        assert!(result.get_tags().len() > 0);
+        assert!(result.get_insert_date().into_owned() > 0);
 
         // Tag update test
-        let tags = result.get_item(RoomInfoTypeVariant::Tags);
-        if let Some(RoomInfoType::Tags(mut tags)) = tags {
-            tags.sort_by(|a, b| a.partial_cmp(b).unwrap());
-            assert_eq!(tags, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()]);
-        } else {
-            assert!(false, "tags not found")
-        }
+        let mut tags: Vec<String> = result.get_tags().into_owned();
+        tags.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        assert_eq!(tags, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()]);
 
         state.set_room_info(&room, vec![RoomInfoType::Tags(vec!["yummy1".to_string(), "yummy2".to_string(), "yummy3".to_string()])]);
         let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::Tags])?;
         
-        let tags = result.get_item(RoomInfoTypeVariant::Tags);
-        if let Some(RoomInfoType::Tags(mut tags)) = tags {
-            tags.sort_by(|a, b| a.partial_cmp(b).unwrap());
-            assert_eq!(tags, vec!["yummy1".to_string(), "yummy2".to_string(), "yummy3".to_string()]);
-        } else {
-            assert!(false, "tags not found")
-        }
+        let mut tags = result.get_tags().into_owned();
+        tags.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        assert_eq!(tags, vec!["yummy1".to_string(), "yummy2".to_string(), "yummy3".to_string()]);
 
         state.set_room_info(&room, vec![RoomInfoType::Tags(Vec::new())]);
         let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::Tags])?;
         
-        let tags = result.get_item(RoomInfoTypeVariant::Tags);
-        if let Some(RoomInfoType::Tags(tags)) = tags {
-            assert_eq!(tags, Vec::<String>::new());
-        } else {
-            assert!(false, "tags not found")
-        }
+        let tags = result.get_tags().into_owned();
+        assert_eq!(tags, Vec::<String>::new());
 
         let user_1 = UserId::new();
         let user_2 = UserId::new();
@@ -1461,14 +1549,11 @@ mod tests {
         
         let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::Users])?;
         assert_eq!(result.items.len(), 2);
-        assert_eq!(result.get_item(RoomInfoTypeVariant::UserLength).unwrap(), RoomInfoType::UserLength(3));
+        assert_eq!(result.get_user_length().into_owned(), 3);
 
-        if let RoomInfoType::Users(mut users) = result.get_item(RoomInfoTypeVariant::Users).unwrap() {
-            users.sort_by(|a, b| a.name.partial_cmp(&b.name).unwrap());
-            assert_eq!(users, vec![RoomUserInformation { user_id: Arc::new(user_1.clone()), name: Some("user1".to_string()), user_type: RoomUserType::Owner }, RoomUserInformation { user_id: Arc::new(user_2.clone()), name: Some("user2".to_string()), user_type: RoomUserType::Owner }, RoomUserInformation { user_id: Arc::new(user_3.clone()), name: Some("user3".to_string()), user_type: RoomUserType::Owner }]);
-        } else {
-            assert!(false);
-        }
+        let mut users: Vec<RoomUserInformation> = result.get_users().into_owned();
+        users.sort_by(|a, b| a.name.partial_cmp(&b.name).unwrap());
+        assert_eq!(users, vec![RoomUserInformation { user_id: Arc::new(user_1.clone()), name: Some("user1".to_string()), user_type: RoomUserType::Owner }, RoomUserInformation { user_id: Arc::new(user_2.clone()), name: Some("user2".to_string()), user_type: RoomUserType::Owner }, RoomUserInformation { user_id: Arc::new(user_3.clone()), name: Some("user3".to_string()), user_type: RoomUserType::Owner }]);
 
         // Change user permission
         state.set_users_room_type(&user_1, &room, RoomUserType::User);
@@ -1476,12 +1561,9 @@ mod tests {
         let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::Users])?;
         assert_eq!(result.items.len(), 1);
 
-        if let RoomInfoType::Users(mut users) = result.get_item(RoomInfoTypeVariant::Users).unwrap() {
-            users.sort_by(|a, b| a.name.partial_cmp(&b.name).unwrap());
-            assert_eq!(users, vec![RoomUserInformation { user_id: Arc::new(user_1), name: Some("user1".to_string()), user_type: RoomUserType::User }, RoomUserInformation { user_id: Arc::new(user_2), name: Some("user2".to_string()), user_type: RoomUserType::Owner }, RoomUserInformation { user_id: Arc::new(user_3), name: Some("user3".to_string()), user_type: RoomUserType::Owner }]);
-        } else {
-            assert!(false);
-        }
+        let mut users: Vec<RoomUserInformation> = result.get_users().into_owned();
+        users.sort_by(|a, b| a.name.partial_cmp(&b.name).unwrap());
+        assert_eq!(users, vec![RoomUserInformation { user_id: Arc::new(user_1), name: Some("user1".to_string()), user_type: RoomUserType::User }, RoomUserInformation { user_id: Arc::new(user_2), name: Some("user2".to_string()), user_type: RoomUserType::Owner }, RoomUserInformation { user_id: Arc::new(user_3), name: Some("user3".to_string()), user_type: RoomUserType::Owner }]);
         
         Ok(())
     }
@@ -1489,15 +1571,10 @@ mod tests {
     macro_rules! meta_validation {
         ($state: expr, $room_id: expr, $access: expr, $len: expr, $map: expr) => {
             let metas = $state.get_room_info(&$room_id, $access, vec![RoomInfoTypeVariant::Metas])?;
-            let item = metas.get_item(RoomInfoTypeVariant::Metas);
-            assert!(item.is_some());
+            let item = metas.get_metas().into_owned();
     
-            if let Some(RoomInfoType::Metas(metas)) = item {
-                assert_eq!(metas.len(), $len);
-                assert_eq!(metas, $map);
-            } else {
-                assert!(false, "Metas not found");
-            }
+            assert_eq!(item.len(), $len);
+            assert_eq!(item, $map);
         }
     }
 

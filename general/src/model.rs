@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::hash::Hash;
 use std::fmt::Debug;
 use std::str::FromStr;
@@ -25,7 +25,7 @@ use crate::meta::{MetaType, RoomMetaAccess};
 use crate::web::GenericAnswer;
 
 macro_rules! generate_type {
-    ($name:ident) => {
+    ($name: ident) => {
         
         #[derive(MessageResponse, Deserialize, Serialize, Eq, PartialEq, Debug, Clone, Hash, Ord, PartialOrd)]
         #[derive(AsExpression, FromSqlRow)]
@@ -171,7 +171,8 @@ pub struct RoomState {
     pub insert_date: i32,
     pub join_request: bool,
     pub users: Mutex<HashMap<UserId, RoomUserType>>,
-    pub metas: HashMap<String, MetaType<RoomMetaAccess>>
+    pub metas: HashMap<String, MetaType<RoomMetaAccess>>,
+    pub join_requests: Mutex<HashMap<UserId, RoomUserType>>
 }
 
 #[derive(Default, Clone, Debug, Serialize_repr, Deserialize_repr, PartialEq, Eq)]

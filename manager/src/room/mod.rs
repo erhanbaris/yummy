@@ -362,16 +362,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
     }
 }
 
-macro_rules! try_unpack {
-    ($variant:path, $value:expr) => {
-        if let $variant(x) = $value {
-            Some(x)
-        } else {
-            None
-        }   
-    }
-}
-
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRoomRequest> for RoomManager<DB> {
     type Result = anyhow::Result<()>;
 
@@ -384,34 +374,60 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
-        let users = self.states.get_users_from_room(&model.room)?;
-        self.states.join_to_room(&model.room, user_id, session_id, model.room_user_type.clone())?;
-        
-        let mut connection = self.database.get()?;
-        DB::join_to_room(&mut connection, &model.room, user_id, model.room_user_type)?;
+        let room_infos = self.states.get_room_info(&model.room, RoomMetaAccess::System, vec![RoomInfoTypeVariant::JoinRequest])?;
+        let join_request = room_infos.get_join_request();
 
-        let message = serde_json::to_string(&RoomResponse::UserJoinedToRoom {
-            user: user_id,
-            room: &model.room
-        }).unwrap();
+        if join_request.into_owned() {
 
-        for user_id in users.into_iter() {
-            self.issue_system_async(SendMessage {
-                message: message.clone(),
-                user_id
-            });
+            /* Room require approvement before join to it */
+            self.states.join_to_room_request(&model.room, user_id, session_id, model.room_user_type.clone())?;
+
+            let room_infos = self.states.get_room_info(&model.room, RoomMetaAccess::System, vec![RoomInfoTypeVariant::Users])?;
+            let users = room_infos.get_users();
+
+            let message: String = RoomResponse::NewJoinRequest { room: &model.room, user: &user_id, user_type: model.room_user_type.clone() }.into();
+
+            for user in users.iter() {
+                if user.user_type == RoomUserType::Owner || user.user_type == RoomUserType::Moderator {
+                    self.issue_system_async(SendMessage {
+                        message: message.clone(),
+                        user_id: user.user_id.clone()
+                    });
+                }
+            }
+
+            model.socket.send(GenericAnswer::success(RoomResponse::JoinRequested { room: &model.room }).into());
+        } else {
+
+            /* Room does not require approvement */
+            let users = self.states.get_users_from_room(&model.room)?;
+            self.states.join_to_room(&model.room, user_id, session_id, model.room_user_type.clone())?;
+            
+            let mut connection = self.database.get()?;
+            DB::join_to_room(&mut connection, &model.room, user_id, model.room_user_type)?;
+
+            let message = serde_json::to_string(&RoomResponse::UserJoinedToRoom {
+                user: user_id,
+                room: &model.room
+            }).unwrap();
+
+            for user_id in users.into_iter() {
+                self.issue_system_async(SendMessage {
+                    message: message.clone(),
+                    user_id
+                });
+            }
+
+
+            let access_level = self.get_access_level_for_room(user_id, &model.room)?;
+            
+            let infos = self.states.get_room_info(&model.room, access_level, vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::Metas])?;
+            let room_name = infos.get_room_name();
+            let users = infos.get_users();
+            let metas = infos.get_metas();
+            
+            model.socket.send(GenericAnswer::success(RoomResponse::Joined { room_name, users, metas, room: &model.room }).into());
         }
-
-
-        let access_level = self.get_access_level_for_room(user_id, &model.room)?;
-        
-        let infos = self.states.get_room_info(&model.room, access_level, vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::Metas])?;
-        let room_name = infos.get_item(RoomInfoTypeVariant::RoomName).and_then(|p| try_unpack!(RoomInfoType::RoomName, p)).unwrap_or_default();
-        let users = infos.get_item(RoomInfoTypeVariant::Users).and_then(|p| try_unpack!(RoomInfoType::Users, p)).unwrap_or_default();
-        let metas = infos.get_item(RoomInfoTypeVariant::Metas).and_then(|p| try_unpack!(RoomInfoType::Metas, p)).unwrap_or_default();
-        
-        model.socket.send(GenericAnswer::success(RoomResponse::Joined { room_name, users, metas, room: &model.room }).into());
-
         Ok(())
     }
 }

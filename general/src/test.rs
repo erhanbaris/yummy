@@ -36,6 +36,7 @@ pub mod model {
     use serde::Deserialize;
 
     use crate::model::RoomId;
+    use crate::model::RoomUserType;
     use crate::model::UserId;
     use crate::state::RoomUserInformation;
 
@@ -83,6 +84,22 @@ pub mod model {
         pub class_type: String,
         pub user: UserId,
         pub room: RoomId,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct NewRoomJoinRequest {
+        #[serde(rename = "type")]
+        pub class_type: String,
+        pub user: UserId,
+        pub room: RoomId,
+        pub user_type: RoomUserType
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct JoinRequested {
+        #[serde(rename = "type")]
+        pub class_type: String,
+        pub room: RoomId
     }
 
     #[derive(Debug, Serialize, Deserialize)]
