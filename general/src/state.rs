@@ -137,6 +137,21 @@ impl Serialize for RoomInfoTypeCollection {
     }
 }
 
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct UserRoomPermission {
+    pub user: UserId,
+    pub user_type: RoomUserType
+}
+
+impl UserRoomPermission {
+    pub fn new(user: UserId, user_type: RoomUserType) -> Self {
+        Self {
+            user,
+            user_type
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct YummyState {
     #[allow(dead_code)]
@@ -185,6 +200,9 @@ pub enum YummyStateError {
     
     #[error("User already in room")]
     UserAlreadInRoom,
+    
+    #[error("Already requested")]
+    AlreadyRequested,
     
     #[error("User could not found in the room")]
     UserCouldNotFoundInRoom,
@@ -426,7 +444,7 @@ impl YummyState {
         match self.redis.get() {
             Ok(mut redis) => match redis_result!(redis.exists::<_, bool>(&room_info_key)) {
                 true => {
-                    let room_users_key = format!("{}room-users:{}", self.config.redis_prefix, room_id.get());
+                    let room_request_key = format!("{}room-request:{}", self.config.redis_prefix, room_id.get());
                     let user_id = user_id.to_string();
                     let room_id = room_id.to_string();
 
@@ -441,18 +459,16 @@ impl YummyState {
 
                     // If the max_user 0 or lower than users count, add to room
                     if max_user == 0 || max_user > user_len {
-                        let is_member = redis_result!(redis.hexists(&room_users_key, &user_id));
+                        let is_member = redis_result!(redis.hexists(&room_request_key, &user_id));
     
                         // User alread in the room
                         if is_member {
-                            return Err(YummyStateError::UserAlreadInRoom);
+                            return Err(YummyStateError::AlreadyRequested);
                         }
 
                         redis_result!(redis::pipe()
                             .atomic()
-                            .cmd("SADD").arg(format!("{}session-room:{}", self.config.redis_prefix, session_id.to_string())).arg(&room_id)
-                            .cmd("HINCRBY").arg(&room_info_key).arg("user-len").arg(1).ignore()
-                            .cmd("HSET").arg(room_users_key).arg(&user_id).arg(match user_type {
+                            .cmd("HSET").arg(room_request_key).arg(&user_id).arg(match user_type {
                                     crate::model::RoomUserType::User => 1,
                                     crate::model::RoomUserType::Moderator => 2,
                                     crate::model::RoomUserType::Owner => 3,
@@ -594,6 +610,24 @@ impl YummyState {
                 Err(_) => None
             },
             Err(_) => None
+        }
+    }
+
+    #[cfg(feature = "stateless")]
+    #[tracing::instrument(name="get_join_requests", skip(self))]
+    pub fn get_join_requests(&self, room_id: &RoomId) -> Result<HashMap<UserId, RoomUserType>, YummyStateError> {
+        match self.redis.get() {
+            Ok(mut redis) => {
+                let users = redis_result!(redis.hgetall::<_, HashMap<String, i32>>(format!("{}room-request:{}", self.config.redis_prefix, room_id.to_string())));
+                let users = users.into_iter().map(|(user, user_type)| (UserId::from(user), match user_type {
+                    1 => RoomUserType::User,
+                    2 => RoomUserType::Moderator,
+                    3 => RoomUserType::Owner,
+                    _ => RoomUserType::User
+                })).collect::<HashMap<_, _>>();
+                Ok(users)
+            },
+            Err(_) => Err(YummyStateError::CacheCouldNotReaded)
         }
     }
 
@@ -1083,7 +1117,12 @@ impl YummyState {
 
                 // If the max_user 0 or lower than users count, add to room
                 if room.max_user == 0 || room.max_user > users_len {
-                    room.join_requests.lock().insert(user_id.clone(), user_type);
+                    let inserted = room.join_requests.lock().insert(user_id.clone(), user_type);
+
+                    if inserted.is_some() {
+                        return Err(YummyStateError::AlreadyRequested)
+                    }
+
                     Ok(())
                 } else {
                     Err(YummyStateError::RoomHasMaxUsers)
@@ -1178,6 +1217,15 @@ impl YummyState {
     #[tracing::instrument(name="get_user_location", skip(self))]
     pub fn get_user_location(&self, user_id: &UserId) -> Option<String> {
         None
+    }
+
+    #[cfg(not(feature = "stateless"))]
+    #[tracing::instrument(name="get_join_requests", skip(self))]
+    pub fn get_join_requests(&self, room_id: &RoomId) -> Result<HashMap<UserId, RoomUserType>, YummyStateError> {
+        match self.room.lock().get(room_id) {
+            Some(room) => Ok(room.join_requests.lock().clone()),
+            None => Err(YummyStateError::RoomNotFound)
+        }
     }
 
     #[cfg(not(feature = "stateless"))]

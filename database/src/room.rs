@@ -14,16 +14,18 @@ use general::model::UserId;
 use general::model::UserMetaId;
 use general::model::{CreateRoomAccessType, RoomUserType};
 
-use crate::model::RoomMetaInsert;
+use crate::model::{RoomMetaInsert, RoomUserRequestInsert};
 use crate::model::RoomMetaModel;
 use crate::model::RoomUpdate;
-use crate::schema::room_meta;
+use crate::schema::{room_meta, room_user_request};
 use crate::{SqliteStore, PooledConnection, model::{RoomInsert, RoomTagInsert, RoomUserInsert}, schema::{room::{self}, room_tag, room_user}};
 
 pub trait RoomStoreTrait: Sized {
     fn create_room(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, join_request: bool, tags: &[String]) -> anyhow::Result<RoomId>;
     fn join_to_room(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, user_type: RoomUserType) -> anyhow::Result<()>;
+    fn join_to_room_request(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, user_type: RoomUserType) -> anyhow::Result<()>;
     fn disconnect_from_room(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId) -> anyhow::Result<()>;
+    fn get_join_requested_users(connection: &mut PooledConnection, room_id: &RoomId) -> anyhow::Result<Vec<(UserId, RoomUserType, bool)>>;
     fn get_room_meta(connection: &mut PooledConnection, room_id: &RoomId, filter: RoomMetaAccess) -> anyhow::Result<Vec<(RoomMetaId, String, MetaType<RoomMetaAccess>)>>;
     fn get_room_tag(connection: &mut PooledConnection, room_id: &RoomId) -> anyhow::Result<Vec<(RoomTagId, String)>>;
     fn remove_room_tags(connection: &mut PooledConnection, ids: Vec<RoomTagId>) -> anyhow::Result<()>;
@@ -129,6 +131,47 @@ impl RoomStoreTrait for SqliteStore {
             return Err(anyhow::anyhow!("No row inserted"));
         }
         Ok(())
+    }
+
+    #[tracing::instrument(name="Join to room request", skip(connection))]
+    fn join_to_room_request(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, user_type: RoomUserType) -> anyhow::Result<()> {
+
+        let insert = RoomUserRequestInsert {
+            id: RoomUserId::default(),
+            insert_date: SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default(),
+            room_id,
+            user_id,
+            room_user_type: user_type as i32,
+            status_updater_user_id: None,
+            status: false
+        };
+        
+        let affected_rows = diesel::insert_into(room_user_request::table).values(&vec![insert]).execute(connection)?;
+        if affected_rows == 0 {
+            return Err(anyhow::anyhow!("No row inserted"));
+        }
+        Ok(())
+    }
+
+    #[tracing::instrument(name="Join requested users", skip(connection))]
+    fn get_join_requested_users(connection: &mut PooledConnection, room_id: &RoomId) -> anyhow::Result<Vec<(UserId, RoomUserType, bool)>> {
+        let records: Vec<(UserId, i32, bool)> = room_user_request::table
+            .select((room_user_request::user_id, room_user_request::room_user_type, room_user_request::status))
+            .filter(room_user_request::room_id.eq(room_id))
+            .load(connection)?;
+        
+        let records = records.into_iter().map(|(user_id, room_user_type, status)| {
+            let room_user_type = match room_user_type {
+                1 => RoomUserType::User,
+                2 => RoomUserType::Moderator,
+                3 => RoomUserType::Owner,
+                _ => RoomUserType::User,
+            };
+
+            (user_id, room_user_type, status)
+        }).collect();
+        
+        Ok(records)
     }
 
     #[tracing::instrument(name="Disconnect from room", skip(connection))]
@@ -252,6 +295,27 @@ mod tests {
         let mut connection = db_conection()?;
         let room = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Private, 2, false, &Vec::new())?;
         SqliteStore::join_to_room(&mut connection, &room, &UserId::default(), RoomUserType::User)?;
+        Ok(())
+    }
+
+    #[test]
+    fn join_to_room_request() -> anyhow::Result<()> {
+        let mut connection = db_conection()?;
+        let room = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Private, 2, false, &Vec::new())?;
+
+        let user_1 = UserId::new();
+        let user_2 = UserId::new();
+        let user_3 = UserId::new();
+
+        SqliteStore::join_to_room_request(&mut connection, &room, &user_1, RoomUserType::User)?;
+        SqliteStore::join_to_room_request(&mut connection, &room, &user_2, RoomUserType::Moderator)?;
+        SqliteStore::join_to_room_request(&mut connection, &room, &user_3, RoomUserType::Owner)?;
+        let mut users = SqliteStore::get_join_requested_users(&mut connection, &room)?;
+
+        assert_eq!(users.len(), 3);
+        users.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+
+        assert_eq!(users, vec![(user_1, RoomUserType::User, false), (user_2, RoomUserType::Moderator, false), (user_3, RoomUserType::Owner, false)]);
         Ok(())
     }
 

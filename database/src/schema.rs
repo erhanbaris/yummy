@@ -58,6 +58,18 @@ table! {
 }
 
 table! {
+    room_user_request {
+        id -> Text,
+        room_id -> Text,
+        user_id -> Text,
+        room_user_type -> Integer,
+        status -> Bool,
+        status_updater_user_id -> Nullable<Text>,
+        insert_date -> Integer,
+    }
+}
+
+table! {
     room_meta {
         id -> Text,
         room_id ->  Text,
@@ -69,4 +81,4 @@ table! {
     }
 }
 
-allow_tables_to_appear_in_same_query!(user, user_meta, room, room_tag, room_user, room_meta,);
+allow_tables_to_appear_in_same_query!(user, user_meta, room, room_tag, room_user, room_meta, room_user_request);

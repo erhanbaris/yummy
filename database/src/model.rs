@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{schema::user, schema::user_meta, schema::room, schema::room_tag, schema::room_user, schema::room_meta};
+use crate::{schema::user, schema::user_meta, schema::room, schema::room_tag, schema::room_user, schema::room_user_request, schema::room_meta};
 use diesel::*;
 use general::meta::MetaType;
 use general::meta::UserMetaAccess;
@@ -77,6 +77,18 @@ pub struct RoomUserInsert<'a> {
     pub room_id: &'a RoomId,
     pub user_id: &'a UserId,
     pub room_user_type: i32,
+    pub insert_date: i32,
+}
+
+#[derive(Debug, Insertable)]
+#[diesel(table_name = room_user_request)]
+pub struct RoomUserRequestInsert<'a> {
+    pub id: RoomUserId,
+    pub room_id: &'a RoomId,
+    pub user_id: &'a UserId,
+    pub room_user_type: i32,
+    pub status_updater_user_id: Option<&'a UserId>,
+    pub status: bool,
     pub insert_date: i32,
 }
 

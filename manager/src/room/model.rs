@@ -31,6 +31,14 @@ pub struct JoinToRoomRequest {
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<()>")]
+pub struct WaitingRoomJoins {
+    pub user: Arc<Option<UserAuth>>,
+    pub room: RoomId,
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
+}
+
 #[derive(Message, Validate, Debug, Clone)]
 #[rtype(result = "()")]
 pub struct DisconnectFromRoomRequest {
@@ -97,7 +105,10 @@ pub enum RoomError {
     MetaLimitOverToMaximum,
 
     #[error("User does not have enough permission")]
-    UserDoesNotHaveEnoughPermission
+    UserDoesNotHaveEnoughPermission,
+
+    #[error("User is not in the room")]
+    UserNotInTheRoom
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -112,6 +123,10 @@ pub enum RoomResponse<'a> {
     },
     JoinRequested {
         room: &'a RoomId,
+    },
+    WaitingRoomJoins {
+        room: &'a RoomId,
+        users: HashMap<UserId, RoomUserType>,
     },
     NewJoinRequest {
         room: &'a RoomId,

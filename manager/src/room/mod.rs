@@ -362,6 +362,33 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
     }
 }
 
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<WaitingRoomJoins> for RoomManager<DB> {
+    type Result = anyhow::Result<()>;
+
+    #[tracing::instrument(name="WaitingRoomJoins", skip(self, _ctx))]
+    #[macros::api(name="WaitingRoomJoins", socket=true)]
+    fn handle(&mut self, model: WaitingRoomJoins, _ctx: &mut Context<Self>) -> Self::Result {
+        // Check user information
+        let user_id = match model.user.deref() {
+            Some(user) => &user.user,
+            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
+        };
+
+        let user_type = match self.states.get_users_room_type(&user_id, &model.room) {
+            Some(room_user_type) => room_user_type,
+            None => return Err(anyhow::anyhow!(RoomError::UserNotInTheRoom))
+        };
+
+        if user_type == RoomUserType::User {
+            return Err(anyhow::anyhow!(RoomError::UserDoesNotHaveEnoughPermission));
+        }
+
+        let users = self.states.get_join_requests(&model.room)?;
+        model.socket.send(GenericAnswer::success(RoomResponse::WaitingRoomJoins { room: &model.room, users }).into());
+        Ok(())
+    }
+}
+
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRoomRequest> for RoomManager<DB> {
     type Result = anyhow::Result<()>;
 
@@ -375,12 +402,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
         };
 
         let room_infos = self.states.get_room_info(&model.room, RoomMetaAccess::System, vec![RoomInfoTypeVariant::JoinRequest])?;
-        let join_request = room_infos.get_join_request();
+        let join_require_approvement = room_infos.get_join_request();
 
-        if join_request.into_owned() {
+        if join_require_approvement.into_owned() {
 
             /* Room require approvement before join to it */
             self.states.join_to_room_request(&model.room, user_id, session_id, model.room_user_type.clone())?;
+
+            // Save to database
+            let mut connection = self.database.get()?;
+            DB::join_to_room_request(&mut connection, &model.room, &user_id, model.room_user_type.clone())?;
 
             let room_infos = self.states.get_room_info(&model.room, RoomMetaAccess::System, vec![RoomInfoTypeVariant::Users])?;
             let users = room_infos.get_users();

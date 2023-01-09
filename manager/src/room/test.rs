@@ -187,13 +187,9 @@ async fn create_room_3() -> anyhow::Result<()> {
     let message = message.result;
     assert_eq!(&message.class_type[..], "Joined");
 
-    let user_1_id = user_1.clone().deref().as_ref().unwrap().user.clone();
-
     // User 1 should receive other 2 users join message
     let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     assert_eq!(message.user, user_2.as_ref().clone().unwrap().user);
-
-    let room_id = message.room;
 
     let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     assert_eq!(message.user, user_3.as_ref().clone().unwrap().user);
@@ -291,7 +287,7 @@ async fn create_room_4() -> anyhow::Result<()> {
         user: user_1.clone(),
         room: room_id,
         socket:user_1_socket.clone()
-    }).await;
+    }).await.unwrap();
 
     let message = user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap();
     let message: UserDisconnectedFromRoom = serde_json::from_str(&message).unwrap();
@@ -537,11 +533,9 @@ async fn room_meta_check() -> anyhow::Result<()> {
 async fn room_update() -> anyhow::Result<()> {
     let (room_manager, auth_manager, config, _, user_1_socket) = create_actor()?;
     let user_1 = email_auth!(auth_manager, config.clone(), "user1@gmail.com".to_string(), "erhan".into(), true, user_1_socket);
-    let user_1_id = user_1.clone().deref().as_ref().unwrap().user.clone();
 
     let user_2_socket = Arc::new(DummyClient::default());
     let user_2 = email_auth!(auth_manager, config.clone(), "user2@gmail.com".to_string(), "erhan".into(), true, user_2_socket);
-    let user_2_id = user_2.clone().deref().as_ref().unwrap().user.clone();
 
     room_manager.send(CreateRoomRequest {
         user: user_1.clone(),
@@ -868,6 +862,19 @@ async fn room_join_request() -> anyhow::Result<()> {
     let message: JoinRequested = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
     assert_eq!(&message.class_type[..], "JoinRequested");
     assert_eq!(&message.room, &room_1_id);
+
+    // Get waiting list
+    room_manager.send(WaitingRoomJoins {
+        user: user_1_auth.clone(),
+        room: room_1_id,
+        socket:user_1_socket.clone()
+    }).await??;
+
+    let message: WaitingRoomJoinsResponse = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    assert_eq!(&message.class_type[..], "WaitingRoomJoins");
+    assert_eq!(&message.room, &room_1_id);
+    assert_eq!(&message.users, &HashMap::from([(user_2_auth_jwt.id.deref().clone(), RoomUserType::User)]));
+
     /* #endregion */
 
     return Ok(());

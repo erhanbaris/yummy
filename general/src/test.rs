@@ -32,6 +32,8 @@ impl Default for DummyClient {
 }
 
 pub mod model {
+    use std::collections::HashMap;
+
     use serde::Serialize;
     use serde::Deserialize;
 
@@ -100,6 +102,14 @@ pub mod model {
         #[serde(rename = "type")]
         pub class_type: String,
         pub room: RoomId
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct WaitingRoomJoinsResponse {
+        #[serde(rename = "type")]
+        pub class_type: String,
+        pub room: RoomId,
+        pub users: HashMap<UserId, RoomUserType>
     }
 
     #[derive(Debug, Serialize, Deserialize)]
