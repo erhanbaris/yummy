@@ -4,20 +4,21 @@ Code coverage requires additional setup and has been tested on **Os X** system o
 
 !!! command "To generate code coverage result"
     ```bash
-    RUSTFLAGS='-Cinstrument-coverage' LLVM_PROFILE_FILE='cargo-test-%p-%m.profraw' cargo test --all
+    RUSTFLAGS='-Cinstrument-coverage' LLVM_PROFILE_FILE='cargo-normal-%p-%m.profraw' cargo test --all
 
-    grcov . \
-        --binary-path ./target/debug/deps/ \
-        -s . \
-        -t html \
-        --ignore-not-existing \
-        --ignore '../*' \
-        --ignore "/*" \
-        --ignore server/src/main.rs \
-        --ignore server/src/api/websocket/client.rs \
-        --ignore "*test.rs" \
-        --ignore "*tests.rs" \
-        -o html
+        grcov . \
+            --binary-path ./target/debug/deps/ \
+            --source-dir . \
+            --ignore-not-existing \
+            --excl-start 'mod test* \{' \
+            --ignore 'tests/*' \
+            --ignore server/src/main.rs \
+            --ignore server/src/api/websocket/client.rs \
+            --ignore general/src/client.rs \
+            --ignore "*test.rs" \
+            --ignore "*tests.rs" \
+            -t html \
+            -o html
 
     find . -name "*.profraw" -type f -delete
     ```
