@@ -566,6 +566,7 @@ impl YummyState {
                         .cmd("DEL").arg(format!("{}room-meta-val:{}", self.config.redis_prefix, room_id)).ignore()
                         .cmd("DEL").arg(format!("{}room-meta-type:{}", self.config.redis_prefix, room_id)).ignore()
                         .cmd("DEL").arg(format!("{}room-meta-acc:{}", self.config.redis_prefix, room_id)).ignore()
+                        .cmd("DEL").arg(format!("{}room-request:{}", self.config.redis_prefix, room_id)).ignore()
                         .query::<(Vec<String>,)>(&mut redis));
 
                     // Remove tags
@@ -1759,4 +1760,69 @@ mod tests {
 
         Ok(())
     }
+
+    #[actix::test]
+    async fn join_request_test() -> anyhow::Result<()> {
+        configure_environment();
+        let mut config = get_configuration().deref().clone();
+
+        #[cfg(feature = "stateless")] {  
+            use rand::Rng;     
+            config.redis_prefix = format!("{}:", rand::thread_rng().gen::<usize>().to_string());
+        }
+    
+        let config = Arc::new(config);
+        
+        #[cfg(feature = "stateless")]
+        let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
+
+
+        DummyActor{}.start().recipient::<SendMessage>();
+        let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
+        
+        let room_id = RoomId::new();
+        state.create_room(&room_id, 1234, Some("room".to_string()), None, CreateRoomAccessType::Friend, 2, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()], Some(HashMap::from([
+            ("gender".to_string(), MetaType::String("Male".to_string(), RoomMetaAccess::User)),
+            ("location".to_string(), MetaType::String("Copenhagen".to_string(), RoomMetaAccess::User)),
+            ("postcode".to_string(), MetaType::Number(1000.0, RoomMetaAccess::Moderator)),
+            ("score".to_string(), MetaType::Number(15.3, RoomMetaAccess::Anonymous)),
+            ("temp_admin".to_string(), MetaType::Bool(true, RoomMetaAccess::Admin)),
+        ])), true);
+
+        let user_1 = UserId::new();
+        let user_2 = UserId::new();
+        let user_3 = UserId::new();
+        let user_4 = UserId::new();
+
+        let user_1_session = state.new_session(&user_1, None, UserType::User);
+        let user_2_session = state.new_session(&user_2, None, UserType::User);
+        let user_3_session = state.new_session(&user_3, None, UserType::User);
+        let user_4_session = state.new_session(&user_3, None, UserType::User);
+        
+        state.join_to_room(&room_id, &user_1, &user_1_session, RoomUserType::Owner)?;
+        state.join_to_room_request(&room_id, &user_2, &user_2_session, RoomUserType::User)?;
+        state.join_to_room_request(&room_id, &user_3, &user_3_session, RoomUserType::Moderator)?;
+        state.join_to_room_request(&room_id, &user_4, &user_4_session, RoomUserType::Owner)?;
+
+        let mut waiting_users = state.get_join_requests(&room_id)?;
+        assert_eq!(waiting_users.len(), 3);
+
+        assert_eq!(waiting_users.get(&user_2).cloned(), Some(RoomUserType::User));
+        assert_eq!(waiting_users.get(&user_3).cloned(), Some(RoomUserType::Moderator));
+        assert_eq!(waiting_users.get(&user_4).cloned(), Some(RoomUserType::Owner));
+
+        assert_eq!(state.disconnect_from_room(&room_id, &user_1, &user_1_session)?, true);
+
+        assert!(!state.is_empty());
+
+        state.close_session(&user_1, &user_1_session);
+        state.close_session(&user_2, &user_2_session);
+        state.close_session(&user_3, &user_3_session);
+        state.close_session(&user_4, &user_4_session);
+
+        assert!(state.is_empty());
+
+        Ok(())
+    }
+    
 }
