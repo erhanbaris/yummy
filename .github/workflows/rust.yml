@@ -46,7 +46,7 @@ jobs:
         LLVM_PROFILE_FILE: "target/coverage/normal/%p-%m.profraw"
         RUSTFLAGS: "-Cinstrument-coverage"
     
-    - name: Run tests
+    - name: Run tests - stateless
       run: cargo test --all --features stateless
       env:
         DEFAULT_REDIS_URL: "redis://redis/"
@@ -59,7 +59,6 @@ jobs:
             --binary-path ./target/debug/deps/ \
             --source-dir . \
             --ignore-not-existing \
-            --branch \
             --excl-start 'mod test* \{' \
             --ignore 'tests/*' \
             --ignore server/src/main.rs \
@@ -76,3 +75,7 @@ jobs:
         files: lcov.info
         fail_ci_if_error: false
 
+    - name: Coveralls GitHub Action
+      uses: coverallsapp/github-action@v1.1.2
+      with:
+        github-token: ${{ github.token }}
