@@ -11,9 +11,23 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+    
+    - name: Check - no-default-features
+      run: cargo test --workspace --no-default-features
+    
+    - name: Check - all-features
+      run: cargo test --workspace --all-features
 
+  test:
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
     
@@ -27,30 +41,18 @@ jobs:
         rustup component add llvm-tools-preview
         cargo install grcov
     
-    - name: Check
-      run: cargo check
-      env:
-        RUSTFLAGS: "-Cinstrument-coverage"
-  
     - name: Start Redis
       uses: supercharge/redis-github-action@1.4.0
-
-    - name: Check stateless
-      run: cargo check --features stateless
+    
+    - name: Run tests - no-default-features
+      run: cargo test --workspace --no-default-features
       env:
         RUSTFLAGS: "-Cinstrument-coverage"
     
-    - name: Run tests
-      run: cargo test --all
-      env:
-        LLVM_PROFILE_FILE: "target/coverage/normal/%p-%m.profraw"
-        RUSTFLAGS: "-Cinstrument-coverage"
-    
-    - name: Run tests - stateless
-      run: cargo test --all --features stateless
+    - name: Run tests - all-features
+      run: cargo test --workspace --all-features
       env:
         DEFAULT_REDIS_URL: "redis://redis/"
-        LLVM_PROFILE_FILE: "target/coverage/stateless/%p-%m.profraw"
         RUSTFLAGS: "-Cinstrument-coverage"
 
     - name: Create coverage report
@@ -74,9 +76,3 @@ jobs:
       with:
         files: lcov.info
         fail_ci_if_error: false
-
-    - name: Coveralls GitHub Action
-      uses: coverallsapp/github-action@v1.1.2
-      with:
-        github-token: ${{ github.token }}
-        path-to-lcov: lcov.info
