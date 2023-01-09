@@ -35,12 +35,32 @@ jobs:
       with:
         toolchain: stable
         override: true
-
-    - name: Run cargo-tarpaulin
-      uses: actions-rs/tarpaulin@v0.1
-      with:
-        version: '0.15.0'
-        args: '-- --test-threads 1'
+    
+    - name: Install grcov
+      run: |
+        rustup component add llvm-tools-preview
+        cargo install grcov
+    
+    - name: Run tests
+      run: cargo test --all
+      env:
+        RUSTFLAGS: "-Cinstrument-coverage"
+    
+    - name: Create coverage report
+      run: |
+        grcov . \
+            --binary-path ./target/debug/deps/ \
+            --source-dir . \
+            --ignore-not-existing \
+            --excl-start 'mod test* \{' \
+            --ignore 'tests/*' \
+            --ignore server/src/main.rs \
+            --ignore server/src/api/websocket/client.rs \
+            --ignore general/src/client.rs \
+            --ignore "*test.rs" \
+            --ignore "*tests.rs" \
+            -t lcov \
+            -o lcov.info
 
     - name: Codecov
       uses: codecov/codecov-action@v3.1.1
@@ -58,21 +78,35 @@ jobs:
         toolchain: stable
         override: true
     
+    - name: Install grcov
+      run: |
+        rustup component add llvm-tools-preview
+        cargo install grcov
+    
     - name: Start Redis
       uses: supercharge/redis-github-action@1.4.0
-  
-    - name: Run cargo-tarpaulin
-      uses: actions-rs/tarpaulin@v0.1
-      with:
-        version: '0.15.0'
-        args: '--features stateless -- --test-threads 1'
-
+    
     - name: Run tests - stateless
       run: cargo test --all --features stateless
       env:
         DEFAULT_REDIS_URL: "redis://redis/"
         RUSTFLAGS: "-Cinstrument-coverage"
 
+    - name: Create coverage report
+      run: |
+        grcov . \
+            --binary-path ./target/debug/deps/ \
+            --source-dir . \
+            --ignore-not-existing \
+            --excl-start 'mod test* \{' \
+            --ignore 'tests/*' \
+            --ignore server/src/main.rs \
+            --ignore server/src/api/websocket/client.rs \
+            --ignore general/src/client.rs \
+            --ignore "*test.rs" \
+            --ignore "*tests.rs" \
+            -t lcov \
+            -o lcov.info
 
     - name: Codecov
       uses: codecov/codecov-action@v3.1.1
