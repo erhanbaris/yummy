@@ -20,11 +20,11 @@ jobs:
         toolchain: stable
         override: true
     
-    - name: Check - no-default-features
-      run: cargo test --workspace --no-default-features
+    - name: Check 
+      run: cargo check
     
-    - name: Check - all-features
-      run: cargo test --workspace --all-features
+    - name: Check - stateless
+      run: cargo check --features stateless
 
   test:
     runs-on: ubuntu-latest
@@ -44,13 +44,13 @@ jobs:
     - name: Start Redis
       uses: supercharge/redis-github-action@1.4.0
     
-    - name: Run tests - no-default-features
-      run: cargo test --workspace --no-default-features
+    - name: Run tests
+      run: cargo test --all
       env:
         RUSTFLAGS: "-Cinstrument-coverage"
     
-    - name: Run tests - all-features
-      run: cargo test --workspace --all-features
+    - name: Run tests - stateless
+      run: cargo test --all --features stateless
       env:
         DEFAULT_REDIS_URL: "redis://redis/"
         RUSTFLAGS: "-Cinstrument-coverage"
