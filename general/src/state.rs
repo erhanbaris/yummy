@@ -352,6 +352,9 @@ impl YummyState {
 
                     .cmd("DEL").arg(format!("{}users:{}", self.config.redis_prefix, user_id_str))
                         .ignore()
+
+                    .cmd("DEL").arg(format!("{}user-jrequest:{}", self.config.redis_prefix, user_id_str))
+                        .ignore()
                     
                     .cmd("SREM").arg(format!("{}online-users", self.config.redis_prefix))
                         .arg(&user_id_str)
@@ -377,12 +380,6 @@ impl YummyState {
     pub fn create_room(&self, room_id: &RoomId, insert_date: i32, name: Option<String>,  description: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: Vec<String>, metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>, join_request: bool) {
         if let Ok(mut redis) = self.redis.get() {
             let room_id = room_id.to_string();
-            let access_type = match access_type {
-                CreateRoomAccessType::Public => 1,
-                CreateRoomAccessType::Private => 2,
-                CreateRoomAccessType::Friend => 3,
-            };
-
             
             let mut pipes = &mut redis::pipe();
             pipes = pipes
@@ -392,7 +389,7 @@ impl YummyState {
                     .arg("max-user").arg(max_user)
                     .arg("user-len").arg(0_usize)
                     .arg("name").arg(name.unwrap_or_default())
-                    .arg("access").arg(access_type)
+                    .arg("access").arg(access_type as i32)
                     .arg("idate").arg(insert_date)
                     .arg("join").arg(join_request)
                     .arg("desc").arg(description.unwrap_or_default())
@@ -468,11 +465,8 @@ impl YummyState {
 
                         redis_result!(redis::pipe()
                             .atomic()
-                            .cmd("HSET").arg(room_request_key).arg(&user_id).arg(match user_type {
-                                    crate::model::RoomUserType::User => 1,
-                                    crate::model::RoomUserType::Moderator => 2,
-                                    crate::model::RoomUserType::Owner => 3,
-                                }).ignore()
+                            .cmd("HSET").arg(format!("{}user-jrequest:{}", self.config.redis_prefix, &user_id)).arg(&room_id).arg(session_id.to_string())
+                            .cmd("HSET").arg(room_request_key).arg(&user_id).arg(user_type as i32).ignore()
                             .query::<()>(&mut redis));
                         Ok(())
                     } else {
@@ -519,11 +513,7 @@ impl YummyState {
                             .atomic()
                             .cmd("SADD").arg(format!("{}session-room:{}", self.config.redis_prefix, session_id.to_string())).arg(&room_id)
                             .cmd("HINCRBY").arg(&room_info_key).arg("user-len").arg(1).ignore()
-                            .cmd("HSET").arg(room_users_key).arg(&user_id).arg(match user_type {
-                                    crate::model::RoomUserType::User => 1,
-                                    crate::model::RoomUserType::Moderator => 2,
-                                    crate::model::RoomUserType::Owner => 3,
-                                }).ignore()
+                            .cmd("HSET").arg(room_users_key).arg(&user_id).arg(user_type as i32).ignore()
                             .query::<()>(&mut redis));
                         Ok(())
                     } else {
@@ -619,14 +609,29 @@ impl YummyState {
     pub fn get_join_requests(&self, room_id: &RoomId) -> Result<HashMap<UserId, RoomUserType>, YummyStateError> {
         match self.redis.get() {
             Ok(mut redis) => {
-                let users = redis_result!(redis.hgetall::<_, HashMap<String, i32>>(format!("{}room-request:{}", self.config.redis_prefix, room_id.to_string())));
-                let users = users.into_iter().map(|(user, user_type)| (UserId::from(user), match user_type {
-                    1 => RoomUserType::User,
-                    2 => RoomUserType::Moderator,
-                    3 => RoomUserType::Owner,
-                    _ => RoomUserType::User
-                })).collect::<HashMap<_, _>>();
+                let users = redis_result!(redis.hgetall::<_, HashMap<UserId, RoomUserType>>(format!("{}room-request:{}", self.config.redis_prefix, room_id.to_string())));
                 Ok(users)
+            },
+            Err(_) => Err(YummyStateError::CacheCouldNotReaded)
+        }
+    }
+
+    #[cfg(feature = "stateless")]
+    #[tracing::instrument(name="update_waiting_user_status", skip(self))]
+    pub fn remove_user_from_waiting_list(&mut self, user_id: &UserId, room_id: &RoomId) -> Result<(SessionId, RoomUserType), YummyStateError> {
+        match self.redis.get() {
+            Ok(mut redis) => {
+                let user_id = user_id.to_string();
+                let room_id = room_id.to_string();
+                
+                let (session_id, room_user_type) = redis_result!(redis::pipe()
+                    .cmd("HGET").arg(format!("{}user-jrequest:{}", self.config.redis_prefix, &user_id)).arg(&room_id)
+                    .cmd("HDEL").arg(format!("{}user-jrequest:{}", self.config.redis_prefix, &user_id)).arg(&room_id).ignore()
+                    .cmd("HGET").arg(format!("{}room-request:{}",  self.config.redis_prefix, &room_id)).arg(&user_id)
+                    .cmd("HDEL").arg(format!("{}room-request:{}",  self.config.redis_prefix, &room_id)).arg(&user_id).ignore()
+                    .query::<(SessionId, RoomUserType)>(&mut redis));
+
+                Ok((session_id, room_user_type))
             },
             Err(_) => Err(YummyStateError::CacheCouldNotReaded)
         }
@@ -681,28 +686,18 @@ impl YummyState {
 
                             // This request is slow compare to other. We should change it to lua script to increase performance
                             let mut user_infos = Vec::new();
-                            let users = redis_result!(redis.hgetall::<_, HashMap<String, i32>>(format!("{}room-users:{}", self.config.redis_prefix, &room_id)));
-                            for (user_id, user_type) in users.iter() {
-                                let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id), "name"));
+                            let users = redis_result!(redis.hgetall::<_, HashMap<UserId, RoomUserType>>(format!("{}room-users:{}", self.config.redis_prefix, &room_id)));
+                            for (user_id, user_type) in users.into_iter() {
+                                let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, &user_id.to_string()), "name"));
                                 user_infos.push(RoomUserInformation {
                                     name: if name.is_empty() { None } else { Some(name) },
-                                    user_id: Arc::new(UserId::from(uuid::Uuid::parse_str(user_id).unwrap_or_default())),
-                                    user_type: match user_type {
-                                        1 => RoomUserType::User,
-                                        2 => RoomUserType::Moderator,
-                                        3 => RoomUserType::Owner,
-                                        _ => RoomUserType::User
-                                    }
+                                    user_id: Arc::new(user_id),
+                                    user_type
                                 })
                             }
                             result.items.push(RoomInfoType::Users(user_infos));
                         },
-                        RoomInfoTypeVariant::AccessType => result.items.push(RoomInfoType::AccessType(match FromRedisValue::from_redis_value(&room_info).unwrap_or_default() {
-                            1 => CreateRoomAccessType::Public,
-                            2 => CreateRoomAccessType::Private,
-                            3 => CreateRoomAccessType::Friend,
-                            _ => CreateRoomAccessType::Public
-                        })),
+                        RoomInfoTypeVariant::AccessType => result.items.push(RoomInfoType::AccessType(FromRedisValue::from_redis_value(&room_info).unwrap_or_default())),
                         RoomInfoTypeVariant::JoinRequest => result.items.push(RoomInfoType::JoinRequest(FromRedisValue::from_redis_value(&room_info).unwrap_or_default())),
                         RoomInfoTypeVariant::InsertDate => result.items.push(RoomInfoType::InsertDate(FromRedisValue::from_redis_value(&room_info).unwrap_or_default())),
                         RoomInfoTypeVariant::MaxUser => result.items.push(RoomInfoType::MaxUser(FromRedisValue::from_redis_value(&room_info).unwrap_or_default())),
@@ -924,28 +919,18 @@ impl YummyState {
     
                                 // This request is slow compare to other. We should change it to lua script to increase performance
                                 let mut user_infos = Vec::new();
-                                let users = redis_result!(redis.hgetall::<_, HashMap<String, i32>>(format!("{}room-users:{}", self.config.redis_prefix, room_id.get())));
-                                for (user_id, user_type) in users.iter() {
-                                    let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, user_id), "name"));
+                                let users = redis_result!(redis.hgetall::<_, HashMap<UserId, RoomUserType>>(format!("{}room-users:{}", self.config.redis_prefix, room_id.get())));
+                                for (user_id, user_type) in users.into_iter() {
+                                    let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, &user_id.to_string()), "name"));
                                     user_infos.push(RoomUserInformation {
                                         name: if name.is_empty() { None } else { Some(name) },
-                                        user_id: Arc::new(UserId::from(uuid::Uuid::parse_str(user_id).unwrap_or_default())),
-                                        user_type: match user_type {
-                                            1 => RoomUserType::User,
-                                            2 => RoomUserType::Owner,
-                                            3 => RoomUserType::Moderator,
-                                            _ => RoomUserType::User
-                                        }
+                                        user_id: Arc::new(user_id),
+                                        user_type
                                     })
                                 }
                                 room_info.items.push(RoomInfoType::Users(user_infos));
                             },
-                            RoomInfoTypeVariant::AccessType => room_info.items.push(RoomInfoType::AccessType(match FromRedisValue::from_redis_value(redis_value).unwrap_or_default() {
-                                1 => CreateRoomAccessType::Public,
-                                2 => CreateRoomAccessType::Private,
-                                3 => CreateRoomAccessType::Friend,
-                                _ => CreateRoomAccessType::Public
-                            })),
+                            RoomInfoTypeVariant::AccessType => room_info.items.push(RoomInfoType::AccessType(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
                             RoomInfoTypeVariant::InsertDate => room_info.items.push(RoomInfoType::InsertDate(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
                             RoomInfoTypeVariant::JoinRequest => room_info.items.push(RoomInfoType::JoinRequest(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
                             RoomInfoTypeVariant::MaxUser => room_info.items.push(RoomInfoType::MaxUser(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
@@ -1031,7 +1016,7 @@ impl YummyState {
                 user.sessions.insert(session_id.clone());
             },
             None => {
-                users.insert(user_id.clone(), crate::model::UserState { user_id: user_id.clone(), name, sessions: HashSet::from([session_id.clone()]), user_type });
+                users.insert(user_id.clone(), crate::model::UserState { user_id: user_id.clone(), name, sessions: HashSet::from([session_id.clone()]), user_type, join_requests: HashMap::default() });
             }
         }
         session_id
@@ -1124,11 +1109,42 @@ impl YummyState {
                         return Err(YummyStateError::AlreadyRequested)
                     }
 
+                    match self.user.lock().get_mut(&user_id) {
+                        Some(user) => user.join_requests.insert(room_id.clone(), session_id.clone()),
+                        None => return Err(YummyStateError::UserNotFound)
+                    };
+
                     Ok(())
                 } else {
                     Err(YummyStateError::RoomHasMaxUsers)
                 }
             }
+            None => Err(YummyStateError::RoomNotFound)
+        }
+    }
+
+    #[cfg(not(feature = "stateless"))]
+    #[tracing::instrument(name="update_waiting_user_status", skip(self))]
+    pub fn remove_user_from_waiting_list(&mut self, user_id: &UserId, room_id: &RoomId) -> Result<(SessionId, RoomUserType), YummyStateError> {
+        match self.room.lock().get_mut(room_id.borrow()) {
+            Some(room) => {
+                let room_user_type = match room.join_requests.lock().remove(user_id) {
+                    Some(room_user_type) => room_user_type,
+                    None => return Err(YummyStateError::UserNotFound)
+                };
+
+                let session_id = match self.user.lock().get_mut(user_id) {
+                    Some(user) => user.join_requests.remove(room_id),
+                    None => return Err(YummyStateError::UserNotFound)
+                };
+
+                let session_id = match session_id {
+                    Some(session_id) => session_id,
+                    None => return Err(YummyStateError::UserNotFound)
+                };
+
+                Ok((session_id, room_user_type))
+            },
             None => Err(YummyStateError::RoomNotFound)
         }
     }
@@ -1797,14 +1813,14 @@ mod tests {
         let user_1_session = state.new_session(&user_1, None, UserType::User);
         let user_2_session = state.new_session(&user_2, None, UserType::User);
         let user_3_session = state.new_session(&user_3, None, UserType::User);
-        let user_4_session = state.new_session(&user_3, None, UserType::User);
+        let user_4_session = state.new_session(&user_4, None, UserType::User);
         
         state.join_to_room(&room_id, &user_1, &user_1_session, RoomUserType::Owner)?;
         state.join_to_room_request(&room_id, &user_2, &user_2_session, RoomUserType::User)?;
         state.join_to_room_request(&room_id, &user_3, &user_3_session, RoomUserType::Moderator)?;
         state.join_to_room_request(&room_id, &user_4, &user_4_session, RoomUserType::Owner)?;
 
-        let mut waiting_users = state.get_join_requests(&room_id)?;
+        let waiting_users = state.get_join_requests(&room_id)?;
         assert_eq!(waiting_users.len(), 3);
 
         assert_eq!(waiting_users.get(&user_2).cloned(), Some(RoomUserType::User));

@@ -18,6 +18,7 @@ use general::state::YummyState;
 use general::web::{GenericAnswer, Answer};
 
 use crate::auth::model::AuthError;
+use crate::get_user_id_from_auth;
 
 use self::model::*;
 
@@ -122,12 +123,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
     #[tracing::instrument(name="UpdateUser", skip(self, _ctx))]
     #[macros::api(name="UpdateUser", socket=true)]
     fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
-        let UpdateUser { user, name, socket, email, password, device_id, custom_id, user_type, meta, meta_action, target_user_id } = model;
+        let UpdateUser { name, socket, email, password, device_id, custom_id, user_type, meta, meta_action, target_user_id, .. } = model;
 
-        let user_id = match user.deref() {
-            Some(user) => &user.user,
-            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
-        };
+        let user_id = get_user_id_from_auth!(model);
 
         let target_user_id = match &target_user_id {
             Some(target_user_id) => target_user_id,

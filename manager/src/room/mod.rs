@@ -21,6 +21,7 @@ use general::state::{YummyState, SendMessage, RoomInfoTypeVariant, RoomInfoType}
 use general::web::{GenericAnswer, Answer};
 
 use crate::auth::model::AuthError;
+use crate::{get_user_session_id_from_auth, get_user_id_from_auth};
 use crate::user::model::UserError;
 
 use self::model::*;
@@ -57,6 +58,39 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for RoomMa
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> {
+    fn join_to_room(&mut self, connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, room_user_type: RoomUserType) -> anyhow::Result<()> {
+        /* Room does not require approvement */
+        let users = self.states.get_users_from_room(&room_id)?;
+        self.states.join_to_room(&room_id, user_id, session_id, room_user_type.clone())?;
+        
+        DB::join_to_room(connection, &room_id, user_id, room_user_type)?;
+
+        let message = serde_json::to_string(&RoomResponse::UserJoinedToRoom {
+            user: user_id,
+            room: &room_id
+        }).unwrap();
+
+        for user_id in users.into_iter() {
+            self.issue_system_async(SendMessage {
+                message: message.clone(),
+                user_id
+            });
+        }
+
+        let access_level = self.get_access_level_for_room(user_id, &room_id)?;
+        
+        let infos = self.states.get_room_info(&room_id, access_level, vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::Metas])?;
+        let room_name = infos.get_room_name();
+        let users = infos.get_users();
+        let metas = infos.get_metas();
+        
+        self.issue_system_async(SendMessage {
+            user_id: Arc::new(user_id.clone()),
+            message: GenericAnswer::success(RoomResponse::Joined { room_name, users, metas, room: &room_id }).into()
+        });
+        Ok(())
+    }
+
     fn disconnect_from_room(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId) -> anyhow::Result<bool> {
         let room_removed = self.states.disconnect_from_room(room_id, user_id, session_id)?;
         let users = self.states.get_users_from_room(room_id)?;
@@ -218,7 +252,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisc
     fn handle(&mut self, model: UserDisconnect, _ctx: &mut Self::Context) -> Self::Result {
         println!("room:UserDisconnect");
 
-        if let Some(user) = model.user.deref() {
+        if let Some(user) = model.auth.deref() {
             let rooms = self.states.get_user_rooms(&user.user, &user.session);
     
             if let Some(rooms) = rooms {
@@ -236,13 +270,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
     #[tracing::instrument(name="CreateRoom", skip(self, _ctx))]
     #[macros::api(name="CreateRoom", socket=true)]
     fn handle(&mut self, model: CreateRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
-        let CreateRoomRequest { access_type, max_user, name, description, tags, user, metas, join_request, socket } = model;
+        let CreateRoomRequest { access_type, max_user, name, description, tags, metas, join_request, socket, .. } = model;
         
         // Check user information
-        let (user_id, session_id) = match user.deref() {
-            Some(user) => (&user.user, &user.session),
-            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
-        };
+        let (user_id, session_id) = get_user_session_id_from_auth!(model);
 
         let mut connection = self.database.get()?;
 
@@ -259,6 +290,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
                 None => return Err(anyhow::anyhow!(UserError::UserNotFound))
             };
             
+            #[allow(unused_mut)]
             let (mut meta, _) = self.configure_metas(connection, &room_id, metas, Some(MetaAction::OnlyAddOrUpdate), access_level)?;
             
             self.states.create_room(&room_id, insert_date, name, description, access_type, max_user, tags, meta, join_request);
@@ -280,12 +312,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
     #[macros::api(name="UpdateRoom", socket=true)]
     fn handle(&mut self, model: UpdateRoom, _ctx: &mut Context<Self>) -> Self::Result {
 
-        let UpdateRoom { user, room_id, name, description, socket, metas, meta_action, access_type, max_user, tags, user_permission, join_request } = model;
+        let user_id = get_user_id_from_auth!(model);
 
-        let user_id = match user.deref() {
-            Some(user) => &user.user,
-            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
-        };
+        let UpdateRoom { room_id, name, description, socket, metas, meta_action, access_type, max_user, tags, user_permission, join_request, .. } = model;
 
         let has_room_update = access_type.is_some() || max_user.is_some() || name.is_some() || description.is_some();
 
@@ -309,6 +338,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
         DB::transaction::<_, anyhow::Error, _>(&mut connection, move |connection| {
 
             /* Meta configuration */
+            #[allow(unused_mut)]
             let (mut metas, mut remaining) = self.configure_metas(connection, &model.room_id, metas, meta_action, access_level)?;
 
             /* Tag configuration */
@@ -369,10 +399,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<WaitingR
     #[macros::api(name="WaitingRoomJoins", socket=true)]
     fn handle(&mut self, model: WaitingRoomJoins, _ctx: &mut Context<Self>) -> Self::Result {
         // Check user information
-        let user_id = match model.user.deref() {
-            Some(user) => &user.user,
-            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
-        };
+        let user_id = get_user_id_from_auth!(model);
 
         let user_type = match self.states.get_users_room_type(&user_id, &model.room) {
             Some(room_user_type) => room_user_type,
@@ -396,13 +423,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
     #[macros::api(name="JoinToRoom", socket=true)]
     fn handle(&mut self, model: JoinToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
         // Check user information
-        let (user_id, session_id) = match model.user.deref() {
-            Some(user) => (&user.user, &user.session),
-            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
-        };
+        let (user_id, session_id) = get_user_session_id_from_auth!(model);
 
         let room_infos = self.states.get_room_info(&model.room, RoomMetaAccess::System, vec![RoomInfoTypeVariant::JoinRequest])?;
         let join_require_approvement = room_infos.get_join_request();
+        let mut connection = self.database.get()?;
 
         if join_require_approvement.into_owned() {
 
@@ -410,7 +435,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
             self.states.join_to_room_request(&model.room, user_id, session_id, model.room_user_type.clone())?;
 
             // Save to database
-            let mut connection = self.database.get()?;
             DB::join_to_room_request(&mut connection, &model.room, &user_id, model.room_user_type.clone())?;
 
             let room_infos = self.states.get_room_info(&model.room, RoomMetaAccess::System, vec![RoomInfoTypeVariant::Users])?;
@@ -429,36 +453,46 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
 
             model.socket.send(GenericAnswer::success(RoomResponse::JoinRequested { room: &model.room }).into());
         } else {
+            // User can directly try to join room
+            self.join_to_room(&mut connection, &model.room, user_id, session_id, model.room_user_type)?;
+        }
+        Ok(())
+    }
+}
 
-            /* Room does not require approvement */
-            let users = self.states.get_users_from_room(&model.room)?;
-            self.states.join_to_room(&model.room, user_id, session_id, model.room_user_type.clone())?;
+
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<ProcessWaitingUser> for RoomManager<DB> {
+    type Result = anyhow::Result<()>;
+
+    #[tracing::instrument(name="ProcessWaitingUser", skip(self, _ctx))]
+    #[macros::api(name="ProcessWaitingUser", socket=true)]
+    fn handle(&mut self, model: ProcessWaitingUser, _ctx: &mut Context<Self>) -> Self::Result {        
+        // Check user information
+        let user_id = get_user_id_from_auth!(model);
+        let (session_id, room_user_type) = self.states.remove_user_from_waiting_list(&model.user, &model.room)?;
+        let mut connection = self.database.get()?;
+
+        DB::transaction(&mut connection, move |connection| {
+            DB::update_join_to_room_request(connection, &model.room, &model.user, &user_id, model.status)?;
             
-            let mut connection = self.database.get()?;
-            DB::join_to_room(&mut connection, &model.room, user_id, model.room_user_type)?;
+            if model.status {
 
-            let message = serde_json::to_string(&RoomResponse::UserJoinedToRoom {
-                user: user_id,
-                room: &model.room
-            }).unwrap();
-
-            for user_id in users.into_iter() {
+                // Moderator or room owner approve join request
+                self.join_to_room(connection, &model.room, &model.user, &session_id, room_user_type)?;
+            } else {
+                
+                // Room join request declined
                 self.issue_system_async(SendMessage {
-                    message: message.clone(),
-                    user_id
+                    user_id: Arc::new(model.user.clone()),
+                    message: GenericAnswer::success(RoomResponse::JoinRequestDeclined { room: &model.room }).into()
                 });
             }
 
-
-            let access_level = self.get_access_level_for_room(user_id, &model.room)?;
-            
-            let infos = self.states.get_room_info(&model.room, access_level, vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::Metas])?;
-            let room_name = infos.get_room_name();
-            let users = infos.get_users();
-            let metas = infos.get_metas();
-            
-            model.socket.send(GenericAnswer::success(RoomResponse::Joined { room_name, users, metas, room: &model.room }).into());
-        }
+            // Send operation successfully executed message to operator
+            model.socket.send(Answer::success().into());
+            anyhow::Ok(())
+        })?;
+        
         Ok(())
     }
 }
@@ -469,10 +503,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<Disconne
     #[tracing::instrument(name="DisconnectFromRoomRequest", skip(self, _ctx))]
     #[macros::simple_api(name="DisconnectFromRoomRequest", socket=true)]
     fn handle(&mut self, model: DisconnectFromRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
-        let (user_id, session_id) = match model.user.deref() {
-            Some(user) => (&user.user, &user.session),
-            None => return ()
-        };
+        let (user_id, session_id) = get_user_session_id_from_auth!(model, ());
 
         println!("room:DisconnectFromRoomRequest");
 
@@ -487,9 +518,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
     #[tracing::instrument(name="MessageToRoomRequest", skip(self, _ctx))]
     #[macros::api(name="MessageToRoomRequest", socket=true)]
     fn handle(&mut self, model: MessageToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {   
-        let MessageToRoomRequest { user, room, message, socket } = model;
+        let MessageToRoomRequest { auth, room, message, socket } = model;
 
-        let sender_user_id = match user.deref() {
+        let sender_user_id = match auth.deref() {
             Some(user) => &user.user,
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
@@ -541,10 +572,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetRoomR
     fn handle(&mut self, model: GetRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
         
         // Check user information
-        let user_id = match model.user.deref() {
-            Some(user) => &user.user,
-            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
-        };
+        let user_id = get_user_id_from_auth!(model);
 
         let members = if model.members.is_empty() {
             vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::Metas, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength]

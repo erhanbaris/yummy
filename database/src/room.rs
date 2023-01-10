@@ -24,6 +24,7 @@ pub trait RoomStoreTrait: Sized {
     fn create_room(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, join_request: bool, tags: &[String]) -> anyhow::Result<RoomId>;
     fn join_to_room(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, user_type: RoomUserType) -> anyhow::Result<()>;
     fn join_to_room_request(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, user_type: RoomUserType) -> anyhow::Result<()>;
+    fn update_join_to_room_request(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, updater_user_id: &UserId, status: bool) -> anyhow::Result<()>;
     fn disconnect_from_room(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId) -> anyhow::Result<()>;
     fn get_join_requested_users(connection: &mut PooledConnection, room_id: &RoomId) -> anyhow::Result<Vec<(UserId, RoomUserType, bool)>>;
     fn get_room_meta(connection: &mut PooledConnection, room_id: &RoomId, filter: RoomMetaAccess) -> anyhow::Result<Vec<(RoomMetaId, String, MetaType<RoomMetaAccess>)>>;
@@ -150,6 +151,12 @@ impl RoomStoreTrait for SqliteStore {
         if affected_rows == 0 {
             return Err(anyhow::anyhow!("No row inserted"));
         }
+        Ok(())
+    }
+
+    #[tracing::instrument(name="Update join to room request", skip(connection))]
+    fn update_join_to_room_request(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, updater_user_id: &UserId, status: bool) -> anyhow::Result<()> {
+        diesel::update(room_user_request::table.filter(room_user_request::room_id.eq(room_id))).set((room_user_request::status.eq(status), room_user_request::status_updater_user_id.eq(updater_user_id))).execute(connection)?;
         Ok(())
     }
 

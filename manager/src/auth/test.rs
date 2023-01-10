@@ -45,7 +45,7 @@ fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<da
 async fn create_user_via_email() -> anyhow::Result<()> {
     let (address, socket) = create_actor(::general::config::get_configuration())?;
     address.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -63,7 +63,7 @@ async fn login_user_via_email() -> anyhow::Result<()> {
     
     let (address, socket) = create_actor(Arc::new(config))?;
     address.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -72,7 +72,7 @@ async fn login_user_via_email() -> anyhow::Result<()> {
 
     let auth = socket.clone().auth.lock().unwrap().clone();
     address.send(StartUserTimeout {
-        user: Arc::new(Some(UserAuth {
+        auth: Arc::new(Some(UserAuth {
             user: auth.id.deref().clone(),
             session: auth.session.clone()
         })),
@@ -82,7 +82,7 @@ async fn login_user_via_email() -> anyhow::Result<()> {
     actix::clock::sleep(std::time::Duration::new(3, 0)).await;
 
     address.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: false,
@@ -96,7 +96,7 @@ async fn login_user_via_email() -> anyhow::Result<()> {
 async fn failed_login_user_via_email_1() -> anyhow::Result<()> {
     let (address, socket) = create_actor(::general::config::get_configuration())?;
     let result = address.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: false,
@@ -111,7 +111,7 @@ async fn failed_login_user_via_email_1() -> anyhow::Result<()> {
 async fn failed_login_user_via_email_2() -> anyhow::Result<()> {
     let (address, socket) = create_actor(::general::config::get_configuration())?;
     address.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -119,7 +119,7 @@ async fn failed_login_user_via_email_2() -> anyhow::Result<()> {
     }).await??;
 
     let result = address.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password: "wrong password".into(),
         if_not_exist_create: true,
@@ -152,7 +152,7 @@ async fn login_user_via_device_id() -> anyhow::Result<()> {
     let auth = socket.clone().auth.lock().unwrap().clone();
     
     address.send(StartUserTimeout {
-        user: Arc::new(Some(UserAuth {
+        auth: Arc::new(Some(UserAuth {
             user: auth.id.deref().clone(),
             session: auth.session.clone()
         })),
@@ -204,7 +204,7 @@ async fn login_user_via_custom_id() -> anyhow::Result<()> {
     let auth = socket.clone().auth.lock().unwrap().clone();
 
     address.send(StartUserTimeout {
-        user: Arc::new(Some(UserAuth {
+        auth: Arc::new(Some(UserAuth {
             user: auth.id.deref().clone(),
             session: auth.session.clone()
         })),
@@ -245,7 +245,7 @@ async fn token_restore_test_1() -> anyhow::Result<()> {
 
     // Wait 1 second
     actix::clock::sleep(std::time::Duration::new(1, 0)).await;
-    address.send(RestoreTokenRequest { user: Arc::new(None), token: old_token.to_string(), socket: socket.clone() }).await??;
+    address.send(RestoreTokenRequest { auth: Arc::new(None), token: old_token.to_string(), socket: socket.clone() }).await??;
     let new_token: AuthenticatedModel = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let new_token = new_token.token;
     
@@ -277,7 +277,7 @@ async fn fail_token_restore_test_1() -> anyhow::Result<()> {
 
     // Wait 3 seconds
     actix::clock::sleep(std::time::Duration::new(3, 0)).await;
-    assert!(address.send(RestoreTokenRequest { user: Arc::new(None), token: old_token.token.to_string(), socket: socket.clone() }).await?.is_err());
+    assert!(address.send(RestoreTokenRequest { auth: Arc::new(None), token: old_token.token.to_string(), socket: socket.clone() }).await?.is_err());
     let message = socket.clone().messages.lock().unwrap().pop_back().unwrap();
     assert!(message.contains("User token is not valid"));
     Ok(())
@@ -296,7 +296,7 @@ async fn token_refresh_test_1() -> anyhow::Result<()> {
 
     // Wait 1 second
     actix::clock::sleep(std::time::Duration::new(1, 0)).await;
-    address.send(RefreshTokenRequest { user: Arc::new(None), token: old_token.to_string(), socket: socket.clone() }).await??;
+    address.send(RefreshTokenRequest { auth: Arc::new(None), token: old_token.to_string(), socket: socket.clone() }).await??;
 
     let new_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
     let new_token: AuthenticatedModel = new_token.into();
@@ -323,7 +323,7 @@ async fn token_refresh_test_2() -> anyhow::Result<()> {
     let config = ::general::config::get_configuration();
     let (address, socket) = create_actor(config.clone())?;
     address.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true, socket: socket.clone()
@@ -336,7 +336,7 @@ async fn token_refresh_test_2() -> anyhow::Result<()> {
     
     // Wait 1 second
     actix::clock::sleep(std::time::Duration::new(1, 0)).await;
-    address.send(RefreshTokenRequest{ user: Arc::new(None), token: old_token.clone(), socket: socket.clone() }).await??;
+    address.send(RefreshTokenRequest{ auth: Arc::new(None), token: old_token.clone(), socket: socket.clone() }).await??;
     let new_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
     let new_token: AuthenticatedModel = new_token.into();
     let new_token = new_token.token;
@@ -363,7 +363,7 @@ async fn logout() -> anyhow::Result<()> {
     let user = socket.clone().auth.lock().unwrap().clone();
 
     address.send(LogoutRequest {
-        user: Arc::new(Some(UserAuth {
+        auth: Arc::new(Some(UserAuth {
             user: user.id.deref().clone(),
             session: user.session
         })),
@@ -394,7 +394,7 @@ async fn double_login_test() -> anyhow::Result<()> {
 
     /* #region Auth */
     auth_manager.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhan@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -408,7 +408,7 @@ async fn double_login_test() -> anyhow::Result<()> {
     }));
 
     auth_manager.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "baris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -424,7 +424,7 @@ async fn double_login_test() -> anyhow::Result<()> {
 
     /* #region Room configuration */
     room_manager.send(CreateRoomRequest {
-        user: user_1_auth.clone(),
+        auth: user_1_auth.clone(),
         name: None,
         description: None,
         join_request: false,
@@ -439,7 +439,7 @@ async fn double_login_test() -> anyhow::Result<()> {
     let room_id = room_id.room;
 
     room_manager.send(JoinToRoomRequest {
-        user: user_2_auth.clone(),
+        auth: user_2_auth.clone(),
         room: room_id,
         room_user_type: RoomUserType::User,
         socket:user_2_socket.clone()
@@ -451,7 +451,7 @@ async fn double_login_test() -> anyhow::Result<()> {
 
     /* #region Re-auth */
     auth_manager.send(EmailAuthRequest {
-        user: user_1_auth.clone(),
+        auth: user_1_auth.clone(),
         email: "erhan@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -496,7 +496,7 @@ async fn user_disconnect_from_room_test() -> anyhow::Result<()> {
 
     /* #region Auth */
     auth_manager.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhan@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -510,7 +510,7 @@ async fn user_disconnect_from_room_test() -> anyhow::Result<()> {
     }));
 
     auth_manager.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "baris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -526,7 +526,7 @@ async fn user_disconnect_from_room_test() -> anyhow::Result<()> {
 
     /* #region Room configuration */
     room_manager.send(CreateRoomRequest {
-        user: user_1_auth.clone(),
+        auth: user_1_auth.clone(),
         name: None,
         description: None,
         join_request: false,
@@ -541,7 +541,7 @@ async fn user_disconnect_from_room_test() -> anyhow::Result<()> {
     let room_id = room_id.room;
 
     room_manager.send(JoinToRoomRequest {
-        user: user_2_auth.clone(),
+        auth: user_2_auth.clone(),
         room: room_id,
         room_user_type: RoomUserType::User,
         socket:user_2_socket.clone()
@@ -553,7 +553,7 @@ async fn user_disconnect_from_room_test() -> anyhow::Result<()> {
 
     /* #region Start disconnect timeout */
     auth_manager.send(StartUserTimeout {
-        user: user_1_auth.clone(),
+        auth: user_1_auth.clone(),
         socket: user_1_socket.clone()
     }).await??;
     actix::clock::sleep(std::time::Duration::new(3, 0)).await;

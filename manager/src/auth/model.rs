@@ -18,7 +18,7 @@ fn validate_unique_password(pass: &Password) -> Result<(), ValidationError> {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct EmailAuthRequest {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
 
     #[validate(email(message="Email address is not valid"))]
     pub email: String,
@@ -34,7 +34,7 @@ pub struct EmailAuthRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct RefreshTokenRequest {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
 
     #[validate(length(min = 275, max = 1024, message = "Length should be between 275 to 1024 chars"))]
     pub token: String,
@@ -45,7 +45,7 @@ pub struct RefreshTokenRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct RestoreTokenRequest {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
 
     #[validate(length(min = 275, max = 1024, message = "Length should be between 275 to 1024 chars"))]
     pub token: String,
@@ -56,14 +56,14 @@ pub struct RestoreTokenRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct LogoutRequest {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct StartUserTimeout {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
@@ -76,7 +76,7 @@ pub struct StopUserTimeout {
 #[derive(Message, Debug, Validate)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct DeviceIdAuthRequest {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
 
     #[validate(length(min = 8, max = 128, message = "Length should be between 8 to 128 chars"))]
     pub id: String,
@@ -85,15 +85,15 @@ pub struct DeviceIdAuthRequest {
 }
 
 impl DeviceIdAuthRequest {
-    pub fn new(user: Arc<Option<UserAuth>>, id: String, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
-        Self { user, id, socket }
+    pub fn new(auth: Arc<Option<UserAuth>>, id: String, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
+        Self { auth, id, socket }
     }
 }
 
 #[derive(Message, Debug, Validate)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct CustomIdAuthRequest {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
 
     #[validate(length(min = 8, max = 128, message = "Length should be between 8 to 128 chars"))]
     pub id: String,
@@ -102,15 +102,15 @@ pub struct CustomIdAuthRequest {
 }
 
 impl CustomIdAuthRequest {
-    pub fn new(user: Arc<Option<UserAuth>>, id: String, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
-        Self { user, id, socket }
+    pub fn new(auth: Arc<Option<UserAuth>>, id: String, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
+        Self { auth, id, socket }
     }
 }
 
 #[derive(Message, Validate, Debug, Clone)]
 #[rtype(result = "()")]
 pub struct UserDisconnect {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 

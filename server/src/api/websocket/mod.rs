@@ -131,7 +131,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Actor for GameWebsocket<DB> {
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
         self.auth_manager.do_send(StartUserTimeout {
-            user: self.user_auth.clone(),
+            auth: self.user_auth.clone(),
             socket: self.client.clone()
         });
 

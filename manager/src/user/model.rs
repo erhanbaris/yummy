@@ -51,7 +51,7 @@ pub enum GetUserInformationEnum {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct UpdateUser {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
     pub target_user_id: Option<UserId>,
     pub name: Option<String>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>,
@@ -71,7 +71,7 @@ impl Default for UpdateUser
 {
     fn default() -> Self {
         Self {
-            user: Arc::new(None),
+            auth: Arc::new(None),
             target_user_id: None,
             name: None,
             socket: Arc::new(general::test::DummyClient::default()),

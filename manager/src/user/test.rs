@@ -29,7 +29,7 @@ macro_rules! email_auth {
     ($auth_manager: expr, $config: expr, $email: expr, $password: expr, $create: expr, $socket: expr) => {
         {
             $auth_manager.send(EmailAuthRequest {
-                user: Arc::new(None),
+                auth: Arc::new(None),
                 email: $email,
                 password: $password,
                 if_not_exist_create: $create,
@@ -91,8 +91,8 @@ async fn get_private_user_2() -> anyhow::Result<()> {
     })), socket.clone())).await??;
 
    
-    let user: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let user = user.result;
+    let auth: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let user = auth.result;
 
     assert_eq!(user.device_id, Some("1234567890".to_string()));
     Ok(())
@@ -102,7 +102,7 @@ async fn get_private_user_2() -> anyhow::Result<()> {
 async fn fail_update_get_user_1() -> anyhow::Result<()> {
     let (user_manager, _, _, socket) = create_actor()?;
     let result = user_manager.send(UpdateUser {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         socket,
         ..Default::default()
     }).await?;
@@ -121,7 +121,7 @@ async fn fail_update_get_user_2() -> anyhow::Result<()> {
 
     let user = validate_auth(config, token).unwrap();
     let result = user_manager.send(UpdateUser {
-        user: Arc::new(Some(UserAuth {
+        auth: Arc::new(Some(UserAuth {
             user: user.user.id.deref().clone(),
             session: user.user.session
         })),
@@ -136,7 +136,7 @@ async fn fail_update_get_user_2() -> anyhow::Result<()> {
 async fn fail_update_get_user_3() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
     auth_manager.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -148,7 +148,7 @@ async fn fail_update_get_user_3() -> anyhow::Result<()> {
 
     let user = validate_auth(config, token).unwrap();
     let result = user_manager.send(UpdateUser {
-        user: Arc::new(Some(UserAuth {
+        auth: Arc::new(Some(UserAuth {
             user: user.user.id.deref().clone(),
             session: user.user.session
         })),
@@ -169,7 +169,7 @@ async fn fail_update_get_user_3() -> anyhow::Result<()> {
 async fn fail_update_get_user_4() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
     auth_manager.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -181,7 +181,7 @@ async fn fail_update_get_user_4() -> anyhow::Result<()> {
 
     let user = validate_auth(config, token).unwrap();
     let result = user_manager.send(UpdateUser {
-        user: Arc::new(Some(UserAuth {
+        auth: Arc::new(Some(UserAuth {
             user: user.user.id.deref().clone(),
             session: user.user.session
         })),
@@ -201,7 +201,7 @@ async fn fail_update_get_user_4() -> anyhow::Result<()> {
 async fn fail_update_password() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
     auth_manager.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -218,7 +218,7 @@ async fn fail_update_password() -> anyhow::Result<()> {
     }));
     
     let result = user_manager.send(UpdateUser {
-        user: user_auth.clone(),
+        auth: user_auth.clone(),
         password: Some("123".to_string()),
         socket,
         ..Default::default()
@@ -237,7 +237,7 @@ async fn fail_update_email() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
 
     auth_manager.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -254,7 +254,7 @@ async fn fail_update_email() -> anyhow::Result<()> {
     }));
 
     let result = user_manager.send(UpdateUser {
-        user: user_auth.clone(),
+        auth: user_auth.clone(),
         email: Some("erhanbaris@gmail.com".to_string()),
         socket,
         ..Default::default()
@@ -273,7 +273,7 @@ async fn update_user_1() -> anyhow::Result<()> {
     let (user_manager, auth_manager, config, socket) = create_actor()?;
 
     auth_manager.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -291,14 +291,14 @@ async fn update_user_1() -> anyhow::Result<()> {
 
     user_manager.send(GetUserInformation::me(user_auth.clone(), socket.clone())).await??;
 
-    let user: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let user = user.result;
+    let auth: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let user = auth.result;
     
     assert_eq!(user.name, None);
     assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
     
     user_manager.send(UpdateUser {
-        user: user_auth.clone(),
+        auth: user_auth.clone(),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
         ..Default::default()
@@ -306,8 +306,8 @@ async fn update_user_1() -> anyhow::Result<()> {
 
     user_manager.send(GetUserInformation::me(user_auth.clone(), socket.clone())).await??;
     
-    let user: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let user = user.result;
+    let auth: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let user = auth.result;
 
     assert_eq!(user.name, Some("Erhan".to_string()));
     assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
@@ -321,14 +321,14 @@ async fn update_user_2() -> anyhow::Result<()> {
     let admin = email_auth!(auth_manager, config.clone(), "admin@gmail.com".to_string(), "erhan".into(), true, socket.clone());
     
     user_manager.send(UpdateUser {
-        user: admin.clone(),
+        auth: admin.clone(),
         user_type : Some(UserType::Admin),
         socket: socket.clone(),
         ..Default::default()
     }).await??;
 
     auth_manager.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -346,14 +346,14 @@ async fn update_user_2() -> anyhow::Result<()> {
 
     user_manager.send(GetUserInformation::me(user_auth.clone(), socket.clone())).await??;
 
-    let user: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let user = user.result;
+    let auth: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let user = auth.result;
     
     assert_eq!(user.name, None);
     assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
     
     user_manager.send(UpdateUser {
-        user: admin.clone(),
+        auth: admin.clone(),
         target_user_id: Some(user_jwt.id.deref().clone()),
         socket: socket.clone(),
         name: Some("Erhan".to_string()),
@@ -369,15 +369,15 @@ async fn update_user_2() -> anyhow::Result<()> {
 
     user_manager.send(GetUserInformation::me(user_auth.clone(), socket.clone())).await??;
 
-    let user: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let user = user.result;
+    let auth: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let user = auth.result;
 
     assert_eq!(user.name, Some("Erhan".to_string()));
     assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
 
     /* Cleanup fields */
     user_manager.send(UpdateUser {
-        user: user_auth.clone(),
+        auth: user_auth.clone(),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
         ..Default::default()
@@ -385,8 +385,8 @@ async fn update_user_2() -> anyhow::Result<()> {
 
     user_manager.send(GetUserInformation::me(user_auth.clone(), socket.clone())).await??;
 
-    let user: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let user = user.result;
+    let auth: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let user = auth.result;
 
     assert_eq!(user.name, Some("Erhan".to_string()));
     assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
@@ -400,14 +400,14 @@ async fn update_user_3() -> anyhow::Result<()> {
     let admin = email_auth!(auth_manager, config.clone(), "admin@gmail.com".to_string(), "erhan".into(), true, socket.clone());
     
     user_manager.send(UpdateUser {
-        user: admin.clone(),
+        auth: admin.clone(),
         user_type : Some(UserType::Admin),
         socket: socket.clone(),
         ..Default::default()
     }).await??;
 
     auth_manager.send(EmailAuthRequest {
-        user: Arc::new(None),
+        auth: Arc::new(None),
         email: "erhanbaris@gmail.com".to_string(),
         password:"erhan".into(),
         if_not_exist_create: true,
@@ -424,15 +424,15 @@ async fn update_user_3() -> anyhow::Result<()> {
     }));
 
     user_manager.send(GetUserInformation::me(user_auth.clone(), socket.clone())).await??;
-    let user: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let user = user.result;
+    let auth: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let user = auth.result;
     
     assert_eq!(user.name, None);
     assert_eq!(user.email, Some("erhanbaris@gmail.com".to_string()));
 
     /*Max meta must be 10, this request is valid */
     user_manager.send(UpdateUser {
-        user: admin.clone(),
+        auth: admin.clone(),
         target_user_id: Some(user_jwt.id.deref().clone()),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
@@ -453,7 +453,7 @@ async fn update_user_3() -> anyhow::Result<()> {
     
     /*Max meta must be 10, this request is NOT valid */
     let response = user_manager.send(UpdateUser {
-        user: admin.clone(),
+        auth: admin.clone(),
         target_user_id: Some(user_jwt.id.deref().clone()),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
@@ -493,14 +493,14 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     };
 
     user_manager.send(UpdateUser {
-        user: admin.clone(),
+        auth: admin.clone(),
         user_type : Some(UserType::Admin),
         socket: socket.clone(),
         ..Default::default()
     }).await??;
     
     user_manager.send(UpdateUser {
-        user: moderator.clone(),
+        auth: moderator.clone(),
         user_type : Some(UserType::Mod),
         socket: socket.clone(),
         ..Default::default()
@@ -508,7 +508,7 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
 
     /* Update user's meta information to test */
     user_manager.send(UpdateUser {
-        user: admin.clone(),
+        auth: admin.clone(),
         target_user_id: Some(user_id.clone()),
         meta: Some(HashMap::from([
             //("system".to_string(), MetaType::Number(112233.0, UserMetaAccess::System)),
@@ -613,7 +613,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
     let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".into(), true, socket.clone());
 
     user_manager.send(UpdateUser {
-        user: user.clone(),
+        auth: user.clone(),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
         meta: Some(HashMap::from([
@@ -633,7 +633,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
 
     // Remove unused metas
     user_manager.send(UpdateUser {
-        user: user.clone(),
+        auth: user.clone(),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
         meta: Some(HashMap::from([
@@ -661,7 +661,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
 
     // Remove unused metas
     user_manager.send(UpdateUser {
-        user: user.clone(),
+        auth: user.clone(),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
         meta: Some(HashMap::from([
@@ -685,7 +685,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
 
     // Remove single meta
     user_manager.send(UpdateUser {
-        user: user.clone(),
+        auth: user.clone(),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
         meta: Some(HashMap::from([
@@ -708,7 +708,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
 
     // Remove all metas
     user_manager.send(UpdateUser {
-        user: user.clone(),
+        auth: user.clone(),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
         meta_action: Some(MetaAction::RemoveAllMetas),

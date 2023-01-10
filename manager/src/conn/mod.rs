@@ -106,7 +106,7 @@ impl Handler<UserConnected> for ConnectionManager {
 
     #[tracing::instrument(name="UserConnected", skip(self, _ctx))]
     fn handle(&mut self, model: UserConnected, _ctx: &mut Self::Context) -> Self::Result {
-        let UserConnected{ user_id, socket } = model;
+        let UserConnected { user_id, socket } = model;
         self.users.insert(user_id.deref().clone(), socket);
     }
 }
@@ -116,7 +116,7 @@ impl Handler<UserDisconnect> for ConnectionManager {
 
     #[tracing::instrument(name="UserDisconnect", skip(self, _ctx))]
     fn handle(&mut self, model: UserDisconnect, _ctx: &mut Self::Context) -> Self::Result {
-        let user_id = match model.user.deref() {
+        let user_id = match model.auth.deref() {
             Some(user) => &user.user,
             None => return ()
         };

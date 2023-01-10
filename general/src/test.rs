@@ -81,6 +81,13 @@ pub mod model {
     }
 
     #[derive(Debug, Serialize, Deserialize)]
+    pub struct JoinRequestDeclined {
+        #[serde(rename = "type")]
+        pub class_type: String,
+        pub room: RoomId
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
     pub struct UserJoinedToRoom {
         #[serde(rename = "type")]
         pub class_type: String,

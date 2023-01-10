@@ -64,14 +64,14 @@ impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
 
 macro_rules! disconnect_if_already_auth {
     ($model: expr, $self:expr, $ctx: expr) => {
-        if $model.user.is_some() {
+        if $model.auth.is_some() {
             $ctx.address().do_send(UserDisconnect {
-                user: $model.user.clone(),
+                auth: $model.auth.clone(),
                 socket: $model.socket.clone()
             });
 
             $self.issue_system_async(UserDisconnect {
-                user: $model.user.clone(),
+                auth: $model.auth.clone(),
                 socket: $model.socket.clone()
             });
         }   
@@ -193,12 +193,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRe
         model.socket.send(Answer::success().into());
 
         ctx.address().do_send(UserDisconnect {
-            user: model.user.clone(),
+            auth: model.auth.clone(),
             socket: model.socket.clone()
         });
         
         self.issue_system_async(UserDisconnect {
-            user: model.user.clone(),
+            auth: model.auth.clone(),
             socket: model.socket
         });
         Ok(())
@@ -266,16 +266,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUse
     #[tracing::instrument(name="StartUserTimeout", skip(self, ctx))]
     #[macros::api(name="StartUserTimeout")]
     fn handle(&mut self, model: StartUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
-        let user = model.user.clone();
+        let user = model.auth.clone();
         
         let timer = ctx.run_later(self.config.connection_restore_wait_timeout, move |manager, _ctx| {
             _ctx.address().do_send(UserDisconnect {
-                user: model.user.clone(),
+                auth: model.auth.clone(),
                 socket: model.socket.clone()
             });
             
             manager.issue_system_async(UserDisconnect {
-                user: model.user.clone(),
+                auth: model.auth.clone(),
                 socket: model.socket.clone()
             });
         });
@@ -297,7 +297,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisc
     fn handle(&mut self, model: UserDisconnect, _ctx: &mut Context<Self>) -> Self::Result {
         println!("auth:UserDisconnect");
 
-        if let Some(user) = model.user.deref() {
+        if let Some(user) = model.auth.deref() {
             self.states.close_session(&user.user, &user.session);
         }
     }

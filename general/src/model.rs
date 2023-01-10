@@ -18,6 +18,10 @@ use diesel::serialize::{ToSql, Output};
 use diesel::sql_types::*;
 use diesel::expression::AsExpression;
 
+use num_derive::FromPrimitive;
+use num_derive::ToPrimitive;
+use num_traits::FromPrimitive;
+
 use uuid::Uuid;
 
 use crate::auth::UserJwt;
@@ -119,6 +123,21 @@ generate_type!(RoomUserId);
 
 impl Copy for RoomId { }
 
+macro_rules! generate_redis_convert {
+    ($name: ident) => {
+        #[cfg(feature = "stateless")]
+        impl redis::FromRedisValue for $name {
+            fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
+                let result: redis::RedisResult<i32> = redis::FromRedisValue::from_redis_value(v);
+                match result {
+                    Ok(value) => Ok(FromPrimitive::from_i32(value).unwrap_or_default()),
+                    Err(_) => Ok($name::default())
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Serialize_repr, Deserialize_repr, Copy, Clone, Default)]
 #[repr(u8)]
 pub enum UserType {
@@ -158,6 +177,9 @@ pub struct UserState {
 
     #[cfg(not(feature = "stateless"))]
     pub sessions: std::collections::HashSet<SessionId>,
+
+    #[cfg(not(feature = "stateless"))]
+    pub join_requests: std::collections::HashMap<RoomId, SessionId>,
 }
 
 #[derive(Default, Debug)]
@@ -175,7 +197,7 @@ pub struct RoomState {
     pub join_requests: Mutex<HashMap<UserId, RoomUserType>>
 }
 
-#[derive(Default, Clone, Debug, Serialize_repr, Deserialize_repr, PartialEq, Eq)]
+#[derive(Default, Clone, Debug, Serialize_repr, Deserialize_repr, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum CreateRoomAccessType {
     #[default]
@@ -194,7 +216,9 @@ impl From<CreateRoomAccessType> for i32 {
     }
 }
 
-#[derive(Default, Debug, Eq, PartialEq, PartialOrd, Clone, Serialize_repr, Deserialize_repr)]
+generate_redis_convert!(CreateRoomAccessType);
+
+#[derive(Default, Debug, Eq, PartialEq, PartialOrd, Clone, Serialize_repr, Deserialize_repr, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum RoomUserType {
     #[default]
@@ -202,6 +226,8 @@ pub enum RoomUserType {
     Moderator = 2,
     Owner = 3,
 }
+
+generate_redis_convert!(RoomUserType);
 
 #[derive(Message, Debug)]
 #[rtype(result = "()")]

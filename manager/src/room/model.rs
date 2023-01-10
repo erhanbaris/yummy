@@ -11,7 +11,7 @@ use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct CreateRoomRequest {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
     pub name: Option<String>,
     pub description: Option<String>,
     pub access_type: CreateRoomAccessType,
@@ -25,7 +25,7 @@ pub struct CreateRoomRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct JoinToRoomRequest {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
     pub room: RoomId,
     pub room_user_type: RoomUserType,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
@@ -34,15 +34,25 @@ pub struct JoinToRoomRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct WaitingRoomJoins {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
     pub room: RoomId,
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
+}
+
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<()>")]
+pub struct ProcessWaitingUser {
+    pub auth: Arc<Option<UserAuth>>,
+    pub room: RoomId,
+    pub user: UserId,
+    pub status: bool,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
 #[derive(Message, Validate, Debug, Clone)]
 #[rtype(result = "()")]
 pub struct DisconnectFromRoomRequest {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
     pub room: RoomId,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
@@ -50,7 +60,7 @@ pub struct DisconnectFromRoomRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct MessageToRoomRequest {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
     pub room: RoomId,
     pub message: String,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
@@ -67,7 +77,7 @@ pub struct RoomListRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct GetRoomRequest {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
     pub room: RoomId,
     pub members: Vec<RoomInfoTypeVariant>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
@@ -76,7 +86,7 @@ pub struct GetRoomRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct UpdateRoom {
-    pub user: Arc<Option<UserAuth>>,
+    pub auth: Arc<Option<UserAuth>>,
     pub room_id: RoomId,
     pub name: Option<String>,
     pub description: Option<String>,
@@ -122,6 +132,9 @@ pub enum RoomResponse<'a> {
         metas: Cow<'a, HashMap<String, MetaType<RoomMetaAccess>>>
     },
     JoinRequested {
+        room: &'a RoomId,
+    },
+    JoinRequestDeclined {
         room: &'a RoomId,
     },
     WaitingRoomJoins {
