@@ -20,6 +20,8 @@ use diesel::expression::AsExpression;
 
 use num_derive::FromPrimitive;
 use num_derive::ToPrimitive;
+
+#[allow(unused_imports)]
 use num_traits::FromPrimitive;
 
 use uuid::Uuid;
