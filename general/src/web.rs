@@ -14,10 +14,6 @@ impl Answer {
     pub fn fail() -> Self {
         Self { status: false }
     }
-    
-    pub fn new(status: bool) -> Self {
-        Self { status }
-    }
 }
 
 impl From<Answer> for String {
@@ -55,13 +51,6 @@ where T: Serialize {
             result: ErrorResponse { error: result}
         }
     }
-    
-    pub fn new(status: bool, result: T) -> Self {
-        Self {
-            status,
-            result: result
-        }
-    }
 }
 
 impl<T: Serialize> From<GenericAnswer<T>> for String {
@@ -86,10 +75,4 @@ impl<T: DeserializeOwned> From<String> for GenericAnswer<T> {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ErrorResponse<T: Serialize> {
     pub error: T
-}
-
-impl<T: Serialize> From<ErrorResponse<T>> for String {
-    fn from(source: ErrorResponse<T>) -> Self {
-        serde_json::to_string(&source).unwrap()
-    }
 }

@@ -166,7 +166,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> StreamHandler<Result<ws::Mess
         };
 
         if let Err(error) = result {
-            ctx.text(String::from(GenericAnswer::new(false, error.to_string())));
+            ctx.text(String::from(GenericAnswer::fail(error.to_string())));
         }
     }
 }

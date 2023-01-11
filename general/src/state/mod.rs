@@ -154,20 +154,6 @@ impl Serialize for RoomInfoTypeCollection {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct UserRoomPermission {
-    pub user: UserId,
-    pub user_type: RoomUserType
-}
-
-impl UserRoomPermission {
-    pub fn new(user: UserId, user_type: RoomUserType) -> Self {
-        Self {
-            user,
-            user_type
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
