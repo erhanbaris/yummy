@@ -534,6 +534,7 @@ async fn room_meta_check() -> anyhow::Result<()> {
 async fn room_meta_update() -> anyhow::Result<()> {
     let (room_manager, auth_manager, config, _, user_1_socket) = create_actor()?;
     let user_1 = email_auth!(auth_manager, config.clone(), "user1@gmail.com".to_string(), "erhan".into(), true, user_1_socket);
+    let user_1_id = user_1.clone().deref().as_ref().unwrap().user.clone();
 
     room_manager.send(CreateRoomRequest {
         auth: user_1.clone(),
@@ -671,7 +672,7 @@ async fn room_meta_update() -> anyhow::Result<()> {
         access_type: Some(CreateRoomAccessType::Private),
         max_user: Some(512),
         tags: None,
-        user_permission: None,
+        user_permission: Some(HashMap::from([(user_1_id, RoomUserType::User)])),
         socket: user_1_socket.clone(),
         metas: Some(HashMap::from([
             ("12".to_string(), MetaType::Bool(true, RoomMetaAccess::Anonymous)),
@@ -691,7 +692,8 @@ async fn room_meta_update() -> anyhow::Result<()> {
 
     let room_info = room_info.result;
     let metas: HashMap<String, serde_json::Value> = serde_json::from_value(room_info.get("metas").unwrap().clone())?;
-    //assert_eq!(metas.len(), 0);
+    
+    assert_eq!(metas.len(), 0);
     
 
     Ok(())

@@ -3,10 +3,9 @@ pub mod model;
 #[cfg(test)]
 mod test;
 
-use std::{ops::Deref, fmt::Debug};
+use std::ops::Deref;
 use actix_broker::BrokerIssue;
 use general::{auth::{generate_auth, UserJwt, validate_auth}, state::YummyState, web::{GenericAnswer, Answer}, model::UserType};
-use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -20,10 +19,6 @@ use general::model::{UserId, SessionId};
 
 use self::model::*;
 use crate::conn::model::UserConnected;
-
-pub fn generate_response<T: Debug + Serialize + DeserializeOwned>(model: T) -> String {
-    serde_json::to_string(&model).unwrap()
-}
 
 pub struct AuthManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,

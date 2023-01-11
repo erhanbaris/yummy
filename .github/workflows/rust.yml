@@ -51,7 +51,6 @@ jobs:
         grcov . \
             --binary-path ./target/debug/deps/ \
             --source-dir . \
-            --ignore-not-existing \
             --excl-start 'mod test* \{' \
             --ignore 'tests/*' \
             --ignore server/src/main.rs \
@@ -59,6 +58,11 @@ jobs:
             --ignore general/src/client.rs \
             --ignore "*test.rs" \
             --ignore "*tests.rs" \
+            --ignore "*github.com*" \
+            --ignore "*libcore*" \
+            --ignore "*rustc*" \
+            --ignore "*liballoc*" \
+            --ignore "*cargo*" \
             -t coveralls+ \
             --token ? \
             -o ./cov_normal.json
@@ -99,7 +103,6 @@ jobs:
         grcov . \
             --binary-path ./target/debug/deps/ \
             --source-dir . \
-            --ignore-not-existing \
             --excl-start 'mod test* \{' \
             --ignore 'tests/*' \
             --ignore server/src/main.rs \
@@ -107,6 +110,11 @@ jobs:
             --ignore general/src/client.rs \
             --ignore "*test.rs" \
             --ignore "*tests.rs" \
+            --ignore "*github.com*" \
+            --ignore "*libcore*" \
+            --ignore "*rustc*" \
+            --ignore "*liballoc*" \
+            --ignore "*cargo*" \
             -t coveralls+ \
             --token ? \
             -o ./cov_stateless.json

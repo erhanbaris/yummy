@@ -1,11 +1,5 @@
 #[macro_export]
 macro_rules! get_user_id_from_auth {
-    ($model: expr, $err: expr) => {
-        match &$model.auth.deref() {
-            Some(user) => &user.user,
-            None => return $err
-        }
-    };
     ($model: expr) => {
         match &$model.auth.deref() {
             Some(user) => &user.user,

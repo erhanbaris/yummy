@@ -116,6 +116,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
     fn configure_metas(&self, connection: &mut PooledConnection, room_id: &RoomId, metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>, meta_action: Option<MetaAction>, access_level: RoomMetaAccess) -> ConfigureMetasResult {
         let meta_action = meta_action.unwrap_or_default();
         let room_access_level_code = access_level.clone() as u8;
+        let mut metas = metas;
 
         let (to_be_inserted_metas, to_be_removed_metas, total_metas, remaining) = match meta_action {
 
@@ -196,6 +197,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
             general::meta::MetaAction::RemoveAllMetas => {
                 // Discard all new meta insertion list and remove all old meta that based on user access level.
                 let remove_list = DB::get_room_meta(connection, room_id, access_level)?.into_iter().map(|meta| meta.0).collect::<Vec<_>>();
+                metas = Some(HashMap::default());
                 (None, Some(remove_list), 0, HashMap::default())
             },
         };

@@ -135,8 +135,3 @@ pub enum AuthResponse {
     Authenticated { token: String }
 }
 
-impl<'a> From<AuthResponse> for String {
-    fn from(source: AuthResponse) -> Self {
-        serde_json::to_string(&source).unwrap()
-    }
-}
