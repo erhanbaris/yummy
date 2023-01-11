@@ -529,6 +529,174 @@ async fn room_meta_check() -> anyhow::Result<()> {
     Ok(())
 }
 
+
+#[actix::test]
+async fn room_meta_update() -> anyhow::Result<()> {
+    let (room_manager, auth_manager, config, _, user_1_socket) = create_actor()?;
+    let user_1 = email_auth!(auth_manager, config.clone(), "user1@gmail.com".to_string(), "erhan".into(), true, user_1_socket);
+
+    room_manager.send(CreateRoomRequest {
+        auth: user_1.clone(),
+        name: None,
+        description: None,
+        join_request: false,
+        access_type: general::model::CreateRoomAccessType::Public,
+        max_user: 4,
+        metas: None,
+        tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
+        socket:user_1_socket.clone()
+    }).await??;
+
+    let room_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id = room_id.room;
+
+    room_manager.send(UpdateRoom {
+        auth: user_1.clone(),
+        room_id,
+        name: Some("Erhan".to_string()),
+        description: None,
+        join_request: None,
+        meta_action: Some(MetaAction::OnlyAddOrUpdate),
+        access_type: None,
+        max_user: None,
+        tags: None,
+        user_permission: None,
+        socket: user_1_socket.clone(),
+        metas: Some(HashMap::from([
+            ("1".to_string(), MetaType::Bool(true, RoomMetaAccess::Anonymous)),
+            ("2".to_string(), MetaType::Bool(true, RoomMetaAccess::Anonymous)),
+            ("3".to_string(), MetaType::Bool(true, RoomMetaAccess::Anonymous)),
+            ("4".to_string(), MetaType::Bool(true, RoomMetaAccess::Anonymous)),
+            ("5".to_string(), MetaType::Bool(true, RoomMetaAccess::Anonymous)),
+            ("6".to_string(), MetaType::Bool(true, RoomMetaAccess::Anonymous)),
+            ("7".to_string(), MetaType::Bool(true, RoomMetaAccess::Anonymous)),
+            ("8".to_string(), MetaType::Bool(true, RoomMetaAccess::Anonymous)),
+            ("9".to_string(), MetaType::Bool(true, RoomMetaAccess::Anonymous)),
+        ]))
+    }).await??;
+
+    /* Check room metas */
+    room_manager.send(GetRoomRequest {
+        auth: user_1.clone(),
+        socket: user_1_socket.clone(),
+        members: Vec::new(),
+        room: room_id.clone()
+    }).await??;
+
+    let room_info: GenericAnswer<serde_json::Value> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    assert!(room_info.status);
+
+    let room_info = room_info.result;
+    let metas: HashMap<String, serde_json::Value> = serde_json::from_value(room_info.get("metas").unwrap().clone())?;
+    assert_eq!(metas.len(), 9);
+    
+
+    /* Add new meta and keep old metas */
+    room_manager.send(UpdateRoom {
+        auth: user_1.clone(),
+        room_id,
+        name: Some("Erhan".to_string()),
+        description: None,
+        join_request: None,
+        meta_action: Some(MetaAction::OnlyAddOrUpdate),
+        access_type: None,
+        max_user: None,
+        tags: None,
+        user_permission: None,
+        socket: user_1_socket.clone(),
+        metas: Some(HashMap::from([
+            ("10".to_string(), MetaType::Bool(true, RoomMetaAccess::Anonymous)),
+        ]))
+    }).await??;
+
+    /* Check room metas */
+    room_manager.send(GetRoomRequest {
+        auth: user_1.clone(),
+        socket: user_1_socket.clone(),
+        members: Vec::new(),
+        room: room_id.clone()
+    }).await??;
+
+    let room_info: GenericAnswer<serde_json::Value> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    assert!(room_info.status);
+
+    let room_info = room_info.result;
+    let metas: HashMap<String, serde_json::Value> = serde_json::from_value(room_info.get("metas").unwrap().clone())?;
+    assert_eq!(metas.len(), 10);
+    
+
+    /* Add and update new meta but remove unused metas */
+    room_manager.send(UpdateRoom {
+        auth: user_1.clone(),
+        room_id,
+        name: Some("Erhan".to_string()),
+        description: None,
+        join_request: None,
+        meta_action: Some(MetaAction::RemoveUnusedMetas),
+        access_type: None,
+        max_user: None,
+        tags: None,
+        user_permission: None,
+        socket: user_1_socket.clone(),
+        metas: Some(HashMap::from([
+            ("10".to_string(), MetaType::Bool(true, RoomMetaAccess::User)),
+            ("11".to_string(), MetaType::Bool(true, RoomMetaAccess::Anonymous)),
+        ]))
+    }).await??;
+
+    /* Check room metas */
+    room_manager.send(GetRoomRequest {
+        auth: user_1.clone(),
+        socket: user_1_socket.clone(),
+        members: Vec::new(),
+        room: room_id.clone()
+    }).await??;
+
+    let room_info: GenericAnswer<serde_json::Value> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    assert!(room_info.status);
+
+    let room_info = room_info.result;
+    let metas: HashMap<String, serde_json::Value> = serde_json::from_value(room_info.get("metas").unwrap().clone())?;
+    assert_eq!(metas.len(), 2);
+    
+
+    /* Remove all metas */
+    room_manager.send(UpdateRoom {
+        auth: user_1.clone(),
+        room_id,
+        name: Some("Erhan".to_string()),
+        description: Some("Erhan".to_string()),
+        join_request: Some(true),
+        meta_action: Some(MetaAction::RemoveAllMetas),
+        access_type: Some(CreateRoomAccessType::Private),
+        max_user: Some(512),
+        tags: None,
+        user_permission: None,
+        socket: user_1_socket.clone(),
+        metas: Some(HashMap::from([
+            ("12".to_string(), MetaType::Bool(true, RoomMetaAccess::Anonymous)),
+        ]))
+    }).await??;
+
+    /* Check room metas */
+    room_manager.send(GetRoomRequest {
+        auth: user_1.clone(),
+        socket: user_1_socket.clone(),
+        members: Vec::new(),
+        room: room_id.clone()
+    }).await??;
+
+    let room_info: GenericAnswer<serde_json::Value> = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    assert!(room_info.status);
+
+    let room_info = room_info.result;
+    let metas: HashMap<String, serde_json::Value> = serde_json::from_value(room_info.get("metas").unwrap().clone())?;
+    //assert_eq!(metas.len(), 0);
+    
+
+    Ok(())
+}
+
 #[actix::test]
 async fn room_update() -> anyhow::Result<()> {
     let (room_manager, auth_manager, config, _, user_1_socket) = create_actor()?;
