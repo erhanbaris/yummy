@@ -7,6 +7,9 @@ pub mod user;
 pub mod room;
 pub(crate) mod schema;
 
+#[cfg(test)]
+mod test;
+
 use auth::AuthStoreTrait;
 use diesel::r2d2::ConnectionManager;
 use diesel::SqliteConnection;
