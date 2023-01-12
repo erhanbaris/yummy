@@ -70,6 +70,16 @@ table! {
 }
 
 table! {
+    room_user_ban {
+        id -> Text,
+        room_id -> Text,
+        user_id -> Text,
+        blocker_user_id -> Text,
+        insert_date -> Integer,
+    }
+}
+
+table! {
     room_meta {
         id -> Text,
         room_id ->  Text,
@@ -81,4 +91,4 @@ table! {
     }
 }
 
-allow_tables_to_appear_in_same_query!(user, user_meta, room, room_tag, room_user, room_meta, room_user_request);
+allow_tables_to_appear_in_same_query!(user, user_meta, room, room_tag, room_user, room_meta, room_user_request, room_user_ban);

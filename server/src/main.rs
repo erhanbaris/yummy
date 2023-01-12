@@ -2,6 +2,7 @@
 mod api;
 
 use general::config::{get_configuration, configure_environment};
+use crate::api::request::*;
 use general::tls::load_rustls_config;
 use manager::conn::ConnectionManager;
 use manager::user::UserManager;
@@ -56,6 +57,8 @@ async fn main() -> std::io::Result<()> {
     let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
     
     let data_config = Data::new(config.clone());
+
+    println!("{}", serde_json::to_string(&Request::Auth { auth_type: RequestAuthType::DeviceId { id: "erhan".to_string() } }).unwrap());
 
     let server = HttpServer::new(move || {
         let query_cfg = QueryConfig::default()

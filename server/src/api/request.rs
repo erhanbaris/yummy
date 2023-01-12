@@ -4,8 +4,9 @@ use general::{model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserTy
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
-#[serde(tag = "auth_type")]
+#[serde(tag = "type")]
 pub enum RequestAuthType {
+    #[serde(rename = "AuthEmail")]
     Email {
         email: String,
         password: Password,
@@ -13,28 +14,43 @@ pub enum RequestAuthType {
         #[serde(default, rename = "create")]
         if_not_exist_create: bool
     },
+
+    #[serde(rename = "AuthDeviceId")]
     DeviceId {
         id: String
     },
+    
+    #[serde(rename = "AuthCustomId")]
     CustomId {
         id: String
     },
+    
+    #[serde(rename = "RefreshToken")]
     Refresh {
         token: String
     },
+    
+    #[serde(rename = "RestoreToken")]
     Restore {
         token: String
     },
+    
+    #[serde(rename = "Logout")]
     Logout
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-#[serde(tag = "user_type")]
+#[serde(tag = "type")]
 pub enum RequestUserType {
+    #[serde(rename = "Me")]
     Me,
+
+    #[serde(rename = "GetUser")]
     Get {
         user: UserId
     },
+
+    #[serde(rename = "UpdateUser")]
     Update {
         name: Option<String>,
         email: Option<String>,
@@ -42,7 +58,7 @@ pub enum RequestUserType {
         device_id: Option<String>,
         custom_id: Option<String>,
 
-        #[serde(rename = "type")]
+        #[serde(rename = "user_type")]
         user_type: Option<UserType>,
 
         meta: Option<HashMap<String, MetaType<UserMetaAccess>>>,
@@ -51,8 +67,9 @@ pub enum RequestUserType {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-#[serde(tag = "room_type")]
+#[serde(tag = "type")]
 pub enum RequestRoomType {
+    #[serde(rename = "CreateRoom")]
     Create {
         #[serde(default)]
         name: Option<String>,
@@ -75,19 +92,27 @@ pub enum RequestRoomType {
         #[serde(default)]
         metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>
     },
+    
+    #[serde(rename = "JoinToRoom")]
     Join {
         room: RoomId,
 
         #[serde(default)]
         room_user_type: RoomUserType,
     },
+    
+    #[serde(rename = "RoomDisconnect")]
     Disconnect {
         room: RoomId
     },
+    
+    #[serde(rename = "MessageToRoom")]
     Message {
         room: RoomId,
         message: String,
     },
+    
+    #[serde(rename = "UpdateRoom")]
     Update {
         room: RoomId,
 
@@ -121,16 +146,18 @@ pub enum RequestRoomType {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-#[serde(tag = "type")]
+#[serde(untagged)]
 pub enum Request {
     Auth {
         #[serde(flatten)]
         auth_type: RequestAuthType
     },
+    
     User {
         #[serde(flatten)]
         user_type: RequestUserType
     },
+    
     Room {
         #[serde(flatten)]
         room_type: RequestRoomType

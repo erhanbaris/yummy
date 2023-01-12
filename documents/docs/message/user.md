@@ -8,15 +8,13 @@
     !!! success ""
         | Field name   | Type    | Required | Description             |
         |--------------|---------|----------|-------------------------|
-        | `type`       | string  | Y        | Value must be **User**  |
-        | `user_type`  | string  | Y        | Value must be **Me**    |
+        | `type`       | string  | Y        | Value must be **Me**    |
 
         **Example request:**
 
         ```json
         {
-            "type": "User",
-            "auth_type": "Me"
+            "type": "Me"
         }
         ```
 
@@ -31,18 +29,16 @@
 
     !!! success ""
 
-        | Field name | Type    | Required | Description               |
-        |------------|---------|----------|---------------------------|
-        | `type`       | string  | Y        | Value must be **User**  |
-        | `user_type`  | string  | Y        | Value must be **Me**    |
-        | `user`       | string  | Y        | User's unique id        |
+        | Field name | Type    | Required | Description                  |
+        |------------|---------|----------|------------------------------|
+        | `type`       | string  | Y        | Value must be **GetUser**  |
+        | `user`       | string  | Y        | User's unique id           |
 
         **Example request:**
 
         ```json
         {
-            "type": "User",
-            "auth_type": "Get",
+            "type": "GetUser",
             "user": "258cd77c-1618-4c44-baff-6ec73c57fa85"
         }
         ```
@@ -60,14 +56,13 @@ Update user information. Current implementation only allow to update own informa
     !!! success ""
         | Field name    | Type                        | Nullable | Description                                                                                                                    |
         |---------------|-----------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------|
-        | `type`        | string                      | N        | Value must be **User**                                                                                                         |
-        | `auth_type`   | string                      | N        | Value must be **Update**                                                                                                       |
+        | `type`        | string                      | N        | Value must be **UpdateUser**                                                                                                   |
         | `name`        | string                      | Y        |                                                                                                                                |
         | `email`       | string                      | Y        |                                                                                                                                |
         | `password`    | string                      | Y        |                                                                                                                                |
         | `device_id`   | string                      | Y        |                                                                                                                                |
         | `custom_id`   | string                      | Y        |                                                                                                                                |
-        | `type`        | [UserType](#usertype)       | Y        |                                                                                                                                |
+        | `user_type`   | [UserType](#usertype)       | Y        |                                                                                                                                |
         | `meta`        | [[Meta]](general-objects.md#meta)     | Y        | Array of [Meta](general-objects.md#meta) information. This is user based information and have access level to whom see that information. |
         | `meta_action` | [MetaAction](general-objects.md#meta-actions) | Y        | Default value is **0**                                                                                                         |
         
@@ -76,14 +71,13 @@ Update user information. Current implementation only allow to update own informa
         === "Update all informations"
             ```json
             {
-                "type": "User",
-                "user_type": "Update",
+                "type": "UpdateUser",
                 "name": "erhan",
                 "email": "erhanbaris@gmail.com",
                 "password": "12345",
                 "device_id": "abc123",
                 "custom_id": "1234567890",
-                "type": 3,
+                "user_type": 3,
                 "meta": {
                     "lat": 123.0,
                     "lon": 321.0
@@ -93,25 +87,22 @@ Update user information. Current implementation only allow to update own informa
         === "Only password change"
             ```json
             {
-                "type": "User",
-                "user_type": "Update",
+                "type": "UpdateUser",
                 "password": "12345"
             }
             ```
         === "Only user type change"
             ```json
             {
-                "type": "User",
-                "user_type": "Update",
-                "type": 3,
+                "type": "UpdateUser",
+                "user_type": 3,
             }
             ```
         === "Only user type change"
             ```json
             {
-                "type": "User",
-                "user_type": "Update",
-                "type": 3,
+                "type": "UpdateUser",
+                "user_type": 3,
             }
             ```
 

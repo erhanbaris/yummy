@@ -6,8 +6,7 @@
     !!! success ""
         | Field name     | Type                              | Required | Description                                                                                                                              |
         |----------------|-----------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------|
-        | `type`         | string                            | Y        | Value must be **Room**                                                                                                                   |
-        | `room_type`    | string                            | Y        | Value must be **Create**                                                                                                                 |
+        | `type`         | string                            | Y        | Value must be **CreateRoom**                                                                                                                |
         | `join_request` | boolean                           | N        | User need an approvement from moderator or admin to join the room. Default: **false**                                                    |
         | `name`         | string                            | N        | Room name                                                                                                                                |
         | `description`  | string                            | N        | Room description                                                                                                                         |
@@ -21,8 +20,7 @@
         === "Example 1"
             ```json
             {
-                "type": "Room",
-                "room_type": "Create",
+                "type": "CreateRoom",
                 "access_type": 1,
                 "max_user": 1,
                 "metas": {
@@ -34,8 +32,7 @@
         === "Example 2"
             ```json
             {
-                "type": "Room",
-                "room_type": "Create",
+                "type": "CreateRoom",
                 "tags": ["test 1", "test 2", "test 3"],
             }
             ```
@@ -80,28 +77,25 @@
 
 === ":inbox_tray: Request message"
     !!! success ""
-        | Field name       | Type                          | Required | Description            | Default value |
-        |------------------|-------------------------------|----------|------------------------|---------------|
-        | `type`           | string                        | Y        | Value must be **Room** |               |
-        | `room_type`      | string                        | Y        | Value must be **Join** |               |
-        | `room`           | string                        | Y        | Room's ID              |               |
-        | `room_user_type` | [RoomUserType](#roomusertype) | N        | User type at the room  | 1             |
+        | Field name       | Type                          | Required | Description                  | Default value |
+        |------------------|-------------------------------|----------|------------------------------|---------------|
+        | `type`           | string                        | Y        | Value must be **JoinToRoom** |               |
+        | `room`           | string                        | Y        | Room's ID                    |               |
+        | `room_user_type` | [RoomUserType](#roomusertype) | N        | User type at the room        | 1             |
 
         **Example requests:**
 
         === "Example 1"
             ```json
             {
-                "type": "Room",
-                "room_type": "Join",
+                "type": "JoinToRoom",
                 "room": "8c366421-f7d8-47e1-8eed-82915280ce30"
             }
             ```
         === "Example 2"
             ```json
             {
-                "type": "Room",
-                "room_type": "Join",
+                "type": "JoinToRoom",
                 "room": "8c366421-f7d8-47e1-8eed-82915280ce30",
                 "room_user_type": 3
             }

@@ -122,6 +122,8 @@ generate_type!(RoomId);
 generate_type!(RoomMetaId);
 generate_type!(RoomTagId);
 generate_type!(RoomUserId);
+generate_type!(RoomUserBanId);
+generate_type!(RoomUserRequestId);
 
 impl Copy for RoomId { }
 

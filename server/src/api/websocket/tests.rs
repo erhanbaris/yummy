@@ -29,8 +29,7 @@ use crate::json_error_handler;
 macro_rules! custom_id_auth {
     ($client: expr, $custom_id: expr) => {
         $client.send(json!({
-            "type": "Auth",
-            "auth_type": "CustomId",
+            "type": "AuthCustomId",
             "id": $custom_id
         })).await;
         let auth_receive = $client.get_text().await;
@@ -38,8 +37,7 @@ macro_rules! custom_id_auth {
     };
     ($client: expr) => {
         $client.send(json!({
-            "type": "Auth",
-            "auth_type": "CustomId",
+            "type": "AuthCustomId",
             "id": "1234567890"
         })).await;
         let auth_receive = $client.get_text().await;
@@ -51,8 +49,7 @@ macro_rules! get_my_id {
     ($client: expr) => {
         {
             $client.send(json!({
-                "type": "User",
-                "user_type": "Me"
+                "type": "Me"
             })).await;
         
             let receive = $client.get_text().await;
@@ -70,8 +67,7 @@ macro_rules! get_me {
     ($client: expr) => {
         {
             $client.send(json!({
-                "type": "User",
-                "user_type": "Me"
+                "type": "Me"
             })).await;
         
             let receive = $client.get_text().await;
@@ -88,8 +84,7 @@ macro_rules! get_me {
 macro_rules! update_meta {
     ($client: expr, $meta: tt) => {
         let request = json!({
-            "type": "User",
-            "user_type": "Update",
+            "type": "UpdateUser",
             "meta": $meta
         });
 
@@ -246,8 +241,7 @@ async fn auth_via_device_id() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "DeviceId",
+        "type": "AuthDeviceId",
         "id": "1234567890"
     });
     client.send(request).await;
@@ -266,8 +260,7 @@ async fn fail_auth_via_device_id_1() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "DeviceId",
+        "type": "AuthDeviceId"
     });
     client.send(request).await;
     let receive = client.get_text().await;
@@ -285,8 +278,7 @@ async fn fail_auth_via_device_id_2() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "DeviceId",
+        "type": "AuthDeviceId",
         "id": ""
     });
     client.send(request).await;
@@ -306,8 +298,7 @@ async fn fail_auth_via_device_id_3() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "DeviceId",
+        "type": "AuthDeviceId",
         "id": 123
     });
     client.send(request).await;
@@ -338,8 +329,7 @@ async fn fail_auth_via_custom_id_1() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "CustomId",
+        "type": "AuthCustomId",
     });
     client.send(request).await;
     let receive = client.get_text().await;
@@ -357,8 +347,7 @@ async fn fail_auth_via_custom_id_2() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "CustomId",
+        "type": "AuthCustomId",
         "id": ""
     });
     client.send(request).await;
@@ -378,8 +367,7 @@ async fn fail_auth_via_custom_id_3() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "CustomId",
+        "type": "AuthCustomId",
         "id": 123
     });
     client.send(request).await;
@@ -398,8 +386,7 @@ async fn auth_via_email_1() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Email",
+        "type": "AuthEmail",
         "email": "erhanbaris@gmail.com",
         "password": "erhan",
         "create": true
@@ -420,8 +407,7 @@ async fn auth_via_email_2() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Email",
+        "type": "AuthEmail",
         "email": "erhanbaris@gmail.com",
         "password": "erhan"
     });
@@ -442,8 +428,7 @@ async fn auth_via_email_3() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Email",
+        "type": "AuthEmail",
         "email": "erhanbaris@gmail.com",
         "password": "erhan",
         "create": false
@@ -465,8 +450,7 @@ async fn auth_via_email_4() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Email",
+        "type": "AuthEmail",
         "email": "",
         "password": ""
     });
@@ -497,8 +481,7 @@ async fn auth_via_email_5() -> anyhow::Result<()> {
 
     // Not valid
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Email",
+        "type": "AuthEmail",
         "email": "erhanbaris@gmail.com",
         "password": "erhan"
     });
@@ -511,8 +494,7 @@ async fn auth_via_email_5() -> anyhow::Result<()> {
 
     // Register with right information
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Email",
+        "type": "AuthEmail",
         "email": "erhanbaris@gmail.com",
         "password": "erhan",
         "create": true
@@ -531,8 +513,7 @@ async fn auth_via_email_5() -> anyhow::Result<()> {
     
     // Login again
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Email",
+        "type": "AuthEmail",
         "email": "erhanbaris@gmail.com",
         "password": "erhan"
     });
@@ -559,8 +540,7 @@ async fn auth_via_email_6() -> anyhow::Result<()> {
 
     // Not valid
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Email",
+        "type": "AuthEmail",
         "email": "erhanbaris@gmail.com",
         "password": "erhan"
     });
@@ -573,8 +553,7 @@ async fn auth_via_email_6() -> anyhow::Result<()> {
 
     // Register with right information
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Email",
+        "type": "AuthEmail",
         "email": "erhanbaris@gmail.com",
         "password": "erhan",
         "create": true
@@ -592,8 +571,7 @@ async fn auth_via_email_6() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Email",
+        "type": "AuthEmail",
         "email": "erhanbaris@gmail.com",
         "password": "erhan"
     });
@@ -615,8 +593,7 @@ async fn success_logout() -> anyhow::Result<()> {
 
     // Register with right information
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Email",
+        "type": "AuthEmail",
         "email": "erhanbaris@gmail.com",
         "password": "erhan",
         "create": true
@@ -630,8 +607,7 @@ async fn success_logout() -> anyhow::Result<()> {
 
     // Logout
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Logout"
+        "type": "Logout"
     });
     client.send(request).await;
     let receive = client.get_text().await;
@@ -654,8 +630,7 @@ async fn fail_token_refresh_1() -> anyhow::Result<()> {
 
     // Not valid
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Refresh",
+        "type": "RefreshToken",
         "token": "erhanbaris"
     });
     client.send(request).await;
@@ -677,8 +652,7 @@ async fn fail_token_refresh_2() -> anyhow::Result<()> {
 
     // Not valid
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Refresh"
+        "type": "RefreshToken",
     });
     client.send(request).await;
     let receive = client.get_text().await;
@@ -698,8 +672,7 @@ async fn token_refresh_1() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "DeviceId",
+        "type": "AuthDeviceId",
         "id": "1234567890"
     });
     client.send(request).await;
@@ -711,8 +684,7 @@ async fn token_refresh_1() -> anyhow::Result<()> {
 
     // Not valid
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Refresh",
+        "type": "RefreshToken",
         "token": token
     });
     client.send(request).await;
@@ -736,8 +708,7 @@ async fn token_restore_1() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "DeviceId",
+        "type": "AuthDeviceId",
         "id": "1234567890"
     });
     client.send(request).await;
@@ -752,8 +723,7 @@ async fn token_restore_1() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Restore",
+        "type": "RestoreToken",
         "token": token
     });
     client.send(request).await;
@@ -776,8 +746,7 @@ async fn fail_token_restore_1() -> anyhow::Result<()> {
     let mut client = WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
     let request = json!({
-        "type": "Auth",
-        "auth_type": "DeviceId",
+        "type": "AuthDeviceId",
         "id": "1234567890"
     });
     client.send(request).await;
@@ -796,8 +765,7 @@ async fn fail_token_restore_1() -> anyhow::Result<()> {
 
     // Not valid
     let request = json!({
-        "type": "Auth",
-        "auth_type": "Restore",
+        "type": "RestoreToken",
         "token": token
     });
     client.send(request).await;
@@ -835,8 +803,7 @@ async fn user_get_1() -> anyhow::Result<()> {
     let id = get_my_id!(client);
     
     client.send(json!({
-        "type": "User",
-        "user_type": "Get",
+        "type": "GetUser",
         "user": id
     })).await;
 
@@ -862,8 +829,7 @@ async fn user_online_status_change() -> anyhow::Result<()> {
     let id = get_my_id!(client);
 
     client.send(json!({
-        "type": "User",
-        "user_type": "Get",
+        "type": "GetUser",
         "user": id
     })).await;
 
@@ -881,8 +847,7 @@ async fn user_online_status_change() -> anyhow::Result<()> {
     custom_id_auth!(client, "test user 2");
 
     client.send(json!({
-        "type": "User",
-        "user_type": "Get",
+        "type": "GetUser",
         "user": id
     })).await;
 
@@ -906,8 +871,7 @@ async fn user_update_1() -> anyhow::Result<()> {
     custom_id_auth!(client);
 
     client.send(json!({
-        "type": "User",
-        "user_type": "Update",
+        "type": "UpdateUser",
         "name": "Erhan BARIS",
         "custom_id": "1234567890",
         "device_id": "987654321",
@@ -920,8 +884,7 @@ async fn user_update_1() -> anyhow::Result<()> {
     assert!(response.status);
 
     client.send(json!({
-        "type": "User",
-        "user_type": "Me"
+        "type": "Me"
     })).await;
 
     let receive = client.get_text().await;
@@ -948,8 +911,7 @@ async fn user_update_2() -> anyhow::Result<()> {
     custom_id_auth!(client, "1234567890");
 
     client.send(json!({
-        "type": "User",
-        "user_type": "Update",
+        "type": "UpdateUser",
         "meta": {}
     })).await;
     let receive = client.get_text().await;
@@ -1018,8 +980,7 @@ async fn create_room() -> anyhow::Result<()> {
     custom_id_auth!(client, "1234567890");
 
     client.send(json!({
-        "type": "Room",
-        "room_type": "Create"
+        "type": "CreateRoom"
     })).await;
     let receive = client.get_text().await;
     assert!(receive.is_some());
@@ -1041,8 +1002,7 @@ async fn join_room() -> anyhow::Result<()> {
 
     // Error
     client_1.send(json!({
-        "type": "Room",
-        "room_type": "Create"
+        "type": "CreateRoom"
     })).await;
     let receive = client_1.get_text().await;
     assert!(receive.is_some());
@@ -1053,8 +1013,7 @@ async fn join_room() -> anyhow::Result<()> {
     let room_id = response.result.room;
     
     client_2.send(json!({
-        "type": "Room",
-        "room_type": "Join",
+        "type": "JoinToRoom",
         "room": room_id,
         "room_user_type": 1
     })).await;

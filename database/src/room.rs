@@ -6,7 +6,7 @@ use diesel::QueryDsl;
 use diesel::ExpressionMethods;
 use general::meta::RoomMetaAccess;
 use general::meta::MetaType;
-use general::model::RoomId;
+use general::model::{RoomId, RoomUserRequestId};
 use general::model::RoomMetaId;
 use general::model::RoomTagId;
 use general::model::RoomUserId;
@@ -138,7 +138,7 @@ impl RoomStoreTrait for SqliteStore {
     fn join_to_room_request(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, user_type: RoomUserType) -> anyhow::Result<()> {
 
         let insert = RoomUserRequestInsert {
-            id: RoomUserId::default(),
+            id: RoomUserRequestId::default(),
             insert_date: SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default(),
             room_id,
             user_id,

@@ -1,16 +1,10 @@
 use std::collections::HashMap;
 
-use crate::{schema::user, schema::user_meta, schema::room, schema::room_tag, schema::room_user, schema::room_user_request, schema::room_meta};
+use crate::schema::*;
 use diesel::*;
 use general::meta::MetaType;
 use general::meta::UserMetaAccess;
-use general::model::RoomId;
-use general::model::RoomMetaId;
-use general::model::RoomTagId;
-use general::model::RoomUserId;
-use general::model::UserId;
-use general::model::UserMetaId;
-use general::model::UserType;
+use general::model::*;
 use serde::Serialize;
 use serde::Deserialize;
 
@@ -83,12 +77,22 @@ pub struct RoomUserInsert<'a> {
 #[derive(Debug, Insertable)]
 #[diesel(table_name = room_user_request)]
 pub struct RoomUserRequestInsert<'a> {
-    pub id: RoomUserId,
+    pub id: RoomUserRequestId,
     pub room_id: &'a RoomId,
     pub user_id: &'a UserId,
     pub room_user_type: i32,
     pub status_updater_user_id: Option<&'a UserId>,
     pub status: bool,
+    pub insert_date: i32,
+}
+
+#[derive(Debug, Insertable)]
+#[diesel(table_name = room_user_ban)]
+pub struct RoomUserBanInsert<'a> {
+    pub id: RoomUserBanId,
+    pub room_id: &'a RoomId,
+    pub user_id: &'a UserId,
+    pub blocker_user_id: Option<&'a UserId>,
     pub insert_date: i32,
 }
 

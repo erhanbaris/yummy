@@ -10,8 +10,7 @@
 
         | Field name   | Type    | Required | Description                                    | Default value |
         |--------------|---------|----------|------------------------------------------------|---------------|
-        | `type`       | string  | Y        | Value must be **Auth**                         |               |
-        | `auth_type`  | string  | Y        | Value must be **Email**                        |               |
+        | `type`       | string  | Y        | Value must be **AuthEmail**                    |               |
         | `email`      | string  | Y        | Authentication email address                   |               |
         | `password`   | string  | Y        | Authentication password                        |               |
         | `create`     | boolean | N        | If the user is not created yet, create new one | false         |
@@ -19,8 +18,7 @@
         **Example request:**
         ```json
         {
-            "type": "Auth",
-            "auth_type": "Email",
+            "type": "AuthEmail",
             "email": "erhanbaris@gmail.com",
             "password": "erhan",
             "create": true
@@ -38,15 +36,13 @@
 
         | Field name   | Type    | Required | Description                                    |
         |--------------|---------|----------|------------------------------------------------|
-        | `type`       | string  | Y        | Value must be **Auth**                         |
-        | `auth_type`  | string  | Y        | Value must be **DeviceId**                     |
+        | `type`       | string  | Y        | Value must be **AuthDeviceId**                 |
         | `id`         | string  | Y        | Authentication device id                       |
 
         **Example request:**
         ```json
         {
-            "type": "Auth",
-            "auth_type": "DeviceId",
+            "type": "AuthDeviceId",
             "id": "1234567890"
         }
         ```
@@ -64,15 +60,13 @@
 
         | Field name   | Type    | Required | Description                                    |
         |--------------|---------|----------|------------------------------------------------|
-        | `type`       | string  | Y        | Value must be **Auth**                         |
-        | `auth_type`  | string  | Y        | Value must be **CustomId**                     |
+        | `type`       | string  | Y        | Value must be **AuthCustomId**                 |
         | `id`         | string  | Y        | Authentication device id                       |
 
         **Example request:**
         ```json
         {
-            "type": "Auth",
-            "auth_type": "CustomId",
+            "type": "AuthCustomId",
             "id": "ABV123"
         }
         ```
@@ -92,15 +86,13 @@ Regenerating token with new expire date.
 
         | Field name   | Type    | Required | Description                                    |
         |--------------|---------|----------|------------------------------------------------|
-        | `type`       | string  | Y        | Value must be **Auth**                         |
-        | `auth_type`  | string  | Y        | Value must be **Refresh**                      |
+        | `type`       | string  | Y        | Value must be **RefreshToken**                 |
         | `token`      | string  | Y        | Valid Authentication token                     |
 
         **Example request:**
         ```json
         {
-            "type": "Auth",
-            "auth_type": "Refresh",
+            "type": "RefreshToken",
             "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE2NzA1Mjg3MTEsInVzZXIiOnsiaWQiOiJiMDhkN2I3OS0xNDA1LTQxZGMtODJhMS02YTg4MjU3OWM3MmEiLCJzZXNzaW9uIjoiM2IxMzdjYWUtZmY1OC00NjY5LTg1YjctOWEyM2NiOGRiYzAxIiwibmFtZSI6bnVsbCwiZW1haWwiOiJlcmhhbmJhcmlzQGdtYWlsLmNvbSJ9fQ.6tLnsjWPRCz0cW00j2nzV-SUk6GwrlYgxe9V_p5mhxU"
         }
         ```
@@ -120,15 +112,13 @@ The user should be restore token after reconnecting to the system. If timeout ex
 
         | Field name   | Type    | Required | Description                                    |
         |--------------|---------|----------|------------------------------------------------|
-        | `type`       | string  | Y        | Value must be **Auth**                         |
-        | `auth_type`  | string  | Y        | Value must be **Restore**                      |
+        | `type`       | string  | Y        | Value must be **RestoreToken**                 |
         | `token`      | string  | Y        | Valid Authentication token                     |
 
         **Example request:**
         ```json
         {
-            "type": "Auth",
-            "auth_type": "Restore",
+            "type": "RestoreToken",
             "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE2NzA1Mjg3MTEsInVzZXIiOnsiaWQiOiJiMDhkN2I3OS0xNDA1LTQxZGMtODJhMS02YTg4MjU3OWM3MmEiLCJzZXNzaW9uIjoiM2IxMzdjYWUtZmY1OC00NjY5LTg1YjctOWEyM2NiOGRiYzAxIiwibmFtZSI6bnVsbCwiZW1haWwiOiJlcmhhbmJhcmlzQGdtYWlsLmNvbSJ9fQ.6tLnsjWPRCz0cW00j2nzV-SUk6GwrlYgxe9V_p5mhxU"
         }
         ```
@@ -147,14 +137,12 @@ Terminates the current session and active game and player will be informed.
 
         | Field name   | Type    | Required | Description                                    |
         |--------------|---------|----------|------------------------------------------------|
-        | `type`       | string  | Y        | Value must be **Auth**                         |
-        | `auth_type`  | string  | Y        | Value must be **Logout**                       |
+        | `type`       | string  | Y        | Value must be **Logout**                         |
 
         **Example request:**
         ```json
         {
-            "type": "Auth",
-            "auth_type": "Logout"
+            "type": "Logout"
         }
         ```
 
