@@ -20,12 +20,16 @@ use general::model::UserId;
 use general::state::SendMessage;
 use general::state::YummyState;
 
+use actix_broker::*;
+
 #[cfg(feature = "stateless")]
 use redis::Commands;
 
-use self::model::UserConnected;
+use crate::auth::model::AuthUserDisconnect;
+use crate::auth::model::ConnUserDisconnect;
+use crate::auth::model::RoomUserDisconnect;
 
-use super::auth::model::UserDisconnect;
+use self::model::UserConnected;
 
 pub struct ConnectionManager {
     #[allow(dead_code)]
@@ -93,7 +97,7 @@ impl Actor for ConnectionManager {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         self.subscribe_system_async::<UserConnected>(ctx);
-        self.subscribe_system_async::<UserDisconnect>(ctx);
+        self.subscribe_system_async::<ConnUserDisconnect>(ctx);
         self.subscribe_system_async::<SendMessage>(ctx);
 
         #[cfg(feature = "stateless")]
@@ -111,18 +115,28 @@ impl Handler<UserConnected> for ConnectionManager {
     }
 }
 
-impl Handler<UserDisconnect> for ConnectionManager {
+impl Handler<ConnUserDisconnect> for ConnectionManager {
     type Result = ();
 
-    #[tracing::instrument(name="UserDisconnect", skip(self, _ctx))]
-    fn handle(&mut self, model: UserDisconnect, _ctx: &mut Self::Context) -> Self::Result {
+    #[tracing::instrument(name="ConnUserDisconnect", skip(self, _ctx))]
+    fn handle(&mut self, model: ConnUserDisconnect, _ctx: &mut Self::Context) -> Self::Result {
         let user_id = match model.auth.deref() {
             Some(user) => &user.user,
             None => return ()
         };
 
-        println!("conn:UserDisconnect");
+        println!("ConnUserDisconnect");
         self.users.remove(user_id);
+
+        self.issue_system_async(RoomUserDisconnect {
+            auth: model.auth.clone(),
+            socket: model.socket.clone()
+        });
+
+        self.issue_system_async(AuthUserDisconnect {
+            auth: model.auth.clone(),
+            socket: model.socket.clone()
+        });
     }
 }
 

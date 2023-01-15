@@ -92,7 +92,7 @@ pub struct RoomUserBanInsert<'a> {
     pub id: RoomUserBanId,
     pub room_id: &'a RoomId,
     pub user_id: &'a UserId,
-    pub blocker_user_id: Option<&'a UserId>,
+    pub blocker_user_id: &'a UserId,
     pub insert_date: i32,
 }
 

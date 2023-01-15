@@ -20,13 +20,11 @@ use general::model::{RoomId, UserId, RoomUserType, UserType, SessionId};
 use general::state::{YummyState, SendMessage, RoomInfoTypeVariant, RoomInfoType};
 use general::web::{GenericAnswer, Answer};
 
-use crate::auth::model::AuthError;
-use crate::{get_user_session_id_from_auth, get_user_id_from_auth};
+use crate::auth::model::{AuthError, RoomUserDisconnect};
+use crate::{get_user_session_id_from_auth, get_user_id_from_auth, get_session_id_from_auth};
 use crate::user::model::UserError;
 
 use self::model::*;
-
-use super::auth::model::UserDisconnect;
 
 type ConfigureMetasResult = anyhow::Result<(Option<HashMap<String, MetaType<RoomMetaAccess>>>, HashMap<String, MetaType<RoomMetaAccess>>)>;
 
@@ -52,7 +50,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for RoomMa
     type Context = Context<Self>;
     
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.subscribe_system_async::<UserDisconnect>(ctx);
+        self.subscribe_system_async::<RoomUserDisconnect>(ctx);
         self.subscribe_system_async::<DisconnectFromRoomRequest>(ctx);
     }
 }
@@ -77,7 +75,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
             });
         }
 
-        let access_level = self.get_access_level_for_room(user_id, &room_id)?;
+        let access_level = self.get_access_level_for_room(user_id, session_id, &room_id)?;
         
         let infos = self.states.get_room_info(&room_id, access_level, vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::Metas])?;
         let room_name = infos.get_room_name();
@@ -91,8 +89,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         Ok(())
     }
 
-    fn disconnect_from_room(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId) -> anyhow::Result<bool> {
-        let room_removed = self.states.disconnect_from_room(room_id, user_id, session_id)?;
+    fn disconnect_from_room(&mut self, room_id: &RoomId, user_id: &UserId) -> anyhow::Result<bool> {
+        let room_removed = self.states.disconnect_from_room(room_id, user_id)?;
         let users = self.states.get_users_from_room(room_id)?;
         
         let mut connection = self.database.get()?;
@@ -233,9 +231,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         Ok(())
     }
 
-    fn get_access_level_for_room(&mut self, user_id: &UserId, room_id: &RoomId) -> anyhow::Result<RoomMetaAccess> {
+    fn get_access_level_for_room(&mut self, user_id: &UserId, session_id: &SessionId, room_id: &RoomId) -> anyhow::Result<RoomMetaAccess> {
         match self.states.get_user_type(user_id) {
-            Some(UserType::User) => match self.states.get_users_room_type(user_id, room_id) {
+            Some(UserType::User) => match self.states.get_users_room_type(session_id, room_id) {
                 Some(RoomUserType::User) => Ok(RoomMetaAccess::User),
                 Some(RoomUserType::Moderator) => Ok(RoomMetaAccess::Moderator),
                 Some(RoomUserType::Owner) => Ok(RoomMetaAccess::Owner),
@@ -248,19 +246,19 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
     }
 }
 
-impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisconnect> for RoomManager<DB> {
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomUserDisconnect> for RoomManager<DB> {
     type Result = ();
 
-    #[tracing::instrument(name="Room::User UserDisconnect", skip(self, _ctx))]
-    fn handle(&mut self, model: UserDisconnect, _ctx: &mut Self::Context) -> Self::Result {
-        println!("room:UserDisconnect");
+    #[tracing::instrument(name="Room::User RoomUserDisconnect", skip(self, _ctx))]
+    fn handle(&mut self, model: RoomUserDisconnect, _ctx: &mut Self::Context) -> Self::Result {
+        println!("RoomUserDisconnect");
 
         if let Some(user) = model.auth.deref() {
-            let rooms = self.states.get_user_rooms(&user.user, &user.session);
+            let rooms = self.states.get_user_rooms(&user.session);
     
             if let Some(rooms) = rooms {
                 for room in rooms.into_iter() {
-                    self.disconnect_from_room(&room, &user.user, &user.session).unwrap_or_default();
+                    self.disconnect_from_room(&room, &user.user).unwrap_or_default();
                 }
             }
         }
@@ -315,7 +313,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
     #[macros::api(name="UpdateRoom", socket=true)]
     fn handle(&mut self, model: UpdateRoom, _ctx: &mut Context<Self>) -> Self::Result {
 
-        let user_id = get_user_id_from_auth!(model);
+        let (user_id, session_id) = get_user_session_id_from_auth!(model);
 
         let UpdateRoom { room_id, name, description, socket, metas, meta_action, access_type, max_user, tags, user_permission, join_request, .. } = model;
 
@@ -326,7 +324,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
         }
 
         // Calculate room access level for user
-        let access_level = self.get_access_level_for_room(user_id, &room_id)?;
+        let access_level = self.get_access_level_for_room(user_id, session_id, &room_id)?;
 
         let updates = RoomUpdate {
             max_user: max_user.map(|item| item as i32 ),
@@ -402,9 +400,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<WaitingR
     #[macros::api(name="WaitingRoomJoins", socket=true)]
     fn handle(&mut self, model: WaitingRoomJoins, _ctx: &mut Context<Self>) -> Self::Result {
         // Check user information
-        let user_id = get_user_id_from_auth!(model);
+        let session_id = get_session_id_from_auth!(model);
 
-        let user_type = match self.states.get_users_room_type(&user_id, &model.room) {
+        let user_type = match self.states.get_users_room_type(session_id, &model.room) {
             Some(room_user_type) => room_user_type,
             None => return Err(anyhow::anyhow!(RoomError::UserNotInTheRoom))
         };
@@ -427,6 +425,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
     fn handle(&mut self, model: JoinToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
         // Check user information
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
+
+        if self.states.is_user_banned_from_room(&model.room, user_id)? {
+            return Err(anyhow::anyhow!(RoomError::BannedFromRoom));
+        }
 
         let room_infos = self.states.get_room_info(&model.room, RoomMetaAccess::System, vec![RoomInfoTypeVariant::JoinRequest])?;
         let join_require_approvement = room_infos.get_join_request();
@@ -500,17 +502,35 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<ProcessW
     }
 }
 
+
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<BanUserFromRoom> for RoomManager<DB> {
+    type Result = anyhow::Result<()>;
+
+    #[tracing::instrument(name="BanUserFromRoom", skip(self, _ctx))]
+    #[macros::api(name="BanUserFromRoom", socket=true)]
+    fn handle(&mut self, model: BanUserFromRoom, _ctx: &mut Context<Self>) -> Self::Result {        
+        let user_id = get_user_id_from_auth!(model);
+
+        self.disconnect_from_room(&model.room, &model.user)?;
+        self.states.ban_user_from_room(&model.room, &model.user)?;
+        let mut connection = self.database.get()?;
+        DB::ban_user_from_room(&mut connection, &model.room, &model.user, &user_id)?;
+        model.socket.send(Answer::success().into());
+        Ok(())
+    }
+}
+
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DisconnectFromRoomRequest> for RoomManager<DB> {
     type Result = ();
 
     #[tracing::instrument(name="DisconnectFromRoomRequest", skip(self, _ctx))]
     #[macros::simple_api(name="DisconnectFromRoomRequest", socket=true)]
     fn handle(&mut self, model: DisconnectFromRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
-        let (user_id, session_id) = get_user_session_id_from_auth!(model, ());
+        let user_id = get_user_id_from_auth!(model, ());
 
         println!("room:DisconnectFromRoomRequest");
 
-        self.disconnect_from_room(&model.room, user_id, session_id).unwrap_or_default();
+        self.disconnect_from_room(&model.room, user_id).unwrap_or_default();
         model.socket.send(Answer::success().into());
     }
 }
@@ -556,7 +576,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomList
     #[macros::api(name="RoomListRequest", socket=true)]
     fn handle(&mut self, model: RoomListRequest, _ctx: &mut Context<Self>) -> Self::Result {
         let members = if model.members.is_empty() {
-            vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength]
+            vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::BannedUsers]
         } else {
             model.members
         };
@@ -575,15 +595,15 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetRoomR
     fn handle(&mut self, model: GetRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
         
         // Check user information
-        let user_id = get_user_id_from_auth!(model);
+        let (user_id, session_id) = get_user_session_id_from_auth!(model);
 
         let members = if model.members.is_empty() {
-            vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::Metas, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength]
+            vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::Metas, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::BannedUsers]
         } else {
             model.members
         };
 
-        let access_level = self.get_access_level_for_room(user_id, &model.room)?;
+        let access_level = self.get_access_level_for_room(user_id, session_id, &model.room)?;
         let room = self.states.get_room_info(&model.room, access_level, members)?;
         model.socket.send(GenericAnswer::success(RoomResponse::RoomInfo { room }).into());
         Ok(())

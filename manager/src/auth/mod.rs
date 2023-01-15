@@ -60,12 +60,7 @@ impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
 macro_rules! disconnect_if_already_auth {
     ($model: expr, $self:expr, $ctx: expr) => {
         if $model.auth.is_some() {
-            $ctx.address().do_send(UserDisconnect {
-                auth: $model.auth.clone(),
-                socket: $model.socket.clone()
-            });
-
-            $self.issue_system_async(UserDisconnect {
+            $self.issue_system_async(ConnUserDisconnect {
                 auth: $model.auth.clone(),
                 socket: $model.socket.clone()
             });
@@ -77,18 +72,18 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for AuthMa
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.subscribe_system_async::<UserDisconnect>(ctx);
+        self.subscribe_system_async::<AuthUserDisconnect>(ctx);
     }
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAuthRequest> for AuthManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="EmailAuth", skip(self, ctx))]
+    #[tracing::instrument(name="EmailAuth", skip(self, _ctx))]
     #[macros::api(name="EmailAuth", socket=true)]
-    fn handle(&mut self, model: EmailAuthRequest, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, model: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
-        disconnect_if_already_auth!(model, self, ctx);        
+        disconnect_if_already_auth!(model, self, _ctx);        
         
         let mut connection = self.database.get()?;
         let user_info = DB::user_login_via_email(&mut connection, &model.email)?;
@@ -122,11 +117,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceIdAuthRequest> for AuthManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="DeviceIdAuth", skip(self, ctx))]
+    #[tracing::instrument(name="DeviceIdAuth", skip(self, _ctx))]
     #[macros::api(name="DeviceIdAuth", socket=true)]
-    fn handle(&mut self, model: DeviceIdAuthRequest, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, model: DeviceIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
-        disconnect_if_already_auth!(model, self, ctx);        
+        disconnect_if_already_auth!(model, self, _ctx);        
         
         let mut connection = self.database.get()?;
         let user_info = DB::user_login_via_device_id(&mut connection, &model.id)?;
@@ -152,11 +147,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomIdAuthRequest> for AuthManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="CustomIdAuth", skip(self, ctx))]
+    #[tracing::instrument(name="CustomIdAuth", skip(self, _ctx))]
     #[macros::api(name="CustomIdAuth", socket=true)]
-    fn handle(&mut self, model: CustomIdAuthRequest, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, model: CustomIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
-        disconnect_if_already_auth!(model, self, ctx);        
+        disconnect_if_already_auth!(model, self, _ctx);        
         
         let mut connection = self.database.get()?;
         let user_info = DB::user_login_via_custom_id(&mut connection, &model.id)?;
@@ -182,17 +177,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRequest> for AuthManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="Logout", skip(self, ctx))]
+    #[tracing::instrument(name="Logout", skip(self, _ctx))]
     #[macros::api(name="Logout", socket=true)]
-    fn handle(&mut self, model: LogoutRequest, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, model: LogoutRequest, _ctx: &mut Context<Self>) -> Self::Result {
         model.socket.send(Answer::success().into());
 
-        ctx.address().do_send(UserDisconnect {
-            auth: model.auth.clone(),
-            socket: model.socket.clone()
-        });
-        
-        self.issue_system_async(UserDisconnect {
+        self.issue_system_async(ConnUserDisconnect {
             auth: model.auth.clone(),
             socket: model.socket
         });
@@ -203,9 +193,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRe
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshTokenRequest> for AuthManager<DB> {
     type Result = anyhow::Result<()>;
 
-    #[tracing::instrument(name="RefreshToken", skip(self, ctx))]
+    #[tracing::instrument(name="RefreshToken", skip(self, _ctx))]
     #[macros::api(name="RefreshToken", socket=true)]
-    fn handle(&mut self, model: RefreshTokenRequest, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, model: RefreshTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         disconnect_if_already_auth!(model, self, ctx);        
         
@@ -263,13 +253,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUse
     fn handle(&mut self, model: StartUserTimeout, ctx: &mut Context<Self>) -> Self::Result {
         let user = model.auth.clone();
         
-        let timer = ctx.run_later(self.config.connection_restore_wait_timeout, move |manager, _ctx| {
-            _ctx.address().do_send(UserDisconnect {
-                auth: model.auth.clone(),
-                socket: model.socket.clone()
-            });
-            
-            manager.issue_system_async(UserDisconnect {
+        let timer = ctx.run_later(self.config.connection_restore_wait_timeout, move |manager, _ctx| {            
+            manager.issue_system_async(ConnUserDisconnect {
                 auth: model.auth.clone(),
                 socket: model.socket.clone()
             });
@@ -284,13 +269,13 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUse
     }
 }
 
-impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UserDisconnect> for AuthManager<DB> {
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<AuthUserDisconnect> for AuthManager<DB> {
     type Result = ();
 
-    #[tracing::instrument(name="UserDisconnect", skip(self, _ctx))]
-    #[macros::api(name="UserDisconnect")]
-    fn handle(&mut self, model: UserDisconnect, _ctx: &mut Context<Self>) -> Self::Result {
-        println!("auth:UserDisconnect");
+    #[tracing::instrument(name="AuthUserDisconnect", skip(self, _ctx))]
+    #[macros::api(name="AuthUserDisconnect")]
+    fn handle(&mut self, model: AuthUserDisconnect, _ctx: &mut Context<Self>) -> Self::Result {
+        println!("AuthUserDisconnect");
 
         if let Some(user) = model.auth.deref() {
             self.states.close_session(&user.user, &user.session);

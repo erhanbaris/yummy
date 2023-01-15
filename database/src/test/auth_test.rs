@@ -4,7 +4,7 @@ use crate::auth::AuthStoreTrait;
 use crate::{create_database, create_connection, PooledConnection};
 
 use crate::SqliteStore;
-use super::*;
+
 fn db_conection() -> anyhow::Result<PooledConnection> {
     let mut connection = create_connection(":memory:")?.get()?;
     create_database(&mut connection)?;

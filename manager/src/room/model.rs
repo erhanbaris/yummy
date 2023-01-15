@@ -41,6 +41,15 @@ pub struct WaitingRoomJoins {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+pub struct BanUserFromRoom {
+    pub auth: Arc<Option<UserAuth>>,
+    pub room: RoomId,
+    pub user: UserId,
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
+}
+
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<()>")]
 pub struct ProcessWaitingUser {
     pub auth: Arc<Option<UserAuth>>,
     pub room: RoomId,
@@ -118,7 +127,10 @@ pub enum RoomError {
     UserDoesNotHaveEnoughPermission,
 
     #[error("User is not in the room")]
-    UserNotInTheRoom
+    UserNotInTheRoom,
+
+    #[error("Banned from room")]
+    BannedFromRoom
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -139,7 +151,7 @@ pub enum RoomResponse<'a> {
     },
     WaitingRoomJoins {
         room: &'a RoomId,
-        users: HashMap<UserId, RoomUserType>,
+        users: HashMap<Arc<UserId>, RoomUserType>,
     },
     NewJoinRequest {
         room: &'a RoomId,

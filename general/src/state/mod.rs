@@ -13,7 +13,7 @@ pub use crate::state::stateless::YummyState;
 #[cfg(test)]
 mod test;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::borrow::Cow;
 use std::sync::Arc;
 use std::{fmt::Debug, borrow::Borrow};
@@ -90,7 +90,8 @@ pub enum RoomInfoType {
     Tags(Vec<String>),
     Metas(HashMap<String, MetaType<RoomMetaAccess>>),
     InsertDate(i32),
-    JoinRequest(bool)
+    JoinRequest(bool),
+    BannedUsers(HashSet<UserId>)
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -125,6 +126,7 @@ impl RoomInfoTypeCollection {
     generate_room_type_getter!(get_metas, RoomInfoType::Metas, HashMap<String, MetaType<RoomMetaAccess>>);
     generate_room_type_getter!(get_insert_date, RoomInfoType::InsertDate, i32);
     generate_room_type_getter!(get_join_request, RoomInfoType::JoinRequest, bool);
+    generate_room_type_getter!(get_banned_users, RoomInfoType::BannedUsers, HashSet<UserId>);
 
 }
 
@@ -148,6 +150,7 @@ impl Serialize for RoomInfoTypeCollection {
                 RoomInfoType::AccessType(access_type) => items.serialize_entry("access-type", access_type),
                 RoomInfoType::Tags(tags) => items.serialize_entry("tags", tags),
                 RoomInfoType::Metas(tags) => items.serialize_entry("metas", tags),
+                RoomInfoType::BannedUsers(banned_users) => items.serialize_entry("banned-users", banned_users),
                 RoomInfoType::InsertDate(insert_date) => items.serialize_entry("insert-date", insert_date),
                 RoomInfoType::JoinRequest(join_request) => items.serialize_entry("join-request", join_request),
             }?;

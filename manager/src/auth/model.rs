@@ -109,7 +109,21 @@ impl CustomIdAuthRequest {
 
 #[derive(Message, Validate, Debug, Clone)]
 #[rtype(result = "()")]
-pub struct UserDisconnect {
+pub struct ConnUserDisconnect {
+    pub auth: Arc<Option<UserAuth>>,
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
+}
+
+#[derive(Message, Validate, Debug, Clone)]
+#[rtype(result = "()")]
+pub struct RoomUserDisconnect {
+    pub auth: Arc<Option<UserAuth>>,
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
+}
+
+#[derive(Message, Validate, Debug, Clone)]
+#[rtype(result = "()")]
+pub struct AuthUserDisconnect {
     pub auth: Arc<Option<UserAuth>>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }

@@ -6,7 +6,7 @@ use diesel::QueryDsl;
 use diesel::ExpressionMethods;
 use general::meta::RoomMetaAccess;
 use general::meta::MetaType;
-use general::model::{RoomId, RoomUserRequestId};
+use general::model::{RoomId, RoomUserRequestId, RoomUserBanId};
 use general::model::RoomMetaId;
 use general::model::RoomTagId;
 use general::model::RoomUserId;
@@ -14,11 +14,11 @@ use general::model::UserId;
 use general::model::UserMetaId;
 use general::model::{CreateRoomAccessType, RoomUserType};
 
-use crate::model::{RoomMetaInsert, RoomUserRequestInsert};
+use crate::model::{RoomMetaInsert, RoomUserRequestInsert, RoomUserBanInsert};
 use crate::model::RoomMetaModel;
 use crate::model::RoomUpdate;
 use crate::schema::{room_meta, room_user_request};
-use crate::{SqliteStore, PooledConnection, model::{RoomInsert, RoomTagInsert, RoomUserInsert}, schema::{room::{self}, room_tag, room_user}};
+use crate::{SqliteStore, PooledConnection, model::{RoomInsert, RoomTagInsert, RoomUserInsert}, schema::{room::{self}, room_tag, room_user, room_user_ban}};
 
 pub trait RoomStoreTrait: Sized {
     fn create_room(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, join_request: bool, tags: &[String]) -> anyhow::Result<RoomId>;
@@ -35,6 +35,7 @@ pub trait RoomStoreTrait: Sized {
     fn insert_room_tags(connection: &mut PooledConnection, room_id: &RoomId, tags: &Vec<String>) -> anyhow::Result<()>;
     fn update_room(connection: &mut PooledConnection, room_id: &RoomId, update_request: &RoomUpdate) -> anyhow::Result<usize>;
     fn update_room_user_permissions(connection: &mut PooledConnection, room_id: &RoomId, permissions: &HashMap<UserId, RoomUserType>) -> anyhow::Result<()>;
+    fn ban_user_from_room(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, blocker_user_id: &UserId) -> anyhow::Result<()>;
 }
 
 impl RoomStoreTrait for SqliteStore {
@@ -262,6 +263,23 @@ impl RoomStoreTrait for SqliteStore {
             inserts.push(insert);
         }
         diesel::insert_into(room_meta::table).values(&inserts).execute(connection)?;
+        Ok(())
+    }
+
+    #[tracing::instrument(name="ban_from_room", skip(connection))]
+    fn ban_user_from_room(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, blocker_user_id: &UserId) -> anyhow::Result<()> {
+        let insert = RoomUserBanInsert {
+            id: RoomUserBanId::default(),
+            insert_date: SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default(),
+            room_id,
+            user_id,
+            blocker_user_id
+        };
+        
+        let affected_rows = diesel::insert_into(room_user_ban::table).values(&vec![insert]).execute(connection)?;
+        if affected_rows == 0 {
+            return Err(anyhow::anyhow!("No row inserted"));
+        }
         Ok(())
     }
 }

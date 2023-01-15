@@ -1,10 +1,8 @@
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::fmt::Debug;
 use std::str::FromStr;
 
 use serde::de::DeserializeOwned;
-use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Serialize_repr, Deserialize_repr};
 
@@ -27,7 +25,6 @@ use num_traits::FromPrimitive;
 use uuid::Uuid;
 
 use crate::auth::UserJwt;
-use crate::meta::{MetaType, RoomMetaAccess};
 use crate::web::GenericAnswer;
 
 macro_rules! generate_type {
@@ -170,35 +167,6 @@ impl From<i32> for UserType {
             _ => UserType::default()
         }
     }
-}
-
-#[cfg_attr(feature = "stateless", derive(Serialize, Deserialize))]
-#[derive(Debug)]
-pub struct UserState {
-    pub user_id: UserId,
-    pub name: Option<String>,
-    pub user_type: UserType,
-
-    #[cfg(not(feature = "stateless"))]
-    pub sessions: std::collections::HashSet<SessionId>,
-
-    #[cfg(not(feature = "stateless"))]
-    pub join_requests: std::collections::HashMap<RoomId, SessionId>,
-}
-
-#[derive(Default, Debug)]
-pub struct RoomState {
-    pub room_id: RoomId,
-    pub name: Option<String>,
-    pub description: Option<String>,
-    pub access_type: CreateRoomAccessType,
-    pub max_user: usize,
-    pub tags: Vec<String>,
-    pub insert_date: i32,
-    pub join_request: bool,
-    pub users: Mutex<HashMap<UserId, RoomUserType>>,
-    pub metas: HashMap<String, MetaType<RoomMetaAccess>>,
-    pub join_requests: Mutex<HashMap<UserId, RoomUserType>>
 }
 
 #[derive(Default, Clone, Debug, Serialize_repr, Deserialize_repr, PartialEq, Eq, FromPrimitive, ToPrimitive)]

@@ -106,12 +106,12 @@ async fn room_tests() -> anyhow::Result<()> {
     let user_3_session = state.new_session(&user_3, None, UserType::User);
     
     state.join_to_room(&room_1, &user_1, &user_1_session, RoomUserType::Owner)?;
-    assert_eq!(state.get_users_room_type(&user_1, &room_1).unwrap(), RoomUserType::Owner);
+    assert_eq!(state.get_users_room_type(&user_1_session, &room_1).unwrap(), RoomUserType::Owner);
 
     assert_eq!(state.join_to_room(&room_1, &user_1, &user_1_session, RoomUserType::Owner).err().unwrap(), YummyStateError::UserAlreadInRoom);
 
     state.join_to_room(&room_1, &user_2, &user_2_session, RoomUserType::User)?;
-    assert_eq!(state.get_users_room_type(&user_2, &room_1).unwrap(), RoomUserType::User);
+    assert_eq!(state.get_users_room_type(&user_2_session, &room_1).unwrap(), RoomUserType::User);
 
     assert_eq!(state.join_to_room(&room_1, &user_3, &user_3_session, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
     assert_eq!(state.join_to_room(&room_1, &user_2, &user_2_session, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
@@ -119,10 +119,10 @@ async fn room_tests() -> anyhow::Result<()> {
     assert_eq!(state.join_to_room(&RoomId::new(), &UserId::new(), &SessionId::new(), RoomUserType::Owner).err().unwrap(), YummyStateError::RoomNotFound);
     assert_eq!(state.get_users_from_room(&room_1)?.len(), 2);
 
-    assert_eq!(state.disconnect_from_room(&room_1, &user_1, &user_1_session)?, false);
+    assert_eq!(state.disconnect_from_room(&room_1, &user_1)?, false);
     assert_eq!(state.get_users_from_room(&room_1)?.len(), 1);
 
-    assert_eq!(state.disconnect_from_room(&room_1, &user_2, &user_2_session)?, true);
+    assert_eq!(state.disconnect_from_room(&room_1, &user_2)?, true);
     assert!(state.get_users_from_room(&room_1).is_err());
 
     assert!(!state.is_empty());
@@ -189,13 +189,14 @@ async fn get_room() -> anyhow::Result<()> {
     assert_eq!(result.items.len(), 1);
     assert_eq!(result.get_room_name().into_owned(), Some("New room".to_string()));
 
-    let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength])?;
-    assert_eq!(result.items.len(), 7);
+    let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::BannedUsers, RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength])?;
+    assert_eq!(result.items.len(), 8);
     assert_eq!(result.get_room_name().into_owned(), Some("New room".to_string()));
     assert_eq!(result.get_max_user().into_owned(), 10);
     assert_eq!(result.get_user_length().into_owned(), 0);
     assert_eq!(result.get_access_type().into_owned(), CreateRoomAccessType::Private);
     assert!(result.get_tags().len() > 0);
+    assert!(result.get_banned_users().len() == 0);
     assert!(result.get_insert_date().into_owned() > 0);
 
     // Tag update test
@@ -220,17 +221,12 @@ async fn get_room() -> anyhow::Result<()> {
     let user_2 = UserId::new();
     let user_3 = UserId::new();
 
-    let user_1_session = SessionId::new();
-    let user_2_session = SessionId::new();
-    let user_3_session = SessionId::new();
+    let user_1_session = state.new_session(&user_1, Some("user1".to_string()), UserType::User);
+    let user_2_session = state.new_session(&user_2, Some("user2".to_string()), UserType::Mod);
+    let user_3_session = state.new_session(&user_3, Some("user3".to_string()), UserType::Admin);
 
-    state.new_session(&user_1, Some("user1".to_string()), UserType::User);
     assert_eq!(state.get_user_type(&user_1), Some(UserType::User));
-
-    state.new_session(&user_2, Some("user2".to_string()), UserType::Mod);
     assert_eq!(state.get_user_type(&user_2), Some(UserType::Mod));
-
-    state.new_session(&user_3, Some("user3".to_string()), UserType::Admin);
     assert_eq!(state.get_user_type(&user_3), Some(UserType::Admin));
 
     state.join_to_room(&room, &user_1, &user_1_session, RoomUserType::Owner)?;
@@ -452,7 +448,7 @@ async fn join_request_test() -> anyhow::Result<()> {
     assert_eq!(waiting_users.get(&user_3).cloned(), Some(RoomUserType::Moderator));
     assert_eq!(waiting_users.get(&user_4).cloned(), Some(RoomUserType::Owner));
 
-    assert_eq!(state.disconnect_from_room(&room_id, &user_1, &user_1_session)?, true);
+    assert_eq!(state.disconnect_from_room(&room_id, &user_1)?, true);
 
     assert!(!state.is_empty());
 

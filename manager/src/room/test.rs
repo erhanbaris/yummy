@@ -49,7 +49,6 @@ macro_rules! email_auth {
 }
 
 fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>, YummyState, Arc<DummyClient>)> {
-    use rand::Rng;
     let mut db_location = temp_dir();
     db_location.push(format!("{}.db", Uuid::new_v4()));
     
@@ -57,7 +56,8 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
 
     let mut config = get_configuration().deref().clone();
 
-    #[cfg(feature = "stateless")] {       
+    #[cfg(feature = "stateless")] {
+        use rand::Rng;     
         config.redis_prefix = format!("{}:", rand::thread_rng().gen::<usize>().to_string());
     }
 
@@ -95,13 +95,13 @@ async fn create_room_1() -> anyhow::Result<()> {
     let room_id: RoomCreated = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_id = room_id.room;
 
-    let (user_id, session_id) = match user.as_ref() {
-        Some(user) => (&user.user, &user.session),
+    let session_id = match user.as_ref() {
+        Some(user) => &user.session,
         None => return Err(anyhow::anyhow!("UserId not found"))
     };
 
     assert!(!room_id.is_empty());
-    assert!(states.get_user_rooms(user_id, session_id).unwrap().len() == 1);
+    assert!(states.get_user_rooms(session_id).unwrap().len() == 1);
     
     Ok(())
 }
@@ -125,13 +125,13 @@ async fn create_room_2() -> anyhow::Result<()> {
 
     let room_created: RoomCreated = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
 
-    let (user_id, session_id) = match user.as_ref() {
-        Some(user) => (&user.user, &user.session),
+    let session_id = match user.as_ref() {
+        Some(user) => &user.session,
         None => return Err(anyhow::anyhow!("UserId not found"))
     };
 
     assert!(!room_created.room.is_empty());
-    assert!(states.get_user_rooms(user_id, session_id).unwrap().len() == 1);
+    assert!(states.get_user_rooms(session_id).unwrap().len() == 1);
     
     Ok(())
 }

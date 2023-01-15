@@ -113,3 +113,13 @@ fn meta() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn ban_user() -> anyhow::Result<()> {
+    let mut connection = db_conection()?;
+
+    let room = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Friend, 2, false, &Vec::new())?;
+    SqliteStore::ban_user_from_room(&mut connection, &room, &UserId::default(), &UserId::default())?;
+
+    Ok(())
+}

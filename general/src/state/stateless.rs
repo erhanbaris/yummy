@@ -40,9 +40,18 @@ impl YummyState {
             redis
         }
     }
-}
 
-impl YummyState {
+    #[tracing::instrument(name="ban_user_from_room", skip(self))]
+    pub fn ban_user_from_room(&self, room_id: &RoomId, user_id: &UserId) -> Result<(), YummyStateError> {
+        match self.redis.get() {
+            Ok(mut redis) => {
+                redis_result!(redis.sadd::<_, _, i32>(format!("{}room-banned:{}", self.config.redis_prefix, room_id.to_string()), user_id.to_string()));
+                Ok(())
+            },
+            Err(_) => Err(YummyStateError::CacheCouldNotReaded)
+        }
+    }
+
     #[tracing::instrument(name="is_user_online", skip(self))]
     pub fn is_empty(&self) -> bool {
         match self.redis.get() {
@@ -444,6 +453,14 @@ impl YummyState {
         }
     }
 
+    #[tracing::instrument(name="is_user_banned_from_room", skip(self))]
+    pub fn is_user_banned_from_room(&self, room_id: &RoomId, user_id: &UserId) -> Result<bool, YummyStateError> {
+        match self.redis.get() {
+            Ok(mut redis) => Ok(redis_result!(redis.sismember(format!("{}room-banned:{}", self.config.redis_prefix, room_id.to_string()), user_id.to_string()))),
+            Err(_) => Err(YummyStateError::CacheCouldNotReaded)
+        }
+    }
+
     #[tracing::instrument(name="get_room_info", skip(self))]
     pub fn get_room_info(&self, room_id: &RoomId, access_level: RoomMetaAccess, query: Vec<RoomInfoTypeVariant>) -> Result<RoomInfoTypeCollection, YummyStateError> {
         use std::collections::HashMap;
@@ -472,6 +489,7 @@ impl YummyState {
                         RoomInfoTypeVariant::JoinRequest => request = request.arg("join"),
                         RoomInfoTypeVariant::InsertDate => request = request.arg("idate"),
                         RoomInfoTypeVariant::Tags => request = request.arg("tags"), // Dummy data, dont remove
+                        RoomInfoTypeVariant::BannedUsers => request = request.arg("bu"), // Dummy data, dont remove
                         RoomInfoTypeVariant::Metas => request = request.arg("metas"), // Dummy data, dont remove
                     };
                 }
@@ -502,6 +520,10 @@ impl YummyState {
                                 })
                             }
                             result.items.push(RoomInfoType::Users(user_infos));
+                        },
+                        RoomInfoTypeVariant::BannedUsers => {
+                            let users = redis_result!(redis.hgetall::<_, HashSet<UserId>>(format!("{}room-banned:{}", self.config.redis_prefix, &room_id)));
+                            result.items.push(RoomInfoType::BannedUsers(users));
                         },
                         RoomInfoTypeVariant::AccessType => result.items.push(RoomInfoType::AccessType(FromRedisValue::from_redis_value(&room_info).unwrap_or_default())),
                         RoomInfoTypeVariant::JoinRequest => result.items.push(RoomInfoType::JoinRequest(FromRedisValue::from_redis_value(&room_info).unwrap_or_default())),
@@ -591,6 +613,7 @@ impl YummyState {
                         RoomInfoType::RoomName(name) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("name").arg(name.unwrap_or_default()).ignore(),
                         RoomInfoType::Description(description) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("desc").arg(description.unwrap_or_default()).ignore(),
                         RoomInfoType::Users(_) => (),
+                        RoomInfoType::BannedUsers(_) => (),
                         RoomInfoType::MaxUser(max_user) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("max-user").arg(max_user).ignore(),
                         RoomInfoType::UserLength(_) => (),
                         RoomInfoType::AccessType(access_type) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("access").arg(i32::from(access_type)).ignore(),
@@ -689,6 +712,7 @@ impl YummyState {
                             RoomInfoTypeVariant::InsertDate => command = command.arg("idate"),
                             RoomInfoTypeVariant::JoinRequest => command = command.arg("join"),
                             RoomInfoTypeVariant::Tags => command = command.arg("tags"), // Dummy data, dont remove
+                            RoomInfoTypeVariant::BannedUsers => command = command.arg("bu"), // Dummy data, dont remove
                             RoomInfoTypeVariant::Metas => command = command.arg("metas"), // Dummy data, dont remove
                         };
                     }
@@ -697,7 +721,8 @@ impl YummyState {
                 let room_results = redis_result!(command.query::<Vec<redis::Value>>(&mut redis));
 
                 for (room_id, room_result) in rooms.into_iter().zip(room_results.into_iter()) {
-                    let room_id = RoomId::from(uuid::Uuid::parse_str(&room_id).unwrap_or_default());
+                    let room_id_str = room_id;
+                    let room_id = RoomId::from(uuid::Uuid::parse_str(&room_id_str).unwrap_or_default());
 
                     let mut room_info = RoomInfoTypeCollection {
                         room_id: Some(room_id),
@@ -723,7 +748,7 @@ impl YummyState {
     
                                 // This request is slow compare to other. We should change it to lua script to increase performance
                                 let mut user_infos = Vec::new();
-                                let users = redis_result!(redis.hgetall::<_, HashMap<UserId, RoomUserType>>(format!("{}room-users:{}", self.config.redis_prefix, room_id.get())));
+                                let users = redis_result!(redis.hgetall::<_, HashMap<UserId, RoomUserType>>(format!("{}room-users:{}", self.config.redis_prefix, &room_id_str)));
                                 for (user_id, user_type) in users.into_iter() {
                                     let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, &user_id.to_string()), "name"));
                                     user_infos.push(RoomUserInformation {
@@ -734,13 +759,17 @@ impl YummyState {
                                 }
                                 room_info.items.push(RoomInfoType::Users(user_infos));
                             },
+                            RoomInfoTypeVariant::BannedUsers => {
+                                let users = redis_result!(redis.hgetall::<_, HashSet<UserId>>(format!("{}room-banned:{}", self.config.redis_prefix, &room_id_str)));
+                                room_info.items.push(RoomInfoType::BannedUsers(users));
+                            },
                             RoomInfoTypeVariant::AccessType => room_info.items.push(RoomInfoType::AccessType(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
                             RoomInfoTypeVariant::InsertDate => room_info.items.push(RoomInfoType::InsertDate(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
                             RoomInfoTypeVariant::JoinRequest => room_info.items.push(RoomInfoType::JoinRequest(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
                             RoomInfoTypeVariant::MaxUser => room_info.items.push(RoomInfoType::MaxUser(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
                             RoomInfoTypeVariant::UserLength => room_info.items.push(RoomInfoType::UserLength(FromRedisValue::from_redis_value(redis_value).unwrap_or_default())),
                             RoomInfoTypeVariant::Tags => {
-                                let tags = redis_result!(redis.smembers::<_, Vec<String>>(format!("{}room-tag:{}", self.config.redis_prefix, room_id.to_string())));
+                                let tags = redis_result!(redis.smembers::<_, Vec<String>>(format!("{}room-tag:{}", self.config.redis_prefix, &room_id_str)));
                                 room_info.items.push(RoomInfoType::Tags(tags));
                             },
                             RoomInfoTypeVariant::Metas => {
