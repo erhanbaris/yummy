@@ -89,8 +89,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         Ok(())
     }
 
-    fn disconnect_from_room(&mut self, room_id: &RoomId, user_id: &UserId) -> anyhow::Result<bool> {
-        let room_removed = self.states.disconnect_from_room(room_id, user_id)?;
+    fn disconnect_from_room(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId) -> anyhow::Result<bool> {
+        let room_removed = self.states.disconnect_from_room(room_id, user_id, session_id)?;
         let users = self.states.get_users_from_room(room_id)?;
         
         let mut connection = self.database.get()?;
@@ -258,7 +258,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomUser
     
             if let Some(rooms) = rooms {
                 for room in rooms.into_iter() {
-                    self.disconnect_from_room(&room, &user.user).unwrap_or_default();
+                    self.disconnect_from_room(&room, &user.user, &user.session).unwrap_or_default();
                 }
             }
         }
@@ -350,7 +350,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
                 DB::update_room_user_permissions(connection, &model.room_id, &user_permission)?;
                 
                 for (user_id, user_type) in user_permission.into_iter() {
-                    self.states.set_users_room_type(&user_id, &model.room_id, user_type);
+                    self.states.set_users_room_type(&user_id, &model.room_id, user_type)?;
                 }
             }
             
@@ -510,8 +510,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<BanUserF
     #[macros::api(name="BanUserFromRoom", socket=true)]
     fn handle(&mut self, model: BanUserFromRoom, _ctx: &mut Context<Self>) -> Self::Result {        
         let user_id = get_user_id_from_auth!(model);
-
-        self.disconnect_from_room(&model.room, &model.user)?;
+        
+        let session_id = self.states.get_user_session_id(&model.user, &model.room)?;
+        self.disconnect_from_room(&model.room, &model.user, &session_id)?;
         self.states.ban_user_from_room(&model.room, &model.user)?;
         let mut connection = self.database.get()?;
         DB::ban_user_from_room(&mut connection, &model.room, &model.user, &user_id)?;
@@ -526,11 +527,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<Disconne
     #[tracing::instrument(name="DisconnectFromRoomRequest", skip(self, _ctx))]
     #[macros::simple_api(name="DisconnectFromRoomRequest", socket=true)]
     fn handle(&mut self, model: DisconnectFromRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
-        let user_id = get_user_id_from_auth!(model, ());
+        let (user_id, session_id) = get_user_session_id_from_auth!(model, ());
 
         println!("room:DisconnectFromRoomRequest");
 
-        self.disconnect_from_room(&model.room, user_id).unwrap_or_default();
+        self.disconnect_from_room(&model.room, user_id, session_id).unwrap_or_default();
         model.socket.send(Answer::success().into());
     }
 }

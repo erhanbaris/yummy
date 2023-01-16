@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::borrow::Borrow;
-use std::convert::identity;
 
 use crate::config::YummyConfig;
 use crate::meta::{RoomMetaAccess, MetaType};
@@ -14,6 +13,12 @@ use crate::model::UserType;
 
 use super::*;
 
+#[derive(Debug)]
+struct ConnectionInfo {
+    pub user_id: Arc<UserId>,
+    pub room_user_type: RoomUserType
+}
+
 #[derive(Default, Debug)]
 struct RoomState {
     pub name: Option<String>,
@@ -23,7 +28,7 @@ struct RoomState {
     pub tags: Vec<String>,
     pub insert_date: i32,
     pub join_request: bool,
-    pub sessions: HashMap<SessionId, RoomUserType>,
+    pub connections: HashMap<SessionId, ConnectionInfo>,
     pub banned_users: HashSet<UserId>,
     pub metas: HashMap<String, MetaType<RoomMetaAccess>>,
     pub join_requests: HashMap<SessionId, RoomUserType>,
@@ -97,27 +102,29 @@ impl YummyState {
     #[tracing::instrument(name="get_users_room_type", skip(self))]
     pub fn get_users_room_type(&mut self, session_id: &SessionId, room_id: &RoomId) -> Option<RoomUserType> {
         match self.rooms.lock().get(room_id) {
-            Some(room) => room.sessions.get(session_id).cloned(),
+            Some(room) => room.connections.get(session_id).map(|connection| connection.room_user_type.clone()),
             None => None
         }
     }
 
     #[tracing::instrument(name="set_users_room_type", skip(self))]
-    pub fn set_users_room_type(&mut self, user_id: &UserId, room_id: &RoomId, user_type: RoomUserType) {
+    pub fn set_users_room_type(&mut self, user_id: &UserId, room_id: &RoomId, user_type: RoomUserType) -> Result<(), YummyStateError> {
         let session_id = match self.users.lock().get(user_id) {
             Some(user) => match user.joined_rooms.get(room_id) {
                 Some(session_id) => session_id.clone(),
-                None => return
+                None => return Err(YummyStateError::UserNotFound)
             },
-            None => return
+            None => return Err(YummyStateError::UserNotFound)
         };
 
         if let Some(room) = self.rooms.lock().get_mut(room_id) {
-            match room.sessions.get_mut(&session_id) {
-                Some(user) => *user = user_type,
-                None => ()
+            match room.connections.get_mut(&session_id) {
+                Some(user) => user.room_user_type = user_type,
+                None => return Err(YummyStateError::UserNotFound)
             };
         }
+
+        Ok(())
     }
 
     #[tracing::instrument(name="is_session_online", skip(self))]
@@ -202,7 +209,7 @@ impl YummyState {
         self.rooms.lock().insert(*room_id, RoomState {
             max_user,
             insert_date,
-            sessions: HashMap::new(),
+            connections: HashMap::new(),
             tags,
             name,
             description,
@@ -219,11 +226,11 @@ impl YummyState {
         match self.rooms.lock().get_mut(room_id.borrow()) {
             Some(room) => {
 
-                if room.sessions.contains_key(session_id) {
+                if room.connections.contains_key(session_id) {
                     return Err(YummyStateError::UserAlreadInRoom);
                 }
                 
-                let users_len = room.sessions.len();
+                let users_len = room.connections.len();
 
                 // If the max_user 0 or lower than users count, add to room
                 if room.max_user == 0 || room.max_user > users_len {
@@ -274,16 +281,16 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="join_to_room", skip(self))]
-    pub fn join_to_room(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
+    pub fn join_to_room(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, room_user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
         match self.rooms.lock().get_mut(room_id.borrow()) {
             Some(room) => {
-                let users_len = room.sessions.len();
+                let users_len = room.connections.len();
 
                 // If the max_user 0 or lower than users count, add to room
                 if room.max_user == 0 || room.max_user > users_len {
 
                     // User alread in the room
-                    if room.sessions.insert(session_id.clone(), user_type).is_some() {
+                    if room.connections.insert(session_id.clone(), ConnectionInfo { user_id: Arc::new(user_id.clone()), room_user_type }).is_some() {
                         return Err(YummyStateError::UserAlreadInRoom);
                     }
                     
@@ -310,22 +317,35 @@ impl YummyState {
         }
     }
 
+    pub fn get_user_session_id(&self, user_id: &UserId, room_id: &RoomId) -> Result<SessionId, YummyStateError> {
+        match self.users.lock().get(user_id) {
+            Some(user) => match user.joined_rooms.get(room_id) {
+                Some(session_id) => Ok(session_id.clone()),
+                None => return Err(YummyStateError::RoomNotFound),
+            },
+            None => return Err(YummyStateError::UserNotFound)
+        }
+    }
+
     #[tracing::instrument(name="disconnect_from_room", skip(self))]
-    pub fn disconnect_from_room(&self, room_id: &RoomId, user_id: &UserId) -> Result<bool, YummyStateError> {
+    pub fn disconnect_from_room(&self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId) -> Result<bool, YummyStateError> {
         let mut rooms = self.rooms.lock();
         let room_removed = match rooms.get_mut(room_id.borrow()) {
             Some(room) => {
-                let mut session_to_room = self.session_to_room.lock();
-                let session_id = match self.users.lock().get(user_id) {
-                    Some(user) => match user.joined_rooms.get(room_id) {
-                        Some(session_id) => session_id.clone(),
-                        None => return Err(YummyStateError::RoomNotFound),
+                
+                // Remove room from user
+                match self.users.lock().get_mut(user_id) {
+                    Some(user) => {
+                        if let None = user.joined_rooms.remove(room_id) {
+
+                            // User did not joined to room
+                            return Err(YummyStateError::UserCouldNotFoundInRoom);
+                        }
                     },
                     None => return Err(YummyStateError::UserNotFound)
                 };
 
-                println!("self.session_to_room is locked: {}", self.session_to_room.is_locked());
-                
+                let mut session_to_room = self.session_to_room.lock();
                 let room_count = match session_to_room.get_mut(&session_id) {
                     Some(rooms) => {
                         rooms.remove(room_id);
@@ -338,10 +358,10 @@ impl YummyState {
                     session_to_room.remove(&session_id);
                 }
 
-                let user_removed = room.sessions.remove(&session_id);
+                let user_removed = room.connections.remove(&session_id);
 
                 match user_removed.is_some() {
-                    true => Ok(room.sessions.is_empty()),
+                    true => Ok(room.connections.is_empty()),
                     false => Err(YummyStateError::UserCouldNotFoundInRoom)
                 }
             }
@@ -359,11 +379,9 @@ impl YummyState {
     pub fn get_users_from_room(&self, room_id: &RoomId) -> Result<Vec<Arc<UserId>>, YummyStateError> {
         match self.rooms.lock().get(room_id) {
             Some(room) => {
-                let session_to_user = self.session_to_users.lock();
-                Ok(room.sessions
-                    .keys()
-                    .map(|session_id| session_to_user.get(session_id).cloned())
-                    .filter_map(identity)
+                Ok(room.connections
+                    .values()
+                    .map(|connection| connection.user_id.clone())
                     .collect::<Vec<_>>())
             }
             None => Err(YummyStateError::RoomNotFound)
@@ -414,27 +432,22 @@ impl YummyState {
                         RoomInfoTypeVariant::MaxUser => RoomInfoType::MaxUser(room.max_user),
                         RoomInfoTypeVariant::RoomName => RoomInfoType::RoomName(room.name.clone()),
                         RoomInfoTypeVariant::Description => RoomInfoType::Description(room.description.clone()),
-                        RoomInfoTypeVariant::UserLength => RoomInfoType::UserLength(room.sessions.len()),
+                        RoomInfoTypeVariant::UserLength => RoomInfoType::UserLength(room.connections.len()),
                         RoomInfoTypeVariant::AccessType => RoomInfoType::AccessType(room.access_type.clone()),
                         RoomInfoTypeVariant::JoinRequest => RoomInfoType::JoinRequest(room.join_request),
                         RoomInfoTypeVariant::Users => {
-                            let  mut users = Vec::new();
-                            let session_to_users = self.session_to_users.lock();
+                            let mut users = Vec::new();
+                            let user_cache = self.users.lock();
 
-                            for (session_id, user_type) in room.sessions.iter() {
-                                let user_id = match session_to_users.get(session_id) {
-                                    Some(user_id) => user_id,
-                                    None => continue
-                                };
-
-                                let name = match self.users.lock().get(user_id.deref()) {
+                            for connection_info in room.connections.values() {
+                                let name = match user_cache.get(connection_info.user_id.deref()) {
                                     Some(user) => user.name.clone(),
                                     None => None
                                 };
                                 users.push(RoomUserInformation {
-                                    user_id: user_id.clone(),
+                                    user_id: connection_info.user_id.clone(),
                                     name,
-                                    user_type: user_type.clone()
+                                    user_type: connection_info.room_user_type.clone()
                                 });
                             }
 
@@ -507,27 +520,21 @@ impl YummyState {
                     RoomInfoTypeVariant::JoinRequest => room_info.items.push(RoomInfoType::JoinRequest(room_state.join_request)),
                     RoomInfoTypeVariant::RoomName => room_info.items.push(RoomInfoType::RoomName(room_state.name.clone())),
                     RoomInfoTypeVariant::Description => room_info.items.push(RoomInfoType::Description(room_state.description.clone())),
-                    RoomInfoTypeVariant::UserLength => room_info.items.push(RoomInfoType::UserLength(room_state.sessions.len())),
+                    RoomInfoTypeVariant::UserLength => room_info.items.push(RoomInfoType::UserLength(room_state.connections.len())),
                     RoomInfoTypeVariant::AccessType => room_info.items.push(RoomInfoType::AccessType(room_state.access_type.clone())),
-                    RoomInfoTypeVariant::Users => {
-                        let  mut users = Vec::new();
-                        let users_cache = self.users.lock();
-                        let session_to_user_cache = self.session_to_users.lock();
+                    RoomInfoTypeVariant::Users => {                        
+                        let mut users = Vec::new();
+                        let user_cache = self.users.lock();
 
-                        for (session_id, user_type) in room_state.sessions.iter() {
-                            let user_id = match session_to_user_cache.get(session_id) {
-                                Some(user_id) => user_id,
-                                None => continue
-                            };
-
-                            let name = match users_cache.get(user_id.deref()) {
+                        for connection_info in room_state.connections.values() {
+                            let name = match user_cache.get(connection_info.user_id.deref()) {
                                 Some(user) => user.name.clone(),
                                 None => None
                             };
                             users.push(RoomUserInformation {
-                                user_id: user_id.clone(),
+                                user_id: connection_info.user_id.clone(),
                                 name,
-                                user_type: user_type.clone()
+                                user_type: connection_info.room_user_type.clone()
                             });
                         }
 

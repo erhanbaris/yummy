@@ -119,10 +119,10 @@ async fn room_tests() -> anyhow::Result<()> {
     assert_eq!(state.join_to_room(&RoomId::new(), &UserId::new(), &SessionId::new(), RoomUserType::Owner).err().unwrap(), YummyStateError::RoomNotFound);
     assert_eq!(state.get_users_from_room(&room_1)?.len(), 2);
 
-    assert_eq!(state.disconnect_from_room(&room_1, &user_1)?, false);
+    assert_eq!(state.disconnect_from_room(&room_1, &user_1, &user_1_session)?, false);
     assert_eq!(state.get_users_from_room(&room_1)?.len(), 1);
 
-    assert_eq!(state.disconnect_from_room(&room_1, &user_2)?, true);
+    assert_eq!(state.disconnect_from_room(&room_1, &user_2, &user_2_session)?, true);
     assert!(state.get_users_from_room(&room_1).is_err());
 
     assert!(!state.is_empty());
@@ -242,7 +242,7 @@ async fn get_room() -> anyhow::Result<()> {
     assert_eq!(users, vec![RoomUserInformation { user_id: Arc::new(user_1.clone()), name: Some("user1".to_string()), user_type: RoomUserType::Owner }, RoomUserInformation { user_id: Arc::new(user_2.clone()), name: Some("user2".to_string()), user_type: RoomUserType::Owner }, RoomUserInformation { user_id: Arc::new(user_3.clone()), name: Some("user3".to_string()), user_type: RoomUserType::Owner }]);
 
     // Change user permission
-    state.set_users_room_type(&user_1, &room, RoomUserType::User);
+    state.set_users_room_type(&user_1, &room, RoomUserType::User)?;
     
     let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::Users])?;
     assert_eq!(result.items.len(), 1);
@@ -448,7 +448,7 @@ async fn join_request_test() -> anyhow::Result<()> {
     assert_eq!(waiting_users.get(&user_3).cloned(), Some(RoomUserType::Moderator));
     assert_eq!(waiting_users.get(&user_4).cloned(), Some(RoomUserType::Owner));
 
-    assert_eq!(state.disconnect_from_room(&room_id, &user_1)?, true);
+    assert_eq!(state.disconnect_from_room(&room_id, &user_1, &user_1_session)?, true);
 
     assert!(!state.is_empty());
 
