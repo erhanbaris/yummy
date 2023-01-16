@@ -339,7 +339,7 @@ impl YummyState {
 
                     // If the max_user 0 or lower than users count, add to room
                     if max_user == 0 || max_user > user_len {
-                        let is_member = redis_result!(redis.hexists(&room_sessions_key, &user_id));
+                        let is_member = redis_result!(redis.hexists(&room_sessions_key, &session_id));
     
                         // User alread in the room
                         if is_member {
@@ -348,7 +348,7 @@ impl YummyState {
 
                         redis_result!(redis::pipe()
                             .atomic()
-                            .cmd("HSET").arg(format!("{}user-room:{}", self.config.redis_prefix, &user_id)).arg(&user_id).arg(&session_id).ignore()
+                            .cmd("HSET").arg(format!("{}user-room:{}", self.config.redis_prefix, &user_id)).arg(&room_id).arg(&session_id).ignore()
                             .cmd("SADD").arg(format!("{}session-room:{}", self.config.redis_prefix, &session_id)).arg(&room_id)
                             .cmd("HINCRBY").arg(&room_info_key).arg("user-len").arg(1).ignore()
                             .cmd("HSET").arg(room_sessions_key).arg(&session_id).arg(user_type as i32).ignore()
@@ -378,7 +378,7 @@ impl YummyState {
                     .atomic()
                     .cmd("SREM").arg(format!("{}session-room:{}", self.config.redis_prefix, &session_id)).arg(&room_id).ignore()
                     .cmd("HDEL").arg(room_sessions_key).arg(session_id.to_string()).ignore()
-                    .cmd("HDEL").arg(format!("{}user-room:{}", self.config.redis_prefix, &user_id)).arg(&user_id).arg(&session_id).ignore()
+                    .cmd("HDEL").arg(format!("{}user-room:{}", self.config.redis_prefix, &user_id)).arg(&room_id).ignore()
                     .cmd("HINCRBY").arg(&room_info_key).arg("user-len").arg(-1)
                     .query::<(i32,)>(&mut redis));
                     
@@ -418,18 +418,24 @@ impl YummyState {
 
     #[tracing::instrument(name="get_users_from_room", skip(self))]
     pub fn get_users_from_room(&mut self, room_id: &RoomId) -> Result<Vec<Arc<UserId>>, YummyStateError> {
-        use std::str::FromStr;
-        use std::collections::HashSet;
-
         let room_id = room_id.get();
-        let users: std::collections::HashSet<String> = match self.redis.get() {
+        match self.redis.get() {
             Ok(mut redis) => match redis_result!(redis.exists::<_, bool>(&format!("{}room-sessions:{}", self.config.redis_prefix, &room_id))) {
-                true => redis_result!(redis.hkeys(&format!("{}room-sessions:{}", self.config.redis_prefix, &room_id))),
+                true => {
+                    let mut users = Vec::new();
+                    let sessions : Vec<String> = redis_result!(redis.hkeys(&format!("{}room-sessions:{}", self.config.redis_prefix, &room_id)));
+                    for session_id in sessions.into_iter() {
+                                
+                        let user_id: String = redis_result!(redis.hget::<_, _, String>(format!("{}session-user", self.config.redis_prefix), &session_id));
+                        users.push(Arc::new(UserId::from(user_id)));
+                    }
+
+                    Ok(users)
+                }
                 false => return Err(YummyStateError::RoomNotFound),
             },
-            Err(_) => HashSet::default()
-        };
-        Ok(users.into_iter().map(|item| Arc::new(UserId::from(uuid::Uuid::from_str(&item[..]).unwrap_or_default()))).collect::<Vec<Arc<UserId>>>())
+            Err(_) => Err(YummyStateError::CacheCouldNotReaded)
+        }
     }
 
     #[tracing::instrument(name="get_user_location", skip(self))]
@@ -534,12 +540,15 @@ impl YummyState {
 
                             // This request is slow compare to other. We should change it to lua script to increase performance
                             let mut user_infos = Vec::new();
-                            let users = redis_result!(redis.hgetall::<_, HashMap<UserId, RoomUserType>>(format!("{}room-sessions:{}", self.config.redis_prefix, &room_id)));
-                            for (user_id, user_type) in users.into_iter() {
-                                let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, &user_id.to_string()), "name"));
+                            let sessions = redis_result!(redis.hgetall::<_, HashMap<SessionId, RoomUserType>>(format!("{}room-sessions:{}", self.config.redis_prefix, &room_id)));
+
+                            for (session_id, user_type) in sessions.into_iter() {
+                                
+                                let user_id: String = redis_result!(redis.hget::<_, _, String>(format!("{}session-user", self.config.redis_prefix), session_id.to_string()));
+                                let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, &user_id), "name"));
                                 user_infos.push(RoomUserInformation {
                                     name: if name.is_empty() { None } else { Some(name) },
-                                    user_id: Arc::new(user_id),
+                                    user_id: Arc::new(UserId::from(user_id)),
                                     user_type
                                 })
                             }
@@ -773,11 +782,13 @@ impl YummyState {
                                 // This request is slow compare to other. We should change it to lua script to increase performance
                                 let mut user_infos = Vec::new();
                                 let users = redis_result!(redis.hgetall::<_, HashMap<UserId, RoomUserType>>(format!("{}room-sessions:{}", self.config.redis_prefix, &room_id_str)));
-                                for (user_id, user_type) in users.into_iter() {
+                                for (session_id, user_type) in users.into_iter() {
+                                    let user_id: String = redis_result!(redis.hget::<_, _, String>(format!("{}session-user", self.config.redis_prefix), session_id.to_string()));
+                                    
                                     let name = redis_result!(redis.hget::<_, _, String>(format!("{}users:{}", self.config.redis_prefix, &user_id.to_string()), "name"));
                                     user_infos.push(RoomUserInformation {
                                         name: if name.is_empty() { None } else { Some(name) },
-                                        user_id: Arc::new(user_id),
+                                        user_id: Arc::new(UserId::from(user_id)),
                                         user_type
                                     })
                                 }
