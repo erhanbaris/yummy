@@ -1183,3 +1183,118 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
 
     return Ok(());
 }
+
+#[actix::test]
+async fn user_ban_test() -> anyhow::Result<()> {
+
+    let config = ::general::config::get_configuration();
+    let connection = create_connection(":memory:")?;
+
+    #[cfg(feature = "stateless")]
+    let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
+    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+
+    ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
+
+    create_database(&mut connection.clone().get()?)?;
+
+    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start();
+    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start();
+
+    let user_1_socket = Arc::new(DummyClient::default());
+    let user_2_socket = Arc::new(DummyClient::default());
+
+    /* #region Auth */
+    auth_manager.send(EmailAuthRequest {
+        auth: Arc::new(None),
+        email: "erhan@gmail.com".to_string(),
+        password:"erhan".into(),
+        if_not_exist_create: true,
+        socket: user_1_socket.clone()
+    }).await??;
+
+    let user_1_auth_jwt = user_1_socket.clone().auth.lock().unwrap().clone();
+    let user_1_auth = Arc::new(Some(UserAuth {
+        user: user_1_auth_jwt.id.deref().clone(),
+        session: user_1_auth_jwt.session.clone()
+    }));
+
+    auth_manager.send(EmailAuthRequest {
+        auth: Arc::new(None),
+        email: "baris@gmail.com".to_string(),
+        password:"erhan".into(),
+        if_not_exist_create: true,
+        socket: user_2_socket.clone()
+    }).await??;
+
+    let user_2_auth_jwt = user_2_socket.clone().auth.lock().unwrap().clone();
+    let user_2_auth = Arc::new(Some(UserAuth {
+        user: user_2_auth_jwt.id.deref().clone(),
+        session: user_2_auth_jwt.session.clone()
+    }));
+    /* #endregion */
+
+    /* #region Room configuration */
+    room_manager.send(CreateRoomRequest {
+        auth: user_1_auth.clone(),
+        name: None,
+        description: None,
+        join_request: false,
+        access_type: general::model::CreateRoomAccessType::Public,
+        max_user: 4,
+        metas: None,
+        tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
+        socket:user_1_socket.clone()
+    }).await??;
+    
+    let room_1_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_1_id = room_1_id.room;
+
+    room_manager.send(JoinToRoomRequest {
+        auth: user_2_auth.clone(),
+        room: room_1_id,
+        room_user_type: RoomUserType::User,
+        socket:user_2_socket.clone()
+    }).await??;
+
+    let message: Joined = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    assert_eq!(&message.class_type[..], "Joined");
+
+    // Not enough permission to ban user
+    room_manager.send(BanUserFromRoom {
+        auth: user_2_auth.clone(),
+        room: room_1_id,
+        user: user_1_auth_jwt.id.deref().clone(),
+        socket:user_2_socket.clone()
+    }).await?.unwrap_err();
+
+    let response: ReceiveError = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    assert!(!response.status);
+
+    // Room owner ban the user
+    room_manager.send(BanUserFromRoom {
+        auth: user_1_auth.clone(),
+        room: room_1_id,
+        user: user_2_auth_jwt.id.deref().clone(),
+        socket:user_1_socket.clone()
+    }).await??;
+
+    let message: DisconnectedFromRoom = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    assert_eq!(&message.class_type[..], "DisconnectedFromRoom");
+    
+    
+    // User try to connect room again, but it should be failed
+    room_manager.send(JoinToRoomRequest {
+        auth: user_2_auth.clone(),
+        room: room_1_id,
+        room_user_type: RoomUserType::User,
+        socket:user_2_socket.clone()
+    }).await?.unwrap_err();
+
+    let response: ReceiveError = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    assert!(!response.status);
+    
+    /* #endregion */
+
+    return Ok(());
+}

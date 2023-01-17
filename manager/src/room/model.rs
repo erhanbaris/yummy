@@ -166,6 +166,9 @@ pub enum RoomResponse<'a> {
         user: &'a UserId,
         room: &'a RoomId
     },
+    DisconnectedFromRoom {
+        room: &'a RoomId
+    },
     MessageFromRoom {
         user: &'a UserId,
         room: &'a RoomId,

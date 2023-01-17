@@ -509,13 +509,37 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<BanUserF
     #[tracing::instrument(name="BanUserFromRoom", skip(self, _ctx))]
     #[macros::api(name="BanUserFromRoom", socket=true)]
     fn handle(&mut self, model: BanUserFromRoom, _ctx: &mut Context<Self>) -> Self::Result {        
-        let user_id = get_user_id_from_auth!(model);
-        
+        let (user_id, session_id) = get_user_session_id_from_auth!(model);
+
+        let requester_user_type = self.states.get_users_room_type(session_id, &model.room).ok_or(RoomError::UserDoesNotHaveEnoughPermission)?;
+
+        // User must be room owner or moderator
+        if requester_user_type == RoomUserType::User {
+            return Err(anyhow::anyhow!(RoomError::UserDoesNotHaveEnoughPermission));
+        }
+
         let session_id = self.states.get_user_session_id(&model.user, &model.room)?;
+
+        // Disconnect user and send message to other users
         self.disconnect_from_room(&model.room, &model.user, &session_id)?;
+        
+        // Update state
         self.states.ban_user_from_room(&model.room, &model.user)?;
+
+        // Update database
         let mut connection = self.database.get()?;
         DB::ban_user_from_room(&mut connection, &model.room, &model.user, &user_id)?;
+
+        // Send message to use about disconnected from room
+        if let Ok(message) = serde_json::to_string(&RoomResponse::DisconnectedFromRoom {
+            room: &model.room
+        }) {
+            self.issue_system_async(SendMessage {
+                message,
+                user_id: Arc::new(model.user)
+            })
+        }
+
         model.socket.send(Answer::success().into());
         Ok(())
     }

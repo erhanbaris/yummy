@@ -144,6 +144,13 @@ pub mod model {
     }
 
     #[derive(Debug, Serialize, Deserialize)]
+    pub struct DisconnectedFromRoom {
+        #[serde(rename = "type")]
+        pub class_type: String,
+        pub room: RoomId
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
     pub struct MessageReceivedFromRoom {
         #[serde(rename = "type")]
         pub class_type: String,
