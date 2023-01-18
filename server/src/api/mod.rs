@@ -62,6 +62,8 @@ pub(crate) fn process_room<DB: DatabaseTrait + Unpin + 'static>(room_type: Reque
         RequestRoomType::Disconnect { room } => as_response!(room_manager, DisconnectFromRoomRequest { auth, socket, room }),
         RequestRoomType::Message { room, message } => as_response!(room_manager, MessageToRoomRequest { auth, socket, room, message }),
         RequestRoomType::Update { room, user_permission, name, description, max_user, join_request, metas, meta_action, access_type, tags } => as_response!(room_manager, UpdateRoom { auth, socket, room_id: room , user_permission, name, description, max_user, metas, meta_action, access_type, join_request, tags }),
+        RequestRoomType::Kick { room, user } => as_response!(room_manager, KickUserFromRoom { auth, socket, room, user, ban: false }),
+        RequestRoomType::Ban { room, user } => as_response!(room_manager, KickUserFromRoom { auth, socket, room, user, ban: true }),
     };
     Ok(())
 }

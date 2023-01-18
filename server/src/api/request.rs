@@ -112,6 +112,18 @@ pub enum RequestRoomType {
         message: String,
     },
     
+    #[serde(rename = "KickUserFromroom")]
+    Kick {
+        room: RoomId,
+        user: UserId,
+    },
+    
+    #[serde(rename = "BanUserFromroom")]
+    Ban {
+        room: RoomId,
+        user: UserId,
+    },
+    
     #[serde(rename = "UpdateRoom")]
     Update {
         room: RoomId,

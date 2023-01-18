@@ -41,10 +41,11 @@ pub struct WaitingRoomJoins {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
-pub struct BanUserFromRoom {
+pub struct KickUserFromRoom {
     pub auth: Arc<Option<UserAuth>>,
     pub room: RoomId,
     pub user: UserId,
+    pub ban: bool,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
