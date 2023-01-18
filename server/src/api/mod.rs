@@ -1,6 +1,9 @@
 pub(crate) mod request;
 pub(crate) mod websocket;
 
+//#[cfg(test)]
+mod test;
+
 use std::sync::Arc;
 
 use actix::Addr;

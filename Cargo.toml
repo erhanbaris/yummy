@@ -86,3 +86,6 @@ syn = { version = "1", features = ["full"] }
 quote = "1"
 darling = "0.14.2"
 libsqlite3-sys = { version = "^0", features = ["bundled"] }
+
+cucumber = "0.19.1"
+async-trait = "0.1.61"

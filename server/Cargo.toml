@@ -50,7 +50,8 @@ redis = { workspace = true, optional = true }
 
 dotenv.workspace = true
 
-[dev-dependencies]
+cucumber.workspace = true
+async-trait.workspace = true
 tokio.workspace = true
 actix-test-server.workspace = true
 actix-test.workspace = true
@@ -62,6 +63,8 @@ awc.workspace = true
 actix-codec.workspace = true
 futures.workspace = true
 futures-util.workspace = true
+
+[dev-dependencies]
 
 [features]
 stateless = ["dep:redis", "dep:r2d2"]
