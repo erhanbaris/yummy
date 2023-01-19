@@ -1,8 +1,11 @@
 @given("{word} connected")
 
+@when("{word} send {string} as a json message")
+@when("{word} authenticate via email with {string} {string}")
+@when("{word} register via email with {string} {string}")
+@when("{word} authenticate via custom id with {string}")
+@when("{word} register via custom id with {string}")
 @when("{word} logout")
-@when("{word} email auth with {string} {string}")
-@when("{word} register email auth with {string} {string}")
 
 @then("{word} receive {word} message")
 @then("{word} request succeeded")

@@ -180,8 +180,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRe
     #[tracing::instrument(name="Logout", skip(self, _ctx))]
     #[macros::api(name="Logout", socket=true)]
     fn handle(&mut self, model: LogoutRequest, _ctx: &mut Context<Self>) -> Self::Result {
-        model.socket.send(Answer::success().into());
-
         self.issue_system_async(ConnUserDisconnect {
             auth: model.auth.clone(),
             socket: model.socket

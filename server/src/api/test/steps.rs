@@ -59,7 +59,12 @@ async fn user_connect(world: &mut YummyWorld, user: String) {
 }
 
 /* Whens */
-#[when(expr = "{word} email auth with {string} {string}")]
+#[when(expr = "{word} send {string} as a json message")]
+async fn send_json(world: &mut YummyWorld, user: String, message: String) {
+    send_message(world, user, serde_json::from_str(&message).unwrap_or_default()).await;
+}
+
+#[when(expr = "{word} authenticate via email with {string} {string}")]
 async fn email_auth_with_parameters(world: &mut YummyWorld, user: String, email: String, password: String) {
     send_message(world, user, json!({
         "type": "AuthEmail",
@@ -69,12 +74,30 @@ async fn email_auth_with_parameters(world: &mut YummyWorld, user: String, email:
 }
 
 
-#[when(expr = "{word} register email auth with {string} {string}")]
+#[when(expr = "{word} register via email with {string} {string}")]
 async fn register_with_email(world: &mut YummyWorld, user: String, email: String, password: String) {
     send_message(world, user, json!({
         "type": "AuthEmail",
         "email": email,
         "password": password,
+        "create": true
+    })).await;
+}
+
+#[when(expr = "{word} authenticate via custom id with {string}")]
+async fn custom_id_auth_with_parameters(world: &mut YummyWorld, user: String, custom_id: String) {
+    send_message(world, user, json!({
+        "type": "AuthCustomId",
+        "id": custom_id
+    })).await;
+}
+
+
+#[when(expr = "{word} register via custom id with {string}")]
+async fn register_with_custom_id(world: &mut YummyWorld, user: String, custom_id: String) {
+    send_message(world, user, json!({
+        "type": "AuthCustomId",
+        "id": custom_id,
         "create": true
     })).await;
 }

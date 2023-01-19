@@ -22,6 +22,7 @@ use general::state::YummyState;
 
 use actix_broker::*;
 
+use general::web::Answer;
 #[cfg(feature = "stateless")]
 use redis::Commands;
 
@@ -122,12 +123,21 @@ impl Handler<ConnUserDisconnect> for ConnectionManager {
     fn handle(&mut self, model: ConnUserDisconnect, _ctx: &mut Self::Context) -> Self::Result {
         let user_id = match model.auth.deref() {
             Some(user) => &user.user,
-            None => return ()
+            None => {
+                model.socket.send(Answer::fail().into());
+                return
+            }
         };
 
         println!("ConnUserDisconnect");
-        self.users.remove(user_id);
+        let user_removed = self.users.remove(user_id);
 
+        if user_removed.is_none() {
+            model.socket.send(Answer::fail().into());
+            return;
+        }
+        
+        model.socket.send(Answer::success().into());
         self.issue_system_async(RoomUserDisconnect {
             auth: model.auth.clone(),
             socket: model.socket.clone()
