@@ -10,6 +10,7 @@ pub mod state;
 pub mod test;
 pub mod password;
 pub mod tls;
+pub mod websocket;
 
 #[cfg(feature = "stateless")]
 pub mod pubsub;

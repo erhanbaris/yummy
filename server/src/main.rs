@@ -1,34 +1,28 @@
 #![forbid(unsafe_code)]
 mod api;
 
-use general::config::{get_configuration, configure_environment};
-use general::tls::load_rustls_config;
-use manager::conn::ConnectionManager;
-use manager::user::UserManager;
 use std::sync::Arc;
 
+use general::config::{get_configuration, configure_environment};
+use general::tls::load_rustls_config;
+use general::web::json_error_handler;
+
+use manager::conn::ConnectionManager;
+use manager::user::UserManager;
 use manager::auth::AuthManager;
 
-use actix_web::error::InternalError;
-
 use actix::Actor;
-use actix_web::error::{JsonPayloadError};
+use actix_web::error::InternalError;
 use actix_web::web::{JsonConfig, QueryConfig};
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{web, HttpResponse};
 use actix_web::{middleware, App, HttpServer, web::Data};
 
-pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::Error {
-    let detail = err.to_string();
-    let res = HttpResponse::BadRequest().body("error");
-    log::error!("Json parse issue: {}", detail);
-    
-    InternalError::from_response("Json format is not valid. Please check request definition.", res).into()
-}
+use crate::api::websocket::websocket_endpoint;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     use general::state::YummyState;
-    use manager::{room::RoomManager};
+    use manager::room::RoomManager;
 
     configure_environment();
     let config = get_configuration();
@@ -74,7 +68,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(conn_manager.clone())
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
-            .route("/v1/socket", web::get().to(crate::api::websocket::websocket_endpoint::<database::SqliteStore>))
+            .route("/v1/socket", web::get().to(websocket_endpoint::<database::SqliteStore>))
     });
 
     match load_rustls_config(config.clone()) {

@@ -1,0 +1,9 @@
+@given("{word} connected")
+
+@when("{word} logout")
+@when("{word} email auth with {string} {string}")
+@when("{word} register email auth with {string} {string}")
+
+@then("{word} receive {word} message")
+@then("{word} request succeeded")
+@then("{word} request failed")

@@ -1,15 +1,19 @@
+mod steps;
+
 use std::collections::HashMap;
 use std::env::temp_dir;
 use std::fmt::Debug;
-use std::str::FromStr;
 use std::sync::Arc;
-use std::sync::atomic::AtomicUsize;
 
 use uuid::Uuid;
 use database::create_database;
 use general::state::YummyState;
+use general::websocket::WebsocketTestClient;
+use general::web::json_error_handler;
+
 use manager::conn::ConnectionManager;
 use actix_web::web::Data;
+use crate::api::websocket::websocket_endpoint;
 
 use manager::auth::AuthManager;
 use manager::user::UserManager;
@@ -20,7 +24,6 @@ use async_trait::async_trait;
 use actix::Actor;
 
 use actix_test::{TestServer, TestServerConfig};
-use actix_web::test::init_service;
 use actix_web::web::ServiceConfig;
 use actix_web::App;
 use actix_web::web::JsonConfig;
@@ -29,13 +32,9 @@ use actix_web::error::InternalError;
 use actix_web::HttpResponse;
 use actix_web::web::get;
 
-use cucumber::gherkin::Step;
 use cucumber::*;
 use database::create_connection;
 use general::config::YummyConfig;
-
-use crate::json_error_handler;
-use crate::api::websocket::websocket_endpoint;
 
 #[derive(Default)]
 pub struct CustomWriter {
@@ -175,7 +174,7 @@ impl Debug for TestServerCapsule {
 }
 
 pub struct ClientInfo {
-    socket: crate::api::websocket::client::WebsocketTestClient<String, String>,
+    socket: WebsocketTestClient<String, String>,
     last_message: Option<String>,
     last_error: Option<String>,
     room_id: Option<usize>,
@@ -241,9 +240,12 @@ pub fn config(cfg: &mut ServiceConfig) {
 
 #[actix_web::test]
 async fn cucumber_test() {
-    use cucumber::WriterExt;
-    let writer = CustomWriter::default();
+    use actix_web::test::init_service;
+    //use cucumber::WriterExt;
+    //let writer = CustomWriter::default();
 
     init_service(App::new().configure(config)).await;
-    YummyWorld::cucumber().with_writer(writer.normalized()).run_and_exit("./").await;
+    YummyWorld::cucumber()
+        //.with_writer(writer.normalized())
+        .run_and_exit("./tests/").await;
 }

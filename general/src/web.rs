@@ -1,3 +1,4 @@
+use actix_web::{error::{JsonPayloadError, InternalError}, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -75,4 +76,12 @@ impl<T: DeserializeOwned> From<String> for GenericAnswer<T> {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ErrorResponse<T: Serialize> {
     pub error: T
+}
+
+pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::Error {
+    let detail = err.to_string();
+    let res = HttpResponse::BadRequest().body("error");
+    log::error!("Json parse issue: {}", detail);
+    
+    InternalError::from_response("Json format is not valid. Please check request definition.", res).into()
 }

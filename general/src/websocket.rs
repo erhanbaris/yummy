@@ -92,7 +92,7 @@ where
                 self.socket.send(awc::ws::Message::Ping(t)).await.unwrap();
                 Some(String::new())
             }
-            _ => Some(String::new()),
+            _ => None
         }
     }
 

@@ -173,7 +173,7 @@ Terminates the current session and active game and player will be informed.
             ```json
             {
                 "status": false,
-                "error" "User not logged in"
+                "error": "User not logged in"
             }
             ```
 
@@ -214,6 +214,6 @@ All authentication response message structure is the same.
         ```json
         {
             "status": false,
-            "error" "Email and/or password not valid"
+            "error": "Email and/or password not valid"
         }
         ```

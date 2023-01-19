@@ -69,7 +69,7 @@
             ```json
             {
                 "status": false,
-                "error" "User joined to other room"
+                "error": "User joined to other room"
             }
             ```
 
@@ -148,7 +148,7 @@
             ```json
             {
                 "status": false,
-                "error" "User joined to other room"
+                "error": "User joined to other room"
             }
             ```
 

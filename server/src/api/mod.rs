@@ -1,7 +1,7 @@
-pub(crate) mod request;
-pub(crate) mod websocket;
+pub mod request;
+pub mod websocket;
 
-//#[cfg(test)]
+#[cfg(test)]
 mod test;
 
 use std::sync::Arc;

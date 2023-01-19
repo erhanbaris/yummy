@@ -53,6 +53,7 @@ jobs:
             --source-dir . \
             --excl-start 'mod test* \{' \
             --ignore 'tests/*' \
+            --ignore 'test/*' \
             --ignore server/src/main.rs \
             --ignore server/src/api/websocket/client.rs \
             --ignore general/src/client.rs \
@@ -106,6 +107,7 @@ jobs:
             --source-dir . \
             --excl-start 'mod test* \{' \
             --ignore 'tests/*' \
+            --ignore 'test/*' \
             --ignore server/src/main.rs \
             --ignore server/src/api/websocket/client.rs \
             --ignore general/src/client.rs \

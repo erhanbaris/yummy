@@ -158,6 +158,6 @@ Update user information. Current implementation only allow to update own informa
         ```json
         {
             "status": false,
-            "error" "Email and/or password not valid"
+            "error": "Email and/or password not valid"
         }
         ```
