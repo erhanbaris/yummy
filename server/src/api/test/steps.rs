@@ -73,7 +73,6 @@ async fn email_auth_with_parameters(world: &mut YummyWorld, user: String, email:
     })).await;
 }
 
-
 #[when(expr = "{word} register via email with {string} {string}")]
 async fn register_with_email(world: &mut YummyWorld, user: String, email: String, password: String) {
     send_message(world, user, json!({
@@ -99,6 +98,15 @@ async fn register_with_custom_id(world: &mut YummyWorld, user: String, custom_id
         "type": "AuthCustomId",
         "id": custom_id,
         "create": true
+    })).await;
+}
+
+
+#[when(expr = "{word} authenticate via device id with {string}")]
+async fn register_with_device_id(world: &mut YummyWorld, user: String, device_id: String) {
+    send_message(world, user, json!({
+        "type": "AuthDeviceId",
+        "id": device_id
     })).await;
 }
 

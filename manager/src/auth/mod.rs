@@ -5,7 +5,7 @@ mod test;
 
 use std::ops::Deref;
 use actix_broker::BrokerIssue;
-use general::{auth::{generate_auth, UserJwt, validate_auth}, state::YummyState, web::{GenericAnswer, Answer}, model::UserType};
+use general::{auth::{generate_auth, UserJwt, validate_auth}, state::YummyState, web::GenericAnswer, model::UserType};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -62,6 +62,7 @@ macro_rules! disconnect_if_already_auth {
         if $model.auth.is_some() {
             $self.issue_system_async(ConnUserDisconnect {
                 auth: $model.auth.clone(),
+                send_message: false,
                 socket: $model.socket.clone()
             });
         }   
@@ -82,8 +83,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
     #[tracing::instrument(name="EmailAuth", skip(self, _ctx))]
     #[macros::api(name="EmailAuth", socket=true)]
     fn handle(&mut self, model: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
-
-        disconnect_if_already_auth!(model, self, _ctx);        
         
         let mut connection = self.database.get()?;
         let user_info = DB::user_login_via_email(&mut connection, &model.email)?;
@@ -104,6 +103,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
         let session_id = self.states.new_session(&user_id, name.clone(), user_type);
         let (token, auth) = self.generate_token(&user_id, name, Some(model.email.to_string()), Some(session_id), user_type)?;
 
+        disconnect_if_already_auth!(model, self, _ctx);
+
         self.issue_system_async(UserConnected {
             user_id: Arc::new(user_id),
             socket: model.socket.clone()
@@ -120,8 +121,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
     #[tracing::instrument(name="DeviceIdAuth", skip(self, _ctx))]
     #[macros::api(name="DeviceIdAuth", socket=true)]
     fn handle(&mut self, model: DeviceIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
-
-        disconnect_if_already_auth!(model, self, _ctx);        
         
         let mut connection = self.database.get()?;
         let user_info = DB::user_login_via_device_id(&mut connection, &model.id)?;
@@ -133,6 +132,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
         
         let session_id = self.states.new_session(&user_id, name.clone(), user_type);
         let (token, auth) = self.generate_token(&user_id, name, email, Some(session_id), user_type)?;
+        
+        disconnect_if_already_auth!(model, self, _ctx);
 
         self.issue_system_async(UserConnected {
             user_id: Arc::new(user_id),
@@ -150,8 +151,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
     #[tracing::instrument(name="CustomIdAuth", skip(self, _ctx))]
     #[macros::api(name="CustomIdAuth", socket=true)]
     fn handle(&mut self, model: CustomIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
-
-        disconnect_if_already_auth!(model, self, _ctx);        
         
         let mut connection = self.database.get()?;
         let user_info = DB::user_login_via_custom_id(&mut connection, &model.id)?;
@@ -163,6 +162,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
         
         let session_id = self.states.new_session(&user_id, name.clone(), user_type);
         let (token, auth) = self.generate_token(&user_id, name, email, Some(session_id), user_type)?;
+
+        disconnect_if_already_auth!(model, self, _ctx);
 
         self.issue_system_async(UserConnected {
             user_id: Arc::new(user_id),
@@ -182,6 +183,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRe
     fn handle(&mut self, model: LogoutRequest, _ctx: &mut Context<Self>) -> Self::Result {
         self.issue_system_async(ConnUserDisconnect {
             auth: model.auth.clone(),
+            send_message: true,
             socket: model.socket
         });
         Ok(())
@@ -214,9 +216,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
     #[tracing::instrument(name="RestoreToken", skip(self, ctx))]
     #[macros::api(name="RestoreToken", socket=true)]
     fn handle(&mut self, model: RestoreTokenRequest, ctx: &mut Context<Self>) -> Self::Result {
-
-        disconnect_if_already_auth!(model, self, ctx);        
-        
         match validate_auth(self.config.clone(), model.token) {
             Some(auth) => {
                 let session_id = if self.states.is_session_online(&auth.user.session) {
@@ -230,6 +229,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
 
                 let (token, auth) = self.generate_token(&auth.user.id, None, None, Some(session_id), auth.user.user_type)?; 
 
+                disconnect_if_already_auth!(model, self, _ctx);
+                
                 self.issue_system_async(UserConnected {
                     user_id: auth.id.clone(),
                     socket: model.socket.clone()
@@ -254,6 +255,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUse
         let timer = ctx.run_later(self.config.connection_restore_wait_timeout, move |manager, _ctx| {            
             manager.issue_system_async(ConnUserDisconnect {
                 auth: model.auth.clone(),
+                send_message: false,
                 socket: model.socket.clone()
             });
         });

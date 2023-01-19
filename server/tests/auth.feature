@@ -38,6 +38,15 @@ Feature: Authentication features
     Then user1 request succeeded
 
 
+  Scenario: Device id auth
+    Given user1 connected
+    When user1 authenticate via device id with "mu custom device id"
+    Then user1 receive Authenticated message
+
+    When user1 logout
+    Then user1 request succeeded
+
+
   Scenario: Logout
     Given user1 connected
 

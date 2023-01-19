@@ -111,6 +111,7 @@ impl CustomIdAuthRequest {
 #[rtype(result = "()")]
 pub struct ConnUserDisconnect {
     pub auth: Arc<Option<UserAuth>>,
+    pub send_message: bool,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 

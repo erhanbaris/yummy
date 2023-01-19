@@ -1,5 +1,5 @@
 {
-    "cucumberautocomplete.steps": ["server/tests/steps/*.txt"],
+    "cucumberautocomplete.steps": ["server/tests/steps.txt"],
     "cucumberautocomplete.strictGherkinCompletion": true,
     "cucumberautocomplete.syncfeatures": "server/tests/*.feature",
     "cucumberautocomplete.customParameters": [

@@ -124,7 +124,9 @@ impl Handler<ConnUserDisconnect> for ConnectionManager {
         let user_id = match model.auth.deref() {
             Some(user) => &user.user,
             None => {
-                model.socket.send(Answer::fail().into());
+                if model.send_message {
+                    model.socket.send(Answer::fail().into());
+                }
                 return
             }
         };
@@ -133,11 +135,16 @@ impl Handler<ConnUserDisconnect> for ConnectionManager {
         let user_removed = self.users.remove(user_id);
 
         if user_removed.is_none() {
-            model.socket.send(Answer::fail().into());
+            if model.send_message {
+                model.socket.send(Answer::fail().into());
+            }
             return;
         }
         
-        model.socket.send(Answer::success().into());
+        if model.send_message {
+            model.socket.send(Answer::success().into());
+        }
+        
         self.issue_system_async(RoomUserDisconnect {
             auth: model.auth.clone(),
             socket: model.socket.clone()

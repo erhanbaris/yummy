@@ -5,6 +5,7 @@
 @when("{word} register via email with {string} {string}")
 @when("{word} authenticate via custom id with {string}")
 @when("{word} register via custom id with {string}")
+@when("{word} authenticate via device id with {string}")
 @when("{word} logout")
 
 @then("{word} receive {word} message")
