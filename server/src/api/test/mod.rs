@@ -180,6 +180,8 @@ pub struct ClientInfo {
     room_id: Option<usize>,
     name: Option<String>,
     message: String,
+    token: String,
+    memory: HashMap<String, String>
 }
 
 #[derive(World)]
