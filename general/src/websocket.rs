@@ -96,6 +96,30 @@ where
         }
     }
 
+    pub async fn get_ping(&mut self) -> bool {
+        let message = self.socket.next().await;
+        match message {
+            Some(Ok(Frame::Ping(_))) => true,
+            _ => false
+        }
+    }
+
+    pub async fn get_pong(&mut self) -> bool {
+        let message = self.socket.next().await;
+        match message {
+            Some(Ok(Frame::Pong(_))) => true,
+            _ => false
+        }
+    }
+
+    pub async fn ping(&mut self) {
+        self.socket.send(awc::ws::Message::Ping("".into())).await.unwrap();
+    }
+
+    pub async fn pong(&mut self) {
+        self.socket.send(awc::ws::Message::Pong("".into())).await.unwrap();
+    }
+
     pub async fn send<R>(&mut self, message: R) where R: Clone + Serialize + DeserializeOwned {
         match serde_json::to_string(&message) {
             Ok(text) => self

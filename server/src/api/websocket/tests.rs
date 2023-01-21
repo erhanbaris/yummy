@@ -9,7 +9,7 @@ use actix_web::{web::Data, App};
 use database::{create_database, create_connection};
 use general::meta::UserMetaAccess;
 use general::state::YummyState;
-use general::test::model::{ReceiveError, AuthenticatedModel, RoomCreated};
+use general::test::model::{ReceiveError, AuthenticatedModel, RoomCreated, Joined};
 use general::tls::load_temporary_rustls_config;
 use general::web::Answer;
 use manager::auth::AuthManager;
@@ -1020,5 +1020,82 @@ async fn join_room() -> anyhow::Result<()> {
     let receive = client_2.get_text().await;
     assert!(receive.is_some());
 
+    Ok(())
+}
+
+#[actix_web::test]
+async fn ping_pong() -> anyhow::Result<()> {
+    let server = create_websocket_server(::general::config::get_configuration());
+
+    let mut client_1 = general::websocket::WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+    client_1.ping().await;
+    client_1.get_pong().await;
+
+    client_1.ping().await;
+    assert_eq!(client_1.get_text().await.unwrap(), String::new());
+
+    Ok(())
+}
+
+#[actix_web::test]
+async fn pong_ping() -> anyhow::Result<()> {
+    let server = create_websocket_server(::general::config::get_configuration());
+
+    let mut client_1 = general::websocket::WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+    client_1.pong().await;
+    client_1.get_ping().await;
+
+    client_1.pong().await;
+    assert_eq!(client_1.get_text().await.unwrap(), String::new());
+
+    Ok(())
+}
+
+#[cfg(feature = "stateless")]
+#[actix_web::test]
+async fn pub_sub_test() -> anyhow::Result<()> {
+    let server_1 = create_websocket_server_with_tls(::general::config::get_configuration());
+    let server_2 = create_websocket_server_with_tls(::general::config::get_configuration());
+
+    let mut client_1 = general::websocket::WebsocketTestClient::<String, String>::new(server_1.url("/v1/socket"), general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+    let mut client_2 = general::websocket::WebsocketTestClient::<String, String>::new(server_2.url("/v1/socket"), general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+
+    client_1.send(json!({
+        "type": "AuthEmail",
+        "email": "user1@gmail.com",
+        "password": "erhan",
+        "create": true
+    })).await;
+
+    client_2.send(json!({
+        "type": "AuthEmail",
+        "email": "user2@gmail.com",
+        "password": "erhan",
+        "create": true
+    })).await;
+
+    let receive_1 = serde_json::from_str::<Answer>(&client_1.get_text().await.unwrap())?;
+    let receive_2 = serde_json::from_str::<Answer>(&client_2.get_text().await.unwrap())?;
+
+    assert!(receive_1.status);
+    assert!(receive_2.status);
+
+    client_1.send(json!({
+        "type": "CreateRoom"
+    })).await;
+    let receive_1 = serde_json::from_str::<GenericAnswer<RoomCreated>>(&client_1.get_text().await.unwrap())?;
+    assert!(receive_1.status);
+
+    let room_id = receive_1.result.room;
+    
+    client_2.send(json!({
+        "type": "JoinToRoom",
+        "room": room_id,
+        "room_user_type": 1
+    })).await;
+
+    let receive = serde_json::from_str::<Joined>(&client_2.get_text().await.unwrap())?;
+    assert_eq!(&receive.class_type, "Joined");
+    
     Ok(())
 }
