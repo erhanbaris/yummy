@@ -58,11 +58,11 @@ impl<W: 'static> cucumber::Writer<W> for CustomWriter {
                     }
                     event::Feature::Scenario(scenario, ev) => match ev.event {
                         event::Scenario::Started => {
-                            println!("{}: {}", scenario.keyword, scenario.name)
+                            println!("\r\n{}: {}", scenario.keyword, scenario.name)
                         }
                         event::Scenario::Step(step, ev) => match ev {
                             event::Step::Started => {
-                                println!("{} {}...", step.keyword, step.value)
+                                println!("  {} {}...", step.keyword, step.value)
                             }
                             event::Step::Passed(_, _) => {
                                 self.passed_steps += 1;
@@ -73,7 +73,7 @@ impl<W: 'static> cucumber::Writer<W> for CustomWriter {
                             }
                             event::Step::Failed(_, _, _, err) => {
                                 self.failed_steps += 1;
-                                println!("failed: {:?} {err} {:?}", feature.path, step)
+                                println!("failed: {err} {:?}", step)
                             }
                         },
                         _ => {}
@@ -181,13 +181,15 @@ pub struct ClientInfo {
     name: Option<String>,
     message: String,
     token: String,
-    memory: HashMap<String, String>
+    memory: HashMap<String, String>,
+    rooms: HashMap<String, String>
 }
 
 #[derive(World)]
 pub struct YummyWorld {
     ws_server: TestServerCapsule,
     ws_clients: HashMap<String, ClientInfo>,
+    rooms: HashMap<String, String>
 }
 
 impl Default for YummyWorld {
@@ -195,6 +197,7 @@ impl Default for YummyWorld {
         Self {
             ws_clients: HashMap::new(),
             ws_server: TestServerCapsule::new(),
+            rooms: HashMap::default()
         }
     }
 }
@@ -243,11 +246,11 @@ pub fn config(cfg: &mut ServiceConfig) {
 #[actix_web::test]
 async fn cucumber_test() {
     use actix_web::test::init_service;
-    //use cucumber::WriterExt;
-    //let writer = CustomWriter::default();
+    use cucumber::WriterExt;
+    let writer = CustomWriter::default();
 
     init_service(App::new().configure(config)).await;
     YummyWorld::cucumber()
-        //.with_writer(writer.normalized())
+        .with_writer(writer.normalized())
         .run_and_exit("./tests/").await;
 }

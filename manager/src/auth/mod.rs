@@ -275,7 +275,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<AuthUser
     #[tracing::instrument(name="AuthUserDisconnect", skip(self, _ctx))]
     #[macros::api(name="AuthUserDisconnect")]
     fn handle(&mut self, model: AuthUserDisconnect, _ctx: &mut Context<Self>) -> Self::Result {
-        println!("AuthUserDisconnect");
 
         if let Some(user) = model.auth.deref() {
             self.states.close_session(&user.user, &user.session);

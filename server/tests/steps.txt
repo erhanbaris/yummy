@@ -1,5 +1,6 @@
 @given("{word} connected")
 
+@when("{word} create new room for {int} player")
 @when("{word} try to restore token")
 @when("{word} save token to memory")
 @when("{word} add {string} to memory as {string}")
@@ -12,8 +13,11 @@
 @when("{word} authenticate via device id with {string}")
 @when("{word} try to refresh token")
 @when("{word} logout")
+@when("{word} try to join {word} as {RoomUserType}")
 
 @then("{word} authenticated")
 @then("{word} receive {word} message")
 @then("{word} request succeeded")
 @then("{word} request failed")
+@then("{word} receive room created message as {word}")
+@then("{word} joined to {string}")

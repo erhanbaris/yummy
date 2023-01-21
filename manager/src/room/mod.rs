@@ -251,7 +251,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomUser
 
     #[tracing::instrument(name="Room::User RoomUserDisconnect", skip(self, _ctx))]
     fn handle(&mut self, model: RoomUserDisconnect, _ctx: &mut Self::Context) -> Self::Result {
-        println!("RoomUserDisconnect");
 
         if let Some(user) = model.auth.deref() {
             let rooms = self.states.get_user_rooms(&user.session);
@@ -555,8 +554,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<Disconne
     #[macros::simple_api(name="DisconnectFromRoomRequest", socket=true)]
     fn handle(&mut self, model: DisconnectFromRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
         let (user_id, session_id) = get_user_session_id_from_auth!(model, ());
-
-        println!("room:DisconnectFromRoomRequest");
 
         self.disconnect_from_room(&model.room, user_id, session_id).unwrap_or_default();
         model.socket.send(Answer::success().into());

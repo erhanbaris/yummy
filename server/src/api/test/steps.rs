@@ -1,12 +1,35 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
-use cucumber::{given, then, when};
-use general::websocket::WebsocketTestClient;
+use cucumber::{given, then, when, Parameter};
+use general::{websocket::WebsocketTestClient};
 
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 
 use super::{YummyWorld, ClientInfo};
+
+#[derive(Debug, Default, Parameter)]
+// NOTE: `name` is optional, by default the lowercased type name is implied.
+#[param(name = "RoomUserType", regex = "User|Moderator|Owner")]
+pub enum RoomUserType {
+    #[default]
+    User = 1,
+    Moderator = 2,
+    Owner = 3,
+}
+
+impl FromStr for RoomUserType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "User" => Self::User,
+            "Moderator" => Self::Moderator,
+            "Owner" => Self::Owner,
+            invalid => return Err(format!("Invalid `State`: {invalid}")),
+        })
+    }
+}
 
 fn get_user<'a>(world: &'a mut YummyWorld, user: &'a String) -> &'a mut ClientInfo {
     match world.ws_clients.get_mut(user) {
@@ -40,6 +63,8 @@ async fn user_receive_message<'a, T: DeserializeOwned>(world: &'a mut YummyWorld
 
     let client = get_user(world, &user);
     let received_message = serde_json::from_str::<T>(&message).unwrap();
+    dbg!("{}", &message);
+    
     (client, message, received_message)
 }
 
@@ -57,7 +82,8 @@ async fn user_connect(world: &mut YummyWorld, user: String) {
             last_error: None,
             message: String::new(),
             token: String::new(),
-            memory: HashMap::default()
+            memory: HashMap::default(),
+            rooms: HashMap::default()
         },
     );
 }
@@ -164,6 +190,25 @@ async fn logout(world: &mut YummyWorld, user: String) {
     })).await;
 }
 
+#[when(expr = "{word} create new room for {int} player")]
+async fn create_new_room_for_int_player(world: &mut YummyWorld, user: String, size: i32) {
+    send_message(world, &user, json!({
+        "type": "CreateRoom",
+        "max_user": size
+    })).await;
+}
+
+#[when(expr = "{word} try to join {word} as {RoomUserType}")]
+async fn join_to_room(world: &mut YummyWorld, user: String, room: String, room_user_type: RoomUserType) {
+    let room = world.rooms.get(&room).cloned().unwrap_or_default();
+    
+    send_message(world, &user, json!({
+        "type": "JoinToRoom",
+        "room": room,
+        "room_user_type": room_user_type as i32
+    })).await;
+}
+
 /* Thens */
 #[then(expr = "{word} authenticated")]
 async fn authenticated(world: &mut YummyWorld, user: String) {
@@ -188,6 +233,31 @@ async fn succeeded(world: &mut YummyWorld, user: String) {
     assert_eq!(received_message.as_object().unwrap().get("status").unwrap().as_bool().unwrap(), true);
 
     client.last_message = Some(message);
+}
+
+#[then(expr = "{word} joined to {string}")]
+async fn joined_to_room(world: &mut YummyWorld, user: String, room_name: String) {
+    let (client, message, received_message) = user_receive_message::<serde_json::Value>(world, &user).await;
+    assert_eq!(received_message.as_object().unwrap().get("room_name").cloned().unwrap_or(serde_json::Value::String("".to_string())).as_str().unwrap_or_default(), &room_name);
+    assert_eq!(received_message.as_object().unwrap().get("type").unwrap().as_str().unwrap(), "Joined");
+    assert_eq!(received_message.as_object().unwrap().get("status").unwrap().as_bool().unwrap(), true);
+
+    client.last_message = Some(message);
+
+    let room_id = received_message.as_object().unwrap().get("room").unwrap().as_str().unwrap().to_string();
+
+    client.rooms.insert(room_name.clone(), room_id.clone());
+}
+
+#[then(expr = "{word} receive room created message as {word}")]
+async fn room_created(world: &mut YummyWorld, user: String, name: String) {
+    let room_id = {
+        let (client, message, received_message) = user_receive_message::<serde_json::Value>(world, &user).await;
+        assert_eq!(received_message.as_object().unwrap().get("type").unwrap().as_str().unwrap(), "RoomCreated");
+        client.last_message = Some(message);
+        received_message.as_object().unwrap().get("room").unwrap().as_str().unwrap().to_string()
+    };
+    world.rooms.insert(name, room_id);
 }
 
 #[then(expr = "{word} request failed")]

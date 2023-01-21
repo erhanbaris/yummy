@@ -131,7 +131,6 @@ impl Handler<ConnUserDisconnect> for ConnectionManager {
             }
         };
 
-        println!("ConnUserDisconnect");
         let user_removed = self.users.remove(user_id);
 
         if user_removed.is_none() {
