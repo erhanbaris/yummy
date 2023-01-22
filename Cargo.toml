@@ -63,7 +63,7 @@ serde_trim = "0.4.0"
 
 dotenv = "0.15.0"
 
-awc = { version = "3.0.1", features = ["rustls"] }
+awc = { version = "3.1.0", features = ["rustls"] }
 actix-codec = "0.5.0"
 futures = "0.3.25"
 futures-util = "0.3.25"
