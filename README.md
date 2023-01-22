@@ -20,7 +20,7 @@ Our main goal of the developing this application is support game developer to ma
 
 <br /><br />
 
-## 🚀 Some features:
+## 🚀 Some features
 - Communicates over WebSocket
 - Multiple authentication support
 - Different kind of room creation settings
@@ -29,7 +29,7 @@ Our main goal of the developing this application is support game developer to ma
 <br /><br />
 
 ## 📕 Documentation
-Please follow to [documentation](https://erhanbaris.github.io/yummy/)
+Please follow to [documentation](https://erhanbaris.github.io/yummy/).
 <br /><br />
 
 ## 🚧 Note
