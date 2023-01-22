@@ -33,4 +33,4 @@ Please follow to [documentation](https://erhanbaris.github.io/yummy/)
 <br /><br />
 
 ## 🚧 Note
-Yummy still under development and there are too many missing feature. But, we are heavy working on integrating all necessary feature. There is a documentation about how to connect and use but some informations still missing. Feel free to ask question and create pull request and we will be happy to see your feedback.
+**Yummy** still under development and there are too many missing feature. But, we are heavy working on integrating all necessary feature. There is a documentation about how to connect and use but some informations still missing. Feel free to ask question and create pull request and we will be happy to see your feedback.
