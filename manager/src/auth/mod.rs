@@ -16,6 +16,7 @@ use actix::{Context, Handler, Actor, AsyncContext, SpawnHandle};
 use database::{Pool, DatabaseTrait};
 use anyhow::{anyhow, Ok};
 use general::model::{UserId, SessionId};
+use interface::{PluginExecuter, auth::YummyEmailAuthModel};
 
 use self::model::*;
 use crate::conn::model::UserConnected;
@@ -25,6 +26,7 @@ pub struct AuthManager<DB: DatabaseTrait + ?Sized> {
     database: Arc<Pool>,
     states: YummyState,
     session_timeout_timers: HashMap<SessionId, SpawnHandle>,
+    executer: PluginExecuter,
     _auth: PhantomData<DB>
 }
 
@@ -36,6 +38,7 @@ impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
             states,
             session_timeout_timers: HashMap::new(),
             _auth: PhantomData,
+            executer: PluginExecuter::default()
         }
     }
 
@@ -69,6 +72,19 @@ macro_rules! disconnect_if_already_auth {
     }
 }
 
+
+macro_rules! disconnect_if_already_auth_2 {
+    ($auth: expr, $socket: expr, $self:expr, $ctx: expr) => {
+        if $auth.is_some() {
+            $self.issue_system_async(ConnUserDisconnect {
+                auth: $auth.clone(),
+                send_message: false,
+                socket: $socket.clone()
+            });
+        }   
+    }
+}
+
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for AuthManager<DB> {
     type Context = Context<Self>;
 
@@ -83,34 +99,50 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
     #[tracing::instrument(name="EmailAuth", skip(self, _ctx))]
     #[macros::api(name="EmailAuth", socket=true)]
     fn handle(&mut self, model: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
+        let YummyEmailAuthModel { ref_id, auth, email, password, if_not_exist_create, socket } = self.executer.pre_email_auth(YummyEmailAuthModel {
+            ref_id: 0,
+            auth: model.auth,
+            email: model.email,
+            password: model.password,
+            if_not_exist_create: model.if_not_exist_create,
+            socket: model.socket
+        })?;
         
         let mut connection = self.database.get()?;
-        let user_info = DB::user_login_via_email(&mut connection, &model.email)?;
+        let user_info = DB::user_login_via_email(&mut connection, &email)?;
 
         let (user_id, name, user_type) = match (user_info, model.if_not_exist_create) {
             (Some(user_info), _) => {
-                if model.password.get() != &user_info.password.unwrap_or_default() {
+                if password.get() != &user_info.password.unwrap_or_default() {
                     return Err(anyhow!(AuthError::EmailOrPasswordNotValid));
                 }
 
                 DB::update_last_login(&mut connection, &user_info.user_id)?;
                 (user_info.user_id, user_info.name, user_info.user_type)
             },
-            (None, true) => (DB::create_user_via_email(&mut connection, &model.email, &model.password)?, None, UserType::default()),
+            (None, true) => (DB::create_user_via_email(&mut connection, &email, &password)?, None, UserType::default()),
             _ => return Err(anyhow!(AuthError::EmailOrPasswordNotValid))
         };
 
         let session_id = self.states.new_session(&user_id, name.clone(), user_type);
-        let (token, auth) = self.generate_token(&user_id, name, Some(model.email.to_string()), Some(session_id), user_type)?;
+        let (token, auth_jwt) = self.generate_token(&user_id, name, Some(email.to_string()), Some(session_id), user_type)?;
 
-        disconnect_if_already_auth!(model, self, _ctx);
+        disconnect_if_already_auth_2!(auth, socket, self, _ctx);
 
         self.issue_system_async(UserConnected {
             user_id: Arc::new(user_id),
-            socket: model.socket.clone()
+            socket: socket.clone()
         });
-        model.socket.authenticated(auth);
-        model.socket.send(GenericAnswer::success(AuthResponse::Authenticated { token }).into());
+        socket.authenticated(auth_jwt);
+        socket.send(GenericAnswer::success(AuthResponse::Authenticated { token }).into());
+        self.executer.post_email_auth(YummyEmailAuthModel {
+            ref_id,
+            auth,
+            email,
+            password,
+            if_not_exist_create,
+            socket
+        })?;
         Ok(())
     }
 }

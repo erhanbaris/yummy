@@ -12,6 +12,7 @@ homepage.workspace = true
 general.workspace = true
 database.workspace = true
 macros.workspace = true
+interface.workspace = true
 
 actix.workspace = true
 actix-web-actors.workspace = true

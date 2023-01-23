@@ -74,6 +74,8 @@
             ```
 
 ## Join to room
+Joining to room require a little more attention than other parts. Room can be configurable based on the owners decitions. It means that, there are couple of parameters and based on parameters, user can be join to room directly or wait in the lobby to be accepted by room owner or moderator.
+
 
 === ":inbox_tray: Request message"
     !!! success ""

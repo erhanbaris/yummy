@@ -9,7 +9,7 @@ use actix_web::{web::Data, App};
 use database::{create_database, create_connection};
 use general::meta::UserMetaAccess;
 use general::state::YummyState;
-use general::test::model::{ReceiveError, AuthenticatedModel, RoomCreated, Joined};
+use general::test::model::{ReceiveError, AuthenticatedModel, RoomCreated};
 use general::tls::load_temporary_rustls_config;
 use general::web::Answer;
 use manager::auth::AuthManager;
