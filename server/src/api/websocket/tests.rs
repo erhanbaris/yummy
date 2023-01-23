@@ -12,6 +12,7 @@ use general::state::YummyState;
 use general::test::model::{ReceiveError, AuthenticatedModel, RoomCreated};
 use general::tls::load_temporary_rustls_config;
 use general::web::Answer;
+use interface::PluginExecuter;
 use manager::auth::AuthManager;
 use manager::conn::ConnectionManager;
 use serde_json::json;
@@ -120,10 +121,11 @@ pub fn create_websocket_server_with_config(config: Arc<YummyConfig>, test_server
         let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
         let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+        let executer = Arc::new(PluginExecuter::default());
 
         ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
-        let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
+        let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer).start());
         let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
         let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start());
 

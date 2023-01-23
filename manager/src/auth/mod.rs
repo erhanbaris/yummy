@@ -26,19 +26,19 @@ pub struct AuthManager<DB: DatabaseTrait + ?Sized> {
     database: Arc<Pool>,
     states: YummyState,
     session_timeout_timers: HashMap<SessionId, SpawnHandle>,
-    executer: PluginExecuter,
+    executer: Arc<PluginExecuter>,
     _auth: PhantomData<DB>
 }
 
 impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
-    pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>) -> Self {
+    pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>, executer: Arc<PluginExecuter>) -> Self {
         Self {
             config,
             database,
             states,
             session_timeout_timers: HashMap::new(),
             _auth: PhantomData,
-            executer: PluginExecuter::default()
+            executer
         }
     }
 

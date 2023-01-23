@@ -16,10 +16,25 @@ pub trait YummyAuthInterface {
     fn post_email_auth(&self, model: YummyEmailAuthModel) -> anyhow::Result<YummyEmailAuthModel> { Ok(model) }
 }
 
+#[derive(Default)]
 pub struct DummyYummyAuthPlugin;
 
 impl YummyAuthInterface for DummyYummyAuthPlugin {
+    fn pre_email_auth(&self, model: YummyEmailAuthModel) -> anyhow::Result<YummyEmailAuthModel> {
+        let YummyEmailAuthModel { ref_id, auth, email, password, if_not_exist_create, socket } = model;
+        println!("pre email auth");
+        Ok(YummyEmailAuthModel {
+            ref_id,
+            auth: Arc::new(None),
+            email: String::new(),
+            password,
+            if_not_exist_create,
+            socket
+        })
+    }
+
     fn post_email_auth(&self, model: YummyEmailAuthModel) -> anyhow::Result<YummyEmailAuthModel> {
+        println!("post email auth");
         Ok(model)
     }
 }
