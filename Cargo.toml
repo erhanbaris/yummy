@@ -23,7 +23,7 @@ database = { path = "./database" }
 macros = { path = "./macros" }
 interface = { path = "./interface" }
 
-redis = { version = "0.22.2", features = ["r2d2", "tokio-comp"] }
+redis = { version = "0.22.3", features = ["r2d2", "tokio-comp"] }
 r2d2 =  { version = "0.8.10" }
 actix = "0.13"
 actix-web = { version = "4", features = ["rustls"] }
