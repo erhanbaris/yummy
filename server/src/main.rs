@@ -24,6 +24,25 @@ use crate::api::websocket::websocket_endpoint;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    use rlua::{Function, Lua, MetaMethod, Result, UserData, UserDataMethods, Variadic};
+
+    let lua = Lua::new();
+
+    lua.context(f)
+
+    lua.context(|lua_ctx| {
+        let opcodes: Function = lua_ctx
+            .load(r#"
+            function(message)
+                print(message)
+            end
+        "#,).eval().unwrap();
+        opcodes.call::<_, ()>("merhaba").unwrap();
+        opcodes.call::<_, ()>("dünya").unwrap();
+        opcodes.call::<_, ()>("--").unwrap();
+});
+
+
     use general::state::YummyState;
     use manager::room::RoomManager;
 

@@ -59,6 +59,8 @@ actix-test.workspace = true
 actix-http.workspace = true
 actix-tls.workspace = true
 
+rlua.workspace = true
+
 rustls.workspace = true
 awc.workspace = true
 actix-codec.workspace = true
