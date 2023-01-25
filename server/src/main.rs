@@ -7,9 +7,13 @@ use general::config::{get_configuration, configure_environment};
 use general::tls::load_rustls_config;
 use general::web::json_error_handler;
 
+use interface::auth::DummyUserProxy;
+use interface::lua::LuaYummyAuthPlugin;
 use manager::conn::ConnectionManager;
 use manager::user::UserManager;
 use manager::auth::AuthManager;
+
+use interface::PluginExecuter;
 
 use actix::Actor;
 use actix_web::error::InternalError;
@@ -21,6 +25,7 @@ use crate::api::websocket::websocket_endpoint;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+
     use general::state::YummyState;
     use manager::room::RoomManager;
 
@@ -44,10 +49,15 @@ async fn main() -> std::io::Result<()> {
 
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] redis_client.clone());
 
+    let mut executer = PluginExecuter::new(Box::new(DummyUserProxy::default()));
+    executer.add_auth_plugin("dummy".to_string(), Box::new(LuaYummyAuthPlugin::new()));
+    let executer = Arc::new(executer);
+
+
     let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
     let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
     let conn_manager = Data::new(ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] redis_client).start());
-    let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
+    let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone(), executer.clone()).start());
     
     let data_config = Data::new(config.clone());
 

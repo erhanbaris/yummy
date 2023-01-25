@@ -8,6 +8,8 @@ use general::meta::MetaAction;
 use general::meta::UserMetaAccess;
 use general::test::model::AuthenticatedModel;
 use general::web::GenericAnswer;
+use interface::PluginExecuter;
+use interface::auth::DummyUserProxy;
 use std::collections::HashMap;
 use std::env::temp_dir;
 use std::sync::Arc;
@@ -59,12 +61,13 @@ fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, A
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+    let executer = Arc::new(PluginExecuter::new(Box::new(DummyUserProxy::default())));
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     let connection = create_connection(db_location.to_str().unwrap())?;
     create_database(&mut connection.clone().get()?)?;
-    Ok((UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start(), config, Arc::new(DummyClient::default())))
+    Ok((UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer).start(), config, Arc::new(DummyClient::default())))
 }
 
 #[actix::test]

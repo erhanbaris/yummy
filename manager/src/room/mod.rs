@@ -425,13 +425,13 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
         // Check user information
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
 
-        if self.states.is_user_banned_from_room(&model.room, user_id)? {
-            return Err(anyhow::anyhow!(RoomError::BannedFromRoom));
-        }
-
         let room_infos = self.states.get_room_info(&model.room, RoomMetaAccess::System, vec![RoomInfoTypeVariant::JoinRequest])?;
         let join_require_approvement = room_infos.get_join_request();
         let mut connection = self.database.get()?;
+
+        if self.states.is_user_banned_from_room(&model.room, user_id)? {
+            return Err(anyhow::anyhow!(RoomError::BannedFromRoom));
+        }
 
         if join_require_approvement.into_owned() {
 
@@ -445,7 +445,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
             let users = room_infos.get_users();
 
             let message: String = RoomResponse::NewJoinRequest { room: &model.room, user: &user_id, user_type: model.room_user_type.clone() }.into();
-
+            
             for user in users.iter() {
                 if user.user_type == RoomUserType::Owner || user.user_type == RoomUserType::Moderator {
                     self.issue_system_async(SendMessage {
@@ -455,6 +455,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
                 }
             }
 
+            // Send message to user about waiting for approvement
             model.socket.send(GenericAnswer::success(RoomResponse::JoinRequested { room: &model.room }).into());
         } else {
             // User can directly try to join room
