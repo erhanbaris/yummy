@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, cell::RefCell, rc::Rc};
 
 use general::{auth::UserAuth, password::Password, client::ClientTrait};
 
@@ -14,21 +14,20 @@ pub struct YummyEmailAuthModel {
 }
 
 pub trait YummyAuthInterface {
-    fn pre_email_auth<'a>(&self, user_manager: &'a dyn UserProxy, model: &mut YummyEmailAuthModel) -> anyhow::Result<()> { Ok(()) }
-    fn post_email_auth<'a>(&self, user_manager: &'a dyn UserProxy, model: &mut YummyEmailAuthModel) -> anyhow::Result<()> { Ok(()) }
+    fn pre_email_auth<'a>(&self, _user_manager: &'a dyn UserProxy, _model: Rc<RefCell<YummyEmailAuthModel>>) -> anyhow::Result<()> { Ok(()) }
+    fn post_email_auth<'a>(&self, _user_manager: &'a dyn UserProxy, _model: Rc<RefCell<YummyEmailAuthModel>>) -> anyhow::Result<()> { Ok(()) }
 }
 
 #[derive(Default)]
 pub struct DummyYummyAuthPlugin;
 
 impl YummyAuthInterface for DummyYummyAuthPlugin {
-    fn pre_email_auth<'a>(&self, user_manager: &'a dyn UserProxy, model: &mut YummyEmailAuthModel) -> anyhow::Result<()> {
-        let YummyEmailAuthModel { ref_id, auth, email, password, if_not_exist_create, socket } = model;
+    fn pre_email_auth<'a>(&self, _user_manager: &'a dyn UserProxy, _model: Rc<RefCell<YummyEmailAuthModel>>) -> anyhow::Result<()> {
         println!("pre email auth");
         Ok(())
     }
 
-    fn post_email_auth<'a>(&self, user_manager: &'a dyn UserProxy, model: &mut YummyEmailAuthModel) -> anyhow::Result<()> {
+    fn post_email_auth<'a>(&self, _user_manager: &'a dyn UserProxy, _model: Rc<RefCell<YummyEmailAuthModel>>) -> anyhow::Result<()> {
         println!("post email auth");
         Ok(())
     }
@@ -38,19 +37,19 @@ impl YummyAuthInterface for DummyYummyAuthPlugin {
 pub struct DummyUserProxy;
 
 impl UserProxy for DummyUserProxy {
-    fn get_user(&self, user: general::model::UserId) -> Option<database::model::UserInformationModel> {
+    fn get_user(&self, _user: general::model::UserId) -> Option<database::model::UserInformationModel> {
         todo!()
     }
 
-    fn get_user_meta(&self, user: general::model::UserId, key: String) -> Option<general::meta::MetaType<general::meta::UserMetaAccess>> {
+    fn get_user_meta(&self, _user: general::model::UserId, _key: String) -> Option<general::meta::MetaType<general::meta::UserMetaAccess>> {
         todo!()
     }
 
-    fn set_user_meta(&self, user: general::model::UserId, key: String, meta: general::meta::MetaType<general::meta::UserMetaAccess>) -> Option<general::meta::MetaType<general::meta::UserMetaAccess>> {
+    fn set_user_meta(&self, _user: general::model::UserId, _key: String, _meta: general::meta::MetaType<general::meta::UserMetaAccess>) -> Option<general::meta::MetaType<general::meta::UserMetaAccess>> {
         todo!()
     }
 
-    fn remove_user_meta(&self, user: general::model::UserId, key: String) {
+    fn remove_user_meta(&self, _user: general::model::UserId, _key: String) {
         todo!()
     }
 }

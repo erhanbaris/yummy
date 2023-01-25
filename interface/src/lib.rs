@@ -1,10 +1,11 @@
-use std::{sync::atomic::{AtomicBool, Ordering}, collections::HashMap, ops::Deref};
+use std::{sync::atomic::{AtomicBool, Ordering}, collections::HashMap, ops::Deref, rc::Rc, cell::RefCell};
 
 use auth::{YummyAuthInterface, YummyEmailAuthModel};
 use general::{model::{UserId, UserType}, meta::{MetaType, UserMetaAccess, MetaAction}};
 use database::model::UserInformationModel;
 
 pub mod auth;
+pub mod lua;
 
 pub struct UpdateUser {
     pub name: Option<String>,
@@ -57,25 +58,35 @@ impl PluginExecuter {
     }
 
     pub fn pre_email_auth(&self, model: YummyEmailAuthModel) -> anyhow::Result<YummyEmailAuthModel> {
-        let mut model = model;
         
+        let model = Rc::new(RefCell::new(model));
         for plugin in self.auth_interfaces.iter() {
             if plugin.active.load(Ordering::Relaxed) {
-                plugin.plugin.pre_email_auth(self.user_manager.deref(), &mut model)?;
+                plugin.plugin.pre_email_auth(self.user_manager.deref(), model.clone())?;
             }
         }
 
-        Ok(model)
+        match Rc::try_unwrap(model) {
+            Ok(refcell) => {
+                Ok(refcell.into_inner())
+            },
+            Err(_) => Err(anyhow::anyhow!("pre_email_auth lua failed"))
+        }
     }
 
     pub fn post_email_auth(&self, model: YummyEmailAuthModel) -> anyhow::Result<YummyEmailAuthModel> {
-        let mut model = model;
+        let model = Rc::new(RefCell::new(model));
         for plugin in self.auth_interfaces.iter() {
             if plugin.active.load(Ordering::Relaxed) {
-                plugin.plugin.post_email_auth(self.user_manager.deref(), &mut model)?;
+                plugin.plugin.post_email_auth(self.user_manager.deref(), model.clone())?;
             }
         }
 
-        Ok(model)
+        match Rc::try_unwrap(model) {
+            Ok(refcell) => {
+                Ok(refcell.into_inner())
+            },
+            Err(_) => Err(anyhow::anyhow!("post_email_auth lua failed"))
+        }
     }
 }

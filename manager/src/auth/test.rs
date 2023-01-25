@@ -9,6 +9,7 @@ use general::test::model::AuthenticatedModel;
 use general::test::model::RoomCreated;
 use general::test::model::UserDisconnectedFromRoom;
 use general::test::model::UserJoinedToRoom;
+use interface::auth::DummyUserProxy;
 
 use std::sync::Arc;
 
@@ -32,7 +33,7 @@ fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<da
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-    let executer = Arc::new(PluginExecuter::default());
+    let executer = Arc::new(PluginExecuter::new(Box::new(DummyUserProxy::default())));
 
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
 
@@ -383,7 +384,7 @@ async fn double_login_test() -> anyhow::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::default());
+    let executer = Arc::new(PluginExecuter::new(Box::new(DummyUserProxy::default())));
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
@@ -486,7 +487,7 @@ async fn user_disconnect_from_room_test() -> anyhow::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::default());
+    let executer = Arc::new(PluginExecuter::new(Box::new(DummyUserProxy::default())));
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 

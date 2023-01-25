@@ -7,14 +7,13 @@ use general::config::{get_configuration, configure_environment};
 use general::tls::load_rustls_config;
 use general::web::json_error_handler;
 
-use interface::auth::{DummyYummyAuthPlugin, DummyUserProxy};
+use interface::auth::DummyUserProxy;
+use interface::lua::LuaYummyAuthPlugin;
 use manager::conn::ConnectionManager;
 use manager::user::UserManager;
 use manager::auth::AuthManager;
 
 use interface::PluginExecuter;
-
-use lua_interface::LuaYummyAuthPlugin;
 
 use actix::Actor;
 use actix_web::error::InternalError;

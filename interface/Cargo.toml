@@ -10,3 +10,4 @@ general.workspace = true
 database.workspace = true
 
 anyhow.workspace = true
+mlua.workspace = true

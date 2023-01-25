@@ -5,7 +5,7 @@ mod test;
 
 use std::ops::Deref;
 use actix_broker::BrokerIssue;
-use general::{auth::{generate_auth, UserJwt, validate_auth}, state::YummyState, web::GenericAnswer, model::UserType};
+use general::{auth::{generate_auth, UserJwt, validate_auth, UserAuth}, state::YummyState, web::GenericAnswer, model::UserType};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -125,19 +125,22 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
         };
 
         let session_id = self.states.new_session(&user_id, name.clone(), user_type);
-        let (token, auth_jwt) = self.generate_token(&user_id, name, Some(email.to_string()), Some(session_id), user_type)?;
+        let (token, auth_jwt) = self.generate_token(&user_id, name, Some(email.to_string()), Some(session_id.clone()), user_type)?;
 
         disconnect_if_already_auth_2!(auth, socket, self, _ctx);
 
         self.issue_system_async(UserConnected {
-            user_id: Arc::new(user_id),
+            user_id: Arc::new(user_id.clone()),
             socket: socket.clone()
         });
         socket.authenticated(auth_jwt);
         socket.send(GenericAnswer::success(AuthResponse::Authenticated { token }).into());
         self.executer.post_email_auth(YummyEmailAuthModel {
             ref_id,
-            auth,
+            auth: Arc::new(Some(UserAuth {
+                user: user_id,
+                session: session_id
+            })),
             email,
             password,
             if_not_exist_create,

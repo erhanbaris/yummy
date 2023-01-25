@@ -9,6 +9,7 @@ use general::meta::UserMetaAccess;
 use general::test::model::AuthenticatedModel;
 use general::web::GenericAnswer;
 use interface::PluginExecuter;
+use interface::auth::DummyUserProxy;
 use std::collections::HashMap;
 use std::env::temp_dir;
 use std::sync::Arc;
@@ -60,7 +61,7 @@ fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, A
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::default());
+    let executer = Arc::new(PluginExecuter::new(Box::new(DummyUserProxy::default())));
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 

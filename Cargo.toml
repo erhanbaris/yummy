@@ -5,8 +5,7 @@ members = [
     "manager",
     "database",
     "general",
-    "interface",
-    "lua-interface"
+    "interface"
 ]
 
 [workspace.package]
@@ -23,7 +22,6 @@ server = { path = "./server", features = [] }
 database = { path = "./database" }
 macros = { path = "./macros" }
 interface = { path = "./interface" }
-lua-interface = { path = "./lua-interface" }
 
 redis = { version = "0.22.3", features = ["r2d2", "tokio-comp"] }
 r2d2 =  { version = "0.8.10" }
@@ -95,4 +93,3 @@ cucumber = "0.19.1"
 async-trait = "0.1.63"
 
 mlua = { version = "0.8.7", features = ["lua54", "vendored"] }
-local-impl = "0.1.1"
