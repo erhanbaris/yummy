@@ -175,7 +175,7 @@ async fn create_room_3() -> anyhow::Result<()> {
         socket:user_2_socket.clone()
     }).await??;
 
-    let message: GenericAnswer<Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    let message: GenericAnswer<general::test::model::Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     let message = message.result;
     assert_eq!(&message.class_type[..], "Joined");
 
@@ -186,7 +186,7 @@ async fn create_room_3() -> anyhow::Result<()> {
         socket:user_3_socket.clone()
     }).await??;
 
-    let message: GenericAnswer<Joined> = serde_json::from_str(&user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    let message: GenericAnswer<general::test::model::Joined> = serde_json::from_str(&user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     let message = message.result;
     assert_eq!(&message.class_type[..], "Joined");
 
@@ -254,7 +254,7 @@ async fn create_room_4() -> anyhow::Result<()> {
         socket:user_2_socket.clone()
     }).await??;
 
-    let message: GenericAnswer<Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    let message: GenericAnswer<general::test::model::Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     let message = message.result;
     assert_eq!(&message.class_type[..], "Joined");
 
@@ -265,7 +265,7 @@ async fn create_room_4() -> anyhow::Result<()> {
         socket:user_3_socket.clone()
     }).await??;
 
-    let message: GenericAnswer<Joined> = serde_json::from_str(&user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    let message: GenericAnswer<general::test::model::Joined> = serde_json::from_str(&user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     let message = message.result;
     assert_eq!(&message.class_type[..], "Joined");
 
@@ -1059,7 +1059,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
         socket: user_1_socket.clone()
     }).await??;
 
-    let message: GenericAnswer<Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    let message: GenericAnswer<general::test::model::Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
     let message = message.result;
     assert_eq!(&message.class_type[..], "Joined");
 

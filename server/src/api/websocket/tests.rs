@@ -1097,7 +1097,7 @@ async fn pub_sub_test() -> anyhow::Result<()> {
         "room_user_type": 1
     })).await;
 
-    let receive = serde_json::from_str::<Joined>(&client_2.get_text().await.unwrap())?;
+    let receive = serde_json::from_str::<general::test::model::Joined>(&client_2.get_text().await.unwrap())?;
     assert_eq!(&receive.class_type, "Joined");
     
     Ok(())
