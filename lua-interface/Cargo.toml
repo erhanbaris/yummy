@@ -1,0 +1,15 @@
+[package]
+name = "lua-interface"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+interface.workspace = true
+general.workspace = true
+database.workspace = true
+
+anyhow.workspace = true
+mlua.workspace = true
+local-impl.workspace = true

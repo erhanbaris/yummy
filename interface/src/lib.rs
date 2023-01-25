@@ -58,9 +58,10 @@ impl PluginExecuter {
 
     pub fn pre_email_auth(&self, model: YummyEmailAuthModel) -> anyhow::Result<YummyEmailAuthModel> {
         let mut model = model;
+        
         for plugin in self.auth_interfaces.iter() {
             if plugin.active.load(Ordering::Relaxed) {
-                model = plugin.plugin.pre_email_auth(self.user_manager.deref(), model)?;
+                plugin.plugin.pre_email_auth(self.user_manager.deref(), &mut model)?;
             }
         }
 
@@ -71,7 +72,7 @@ impl PluginExecuter {
         let mut model = model;
         for plugin in self.auth_interfaces.iter() {
             if plugin.active.load(Ordering::Relaxed) {
-                model = plugin.plugin.post_email_auth(self.user_manager.deref(), model)?;
+                plugin.plugin.post_email_auth(self.user_manager.deref(), &mut model)?;
             }
         }
 

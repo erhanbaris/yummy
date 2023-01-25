@@ -14,6 +14,8 @@ use manager::auth::AuthManager;
 
 use interface::PluginExecuter;
 
+use lua_interface::LuaYummyAuthPlugin;
+
 use actix::Actor;
 use actix_web::error::InternalError;
 use actix_web::web::{JsonConfig, QueryConfig};
@@ -24,24 +26,6 @@ use crate::api::websocket::websocket_endpoint;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    use rlua::{Function, Lua, MetaMethod, Result, UserData, UserDataMethods, Variadic};
-
-    let lua = Lua::new();
-
-    lua.context(f)
-
-    lua.context(|lua_ctx| {
-        let opcodes: Function = lua_ctx
-            .load(r#"
-            function(message)
-                print(message)
-            end
-        "#,).eval().unwrap();
-        opcodes.call::<_, ()>("merhaba").unwrap();
-        opcodes.call::<_, ()>("dünya").unwrap();
-        opcodes.call::<_, ()>("--").unwrap();
-});
-
 
     use general::state::YummyState;
     use manager::room::RoomManager;
@@ -67,7 +51,7 @@ async fn main() -> std::io::Result<()> {
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] redis_client.clone());
 
     let mut executer = PluginExecuter::new(Box::new(DummyUserProxy::default()));
-    executer.add_auth_plugin("dummy".to_string(), Box::new(DummyYummyAuthPlugin::default()));
+    executer.add_auth_plugin("dummy".to_string(), Box::new(LuaYummyAuthPlugin::new()));
     let executer = Arc::new(executer);
 
 

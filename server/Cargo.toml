@@ -13,6 +13,7 @@ general.workspace = true
 database.workspace = true
 manager.workspace = true
 interface.workspace = true
+lua-interface.workspace = true
 
 actix.workspace = true
 actix-cors.workspace = true
@@ -58,8 +59,6 @@ actix-test-server.workspace = true
 actix-test.workspace = true
 actix-http.workspace = true
 actix-tls.workspace = true
-
-rlua.workspace = true
 
 rustls.workspace = true
 awc.workspace = true

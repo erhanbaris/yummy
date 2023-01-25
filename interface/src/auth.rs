@@ -14,30 +14,23 @@ pub struct YummyEmailAuthModel {
 }
 
 pub trait YummyAuthInterface {
-    fn pre_email_auth<'a>(&self, user_manager: &'a dyn UserProxy, model: YummyEmailAuthModel) -> anyhow::Result<YummyEmailAuthModel> { Ok(model) }
-    fn post_email_auth<'a>(&self, user_manager: &'a dyn UserProxy, model: YummyEmailAuthModel) -> anyhow::Result<YummyEmailAuthModel> { Ok(model) }
+    fn pre_email_auth<'a>(&self, user_manager: &'a dyn UserProxy, model: &mut YummyEmailAuthModel) -> anyhow::Result<()> { Ok(()) }
+    fn post_email_auth<'a>(&self, user_manager: &'a dyn UserProxy, model: &mut YummyEmailAuthModel) -> anyhow::Result<()> { Ok(()) }
 }
 
 #[derive(Default)]
 pub struct DummyYummyAuthPlugin;
 
 impl YummyAuthInterface for DummyYummyAuthPlugin {
-    fn pre_email_auth<'a>(&self, user_manager: &'a dyn UserProxy, model: YummyEmailAuthModel) -> anyhow::Result<YummyEmailAuthModel> {
+    fn pre_email_auth<'a>(&self, user_manager: &'a dyn UserProxy, model: &mut YummyEmailAuthModel) -> anyhow::Result<()> {
         let YummyEmailAuthModel { ref_id, auth, email, password, if_not_exist_create, socket } = model;
         println!("pre email auth");
-        Ok(YummyEmailAuthModel {
-            ref_id,
-            auth: Arc::new(None),
-            email: String::new(),
-            password,
-            if_not_exist_create,
-            socket
-        })
+        Ok(())
     }
 
-    fn post_email_auth<'a>(&self, user_manager: &'a dyn UserProxy, model: YummyEmailAuthModel) -> anyhow::Result<YummyEmailAuthModel> {
+    fn post_email_auth<'a>(&self, user_manager: &'a dyn UserProxy, model: &mut YummyEmailAuthModel) -> anyhow::Result<()> {
         println!("post email auth");
-        Ok(model)
+        Ok(())
     }
 }
 
