@@ -1,5 +1,8 @@
 mod model;
 
+#[cfg(test)]
+mod test;
+
 use std::{rc::Rc, cell::RefCell, collections::HashSet};
 
 use crate::{auth::{YummyAuthInterface, YummyEmailAuthModel}, UserProxy};
@@ -15,44 +18,19 @@ pub struct LuaYummyAuthPlugin {
 
 impl LuaYummyAuthPlugin {
     pub fn new() -> Self {
-        let lua = Lua::new();
-        let mut callbacks: HashSet<CallbackType> = HashSet::default();
-        {
-            let pre_email_auth_func: LuaFunction = lua.load(r#"
-                function(message)
-                    print("pre_email_auth_func")
-                    print(message:get_email())
-                    message:set_email("erhan@erhan.com")
-                    print(message:get_email())
-                    print(message:get_session_id())
-                    print(message:get_user_id())
-                end
-            "#,).eval().unwrap();
-
-            callbacks.insert(CallbackType::PreEmailAuth);
-
-            let globals = lua.globals();
-            globals.set("pre_email", pre_email_auth_func).unwrap();
-
-
-            let post_email_auth_func: LuaFunction = lua.load(r#"
-                function(message)
-                    print("post_email_auth_func")
-                    print(message:get_session_id())
-                    print(message:get_user_id())
-                end
-            "#,).eval().unwrap();
-
-            callbacks.insert(CallbackType::PostEmailAuth);
-
-            let globals = lua.globals();
-            globals.set("post_email", post_email_auth_func).unwrap();
-        }
-
         Self {
-            lua,
+            lua: Lua::new(),
             callbacks: HashSet::default()
         }
+    }
+
+    pub fn add(&mut self, callback_type: CallbackType, content: &str) -> anyhow::Result<()> {
+        let func: LuaFunction = self.lua.load(content, ).eval()?;
+        self.callbacks.insert(callback_type);
+
+        let globals = self.lua.globals();
+        globals.set(callback_type as u8, func)?;
+        Ok(())
     }
 
     fn execute<T: LuaUserData + 'static>(&self, model: Rc<RefCell<T>>, callback_type: CallbackType) -> anyhow::Result<()> {

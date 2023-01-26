@@ -5,7 +5,7 @@ use crate::auth::YummyEmailAuthModel;
 
 use mlua::prelude::*;
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Eq, Hash, PartialEq, Copy, Clone)]
 #[repr(u8)]
 pub enum CallbackType {
     PreEmailAuth = 1,
