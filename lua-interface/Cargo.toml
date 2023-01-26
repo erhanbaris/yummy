@@ -1,5 +1,5 @@
 [package]
-name = "interface"
+name = "lua-interface"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,8 +9,10 @@ edition = "2021"
 doctest = false
 
 [dependencies]
+interface.workspace = true
 general.workspace = true
 database.workspace = true
 
 anyhow.workspace = true
 mlua.workspace = true
+local-impl.workspace = true

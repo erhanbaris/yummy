@@ -79,24 +79,30 @@ fn meta() -> anyhow::Result<()> {
     let room = SqliteStore::create_room(&mut connection, None, CreateRoomAccessType::Friend, 2, false, &Vec::new())?;
     
     // New meta
-    SqliteStore::insert_room_metas(&mut connection, &room, &vec![(&"game-type".to_string(), &MetaType::String("war".to_string(), RoomMetaAccess::Owner))])?;
+    SqliteStore::insert_room_metas(&mut connection, &room, &vec![
+        (&"game-type".to_string(), &MetaType::String("war".to_string(), RoomMetaAccess::Owner)),
+        (&"players".to_string(), &MetaType::List(Box::new(vec![MetaType::Number(12345.0, RoomMetaAccess::Owner), MetaType::Number(67890.0, RoomMetaAccess::Owner)]), RoomMetaAccess::Owner))])?;
 
 
     let meta = SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::System)?;
-    assert_eq!(meta.len(), 1);
+    assert_eq!(meta.len(), 2);
 
     // Remove meta
     SqliteStore::remove_room_metas(&mut connection, vec![meta[0].0.clone()])?;
-    assert_eq!(SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::Owner)?.len(), 0);
+    let meta = SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::Owner)?;
+    assert_eq!(meta[0].1, "players".to_string());
+    assert_eq!(meta[0].2, MetaType::List(Box::new(vec![MetaType::Number(12345.0, RoomMetaAccess::Anonymous), MetaType::Number(67890.0, RoomMetaAccess::Anonymous)]), RoomMetaAccess::Owner));
+
+    assert_eq!(SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::Owner)?.len(), 1);
     assert_eq!(SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::Anonymous)?.len(), 0);
-    assert_eq!(SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::System)?.len(), 0);
+    assert_eq!(SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::System)?.len(), 1);
 
     SqliteStore::insert_room_metas(&mut connection, &room, &vec![
         (&"location".to_string(), &MetaType::String("copenhagen".to_string(), RoomMetaAccess::Anonymous)),
         (&"score".to_string(), &MetaType::Number(123.0, RoomMetaAccess::Owner))])?;
 
-    assert_eq!(SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::Owner)?.len(), 2);
-    assert_eq!(SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::System)?.len(), 2);
+    assert_eq!(SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::Owner)?.len(), 3);
+    assert_eq!(SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::System)?.len(), 3);
 
     // Filter with anonymous
     let meta = SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::Anonymous)?;
@@ -106,8 +112,9 @@ fn meta() -> anyhow::Result<()> {
 
     // Filter with system
     let meta = SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::System)?;
-    assert_eq!(meta.len(), 2);
+    assert_eq!(meta.len(), 3);
     assert_eq!(meta.into_iter().map(|(_, key, value)| (key, value)).collect::<Vec<(String, MetaType<RoomMetaAccess>)>>(), vec![
+        ("players".to_string(), MetaType::List(Box::new(vec![MetaType::Number(12345.0, RoomMetaAccess::Anonymous), MetaType::Number(67890.0, RoomMetaAccess::Anonymous)]), RoomMetaAccess::Owner)),
         ("location".to_string(), MetaType::String("copenhagen".to_string(), RoomMetaAccess::Anonymous)),
         ("score".to_string(), MetaType::Number(123.0, RoomMetaAccess::Owner))]);
 

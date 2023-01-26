@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
@@ -73,6 +74,7 @@ impl UserStoreTrait for SqliteStore {
                 1 => MetaType::Number(value.parse::<f64>().unwrap_or_default(), access.into()),
                 2 => MetaType::String(value, access.into()),
                 3 => MetaType::Bool(value.parse::<bool>().unwrap_or_default(), access.into()),
+                4 => MetaType::List(Box::new(serde_json::from_str(&value[..]).unwrap_or_default()), access.into()),
                 _ => MetaType::String("".to_string(), access.into()),
             };
 
@@ -111,6 +113,7 @@ impl UserStoreTrait for SqliteStore {
                 MetaType::Number(value, access) => (value.to_string(), access, 1),
                 MetaType::String(value, access) => (value, access, 2),
                 MetaType::Bool(value, access) => (value.to_string(), access, 3),
+                MetaType::List(value, access) => (serde_json::to_string(value.deref()).unwrap_or_default(), access, 4),
             };
 
             let insert = UserMetaInsert {

@@ -1,7 +1,7 @@
 use serde::{Serialize, de::Visitor, de::MapAccess, Deserialize, Deserializer, Serializer};
-use serde_json::Value;
 use std::{fmt::{self, Debug}, marker::PhantomData};
 use serde::de::{self};
+use serde::ser::SerializeSeq;
 use serde_repr::{Serialize_repr, Deserialize_repr};
 
 #[derive(Debug, PartialEq, Eq, Clone, Default, Serialize_repr, Deserialize_repr)]
@@ -100,7 +100,8 @@ pub enum MetaType<T: Default + Debug + PartialEq + Clone> {
     Null,
     Number(f64, T),
     String(String, T),
-    Bool(bool, T)
+    Bool(bool, T),
+    List(Box<Vec<MetaType<T>>>, T)
 }
 
 impl<T: Default + Debug + PartialEq + Clone> MetaType<T> {
@@ -110,6 +111,7 @@ impl<T: Default + Debug + PartialEq + Clone> MetaType<T> {
             MetaType::Number(_, access_level) => access_level.clone(),
             MetaType::String(_, access_level) => access_level.clone(),
             MetaType::Bool(_, access_level) => access_level.clone(),
+            MetaType::List(_, access_level) => access_level.clone(),
         }
     }
 }
@@ -133,6 +135,13 @@ impl<T: Default + Debug + PartialEq + Clone> Serialize for MetaType<T> {
             MetaType::Number(number, _) => serializer.serialize_f64(*number),
             MetaType::String(string, _) => serializer.serialize_str(string.as_str()),
             MetaType::Bool(boolean, _) => serializer.serialize_bool(*boolean),
+            MetaType::List(list, _) => {
+                let mut seq = serializer.serialize_seq(Some(list.len()))?;
+                for element in list.iter() {
+                    seq.serialize_element(element)?;
+                }
+                seq.end()
+            },
         }
     }
 }
@@ -182,16 +191,28 @@ impl<'de, T: Default + Debug + PartialEq + Clone + From<i32>> Visitor<'de> for M
         Ok(MetaType::Null)
     }
 
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: de::SeqAccess<'de>, {
+        let mut vec = Vec::new();
+
+        while let Ok(Some(elem)) = seq.next_element() {
+            vec.push(elem);
+        }
+
+        Ok(MetaType::List(Box::new(vec), T::default()))
+    }
+
     fn visit_map<E>(self, mut access: E) -> Result<Self::Value, E::Error> where E: MapAccess<'de> {
         let mut visibility: Option<T> = None;
-        let mut value: Option<serde_json::Value> = None;
+        let mut value: Option<MetaType<T>> = None;
         while let Some(key) = access.next_key::<&str>()? {
             match key {
                 "access" => visibility = Some(match access.next_value::<usize>() {
                     Ok(n) => (n as i32).into(),
                     _ => return Err(de::Error::custom(r#"Invalid "access" type"#))
                 }),
-                "value" => value = Some(access.next_value::<serde_json::Value>()?),
+                "value" => value = Some(access.next_value::<MetaType<T>>()?),
                 _ => return Err(de::Error::custom(format!(r#""{}" is not valid"#, key)))
             }
         }
@@ -202,22 +223,13 @@ impl<'de, T: Default + Debug + PartialEq + Clone + From<i32>> Visitor<'de> for M
         };
         
         match value {
-            Some(value) => match value {
-                Value::Bool(bool) => Ok(MetaType::Bool(bool, visibility)),
-                Value::String(string) => Ok(MetaType::String(string, visibility)),
-                Value::Number(number) => {
-                    if number.is_f64() {
-                        Ok(MetaType::Number(number.as_f64().unwrap_or_default(), visibility))
-                    } else if number.is_i64() {
-                        Ok(MetaType::Number(number.as_i64().unwrap_or_default() as f64, visibility))
-                    } else if number.is_u64() {
-                        Ok(MetaType::Number(number.as_u64().unwrap_or_default() as f64, visibility))
-                    } else {
-                        Err(de::Error::custom(r#"Only, number, string and bool types are valid for "value""#))
-                    }
-                },
-                _ => Err(de::Error::custom(r#"Only, number, string and bool types are valid for "value""#))
-            },
+            Some(value) => Ok(match value {
+                MetaType::Null => MetaType::Null,
+                MetaType::Number(val, _) => MetaType::Number(val, visibility),
+                MetaType::String(val, _) => MetaType::String(val, visibility),
+                MetaType::Bool(val, _) => MetaType::Bool(val, visibility),
+                MetaType::List(val, _) => MetaType::List(val, visibility),
+            }),
             None => Err(de::Error::custom(r#""value" key is missing"#))
         }
     }

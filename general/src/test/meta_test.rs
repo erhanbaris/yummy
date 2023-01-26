@@ -53,6 +53,14 @@ fn basic_deserialization() {
     let s = "null";
     let deserialized: MetaType<RoomMetaAccess>= serde_json::from_str(s).unwrap();
     assert_eq!(deserialized, MetaType::Null);
+
+    let s = "[]";
+    let deserialized: MetaType<RoomMetaAccess>= serde_json::from_str(s).unwrap();
+    assert_eq!(deserialized, MetaType::List(Box::new(Vec::new()), RoomMetaAccess::Anonymous));
+
+    let s = "[1,2,3,4]";
+    let deserialized: MetaType<RoomMetaAccess>= serde_json::from_str(s).unwrap();
+    assert_eq!(deserialized, MetaType::List(Box::new(vec![MetaType::Number(1.0, RoomMetaAccess::Anonymous), MetaType::Number(2.0, RoomMetaAccess::Anonymous), MetaType::Number(3.0, RoomMetaAccess::Anonymous), MetaType::Number(4.0, RoomMetaAccess::Anonymous)]), RoomMetaAccess::Anonymous));
 }
 
 #[test]
@@ -82,6 +90,14 @@ fn dict_deserialization() {
     let s = r#"{"access": 0, "value": true}"#;
     let deserialized: MetaType<RoomMetaAccess>= serde_json::from_str(s).unwrap();
     assert_eq!(deserialized, serde_json::from_str("true").unwrap());
+    
+    let s = r#"{"access": 0, "value": [1,2,3]}"#;
+    let deserialized: MetaType<RoomMetaAccess>= serde_json::from_str(s).unwrap();
+    assert_eq!(deserialized, serde_json::from_str("[1,2,3]").unwrap());
+    
+    let s = r#"{"access": 0, "value": [[1,2,3],2,3]}"#;
+    let deserialized: MetaType<RoomMetaAccess>= serde_json::from_str(s).unwrap();
+    assert_eq!(deserialized, serde_json::from_str("[[1,2,3],2,3]").unwrap());
 }
 
 #[test]
@@ -100,7 +116,7 @@ fn wrong_deserialization() {
     assert_eq!(serde_json::from_str::<MetaType<UserMetaAccess>>(s).err().unwrap().to_string(), r#"Invalid "access" type at line 1 column 14"#);
 
     let s = r#"{"access": 0, "value": {}}"#;
-    assert_eq!(serde_json::from_str::<MetaType<UserMetaAccess>>(s).err().unwrap().to_string(), r#"Only, number, string and bool types are valid for "value" at line 1 column 26"#);
+    assert_eq!(serde_json::from_str::<MetaType<UserMetaAccess>>(s).err().unwrap().to_string(), r#""access" key is missing at line 1 column 25"#);
 
 
     // Room meta data
@@ -117,5 +133,5 @@ fn wrong_deserialization() {
     assert_eq!(serde_json::from_str::<MetaType<RoomMetaAccess>>(s).err().unwrap().to_string(), r#"Invalid "access" type at line 1 column 14"#);
 
     let s = r#"{"access": 0, "value": {}}"#;
-    assert_eq!(serde_json::from_str::<MetaType<RoomMetaAccess>>(s).err().unwrap().to_string(), r#"Only, number, string and bool types are valid for "value" at line 1 column 26"#);
+    assert_eq!(serde_json::from_str::<MetaType<RoomMetaAccess>>(s).err().unwrap().to_string(), r#""access" key is missing at line 1 column 25"#);
 }

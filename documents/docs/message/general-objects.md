@@ -1,6 +1,6 @@
 ### :material-table: Meta
 
-This area is used to store private or public information. Information can be kept dynamically and access to this information can be arranged. However, only certain data types are supported. number, boolean and string types are supported. nested declaration and array are not supported. It must be defined as a key-value. Value part may contain a value or if it is desired to determine the authorization level, it should be defined as an object and authorization information should be given. Access level of all created meta is defined as **0**.
+This area is used to store private or public information. Information can be kept dynamically and access to this information can be arranged. However, only certain data types are supported. number, boolean, string and list(array) types are supported. nested declaration and array are not supported. It must be defined as a key-value. Value part may contain a value or if it is desired to determine the authorization level, it should be defined as an object and authorization information should be given. Access level of all created meta is defined as **0**.
 
 When the query is made, meta information that has been assigned a lower authority than the user/room's authority can also be seen. In other words, if the user/room has the moderator authority, they can see all the metas with **Anonymous**, **Registered user**, **Friend**, **Me** and **Moderator** privileges.
 
