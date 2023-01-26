@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::borrow::Borrow;
 
@@ -261,6 +262,11 @@ impl YummyState {
                         MetaType::Bool(value, per) => {
                             pipes.cmd("HSET").arg(&room_meta_value).arg(meta).arg(value).ignore();
                             pipes.cmd("HSET").arg(&room_meta_type).arg(meta).arg(3).ignore();
+                            pipes.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(per.clone())).ignore()
+                        },
+                        MetaType::List(value, per) => {
+                            pipes.cmd("HSET").arg(&room_meta_value).arg(meta).arg(serde_json::to_string(value.deref()).unwrap_or_default()).ignore();
+                            pipes.cmd("HSET").arg(&room_meta_type).arg(meta).arg(4).ignore();
                             pipes.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(per.clone())).ignore()
                         }
                     }
@@ -610,6 +616,10 @@ impl YummyState {
                                         1 => MetaType::Number(FromRedisValue::from_redis_value(&value).unwrap_or_default(), RoomMetaAccess::from(access)),
                                         2 => MetaType::String(FromRedisValue::from_redis_value(&value).unwrap_or_default(), RoomMetaAccess::from(access)),
                                         3 => MetaType::Bool(FromRedisValue::from_redis_value(&value).unwrap_or_default(), RoomMetaAccess::from(access)),
+                                        4 => {
+                                            let value: String = FromRedisValue::from_redis_value(&value).unwrap_or_default();
+                                            MetaType::List(Box::new(serde_json::from_str(&value).unwrap_or_default()), RoomMetaAccess::from(access))
+                                        },
                                         _ => MetaType::Number(FromRedisValue::from_redis_value(&value).unwrap_or_default(), RoomMetaAccess::from(access)),
                                     };
     
@@ -701,6 +711,11 @@ impl YummyState {
                                     MetaType::Bool(value, per) => {
                                         command.cmd("HSET").arg(&room_meta_value).arg(meta).arg(value).ignore();
                                         command.cmd("HSET").arg(&room_meta_type).arg(meta).arg(3).ignore();
+                                        command.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(per.clone())).ignore()
+                                    },
+                                    MetaType::List(value, per) => {
+                                        command.cmd("HSET").arg(&room_meta_value).arg(meta).arg(serde_json::to_string(value.deref()).unwrap_or_default()).ignore();
+                                        command.cmd("HSET").arg(&room_meta_type).arg(meta).arg(4).ignore();
                                         command.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(per.clone())).ignore()
                                     }
                                 }
