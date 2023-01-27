@@ -4,6 +4,7 @@ use general::{auth::UserAuth, password::Password, client::ClientTrait};
 
 use crate::UserProxy;
 
+#[derive(Debug)]
 pub struct YummyEmailAuthModel {
     pub ref_id: usize,
     pub auth: Arc<Option<UserAuth>>,

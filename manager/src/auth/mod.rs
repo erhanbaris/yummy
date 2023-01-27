@@ -5,7 +5,7 @@ mod test;
 
 use std::ops::Deref;
 use actix_broker::BrokerIssue;
-use general::{auth::{generate_auth, UserJwt, validate_auth, UserAuth}, state::YummyState, web::GenericAnswer, model::UserType};
+use general::{auth::{generate_auth, UserJwt, validate_auth}, state::YummyState, web::GenericAnswer, model::UserType};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -97,55 +97,35 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="EmailAuth", skip(self, _ctx))]
-    #[macros::api(name="EmailAuth", socket=true)]
+    #[macros::plugin_api(name="email_auth", socket=true)]
     fn handle(&mut self, model: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
-        let YummyEmailAuthModel { ref_id, auth, email, password, if_not_exist_create, socket } = self.executer.pre_email_auth(YummyEmailAuthModel {
-            ref_id: 0,
-            auth: model.auth,
-            email: model.email,
-            password: model.password,
-            if_not_exist_create: model.if_not_exist_create,
-            socket: model.socket
-        })?;
-        
         let mut connection = self.database.get()?;
-        let user_info = DB::user_login_via_email(&mut connection, &email)?;
+        let user_info = DB::user_login_via_email(&mut connection, &model.email)?;
 
         let (user_id, name, user_type) = match (user_info, model.if_not_exist_create) {
             (Some(user_info), _) => {
-                if password.get() != &user_info.password.unwrap_or_default() {
+                if model.password.get() != &user_info.password.unwrap_or_default() {
                     return Err(anyhow!(AuthError::EmailOrPasswordNotValid));
                 }
 
                 DB::update_last_login(&mut connection, &user_info.user_id)?;
                 (user_info.user_id, user_info.name, user_info.user_type)
             },
-            (None, true) => (DB::create_user_via_email(&mut connection, &email, &password)?, None, UserType::default()),
+            (None, true) => (DB::create_user_via_email(&mut connection, &model.email, &model.password)?, None, UserType::default()),
             _ => return Err(anyhow!(AuthError::EmailOrPasswordNotValid))
         };
 
         let session_id = self.states.new_session(&user_id, name.clone(), user_type);
-        let (token, auth_jwt) = self.generate_token(&user_id, name, Some(email.to_string()), Some(session_id.clone()), user_type)?;
+        let (token, auth_jwt) = self.generate_token(&user_id, name, Some(model.email.to_string()), Some(session_id.clone()), user_type)?;
 
-        disconnect_if_already_auth_2!(auth, socket, self, _ctx);
+        disconnect_if_already_auth_2!(model.auth, model.socket, self, _ctx);
 
         self.issue_system_async(UserConnected {
             user_id: Arc::new(user_id.clone()),
-            socket: socket.clone()
+            socket: model.socket.clone()
         });
-        socket.authenticated(auth_jwt);
-        socket.send(GenericAnswer::success(AuthResponse::Authenticated { token }).into());
-        self.executer.post_email_auth(YummyEmailAuthModel {
-            ref_id,
-            auth: Arc::new(Some(UserAuth {
-                user: user_id,
-                session: session_id
-            })),
-            email,
-            password,
-            if_not_exist_create,
-            socket
-        })?;
+        model.socket.authenticated(auth_jwt);
+        model.socket.send(GenericAnswer::success(AuthResponse::Authenticated { token }).into());
         Ok(())
     }
 }
