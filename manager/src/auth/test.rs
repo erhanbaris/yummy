@@ -1,3 +1,7 @@
+use actix::Actor;
+use actix::Addr;
+use anyhow::Ok;
+
 use std::time::Duration;
 use general::auth::UserAuth;
 use general::config::YummyConfig;
@@ -9,13 +13,10 @@ use general::test::model::AuthenticatedModel;
 use general::test::model::RoomCreated;
 use general::test::model::UserDisconnectedFromRoom;
 use general::test::model::UserJoinedToRoom;
-use interface::auth::DummyUserProxy;
+use general::test::DummyClient;
 
 use std::sync::Arc;
 
-use actix::Actor;
-use actix::Addr;
-use anyhow::Ok;
 use database::{create_database, create_connection};
 
 use crate::conn::ConnectionManager;
@@ -26,14 +27,12 @@ use crate::room::model::JoinToRoomRequest;
 use super::AuthManager;
 use super::*;
 
-use general::test::DummyClient;
-
 fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<database::SqliteStore>>, Arc<DummyClient>)> {
     let connection = create_connection(":memory:")?;
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-    let executer = Arc::new(PluginExecuter::new(Box::new(DummyUserProxy::default())));
+    let executer = Arc::new(PluginExecuter::new());
 
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
 
@@ -384,7 +383,7 @@ async fn double_login_test() -> anyhow::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new(Box::new(DummyUserProxy::default())));
+    let executer = Arc::new(PluginExecuter::new());
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
@@ -487,7 +486,7 @@ async fn user_disconnect_from_room_test() -> anyhow::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new(Box::new(DummyUserProxy::default())));
+    let executer = Arc::new(PluginExecuter::new());
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 

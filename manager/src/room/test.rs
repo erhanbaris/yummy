@@ -2,8 +2,6 @@ use general::config::configure_environment;
 use general::model::CreateRoomAccessType;
 use general::state::RoomUserInformation;
 use general::test::model::*;
-use interface::PluginExecuter;
-use interface::auth::DummyUserProxy;
 use uuid::Uuid;
 
 use general::auth::UserAuth;
@@ -11,6 +9,9 @@ use general::auth::validate_auth;
 use general::config::YummyConfig;
 use general::config::get_configuration;
 use general::state::YummyState;
+use general::web::GenericAnswer;
+use general::test::DummyClient;
+
 use std::env::temp_dir;
 use std::sync::Arc;
 
@@ -23,8 +24,7 @@ use super::*;
 use crate::auth::AuthManager;
 use crate::auth::model::*;
 use crate::conn::ConnectionManager;
-use general::web::GenericAnswer;
-use general::test::DummyClient;
+use crate::plugin::PluginExecuter;
 
 
 macro_rules! email_auth {
@@ -69,7 +69,7 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new(Box::new(DummyUserProxy::default())));
+    let executer = Arc::new(PluginExecuter::new());
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
@@ -817,7 +817,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new(Box::new(DummyUserProxy::default())));
+    let executer = Arc::new(PluginExecuter::new());
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
@@ -963,7 +963,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new(Box::new(DummyUserProxy::default())));
+    let executer = Arc::new(PluginExecuter::new());
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
@@ -1081,7 +1081,7 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new(Box::new(DummyUserProxy::default())));
+    let executer = Arc::new(PluginExecuter::new());
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
@@ -1199,7 +1199,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new(Box::new(DummyUserProxy::default())));
+    let executer = Arc::new(PluginExecuter::new());
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
@@ -1317,7 +1317,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new(Box::new(DummyUserProxy::default())));
+    let executer = Arc::new(PluginExecuter::new());
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 

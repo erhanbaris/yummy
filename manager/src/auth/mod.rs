@@ -16,8 +16,8 @@ use actix::{Context, Handler, Actor, AsyncContext, SpawnHandle};
 use database::{Pool, DatabaseTrait};
 use anyhow::{anyhow, Ok};
 use general::model::{UserId, SessionId};
-use interface::{PluginExecuter, auth::YummyEmailAuthModel};
 
+use crate::plugin::PluginExecuter;
 use self::model::*;
 use crate::conn::model::UserConnected;
 

@@ -1,9 +1,10 @@
 use std::ops::Deref;
 
 use general::password::Password;
-use crate::auth::YummyEmailAuthModel;
 
 use mlua::prelude::*;
+
+use crate::auth::model::EmailAuthRequest;
 
 #[derive(Eq, Hash, PartialEq, Copy, Clone)]
 #[repr(u8)]
@@ -12,9 +13,9 @@ pub enum CallbackType {
     PostEmailAuth = 2
 }
 
-impl LuaUserData for YummyEmailAuthModel {
+impl LuaUserData for EmailAuthRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        methods.add_method("get_ref_id", |_, this, ()| Ok(this.ref_id));
+        // methods.add_method("get_ref_id", |_, this, ()| Ok(this.ref_id));
         methods.add_method("get_user_id", |_, this, ()| {
             let user_id = match this.auth.deref() {
                 Some(auth) => auth.user.to_string(),

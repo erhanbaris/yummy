@@ -4,8 +4,7 @@ members = [
     "server",
     "manager",
     "database",
-    "general",
-    "interface"
+    "general"
 ]
 
 [workspace.package]
@@ -21,7 +20,6 @@ manager = { path = "./manager", features = [] }
 server = { path = "./server", features = [] }
 database = { path = "./database" }
 macros = { path = "./macros" }
-interface = { path = "./interface" }
 
 redis = { version = "0.22.3", features = ["r2d2", "tokio-comp"] }
 r2d2 =  { version = "0.8.10" }

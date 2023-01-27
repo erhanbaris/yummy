@@ -1,3 +1,7 @@
+use actix::Actor;
+use actix::Addr;
+use anyhow::Ok;
+
 use anyhow::anyhow;
 use general::auth::UserAuth;
 use general::auth::validate_auth;
@@ -8,24 +12,20 @@ use general::meta::MetaAction;
 use general::meta::UserMetaAccess;
 use general::test::model::AuthenticatedModel;
 use general::web::GenericAnswer;
-use interface::PluginExecuter;
-use interface::auth::DummyUserProxy;
+use general::test::DummyClient;
 use std::collections::HashMap;
 use std::env::temp_dir;
 use std::sync::Arc;
 
-use actix::Actor;
-use actix::Addr;
-use anyhow::Ok;
 use database::{create_database, create_connection};
+use database::model::UserInformationModel;
 
-use super::*;
 use crate::auth::AuthManager;
 use crate::auth::model::*;
 use crate::conn::ConnectionManager;
-use database::model::UserInformationModel;
-use general::test::DummyClient;
+use crate::plugin::PluginExecuter;
 
+use super::*;
 
 macro_rules! email_auth {
     ($auth_manager: expr, $config: expr, $email: expr, $password: expr, $create: expr, $socket: expr) => {
@@ -61,7 +61,7 @@ fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, A
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new(Box::new(DummyUserProxy::default())));
+    let executer = Arc::new(PluginExecuter::new());
 
     ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 

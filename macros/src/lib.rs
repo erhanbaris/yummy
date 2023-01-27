@@ -47,7 +47,7 @@ pub fn api(args: TokenStream, input: TokenStream) -> TokenStream {
     let block = quote! {
         {
             #prepare_socket
-            let mut call = move || -> Self::Result {
+            let mut call = || -> Self::Result {
                 #block
             };
     
@@ -83,7 +83,7 @@ pub fn plugin_api(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let ItemFn { block, ..} = fn_item;
 
-    let (prepare_socket, send_message) = match args.socket {
+    let (clone_socket, send_result) = match args.socket {
         true => {
             (quote! { let __socket__ = model.socket.clone(); },
              quote! {
@@ -96,25 +96,21 @@ pub fn plugin_api(args: TokenStream, input: TokenStream) -> TokenStream {
     };
 
     let pre_api_path= proc_macro2::Ident::new(&format!("pre_{}", args.name), proc_macro2::Span::call_site());
+    let post_api_path= proc_macro2::Ident::new(&format!("post_{}", args.name), proc_macro2::Span::call_site());
+
     let block = quote! {
         {
-            let model = self.executer. #pre_api_path (YummyEmailAuthModel {
-                ref_id: 0,
-                auth: model.auth,
-                email: model.email,
-                password: model.password,
-                if_not_exist_create: model.if_not_exist_create,
-                socket: model.socket
-            })?;
-
-            #prepare_socket
-            let mut call = move || -> Self::Result {
+            #clone_socket
+            let model = self.executer.#pre_api_path(model)?;
+            let mut execute_api = || -> Self::Result {
                 #block
             };
     
-            let response = call();
+            let response = execute_api();
 
-            #send_message
+            #send_result
+
+            self.executer.#post_api_path(model, response.is_ok())?;
             response
         }
     };
@@ -139,7 +135,7 @@ pub fn simple_api(_: TokenStream, input: TokenStream) -> TokenStream {
 
     let block = quote! {
         {
-            let mut call = move || -> Self::Result {
+            let mut call = || -> Self::Result {
                 #block
             };
     

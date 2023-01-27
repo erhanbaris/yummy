@@ -15,7 +15,6 @@ doctest = false
 general.workspace = true
 database.workspace = true
 macros.workspace = true
-interface.workspace = true
 
 actix.workspace = true
 actix-web-actors.workspace = true
@@ -41,6 +40,8 @@ rand.workspace = true
 
 r2d2 =  { workspace = true, optional = true }
 redis = { workspace = true, optional = true }
+
+mlua.workspace = true
 
 [features]
 stateless = ["dep:redis", "dep:r2d2"]
