@@ -7,7 +7,7 @@ use general::config::{get_configuration, configure_environment};
 use general::tls::load_rustls_config;
 use general::web::json_error_handler;
 
-use manager::plugin::lua::LuaYummyAuthPlugin;
+use manager::plugin::lua::LuaPlugin;
 use manager::conn::ConnectionManager;
 use manager::user::UserManager;
 use manager::auth::AuthManager;
@@ -49,7 +49,7 @@ async fn main() -> std::io::Result<()> {
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] redis_client.clone());
 
     let mut executer = PluginExecuter::new();
-    executer.add_auth_plugin("dummy".to_string(), Box::new(LuaYummyAuthPlugin::new()));
+    executer.add_plugin("dummy".to_string(), Box::new(LuaPlugin::new()));
     let executer = Arc::new(executer);
 
 

@@ -1,12 +1,63 @@
-use std::{sync::atomic::{AtomicBool, Ordering}, collections::HashMap, rc::Rc, cell::RefCell};
+use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, collections::HashMap, rc::Rc, cell::RefCell};
 
-use auth::YummyAuthInterface;
-use general::{model::UserType, meta::{MetaType, UserMetaAccess, MetaAction}};
+use general::{model::UserType, meta::{MetaType, UserMetaAccess, MetaAction}, config::YummyConfig};
 
-use crate::auth::model::EmailAuthRequest;
+use crate::auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest};
 
-pub mod auth;
 pub mod lua;
+
+macro_rules! create_plugin_func {
+    ($pre: ident, $post: ident, $model: path) => {
+        fn $pre <'a>(&self, _model: Rc<RefCell<$model>>) -> anyhow::Result<()> { Ok(()) }
+        fn $post <'a>(&self, _model: Rc<RefCell<$model>>, _successed: bool) -> anyhow::Result<()> { Ok(()) }
+    }
+}
+
+macro_rules! create_executer_func {
+    ($pre_func_name: ident, $post_func_name: ident, $model: path) => {
+        pub fn $pre_func_name(&self, model: $model) -> anyhow::Result<$model> {
+            let model = Rc::new(RefCell::new(model));
+            for plugin in self.auth_interfaces.iter() {
+                if plugin.active.load(Ordering::Relaxed) {
+                    plugin.plugin.$pre_func_name(model.clone())?;
+                }
+            }
+    
+            match Rc::try_unwrap(model) {
+                Ok(refcell) => {
+                    Ok(refcell.into_inner())
+                },
+                Err(_) => Err(anyhow::anyhow!("'#func_name' function failed. 'model' object saved in lua and that is cause a memory leak."))
+            }
+        }
+
+
+        pub fn $post_func_name(&self, model: $model, successed: bool) -> anyhow::Result<$model> {
+            let model = Rc::new(RefCell::new(model));
+            for plugin in self.auth_interfaces.iter() {
+                if plugin.active.load(Ordering::Relaxed) {
+                    plugin.plugin.$post_func_name(model.clone(), successed)?;
+                }
+            }
+    
+            match Rc::try_unwrap(model) {
+                Ok(refcell) => {
+                    Ok(refcell.into_inner())
+                },
+                Err(_) => Err(anyhow::anyhow!("'$post_func_name' function failed. 'model' object saved in lua and that is cause a memory leak."))
+            }
+        }
+    }
+}
+
+pub trait YummyPlugin {
+    create_plugin_func!(pre_email_auth, post_email_auth, EmailAuthRequest);
+    create_plugin_func!(pre_deviceid_auth, post_deviceid_auth, DeviceIdAuthRequest);
+    create_plugin_func!(pre_customid_auth, post_customid_auth, CustomIdAuthRequest);
+    create_plugin_func!(pre_logout, post_logout, LogoutRequest);
+    create_plugin_func!(pre_refresh_token, post_refresh_token, RefreshTokenRequest);
+    create_plugin_func!(pre_restore_token, post_restore_token, RestoreTokenRequest);
+}
 
 pub struct UpdateUser {
     pub name: Option<String>,
@@ -32,7 +83,7 @@ pub enum YummyAuthError {
 }
 
 pub struct PluginInfo {
-    pub plugin: Box<dyn YummyAuthInterface>,
+    pub plugin: Box<dyn YummyPlugin>,
     pub name: String,
     pub active: AtomicBool
 }
@@ -42,6 +93,10 @@ pub struct PluginExecuter {
     auth_interfaces: Vec<PluginInfo>
 }
 
+pub trait YummyPluginInstaller {
+    fn install(executer: PluginExecuter, config: Arc<YummyConfig>) -> PluginExecuter;
+}
+
 impl PluginExecuter {
     pub fn new() -> Self {
         Self {
@@ -49,7 +104,7 @@ impl PluginExecuter {
         }
     }
 
-    pub fn add_auth_plugin(&mut self, name: String, plugin: Box<dyn YummyAuthInterface>) {
+    pub fn add_plugin(&mut self, name: String, plugin: Box<dyn YummyPlugin>) {
         self.auth_interfaces.push(PluginInfo {
             plugin,
             name,
@@ -57,36 +112,10 @@ impl PluginExecuter {
         });
     }
 
-    pub fn pre_email_auth(&self, model: EmailAuthRequest) -> anyhow::Result<EmailAuthRequest> {
-        
-        let model = Rc::new(RefCell::new(model));
-        for plugin in self.auth_interfaces.iter() {
-            if plugin.active.load(Ordering::Relaxed) {
-                plugin.plugin.pre_email_auth(model.clone())?;
-            }
-        }
-
-        match Rc::try_unwrap(model) {
-            Ok(refcell) => {
-                Ok(refcell.into_inner())
-            },
-            Err(_) => Err(anyhow::anyhow!("pre_email_auth lua failed"))
-        }
-    }
-
-    pub fn post_email_auth(&self, model: EmailAuthRequest, successed: bool) -> anyhow::Result<EmailAuthRequest> {
-        let model = Rc::new(RefCell::new(model));
-        for plugin in self.auth_interfaces.iter() {
-            if plugin.active.load(Ordering::Relaxed) {
-                plugin.plugin.post_email_auth(model.clone(), successed)?;
-            }
-        }
-
-        match Rc::try_unwrap(model) {
-            Ok(refcell) => {
-                Ok(refcell.into_inner())
-            },
-            Err(_) => Err(anyhow::anyhow!("post_email_auth lua failed"))
-        }
-    }
+    create_executer_func!(pre_email_auth, post_email_auth, EmailAuthRequest);
+    create_executer_func!(pre_deviceid_auth, post_deviceid_auth, DeviceIdAuthRequest);
+    create_executer_func!(pre_customid_auth, post_customid_auth, CustomIdAuthRequest);
+    create_executer_func!(pre_logout, post_logout, LogoutRequest);
+    create_executer_func!(pre_refresh_token, post_refresh_token, RefreshTokenRequest);
+    create_executer_func!(pre_restore_token, post_restore_token, RestoreTokenRequest);
 }

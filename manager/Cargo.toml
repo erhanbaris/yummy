@@ -20,6 +20,7 @@ actix.workspace = true
 actix-web-actors.workspace = true
 actix-web.workspace = true
 actix-broker.workspace = true
+glob.workspace = true
 
 thiserror.workspace = true
 anyhow.workspace = true

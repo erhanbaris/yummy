@@ -37,6 +37,7 @@ rustls = "0.20.8"
 rustls-pemfile = "1.0.2"
 serde_repr = "0.1"
 uuid = { version = "1.2", features = ["serde", "v4"] }
+glob = "0.3.1"
 
 rand = "0.8.5"
 log = "0.4"
