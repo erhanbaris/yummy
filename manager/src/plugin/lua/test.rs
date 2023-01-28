@@ -182,7 +182,7 @@ fn multi_function() {
     function pre_email_auth(model)
     end
 
-    function post_email_auth(model)
+    function post_email_auth(model, successed)
     end
     "#).unwrap();
 
@@ -208,7 +208,7 @@ fn save_to_table() {
         messages.pre_auth = model
     end
 
-    function post_email_auth(model)
+    function post_email_auth(model, successed)
         messages.post_auth = model
     end
     "#).unwrap();

@@ -59,6 +59,10 @@ pub trait YummyPlugin {
     create_plugin_func!(pre_restore_token, post_restore_token, RestoreTokenRequest);
 }
 
+pub trait YummyPluginInstaller {
+    fn install(&self, executer: &mut PluginExecuter, config: Arc<YummyConfig>);
+}
+
 pub struct UpdateUser {
     pub name: Option<String>,
     pub email: Option<String>,
@@ -89,12 +93,7 @@ pub struct PluginInfo {
 }
 
 pub struct PluginExecuter {
-    //user_manager: Box<dyn UserProxy>,
     auth_interfaces: Vec<PluginInfo>
-}
-
-pub trait YummyPluginInstaller {
-    fn install(executer: PluginExecuter, config: Arc<YummyConfig>) -> PluginExecuter;
 }
 
 impl PluginExecuter {
@@ -118,4 +117,24 @@ impl PluginExecuter {
     create_executer_func!(pre_logout, post_logout, LogoutRequest);
     create_executer_func!(pre_refresh_token, post_refresh_token, RefreshTokenRequest);
     create_executer_func!(pre_restore_token, post_restore_token, RestoreTokenRequest);
+}
+
+#[derive(Default)]
+pub struct PluginBuilder {
+    installers: Vec<Box<dyn YummyPluginInstaller>>
+}
+
+impl PluginBuilder {
+    pub fn add_installer(&mut self, installer: Box<dyn YummyPluginInstaller>) {
+        self.installers.push(installer);
+    }
+
+    pub fn build(&self, config: Arc<YummyConfig>) -> PluginExecuter {
+        let mut executer = PluginExecuter::new(); 
+        for installer in self.installers.iter() {
+            installer.install(&mut executer, config.clone());
+        }
+
+        executer
+    }
 }

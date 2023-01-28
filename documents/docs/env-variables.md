@@ -68,6 +68,10 @@ Secret key for JWT. <br/>
 Maximum allowed meta informations per users. <br/>
 :octicons-milestone-24: **Default**: `10` <br/>
 
+### `DEFAULT_MAX_ROOM_META` <br/>
+Maximum allowed meta informations per room. <br/>
+:octicons-milestone-24: **Default**: `10` <br/>
+
 ### `ROOM_PASSWORD_CHARSET` <br/>
 Automatic generated room password's charset. <br/>
 :octicons-milestone-24: **Default**: `ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789` <br/>
@@ -79,6 +83,10 @@ Automatic generated room password's length. <br/>
 ### `DATABASE_PATH` <br/>
 Sqlite database path. <br/>
 :octicons-milestone-24: **Default**: `yummy.db` <br/>
+
+### `DEFAULT_LUA_FILES_PATH` <br/>
+Lua script files location. <br/>
+:octicons-milestone-24: **Default**: `./server/lua/` <br/>
 
 ### `REDIS_URL` <br/>
 Redis connection information. <br/>

@@ -7,12 +7,12 @@ use general::config::{get_configuration, configure_environment};
 use general::tls::load_rustls_config;
 use general::web::json_error_handler;
 
-use manager::plugin::lua::LuaPlugin;
+use manager::plugin::lua::*;
 use manager::conn::ConnectionManager;
 use manager::user::UserManager;
 use manager::auth::AuthManager;
 
-use manager::plugin::PluginExecuter;
+use manager::plugin::PluginBuilder;
 
 use actix::Actor;
 use actix_web::error::InternalError;
@@ -48,10 +48,10 @@ async fn main() -> std::io::Result<()> {
 
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] redis_client.clone());
 
-    let mut executer = PluginExecuter::new();
-    executer.add_plugin("dummy".to_string(), Box::new(LuaPlugin::new()));
-    let executer = Arc::new(executer);
+    let mut builder = PluginBuilder::default();
+    builder.add_installer(Box::new(LuaPluginInstaller::default()));
 
+    let executer = Arc::new(builder.build(config.clone()));
 
     let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
     let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());

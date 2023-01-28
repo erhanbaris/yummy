@@ -12,7 +12,7 @@ use crate::plugin::YummyPlugin;
 
 use general::config::YummyConfig;
 use mlua::prelude::*;
-use glob::glob;
+use glob::{MatchOptions, glob_with};
 
 use crate::plugin::EmailAuthRequest;
 
@@ -25,28 +25,35 @@ macro_rules! create_func {
     }
 }
 
+#[derive(Default)]
 pub struct LuaPluginInstaller;
 
 impl YummyPluginInstaller for LuaPluginInstaller {
-    fn install(executer: super::PluginExecuter, config: Arc<YummyConfig>) -> super::PluginExecuter {
-        let mut executer = executer;
+    fn install(&self, executer: &mut super::PluginExecuter, config: Arc<YummyConfig>) {
+        log::info!("Lua plugin installing");
         let mut plugin = LuaPlugin::new();
 
         let path = Path::new(&config.lua_files_path).join("*.lua").to_string_lossy().to_string();
+        log::info!("Searhing lua files at {}", path);
 
-        for path in glob(&path).expect("Failed to read glob pattern") {
-            let content = fs::read_to_string(&path.unwrap().to_string_lossy().to_string()).unwrap();
-            plugin.set_content(&content).unwrap();
-        }
-        
-        if let Ok(paths) = fs::read_dir(&config.lua_files_path) {
+        let options = MatchOptions {
+            case_sensitive: false,
+            require_literal_separator: false,
+            require_literal_leading_dot: false,
+        };
+
+        if let Ok(paths) = glob_with(&path, options) {
             for path in paths {
-                println!("Name: {}", path.unwrap().path().display())
+                let path = path.unwrap().to_string_lossy().to_string();
+                let content = fs::read_to_string(&path).unwrap();
+                plugin.set_content(&content).unwrap();
+                log::info!("Lua file imported: {}", path);
             }
+    
+            executer.add_plugin("lua".to_string(), Box::new(plugin));
         }
 
-        executer.add_plugin("lua".to_string(), Box::new(plugin));
-        executer
+        log::info!("Lua plugin installed");
     }
 }
 
@@ -58,10 +65,7 @@ impl LuaPlugin {
     pub fn new() -> Self {
         //let lua = unsafe { Lua::unsafe_new_with(LuaStdLib::ALL, LuaOptions::default()) };
         let lua = Lua::new();
-        
-        Self {
-            lua,
-        }
+        Self { lua }
     }
 
     pub fn set_content(&mut self, content: &str) -> anyhow::Result<()> {
