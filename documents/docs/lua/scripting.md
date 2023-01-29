@@ -28,4 +28,3 @@ end
 
 - [ ] Database access
 - [ ] Stateless access
-- [ ] Unit tests
