@@ -1,8 +1,9 @@
-use std::{rc::Rc, cell::RefCell, sync::Arc};
+use std::{rc::Rc, cell::RefCell, sync::Arc, env::temp_dir};
+use std::io::Write;
 
-use general::password::Password;
+use general::{password::Password, config::YummyConfig};
 
-use crate::{plugin::EmailAuthRequest, auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}};
+use crate::{plugin::{EmailAuthRequest, PluginBuilder, lua::LuaPluginInstaller}, auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}};
 use super::LuaPlugin;
 
 #[test]
@@ -399,4 +400,42 @@ fn restore_token_checks() {
     plugin.execute_with_result(model.clone(), true, "post_restore_token").unwrap();
 
     assert_eq!(&model.borrow().token, "new token");
+}
+
+#[test]
+fn plugin_builder_test() {
+    let mut config = YummyConfig::default();
+    config.lua_files_path = temp_dir().to_str().unwrap().to_string();
+    
+    let path = std::path::Path::new(&config.lua_files_path[..]).join("test.lua").to_string_lossy().to_string();
+    let mut lua_file = std::fs::File::create(path).expect("create failed");
+    lua_file.write_all(r#"
+function pre_email_auth(model)
+    model:set_email("erhan@erhan.com")
+end
+
+function post_email_auth(model, successed)
+    assert(model:get_email() == "erhan@erhan.com")
+end
+"#.as_bytes()).expect("write failed");
+
+    let model = EmailAuthRequest {
+        auth: Arc::new(None),
+        email: "".to_string(),
+        password: Password::from("123456".to_string()),
+        if_not_exist_create: false,
+        socket: Arc::new(general::test::DummyClient::default())
+    };
+
+    let config = Arc::new(config);
+    let mut builder = PluginBuilder::default();
+    builder.add_installer(Box::new(LuaPluginInstaller::default()));
+
+    let executer = Arc::new(builder.build(config));
+
+    let model = executer.pre_email_auth(model).unwrap();
+    let model = executer.post_email_auth(model, true).unwrap();
+    
+    assert_eq!(&model.email, "erhan@erhan.com");
+
 }
