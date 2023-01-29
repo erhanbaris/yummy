@@ -54,11 +54,6 @@ macro_rules! generate_type {
                 Self(uuid::Uuid::new_v4())
             }
         }
-        impl AsRef<$name> for $name {
-            fn as_ref(&self) -> &$name {
-                self
-            }
-        }
 
         impl From<String> for $name {
             fn from(data: String) -> Self {
@@ -75,12 +70,6 @@ macro_rules! generate_type {
         impl ToString for $name {
             fn to_string(&self) -> String {
                 self.0.to_string()
-            }
-        }
-
-        impl From<&str> for $name {
-            fn from(data: &str) -> Self {
-                $name(uuid::Uuid::parse_str(data).unwrap_or_default())
             }
         }
 

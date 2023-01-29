@@ -16,10 +16,9 @@ mod test;
 use std::collections::{HashMap, HashSet};
 use std::borrow::Cow;
 use std::sync::Arc;
-use std::{fmt::Debug, borrow::Borrow};
+use std::fmt::Debug;
 
 use actix::Message;
-use serde::de::DeserializeOwned;
 use serde::ser::SerializeMap;
 use strum_macros::EnumDiscriminants;
 use serde::{Serialize, Deserialize, Serializer};
@@ -69,14 +68,6 @@ pub struct SendMessage {
     pub user_id: Arc<UserId>,
     pub message: String
 }
-
-impl SendMessage {
-    pub fn create<T:  Borrow<T> + Debug + Serialize + DeserializeOwned>(user_id: Arc<UserId>, message: T) -> SendMessage {
-        let message = serde_json::to_string(message.borrow());
-        Self { user_id, message: message.unwrap() }
-    }
-}
-
 
 #[derive(Debug, Clone, EnumDiscriminants, PartialEq, Deserialize)]
 #[strum_discriminants(name(RoomInfoTypeVariant), derive(Serialize, Deserialize))]

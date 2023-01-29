@@ -17,12 +17,6 @@ impl Password {
     }
 }
 
-impl From<String> for Password {
-    fn from(str: String) -> Self {
-        Password::from(str)
-    }
-}
-
 impl From<&str> for Password {
     fn from(str: &str) -> Self {
         Password::from(str.to_string())
