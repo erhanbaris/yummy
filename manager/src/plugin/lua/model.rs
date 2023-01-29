@@ -78,6 +78,7 @@ impl LuaUserData for LogoutRequest {
 impl LuaUserData for RefreshTokenRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
         auth_macros!(methods);
+        methods.add_method("get_token", |_, this, ()| Ok(this.token.clone()));
         methods.add_method_mut("set_token", |_, this, token: String| {
             this.token = token;
             Ok(())
@@ -88,6 +89,7 @@ impl LuaUserData for RefreshTokenRequest {
 impl LuaUserData for RestoreTokenRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
         auth_macros!(methods);
+        methods.add_method("get_token", |_, this, ()| Ok(this.token.clone()));
         methods.add_method_mut("set_token", |_, this, token: String| {
             this.token = token;
             Ok(())

@@ -2,7 +2,7 @@ use std::{rc::Rc, cell::RefCell, sync::Arc};
 
 use general::password::Password;
 
-use crate::plugin::EmailAuthRequest;
+use crate::{plugin::EmailAuthRequest, auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}};
 use super::LuaPlugin;
 
 #[test]
@@ -112,7 +112,7 @@ fn execution_result() {
     end
     "#).unwrap();
 
-    plugin.execute(model.clone(), "post_email_auth").unwrap();
+    plugin.execute_with_result(model.clone(), true, "post_email_auth").unwrap();
     assert_eq!(&model.borrow().email, "erhan@erhan.com");
     assert_eq!(model.borrow().password.get(), "SECRET");
     assert_eq!(model.borrow().if_not_exist_create, true);
@@ -139,7 +139,7 @@ fn fail_test() {
     end
     "#).unwrap();
 
-    plugin.execute(model.clone(), "post_email_auth").unwrap_err();
+    plugin.execute_with_result(model.clone(), true, "post_email_auth").unwrap_err();
     assert_eq!(&model.borrow().email, "old@email.com");
     assert_eq!(model.borrow().password.get(), "123456");
     assert_eq!(model.borrow().if_not_exist_create, false);
@@ -187,7 +187,7 @@ fn multi_function() {
     "#).unwrap();
 
     plugin.execute(model.clone(), "pre_email_auth").unwrap();
-    plugin.execute(model.clone(), "post_email_auth").unwrap();
+    plugin.execute_with_result(model.clone(), true, "post_email_auth").unwrap();
 }
 
 #[test]
@@ -214,7 +214,189 @@ fn save_to_table() {
     "#).unwrap();
 
     plugin.execute(model.clone(), "pre_email_auth").unwrap();
-    plugin.execute(model.clone(), "post_email_auth").unwrap();
+    plugin.execute_with_result(model.clone(), true, "post_email_auth").unwrap();
 
     assert!(Rc::strong_count(&model) <= 3); // This is not good, but, I dont have a solution yet
+}
+
+
+#[test]
+fn lua_assert_check() {
+    let model = Rc::new(RefCell::new(EmailAuthRequest {
+        auth: Arc::new(None),
+        email: "small@email.com".to_string(),
+        password: Password::from("123456".to_string()),
+        if_not_exist_create: false,
+        socket: Arc::new(general::test::DummyClient::default())
+    } ));
+
+    let mut plugin = LuaPlugin::new();
+    plugin.set_content(r#"
+
+    function pre_email_auth(model)
+        assert(false)
+    end
+    "#).unwrap();
+
+    plugin.execute(model.clone(), "pre_email_auth").unwrap_err();
+}
+
+#[test]
+fn device_id_checks() {
+    let model = Rc::new(RefCell::new(DeviceIdAuthRequest {
+        auth: Arc::new(None),
+        id: "abc".to_string(),
+        socket: Arc::new(general::test::DummyClient::default())
+    } ));
+
+    let mut plugin = LuaPlugin::new();
+    plugin.set_content(r#"
+
+    function pre_deviceid_auth(model)
+        model:get_user_id()
+        model:get_session_id()
+        model:get_id()
+
+        model:set_id("123")
+    end
+
+    function post_deviceid_auth(model)
+        model:get_user_id()
+        model:get_session_id()
+        model:get_id()
+
+        model:set_id("123")
+    end
+    "#).unwrap();
+
+    plugin.execute(model.clone(), "pre_deviceid_auth").unwrap();
+    plugin.execute_with_result(model.clone(), true, "post_deviceid_auth").unwrap();
+
+    assert_eq!(&model.borrow().id, "123");
+}
+
+#[test]
+fn custom_id_checks() {
+    let model = Rc::new(RefCell::new(CustomIdAuthRequest {
+        auth: Arc::new(None),
+        id: "abc".to_string(),
+        socket: Arc::new(general::test::DummyClient::default())
+    } ));
+
+    let mut plugin = LuaPlugin::new();
+    plugin.set_content(r#"
+
+    function pre_customid_auth(model)
+        model:get_user_id()
+        model:get_session_id()
+        model:get_id()
+
+        model:set_id("123")
+    end
+
+    function post_customid_auth(model)
+        model:get_user_id()
+        model:get_session_id()
+        model:get_id()
+
+        model:set_id("123")
+    end
+    "#).unwrap();
+
+    plugin.execute(model.clone(), "pre_customid_auth").unwrap();
+    plugin.execute_with_result(model.clone(), true, "post_customid_auth").unwrap();
+
+    assert_eq!(&model.borrow().id, "123");
+}
+
+
+#[test]
+fn logout_checks() {
+    let model = Rc::new(RefCell::new(LogoutRequest {
+        auth: Arc::new(None),
+        socket: Arc::new(general::test::DummyClient::default())
+    } ));
+
+    let mut plugin = LuaPlugin::new();
+    plugin.set_content(r#"
+
+    function pre_logout(model)
+        model:get_user_id()
+        model:get_session_id()
+    end
+
+    function post_logout(model)
+        model:get_user_id()
+        model:get_session_id()
+    end
+    "#).unwrap();
+
+    plugin.execute(model.clone(), "pre_logout").unwrap();
+    plugin.execute_with_result(model.clone(), true, "post_logout").unwrap();
+}
+
+
+#[test]
+fn refresh_token_checks() {
+    let model = Rc::new(RefCell::new(RefreshTokenRequest {
+        auth: Arc::new(None),
+        token: "token".to_string(),
+        socket: Arc::new(general::test::DummyClient::default())
+    } ));
+
+    let mut plugin = LuaPlugin::new();
+    plugin.set_content(r#"
+
+    function pre_refresh_token(model)
+        model:get_user_id()
+        model:get_session_id()
+        model:get_token()
+
+        model:set_token("new token")
+    end
+
+    function post_refresh_token(model)
+        model:get_user_id()
+        model:get_session_id()
+        model:get_token()
+    end
+    "#).unwrap();
+
+    plugin.execute(model.clone(), "pre_refresh_token").unwrap();
+    plugin.execute_with_result(model.clone(), true, "post_refresh_token").unwrap();
+
+    assert_eq!(&model.borrow().token, "new token");
+}
+
+
+#[test]
+fn restore_token_checks() {
+    let model = Rc::new(RefCell::new(RestoreTokenRequest {
+        auth: Arc::new(None),
+        token: "token".to_string(),
+        socket: Arc::new(general::test::DummyClient::default())
+    } ));
+
+    let mut plugin = LuaPlugin::new();
+    plugin.set_content(r#"
+
+    function pre_restore_token(model)
+        model:get_user_id()
+        model:get_session_id()
+        model:get_token()
+
+        model:set_token("new token")
+    end
+
+    function post_restore_token(model)
+        model:get_user_id()
+        model:get_session_id()
+        model:get_token()
+    end
+    "#).unwrap();
+
+    plugin.execute(model.clone(), "pre_restore_token").unwrap();
+    plugin.execute_with_result(model.clone(), true, "post_restore_token").unwrap();
+
+    assert_eq!(&model.borrow().token, "new token");
 }
