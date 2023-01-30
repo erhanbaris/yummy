@@ -36,7 +36,7 @@ fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<da
 
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
 
-    ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
+    ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
     Ok((AuthManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection), executer).start(), Arc::new(DummyClient::default())))
@@ -385,7 +385,7 @@ async fn double_login_test() -> anyhow::Result<()> {
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::new());
 
-    ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
+    ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
 
@@ -488,7 +488,7 @@ async fn user_disconnect_from_room_test() -> anyhow::Result<()> {
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::new());
 
-    ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
+    ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
 

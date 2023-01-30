@@ -11,7 +11,10 @@ use darling::FromMeta;
     name: String,
 
     #[darling(default)]
-    socket: bool
+    socket: bool,
+
+    #[darling(default)]
+    no_return: bool
     
 }
 
@@ -83,7 +86,7 @@ pub fn plugin_api(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let ItemFn { block, ..} = fn_item;
 
-    let (clone_socket, send_result) = match args.socket {
+    let (clone_socket, send_result) = match args.socket && !args.no_return {
         true => {
             (quote! { let __socket__ = model.socket.clone(); },
              quote! {
@@ -98,25 +101,40 @@ pub fn plugin_api(args: TokenStream, input: TokenStream) -> TokenStream {
     let pre_api_path= proc_macro2::Ident::new(&format!("pre_{}", args.name), proc_macro2::Span::call_site());
     let post_api_path= proc_macro2::Ident::new(&format!("post_{}", args.name), proc_macro2::Span::call_site());
 
-    let block = quote! {
+    // If the return is '()' than we should not return Ok or Err.
+    let (response_block, execution_result_block) = match args.no_return {
+        true => (quote! (), quote!{ true }),
+        false => (quote! { response? }, quote! { response.is_ok() }),
+    };
+    
+    let body_block = quote! {
         {
             #clone_socket
-            let model = self.executer.#pre_api_path(model)?;
-            let mut execute_api = || -> Self::Result {
-                #block
+            let response = match self.executer.#pre_api_path(model) {
+                std::result::Result::Ok(model) => {
+                    let mut execute_api = || -> Self::Result {
+                        #block
+                    };
+            
+                    let response = execute_api();
+        
+                    #send_result
+        
+                    if let Err(error) = self.executer.#post_api_path(model, #execution_result_block) {
+                        log::error!("Manager Api call failed: {:?}", error);
+                    }
+
+                    std::result::Result::Ok(response)
+                }
+                std::result::Result::Err(error) => Err(error)
             };
-    
-            let response = execute_api();
 
-            #send_result
-
-            self.executer.#post_api_path(model, response.is_ok())?;
-            response
+            #response_block
         }
     };
 
     fn_item.block.stmts.clear();
-    fn_item.block.stmts.insert(0,syn::parse(block.into()).unwrap());
+    fn_item.block.stmts.insert(0,syn::parse(body_block .into()).unwrap());
 
     use quote::ToTokens;
     item.into_token_stream().into()

@@ -4,7 +4,7 @@ use general::password::Password;
 
 use mlua::prelude::*;
 
-use crate::auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest};
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected};
 
 macro_rules! auth_macros {
     ($methods: expr) => {
@@ -92,6 +92,23 @@ impl LuaUserData for RestoreTokenRequest {
         methods.add_method("get_token", |_, this, ()| Ok(this.token.clone()));
         methods.add_method_mut("set_token", |_, this, token: String| {
             this.token = token;
+            Ok(())
+        });
+    }
+}
+
+impl LuaUserData for UserConnected {
+    fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        methods.add_method("get_user_id", |_, this, ()| Ok(this.user_id.to_string()));
+    }
+}
+
+impl LuaUserData for ConnUserDisconnect {
+    fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        auth_macros!(methods);
+        methods.add_method("get_send_message", |_, this, ()| Ok(this.send_message));
+        methods.add_method_mut("set_send_message", |_, this, send_message: bool| {
+            this.send_message = send_message;
             Ok(())
         });
     }

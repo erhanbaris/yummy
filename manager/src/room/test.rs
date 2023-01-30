@@ -71,7 +71,7 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::new());
 
-    ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
+    ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     let connection = create_connection(db_location.to_str().unwrap())?;
     create_database(&mut connection.clone().get()?)?;
@@ -819,7 +819,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::new());
 
-    ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
+    ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
 
@@ -965,7 +965,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::new());
 
-    ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
+    ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
 
@@ -1083,7 +1083,7 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::new());
 
-    ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
+    ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
 
@@ -1201,7 +1201,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::new());
 
-    ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
+    ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
 
@@ -1319,7 +1319,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::new());
 
-    ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
+    ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
 

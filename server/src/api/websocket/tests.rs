@@ -123,7 +123,7 @@ pub fn create_websocket_server_with_config(config: Arc<YummyConfig>, test_server
         let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
         let executer = Arc::new(PluginExecuter::new());
 
-        ConnectionManager::new(config.clone(), states.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
+        ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
         let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer).start());
         let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());

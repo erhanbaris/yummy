@@ -2,7 +2,7 @@ use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, collections::HashMap, rc:
 
 use general::{model::UserType, meta::{MetaType, UserMetaAccess, MetaAction}, config::YummyConfig};
 
-use crate::auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest};
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected};
 
 pub mod lua;
 
@@ -51,12 +51,17 @@ macro_rules! create_executer_func {
 }
 
 pub trait YummyPlugin {
+    // Auth manager
     create_plugin_func!(pre_email_auth, post_email_auth, EmailAuthRequest);
     create_plugin_func!(pre_deviceid_auth, post_deviceid_auth, DeviceIdAuthRequest);
     create_plugin_func!(pre_customid_auth, post_customid_auth, CustomIdAuthRequest);
     create_plugin_func!(pre_logout, post_logout, LogoutRequest);
     create_plugin_func!(pre_refresh_token, post_refresh_token, RefreshTokenRequest);
     create_plugin_func!(pre_restore_token, post_restore_token, RestoreTokenRequest);
+
+    // Connection manager
+    create_plugin_func!(pre_user_connected, post_user_connected, UserConnected);
+    create_plugin_func!(pre_user_disconnected, post_user_disconnected, ConnUserDisconnect);
 }
 
 pub trait YummyPluginInstaller {
@@ -111,12 +116,17 @@ impl PluginExecuter {
         });
     }
 
+    // Auth manager
     create_executer_func!(pre_email_auth, post_email_auth, EmailAuthRequest);
     create_executer_func!(pre_deviceid_auth, post_deviceid_auth, DeviceIdAuthRequest);
     create_executer_func!(pre_customid_auth, post_customid_auth, CustomIdAuthRequest);
     create_executer_func!(pre_logout, post_logout, LogoutRequest);
     create_executer_func!(pre_refresh_token, post_refresh_token, RefreshTokenRequest);
     create_executer_func!(pre_restore_token, post_restore_token, RestoreTokenRequest);
+    
+    // Connection manager
+    create_executer_func!(pre_user_connected, post_user_connected, UserConnected);
+    create_executer_func!(pre_user_disconnected, post_user_disconnected, ConnUserDisconnect);
 }
 
 #[derive(Default)]

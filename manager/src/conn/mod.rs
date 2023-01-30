@@ -30,6 +30,8 @@ use crate::auth::model::AuthUserDisconnect;
 use crate::auth::model::ConnUserDisconnect;
 use crate::auth::model::RoomUserDisconnect;
 
+use crate::plugin::PluginExecuter;
+
 use self::model::UserConnected;
 
 pub struct ConnectionManager {
@@ -39,6 +41,7 @@ pub struct ConnectionManager {
     #[allow(dead_code)]
     states: YummyState,
     users: HashMap<UserId, Arc<dyn ClientTrait + Sync + Send>>,
+    executer: Arc<PluginExecuter>,
 
     // Fields for stateless informations
     #[cfg(feature = "stateless")]
@@ -46,11 +49,12 @@ pub struct ConnectionManager {
 }
 
 impl ConnectionManager {
-    pub fn new(config: Arc<YummyConfig>, states: YummyState, #[cfg(feature = "stateless")] redis: r2d2::Pool<redis::Client>) -> Self {
+    pub fn new(config: Arc<YummyConfig>, states: YummyState, executer: Arc<PluginExecuter>, #[cfg(feature = "stateless")] redis: r2d2::Pool<redis::Client>) -> Self {
         Self {
             config,
             states,
             users: HashMap::default(),
+            executer,
 
             #[cfg(feature = "stateless")] redis
         }
@@ -110,9 +114,9 @@ impl Handler<UserConnected> for ConnectionManager {
     type Result = ();
 
     #[tracing::instrument(name="UserConnected", skip(self, _ctx))]
+    #[macros::plugin_api(name="user_connected", socket=true, no_return=true)]
     fn handle(&mut self, model: UserConnected, _ctx: &mut Self::Context) -> Self::Result {
-        let UserConnected { user_id, socket } = model;
-        self.users.insert(user_id.deref().clone(), socket);
+        self.users.insert(model.user_id.deref().clone(), model.socket.clone());
     }
 }
 
@@ -120,6 +124,7 @@ impl Handler<ConnUserDisconnect> for ConnectionManager {
     type Result = ();
 
     #[tracing::instrument(name="ConnUserDisconnect", skip(self, _ctx))]
+    #[macros::plugin_api(name="user_disconnected", socket=true, no_return=true)]
     fn handle(&mut self, model: ConnUserDisconnect, _ctx: &mut Self::Context) -> Self::Result {
         let user_id = match model.auth.deref() {
             Some(user) => &user.user,

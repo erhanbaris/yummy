@@ -1,8 +1,11 @@
 use std::{rc::Rc, cell::RefCell, sync::Arc, env::temp_dir};
 use std::io::Write;
 
+use general::model::UserId;
 use general::{password::Password, config::YummyConfig};
 
+use crate::auth::model::ConnUserDisconnect;
+use crate::conn::model::UserConnected;
 use crate::{plugin::{EmailAuthRequest, PluginBuilder, lua::LuaPluginInstaller}, auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}};
 use super::LuaPlugin;
 
@@ -400,6 +403,63 @@ fn restore_token_checks() {
     plugin.execute_with_result(model.clone(), true, "post_restore_token").unwrap();
 
     assert_eq!(&model.borrow().token, "new token");
+}
+
+
+#[test]
+fn user_connected_checks() {
+    let model = Rc::new(RefCell::new(UserConnected {
+        user_id: Arc::new(UserId::new()),
+        socket: Arc::new(general::test::DummyClient::default())
+    } ));
+
+    let mut plugin = LuaPlugin::new();
+    plugin.set_content(r#"
+
+    function pre_user_connected(model)
+        model:get_user_id()
+    end
+
+    function post_user_connected(model)
+        model:get_user_id()
+    end
+    "#).unwrap();
+
+    plugin.execute(model.clone(), "pre_user_connected").unwrap();
+    plugin.execute_with_result(model.clone(), true, "post_user_connected").unwrap();
+}
+
+
+#[test]
+fn user_disconnected_checks() {
+    let model = Rc::new(RefCell::new(ConnUserDisconnect {
+        auth: Arc::new(None),
+        send_message: true,
+        socket: Arc::new(general::test::DummyClient::default())
+    } ));
+
+    let mut plugin = LuaPlugin::new();
+    plugin.set_content(r#"
+
+    function pre_user_disconnected(model)
+        model:get_user_id()
+        model:get_session_id()
+        model:get_send_message()
+
+        model:set_send_message(false)
+    end
+
+    function post_user_disconnected(model)
+        model:get_user_id()
+        model:get_session_id()
+        model:get_send_message()
+    end
+    "#).unwrap();
+
+    plugin.execute(model.clone(), "pre_user_disconnected").unwrap();
+    plugin.execute_with_result(model.clone(), true, "post_user_disconnected").unwrap();
+
+    assert_eq!(model.borrow().send_message, false);
 }
 
 #[test]

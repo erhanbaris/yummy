@@ -7,7 +7,8 @@ use std::path::Path;
 use std::{rc::Rc, cell::RefCell, sync::Arc};
 use std::fs;
 
-use crate::auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest};
+use crate::auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect};
+use crate::conn::model::UserConnected;
 use crate::plugin::YummyPlugin;
 
 use general::config::YummyConfig;
@@ -92,10 +93,16 @@ impl LuaPlugin {
 }
 
 impl YummyPlugin for LuaPlugin {
+
+    // Auth manager
     create_func!(pre_email_auth, post_email_auth, EmailAuthRequest);
     create_func!(pre_deviceid_auth, post_deviceid_auth, DeviceIdAuthRequest);
     create_func!(pre_customid_auth, post_customid_auth, CustomIdAuthRequest);
     create_func!(pre_logout, post_logout, LogoutRequest);
     create_func!(pre_refresh_token, post_refresh_token, RefreshTokenRequest);
     create_func!(pre_restore_token, post_restore_token, RestoreTokenRequest);
+
+    // Connection manager
+    create_func!(pre_user_connected, post_user_connected, UserConnected);
+    create_func!(pre_user_disconnected, post_user_disconnected, ConnUserDisconnect);
 }
