@@ -2,7 +2,7 @@ use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, collections::HashMap, rc:
 
 use general::{model::UserType, meta::{MetaType, UserMetaAccess, MetaAction}, config::YummyConfig};
 
-use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected};
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::GetUserInformation};
 
 pub mod lua;
 
@@ -62,6 +62,9 @@ pub trait YummyPlugin {
     // Connection manager
     create_plugin_func!(pre_user_connected, post_user_connected, UserConnected);
     create_plugin_func!(pre_user_disconnected, post_user_disconnected, ConnUserDisconnect);
+
+    // User manager
+    create_plugin_func!(pre_get_user_information, post_get_user_information, GetUserInformation);
 }
 
 pub trait YummyPluginInstaller {
@@ -127,6 +130,9 @@ impl PluginExecuter {
     // Connection manager
     create_executer_func!(pre_user_connected, post_user_connected, UserConnected);
     create_executer_func!(pre_user_disconnected, post_user_disconnected, ConnUserDisconnect);
+
+    // User manager
+    create_executer_func!(pre_get_user_information, post_get_user_information, GetUserInformation);
 }
 
 #[derive(Default)]

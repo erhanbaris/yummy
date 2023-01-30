@@ -125,8 +125,8 @@ pub fn create_websocket_server_with_config(config: Arc<YummyConfig>, test_server
 
         ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
-        let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer).start());
-        let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start());
+        let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
+        let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
         let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start());
 
         let query_cfg = QueryConfig::default()

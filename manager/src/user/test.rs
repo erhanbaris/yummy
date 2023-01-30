@@ -67,7 +67,7 @@ fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, A
 
     let connection = create_connection(db_location.to_str().unwrap())?;
     create_database(&mut connection.clone().get()?)?;
-    Ok((UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer).start(), config, Arc::new(DummyClient::default())))
+    Ok((UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer).start(), config, Arc::new(DummyClient::default())))
 }
 
 #[actix::test]

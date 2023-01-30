@@ -53,7 +53,7 @@ async fn main() -> std::io::Result<()> {
 
     let executer = Arc::new(builder.build(config.clone()));
 
-    let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
+    let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone(), executer.clone()).start());
     let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone()).start());
     let conn_manager = Data::new(ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] redis_client).start());
     let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone(), executer.clone()).start());

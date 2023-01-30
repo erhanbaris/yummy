@@ -18,6 +18,7 @@ use general::web::{GenericAnswer, Answer};
 
 use crate::auth::model::AuthError;
 use crate::get_user_id_from_auth;
+use crate::plugin::PluginExecuter;
 
 use self::model::*;
 
@@ -25,15 +26,17 @@ pub struct UserManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
     states: YummyState,
+    executer: Arc<PluginExecuter>,
     _marker: PhantomData<DB>
 }
 
 impl<DB: DatabaseTrait + ?Sized> UserManager<DB> {
-    pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>) -> Self {
+    pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>, executer: Arc<PluginExecuter>) -> Self {
         Self {
             config,
             database,
             states,
+            executer,
             _marker: PhantomData
         }
     }
@@ -60,7 +63,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="GetUserInformation", skip(self, _ctx))]
-    #[macros::api(name="GetUserInformation", socket=true)]
+    #[macros::plugin_api(name="get_user_information", socket=true)]
     fn handle(&mut self, model: GetUserInformation, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
@@ -78,7 +81,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
             }
         };
 
-        match model.query {
+        match &model.query {
             GetUserInformationEnum::Me(user) => match user.deref() {
                 Some(user) => execute(&mut connection, &user.user, UserMetaAccess::Me),
                 None => Err(anyhow::anyhow!(AuthError::TokenNotValid))

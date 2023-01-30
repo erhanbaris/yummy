@@ -6,6 +6,7 @@ use general::{password::Password, config::YummyConfig};
 
 use crate::auth::model::ConnUserDisconnect;
 use crate::conn::model::UserConnected;
+use crate::user::model::{GetUserInformation, GetUserInformationEnum};
 use crate::{plugin::{EmailAuthRequest, PluginBuilder, lua::LuaPluginInstaller}, auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}};
 use super::LuaPlugin;
 
@@ -460,6 +461,43 @@ fn user_disconnected_checks() {
     plugin.execute_with_result(model.clone(), true, "post_user_disconnected").unwrap();
 
     assert_eq!(model.borrow().send_message, false);
+}
+
+#[test]
+fn get_user_informations_checks() {
+    let model = Rc::new(RefCell::new(GetUserInformation {
+        query: GetUserInformationEnum::Me(Arc::new(None)),
+        socket: Arc::new(general::test::DummyClient::default())
+    } ));
+
+    let mut plugin = LuaPlugin::new();
+    plugin.set_content(r#"
+    function dumpTable(table, depth)
+        if (depth > 200) then
+            print("Error: Depth > 200 in dumpTable()")
+            return
+        end
+        for k,v in pairs(table) do
+            if (type(v) == "table") then
+                print(string.rep("  ", depth)..k..":")
+                dumpTable(v, depth+1)
+            else
+                print(string.rep("  ", depth)..k..": ",v)
+            end
+        end
+    end
+
+    function pre_get_user_information(model)
+        dumpTable(model:get_query(), 10)
+    end
+
+    function post_get_user_information(model)
+    end
+    "#).unwrap();
+
+    plugin.execute(model.clone(), "pre_get_user_information").unwrap();
+    plugin.execute_with_result(model.clone(), true, "post_get_user_information").unwrap();
+
 }
 
 #[test]

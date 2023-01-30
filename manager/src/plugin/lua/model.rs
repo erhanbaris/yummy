@@ -4,7 +4,7 @@ use general::password::Password;
 
 use mlua::prelude::*;
 
-use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected};
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, GetUserInformationEnum}};
 
 macro_rules! auth_macros {
     ($methods: expr) => {
@@ -111,5 +111,62 @@ impl LuaUserData for ConnUserDisconnect {
             this.send_message = send_message;
             Ok(())
         });
+    }
+}
+
+impl LuaUserData for GetUserInformation {
+    fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        methods.add_method("get_query", |lua, this, ()| {
+            Ok(this.query.clone())  
+        });
+    }
+}
+
+
+impl<'lua> ToLuaMulti<'lua> for GetUserInformationEnum {
+    fn to_lua_multi(self, lua: &'lua Lua) -> LuaResult<LuaMultiValue<'lua>> {
+        let mut v = LuaMultiValue::new();
+        
+        let array_table = match &self {
+            GetUserInformationEnum::Me(me) => {
+                let array_table = lua.create_table()?;
+                array_table.set("type", "Me")?;
+                match me.deref() {
+                    Some(user) => {
+                        array_table.set("user_id", user.user.to_string())?;
+                        array_table.set("session_id", user.session.to_string())?;
+                    }
+                    None => {
+                        array_table.set("user_id", "")?;
+                        array_table.set("session_id", "")?;
+                    }
+                }
+                array_table
+            },
+            GetUserInformationEnum::User { user, requester } => {
+                let array_table = lua.create_table()?;
+                array_table.set("type", "UserViaSystem")?;
+                array_table.set("user_id", user.to_string())?;
+                match requester.deref() {
+                    Some(user) => {
+                        array_table.set("requester_user_id", user.user.to_string())?;
+                        array_table.set("requester_session_id", user.session.to_string())?;
+                    }
+                    None => {
+                        array_table.set("requester_user_id", "")?;
+                        array_table.set("requester_session_id", "")?;
+                    }
+                }
+                array_table
+            },
+            GetUserInformationEnum::UserViaSystem(user_id) => {
+                let array_table = lua.create_table()?;
+                array_table.set("type", "UserViaSystem")?;
+                array_table.set("user_id", user_id.to_string())?;
+                array_table
+            }
+        };
+        v.push_front(mlua::Value::Table(array_table));
+        Ok(v)
     }
 }

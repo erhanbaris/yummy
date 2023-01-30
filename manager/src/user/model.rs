@@ -9,7 +9,7 @@ use validator::Validate;
 
 use general::{model::{UserId, UserType}, auth::UserAuth, meta::{MetaType, UserMetaAccess}};
 
-#[derive(Message, Validate, Debug)]
+#[derive(Message, Validate, Clone, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct GetUserInformation {
     pub query: GetUserInformationEnum,
@@ -42,6 +42,7 @@ impl GetUserInformation {
 }
 
 #[derive(Debug)]
+#[derive(Clone)]
 pub enum GetUserInformationEnum {
     Me(Arc<Option<UserAuth>>),
     UserViaSystem(UserId),
