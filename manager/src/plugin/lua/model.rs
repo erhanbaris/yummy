@@ -1,10 +1,10 @@
 use std::ops::Deref;
 
-use general::password::Password;
+use general::{password::Password, model::UserId};
 
 use mlua::prelude::*;
 
-use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, GetUserInformationEnum}};
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser}};
 
 macro_rules! auth_macros {
     ($methods: expr) => {
@@ -178,6 +178,22 @@ impl LuaUserData for GetUserInformationEnum {
             };
             v.push_front(mlua::Value::Table(array_table));
             Ok(v)
+        });
+    }
+}
+
+impl LuaUserData for UpdateUser {
+    fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        auth_macros!(methods);
+        methods.add_method("get_target_user_id", |_, this, ()| Ok(this.target_user_id.as_ref().map(|item| item.to_string()).unwrap_or_default()));
+        methods.add_method_mut("set_target_user_id", |_, this, target_user_id: String| {
+            if target_user_id.is_empty()  {
+                this.target_user_id = None;
+            } else {
+                this.target_user_id = Some(UserId::from(target_user_id));
+            }
+            
+            Ok(())
         });
     }
 }

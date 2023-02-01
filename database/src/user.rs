@@ -1,4 +1,5 @@
 use std::borrow::Borrow;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::time::SystemTime;
@@ -26,7 +27,7 @@ pub trait UserStoreTrait: Sized {
     fn update_user(connection: &mut PooledConnection, user_id: &UserId, update_request: &UserUpdate) -> anyhow::Result<usize>;
     fn get_user_meta(connection: &mut PooledConnection, user_id: &UserId, filter: UserMetaAccess) -> anyhow::Result<Vec<(UserMetaId, String, MetaType<UserMetaAccess>)>>;
     fn remove_user_metas(connection: &mut PooledConnection, meta_ids: Vec<UserMetaId>) -> anyhow::Result<()>;
-    fn insert_user_metas(connection: &mut PooledConnection, user_id: &UserId, metas: Vec<(String, MetaType<UserMetaAccess>)>) -> anyhow::Result<()>;
+    fn insert_user_metas<'a>(connection: &mut PooledConnection, user_id: &UserId, metas: Vec<(&'a String, &'a MetaType<UserMetaAccess>)>) -> anyhow::Result<()>;
     fn get_user_information(connection: &mut PooledConnection, user_id: &UserId, access_type: UserMetaAccess) -> anyhow::Result<Option<UserInformationModel>>;
     fn set_user_type(connection: &mut PooledConnection, user_id: &UserId, user_type: UserType) -> anyhow::Result<()>;
     fn get_user_type(connection: &mut PooledConnection, user_id: &UserId) -> anyhow::Result<UserType>;
@@ -102,7 +103,7 @@ impl UserStoreTrait for SqliteStore {
     }
 
     #[tracing::instrument(name="Insert metas", skip(connection))]
-    fn insert_user_metas(connection: &mut PooledConnection, user_id: &UserId, metas: Vec<(String, MetaType<UserMetaAccess>)>) -> anyhow::Result<()> {
+    fn insert_user_metas<'a>(connection: &mut PooledConnection, user_id: &UserId, metas: Vec<(&'a String, &'a MetaType<UserMetaAccess>)>) -> anyhow::Result<()> {
         let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
         let mut inserts = Vec::new();
 
@@ -110,10 +111,10 @@ impl UserStoreTrait for SqliteStore {
             let id = UserMetaId::default();
             let (value, access, meta_type) = match meta {
                 MetaType::Null => continue,
-                MetaType::Number(value, access) => (value.to_string(), access, 1),
-                MetaType::String(value, access) => (value, access, 2),
-                MetaType::Bool(value, access) => (value.to_string(), access, 3),
-                MetaType::List(value, access) => (serde_json::to_string(value.deref()).unwrap_or_default(), access, 4),
+                MetaType::Number(value, access) => (Cow::Owned(value.to_string()), access, 1),
+                MetaType::String(value, access) => (Cow::Borrowed(value), access, 2),
+                MetaType::Bool(value, access) => (Cow::Owned(value.to_string()), access, 3),
+                MetaType::List(value, access) => (Cow::Owned(serde_json::to_string(value.deref()).unwrap_or_default()), access, 4),
             };
 
             let insert = UserMetaInsert {
@@ -121,7 +122,7 @@ impl UserStoreTrait for SqliteStore {
                 user_id,
                 key,
                 value,
-                access: access.into(),
+                access: access.clone().into(),
                 meta_type,
                 insert_date
             };

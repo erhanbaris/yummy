@@ -135,7 +135,7 @@ fn meta() -> anyhow::Result<()> {
     assert_eq!(SqliteStore::get_user_meta(&mut connection, &user_id, UserMetaAccess::System)?.len(), 0);
 
     // New meta
-    SqliteStore::insert_user_metas(&mut connection, &user_id, vec![("gender".to_string(), MetaType::String("male".to_string(), UserMetaAccess::Friend))])?;
+    SqliteStore::insert_user_metas(&mut connection, &user_id, vec![(&"gender".to_string(), &MetaType::String("male".to_string(), UserMetaAccess::Friend))])?;
 
     assert_eq!(SqliteStore::get_user_meta(&mut connection, &user_id, UserMetaAccess::Friend)?.len(), 1);
     assert_eq!(SqliteStore::get_user_meta(&mut connection, &user_id, UserMetaAccess::Anonymous)?.len(), 0);
@@ -150,8 +150,8 @@ fn meta() -> anyhow::Result<()> {
     assert_eq!(SqliteStore::get_user_meta(&mut connection, &user_id, UserMetaAccess::System)?.len(), 0);
 
     SqliteStore::insert_user_metas(&mut connection, &user_id, vec![
-        ("location".to_string(), MetaType::String("copenhagen".to_string(), UserMetaAccess::Anonymous)),
-        ("score".to_string(), MetaType::Number(123.0, UserMetaAccess::Friend))])?;
+        (&"location".to_string(), &MetaType::String("copenhagen".to_string(), UserMetaAccess::Anonymous)),
+        (&"score".to_string(), &MetaType::Number(123.0, UserMetaAccess::Friend))])?;
 
     assert_eq!(SqliteStore::get_user_meta(&mut connection, &user_id, UserMetaAccess::Friend)?.len(), 2);
     assert_eq!(SqliteStore::get_user_meta(&mut connection, &user_id, UserMetaAccess::System)?.len(), 2);

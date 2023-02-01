@@ -10,7 +10,7 @@ use std::fs;
 use crate::auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect};
 use crate::conn::model::UserConnected;
 use crate::plugin::YummyPlugin;
-use crate::user::model::GetUserInformation;
+use crate::user::model::{GetUserInformation, UpdateUser};
 
 use general::config::YummyConfig;
 use mlua::prelude::*;
@@ -109,4 +109,5 @@ impl YummyPlugin for LuaPlugin {
 
     // User manager
     create_func!(pre_get_user_information, post_get_user_information, GetUserInformation);
+    create_func!(pre_update_user, post_update_user, UpdateUser);
 }
