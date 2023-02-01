@@ -11,6 +11,7 @@ nav:
     - Lua:
         - Scripting: lua/scripting.md
         - Auth API's: lua/auth.md
+        - User API's: lua/user.md
     - Environtment variables: env-variables.md
     - Unit test: unit-test.md
     - Code coverage: code-coverage.md
