@@ -1,0 +1,6 @@
+fn_args_layout = "Compressed"
+max_width = 200
+fn_call_width = 200
+imports_layout = "Horizontal"
+imports_granularity = "Module"
+fn_single_line = true

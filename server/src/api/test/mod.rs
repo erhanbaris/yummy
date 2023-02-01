@@ -130,7 +130,7 @@ pub fn create_websocket_server_with_config(config: Arc<YummyConfig>, test_server
         let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
         let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-        let executer = Arc::new(PluginExecuter::new());
+        let executer = Arc::new(PluginExecuter::default());
 
         ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
@@ -222,7 +222,7 @@ pub fn config(cfg: &mut ServiceConfig) {
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new());
+    let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 

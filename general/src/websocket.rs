@@ -98,18 +98,12 @@ where
 
     pub async fn get_ping(&mut self) -> bool {
         let message = self.socket.next().await;
-        match message {
-            Some(Ok(Frame::Ping(_))) => true,
-            _ => false
-        }
+        matches!(message, Some(Ok(Frame::Ping(_))))
     }
 
     pub async fn get_pong(&mut self) -> bool {
         let message = self.socket.next().await;
-        match message {
-            Some(Ok(Frame::Pong(_))) => true,
-            _ => false
-        }
+        matches!(message, Some(Ok(Frame::Pong(_))))
     }
 
     pub async fn ping(&mut self) {

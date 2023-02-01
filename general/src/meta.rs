@@ -55,7 +55,7 @@ impl From<i32> for UserMetaAccess {
     }
 }
 
-#[derive(Debug, PartialEq, PartialOrd, Eq, Clone, Default, Serialize_repr, Deserialize_repr)]
+#[derive(Debug, PartialEq, PartialOrd, Eq, Copy, Clone, Default, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
 pub enum RoomMetaAccess {
     #[default]

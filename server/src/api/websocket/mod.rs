@@ -80,7 +80,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
         let message = match serde_json::from_str::<Request>(&message) {
             Ok(message) => message,
             Err(error) => {
-                println!("{}", error.to_string());
+                println!("{}", error);
                 ctx.text(serde_json::to_string(&GenericAnswer::fail("Wrong message format")).unwrap());
                 return Ok(());
             }

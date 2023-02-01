@@ -42,7 +42,7 @@ where T: Serialize {
     pub fn success(result: T) -> Self {
         Self {
             status: true,
-            result: result
+            result
         }
     }
     
@@ -59,7 +59,7 @@ impl<T: Serialize> From<GenericAnswer<T>> for String {
         match serde_json::to_string(&source) {
             Ok(data) => data,
             Err(error) => {
-                println!("{}", error.to_string());
+                println!("{}", error);
                 String::new()
             }
         }

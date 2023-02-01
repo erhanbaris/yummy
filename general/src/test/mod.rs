@@ -159,7 +159,7 @@ pub mod model {
         pub message: String
     }
 
-    #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct MeModel {
         pub status: bool,
         pub id: String,

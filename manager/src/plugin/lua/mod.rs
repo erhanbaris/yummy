@@ -59,10 +59,11 @@ impl YummyPluginInstaller for LuaPluginInstaller {
     }
 }
 
+
 pub struct LuaPlugin {
     lua: Lua
 }
-
+#[allow(clippy::new_without_default)]
 impl LuaPlugin {
     pub fn new() -> Self {
         //let lua = unsafe { Lua::unsafe_new_with(LuaStdLib::ALL, LuaOptions::default()) };

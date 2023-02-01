@@ -32,8 +32,8 @@ pub trait RoomStoreTrait: Sized {
     fn get_room_tag(connection: &mut PooledConnection, room_id: &RoomId) -> anyhow::Result<Vec<(RoomTagId, String)>>;
     fn remove_room_tags(connection: &mut PooledConnection, ids: Vec<RoomTagId>) -> anyhow::Result<()>;
     fn remove_room_metas(connection: &mut PooledConnection, ids: Vec<RoomMetaId>) -> anyhow::Result<()>;
-    fn insert_room_metas(connection: &mut PooledConnection, room_id: &RoomId, metas: &Vec<(&String, &MetaType<RoomMetaAccess>)>) -> anyhow::Result<()>;
-    fn insert_room_tags(connection: &mut PooledConnection, room_id: &RoomId, tags: &Vec<String>) -> anyhow::Result<()>;
+    fn insert_room_metas(connection: &mut PooledConnection, room_id: &RoomId, metas: &[(&String, &MetaType<RoomMetaAccess>)]) -> anyhow::Result<()>;
+    fn insert_room_tags(connection: &mut PooledConnection, room_id: &RoomId, tags: &[String]) -> anyhow::Result<()>;
     fn update_room(connection: &mut PooledConnection, room_id: &RoomId, update_request: &RoomUpdate) -> anyhow::Result<usize>;
     fn update_room_user_permissions(connection: &mut PooledConnection, room_id: &RoomId, permissions: &HashMap<UserId, RoomUserType>) -> anyhow::Result<()>;
     fn ban_user_from_room(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, blocker_user_id: &UserId) -> anyhow::Result<()>;
@@ -84,13 +84,13 @@ impl RoomStoreTrait for SqliteStore {
         Ok(room_id)
     }
 
-    fn insert_room_tags(connection: &mut PooledConnection, room_id: &RoomId, tags: &Vec<String>) -> anyhow::Result<()> {
+    fn insert_room_tags(connection: &mut PooledConnection, room_id: &RoomId, tags: &[String]) -> anyhow::Result<()> {
         let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
 
         let mut tag_inserts = Vec::new();
         for tag in tags.iter() {
             let insert = RoomTagInsert {
-                room_id: &room_id,
+                room_id,
                 tag: &tag[..],
                 insert_date,
                 id: RoomTagId::default()
@@ -112,7 +112,7 @@ impl RoomStoreTrait for SqliteStore {
 
     #[tracing::instrument(name="update room user permissions", skip(connection))]
     fn update_room_user_permissions(connection: &mut PooledConnection, room_id: &RoomId, permissions: &HashMap<UserId, RoomUserType>) -> anyhow::Result<()> {
-        for (user_id, permission) in permissions.into_iter() {
+        for (user_id, permission) in permissions {
             diesel::update(room_user::table.filter(room_user::room_id.eq(room_id))).set((room_user::user_id.eq(user_id), room_user::room_user_type.eq(permission.clone() as i32))).execute(connection)?;
         }
         Ok(())
@@ -240,7 +240,7 @@ impl RoomStoreTrait for SqliteStore {
     }
 
     #[tracing::instrument(name="Insert metas", skip(connection))]
-    fn insert_room_metas(connection: &mut PooledConnection, room_id: &RoomId, metas: &Vec<(&String, &MetaType<RoomMetaAccess>)>) -> anyhow::Result<()> {
+    fn insert_room_metas(connection: &mut PooledConnection, room_id: &RoomId, metas: &[(&String, &MetaType<RoomMetaAccess>)]) -> anyhow::Result<()> {
         let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
         let mut inserts = Vec::new();
 
@@ -258,7 +258,7 @@ impl RoomStoreTrait for SqliteStore {
                 room_id,
                 key,
                 value,
-                access: i32::from(access.clone()),
+                access: i32::from(*access),
                 meta_type,
                 insert_date
             };

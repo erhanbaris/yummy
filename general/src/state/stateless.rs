@@ -211,10 +211,11 @@ impl YummyState {
     pub fn get_user_rooms(&mut self, session_id: &SessionId) -> Option<Vec<RoomId>> {
         match self.redis.get() {
             Ok(mut redis) => Some(redis_result!(redis.smembers::<_, Vec<RoomId>>(format!("{}session-room:{}", self.config.redis_prefix, session_id.to_string())))),
-            Err(_) => return None
+            Err(_) => None
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[tracing::instrument(name="create_room", skip(self))]
     pub fn create_room(&self, room_id: &RoomId, insert_date: i32, name: Option<String>,  description: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: Vec<String>, metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>, join_request: bool) {
         if let Ok(mut redis) = self.redis.get() {
@@ -252,22 +253,22 @@ impl YummyState {
                         MetaType::Number(value, per) => {
                             pipes.cmd("HSET").arg(&room_meta_value).arg(meta).arg(value).ignore();
                             pipes.cmd("HSET").arg(&room_meta_type).arg(meta).arg(1).ignore();
-                            pipes.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(per.clone())).ignore()
+                            pipes.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(*per)).ignore()
                         },
                         MetaType::String(value, per) => {
                             pipes.cmd("HSET").arg(&room_meta_value).arg(meta).arg(value).ignore();
                             pipes.cmd("HSET").arg(&room_meta_type).arg(meta).arg(2).ignore();
-                            pipes.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(per.clone())).ignore()
+                            pipes.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(*per)).ignore()
                         },
                         MetaType::Bool(value, per) => {
                             pipes.cmd("HSET").arg(&room_meta_value).arg(meta).arg(value).ignore();
                             pipes.cmd("HSET").arg(&room_meta_type).arg(meta).arg(3).ignore();
-                            pipes.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(per.clone())).ignore()
+                            pipes.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(*per)).ignore()
                         },
                         MetaType::List(value, per) => {
                             pipes.cmd("HSET").arg(&room_meta_value).arg(meta).arg(serde_json::to_string(value.deref()).unwrap_or_default()).ignore();
                             pipes.cmd("HSET").arg(&room_meta_type).arg(meta).arg(4).ignore();
-                            pipes.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(per.clone())).ignore()
+                            pipes.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(*per)).ignore()
                         }
                     }
                 }
@@ -383,7 +384,7 @@ impl YummyState {
                 let (user_len,) =  redis_result!(redis::pipe()
                     .atomic()
                     .cmd("SREM").arg(format!("{}session-room:{}", self.config.redis_prefix, &session_id)).arg(&room_id).ignore()
-                    .cmd("HDEL").arg(room_sessions_key).arg(session_id.to_string()).ignore()
+                    .cmd("HDEL").arg(room_sessions_key).arg(session_id).ignore()
                     .cmd("HDEL").arg(format!("{}user-room:{}", self.config.redis_prefix, &user_id)).arg(&room_id).ignore()
                     .cmd("HINCRBY").arg(&room_info_key).arg("user-len").arg(-1)
                     .query::<(i32,)>(&mut redis));
@@ -438,7 +439,7 @@ impl YummyState {
 
                     Ok(users)
                 }
-                false => return Err(YummyStateError::RoomNotFound),
+                false => Err(YummyStateError::RoomNotFound),
             },
             Err(_) => Err(YummyStateError::CacheCouldNotReaded)
         }
@@ -574,7 +575,7 @@ impl YummyState {
                             result.items.push(RoomInfoType::Tags(tags));
                         },
                         RoomInfoTypeVariant::Metas => {
-                            let access_level = i32::from(access_level.clone());
+                            let access_level = i32::from(access_level);
 
                             let access_map = redis_result!(redis.hgetall::<_, HashMap<String, i32>>(format!("{}room-meta-acc:{}", self.config.redis_prefix, &room_id)));
                             let mut keys = Vec::new();
@@ -589,7 +590,7 @@ impl YummyState {
                             
                             let mut pipe = redis::pipe();
 
-                            if keys.len() > 0 {
+                            if !keys.is_empty() {
                                 {
                                     let command = pipe.cmd("HMGET");
                                     let mut query = command.arg(format!("{}room-meta-val:{}", self.config.redis_prefix, &room_id));
@@ -646,87 +647,84 @@ impl YummyState {
             return;
         }
 
-        match self.redis.get() {
-            Ok(mut redis) => {
-                let mut command = &mut redis::pipe();
-                let room_id = room_id.to_string();
+        if let Ok(mut redis) = self.redis.get() {
+            let mut command = &mut redis::pipe();
+            let room_id = room_id.to_string();
 
-                for item in query.into_iter() {
-                    match item {
-                        RoomInfoType::RoomName(name) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("name").arg(name.unwrap_or_default()).ignore(),
-                        RoomInfoType::Description(description) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("desc").arg(description.unwrap_or_default()).ignore(),
-                        RoomInfoType::Users(_) => (),
-                        RoomInfoType::BannedUsers(_) => (),
-                        RoomInfoType::MaxUser(max_user) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("max-user").arg(max_user).ignore(),
-                        RoomInfoType::UserLength(_) => (),
-                        RoomInfoType::AccessType(access_type) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("access").arg(i32::from(access_type)).ignore(),
-                        RoomInfoType::JoinRequest(join_request) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("join").arg(i32::from(join_request)).ignore(),
-                        RoomInfoType::Tags(tags) => {
+            for item in query.into_iter() {
+                match item {
+                    RoomInfoType::RoomName(name) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("name").arg(name.unwrap_or_default()).ignore(),
+                    RoomInfoType::Description(description) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("desc").arg(description.unwrap_or_default()).ignore(),
+                    RoomInfoType::Users(_) => (),
+                    RoomInfoType::BannedUsers(_) => (),
+                    RoomInfoType::MaxUser(max_user) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("max-user").arg(max_user).ignore(),
+                    RoomInfoType::UserLength(_) => (),
+                    RoomInfoType::AccessType(access_type) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("access").arg(i32::from(access_type)).ignore(),
+                    RoomInfoType::JoinRequest(join_request) => command = command.cmd("HSET").arg(format!("{}room:{}", self.config.redis_prefix, &room_id)).arg("join").arg(i32::from(join_request)).ignore(),
+                    RoomInfoType::Tags(tags) => {
+                        
+                        // Remove old tags
+                        let saved_tags = redis_result!(redis.smembers::<_, Vec<String>>(format!("{}room-tag:{}", self.config.redis_prefix, room_id)));
+                        for tag in saved_tags.iter() {
+                            command = command.cmd("SREM").arg(format!("{}tag:{}", self.config.redis_prefix, &tag)).arg(&room_id).ignore()
+                        }
+
+                        command = command.cmd("DEL").arg(format!("{}room-tag:{}", self.config.redis_prefix, room_id)).ignore();
+                        
+                        if !tags.is_empty() {
+                            // Add to 
+                            command = command.cmd("SADD").arg(format!("{}room-tag:{}", self.config.redis_prefix, &room_id));
+                            for tag in tags.iter() {
+                                command = command.arg(tag);
+                            }
+                            command = command.ignore();
                             
-                            // Remove old tags
-                            let saved_tags = redis_result!(redis.smembers::<_, Vec<String>>(format!("{}room-tag:{}", self.config.redis_prefix, room_id.to_string())));
-                            for tag in saved_tags.iter() {
-                                command = command.cmd("SREM").arg(format!("{}tag:{}", self.config.redis_prefix, &tag)).arg(&room_id).ignore()
+                            for tag in tags.iter() {
+                                command = command.cmd("SADD").arg(format!("{}tag:{}", self.config.redis_prefix, &tag)).arg(&room_id).ignore();
                             }
+                        }
+                    },
+                    RoomInfoType::InsertDate(_) => (),
+                    RoomInfoType::Metas(metas) => {
+                        command = command
+                            .cmd("DEL").arg(format!("{}room-meta-val:{}", self.config.redis_prefix, &room_id)).ignore()
+                            .cmd("DEL").arg(format!("{}room-meta-type:{}", self.config.redis_prefix, &room_id)).ignore()
+                            .cmd("DEL").arg(format!("{}room-meta-acc:{}", self.config.redis_prefix, &room_id)).ignore();
 
-                            command = command.cmd("DEL").arg(format!("{}room-tag:{}", self.config.redis_prefix, room_id)).ignore();
-                            
-                            if !tags.is_empty() {
-                                // Add to 
-                                command = command.cmd("SADD").arg(format!("{}room-tag:{}", self.config.redis_prefix, &room_id));
-                                for tag in tags.iter() {
-                                    command = command.arg(tag);
-                                }
-                                command = command.ignore();
-                                
-                                for tag in tags.iter() {
-                                    command = command.cmd("SADD").arg(format!("{}tag:{}", self.config.redis_prefix, &tag)).arg(&room_id).ignore();
-                                }
-                            }
-                        },
-                        RoomInfoType::InsertDate(_) => (),
-                        RoomInfoType::Metas(metas) => {
-                            command = command
-                                .cmd("DEL").arg(format!("{}room-meta-val:{}", self.config.redis_prefix, &room_id)).ignore()
-                                .cmd("DEL").arg(format!("{}room-meta-type:{}", self.config.redis_prefix, &room_id)).ignore()
-                                .cmd("DEL").arg(format!("{}room-meta-acc:{}", self.config.redis_prefix, &room_id)).ignore();
-
-                            let room_meta_value = format!("{}room-meta-val:{}", self.config.redis_prefix, &room_id);
-                            let room_meta_type = format!("{}room-meta-type:{}", self.config.redis_prefix, &room_id);
-                            let room_meta_per = format!("{}room-meta-acc:{}", self.config.redis_prefix, &room_id);
-            
-                            for (meta, value) in metas.iter() {
-                                command = match value {
-                                    MetaType::Null => command,
-                                    MetaType::Number(value, per) => {
-                                        command.cmd("HSET").arg(&room_meta_value).arg(meta).arg(value).ignore();
-                                        command.cmd("HSET").arg(&room_meta_type).arg(meta).arg(1).ignore();
-                                        command.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(per.clone())).ignore()
-                                    },
-                                    MetaType::String(value, per) => {
-                                        command.cmd("HSET").arg(&room_meta_value).arg(meta).arg(value).ignore();
-                                        command.cmd("HSET").arg(&room_meta_type).arg(meta).arg(2).ignore();
-                                        command.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(per.clone())).ignore()
-                                    },
-                                    MetaType::Bool(value, per) => {
-                                        command.cmd("HSET").arg(&room_meta_value).arg(meta).arg(value).ignore();
-                                        command.cmd("HSET").arg(&room_meta_type).arg(meta).arg(3).ignore();
-                                        command.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(per.clone())).ignore()
-                                    },
-                                    MetaType::List(value, per) => {
-                                        command.cmd("HSET").arg(&room_meta_value).arg(meta).arg(serde_json::to_string(value.deref()).unwrap_or_default()).ignore();
-                                        command.cmd("HSET").arg(&room_meta_type).arg(meta).arg(4).ignore();
-                                        command.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(per.clone())).ignore()
-                                    }
+                        let room_meta_value = format!("{}room-meta-val:{}", self.config.redis_prefix, &room_id);
+                        let room_meta_type = format!("{}room-meta-type:{}", self.config.redis_prefix, &room_id);
+                        let room_meta_per = format!("{}room-meta-acc:{}", self.config.redis_prefix, &room_id);
+        
+                        for (meta, value) in metas.iter() {
+                            command = match value {
+                                MetaType::Null => command,
+                                MetaType::Number(value, per) => {
+                                    command.cmd("HSET").arg(&room_meta_value).arg(meta).arg(value).ignore();
+                                    command.cmd("HSET").arg(&room_meta_type).arg(meta).arg(1).ignore();
+                                    command.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(*per)).ignore()
+                                },
+                                MetaType::String(value, per) => {
+                                    command.cmd("HSET").arg(&room_meta_value).arg(meta).arg(value).ignore();
+                                    command.cmd("HSET").arg(&room_meta_type).arg(meta).arg(2).ignore();
+                                    command.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(*per)).ignore()
+                                },
+                                MetaType::Bool(value, per) => {
+                                    command.cmd("HSET").arg(&room_meta_value).arg(meta).arg(value).ignore();
+                                    command.cmd("HSET").arg(&room_meta_type).arg(meta).arg(3).ignore();
+                                    command.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(*per)).ignore()
+                                },
+                                MetaType::List(value, per) => {
+                                    command.cmd("HSET").arg(&room_meta_value).arg(meta).arg(serde_json::to_string(value.deref()).unwrap_or_default()).ignore();
+                                    command.cmd("HSET").arg(&room_meta_type).arg(meta).arg(4).ignore();
+                                    command.cmd("HSET").arg(&room_meta_per).arg(meta).arg(i32::from(*per)).ignore()
                                 }
                             }
-                        },
-                    };
-                }
+                        }
+                    },
+                };
+            }
 
-                redis_result!(command.query::<()>(&mut redis));
-            },
-            Err(_) => ()
+            redis_result!(command.query::<()>(&mut redis));
         }
     }
 

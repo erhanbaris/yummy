@@ -100,16 +100,12 @@ pub struct PluginInfo {
     pub active: AtomicBool
 }
 
+#[derive(Default)]
 pub struct PluginExecuter {
     auth_interfaces: Vec<PluginInfo>
 }
 
 impl PluginExecuter {
-    pub fn new() -> Self {
-        Self {
-            auth_interfaces: Vec::new()
-        }
-    }
 
     pub fn add_plugin(&mut self, name: String, plugin: Box<dyn YummyPlugin>) {
         self.auth_interfaces.push(PluginInfo {
@@ -146,7 +142,7 @@ impl PluginBuilder {
     }
 
     pub fn build(&self, config: Arc<YummyConfig>) -> PluginExecuter {
-        let mut executer = PluginExecuter::new(); 
+        let mut executer = PluginExecuter::default(); 
         for installer in self.installers.iter() {
             installer.install(&mut executer, config.clone());
         }

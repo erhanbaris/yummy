@@ -141,7 +141,7 @@ impl YummyState {
 
         let mut users = self.users.lock();
 
-        match users.get_mut(&user_id) {
+        match users.get_mut(user_id) {
             Some(user) => {
                 user.sessions.insert(session_id.clone());
             },
@@ -202,6 +202,7 @@ impl YummyState {
         self.session_to_room.lock().get(session_id).map(|rooms| rooms.iter().cloned().collect::<Vec<_>>())
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[tracing::instrument(name="create_room", skip(self))]
     pub fn create_room(&self, room_id: &RoomId, insert_date: i32, name: Option<String>, description: Option<String>, access_type: CreateRoomAccessType, max_user: usize, tags: Vec<String>, metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>, join_request: bool) {
         use std::collections::HashMap;
@@ -240,8 +241,8 @@ impl YummyState {
                         return Err(YummyStateError::AlreadyRequested)
                     }
 
-                    match self.users.lock().get_mut(&user_id) {
-                        Some(user) => user.join_requests.insert(room_id.clone(), session_id.clone()),
+                    match self.users.lock().get_mut(user_id) {
+                        Some(user) => user.join_requests.insert(*room_id, session_id.clone()),
                         None => return Err(YummyStateError::UserNotFound)
                     };
 
@@ -297,15 +298,15 @@ impl YummyState {
                     let mut user_to_room = self.session_to_room.lock();
                     match user_to_room.get_mut(session_id) {
                         Some(user_to_room) => {
-                            user_to_room.insert(room_id.clone());
+                            user_to_room.insert(*room_id);
                         },
                         None => {
-                            user_to_room.insert(session_id.clone(), std::collections::HashSet::from([room_id.clone()]));
+                            user_to_room.insert(session_id.clone(), std::collections::HashSet::from([*room_id]));
                         }
                     };
 
                     if let Some(user) = self.users.lock().get_mut(user_id) {
-                        user.joined_rooms.insert(room_id.clone(), session_id.clone());
+                        user.joined_rooms.insert(*room_id, session_id.clone());
                     }
 
                     Ok(())
@@ -321,9 +322,9 @@ impl YummyState {
         match self.users.lock().get(user_id) {
             Some(user) => match user.joined_rooms.get(room_id) {
                 Some(session_id) => Ok(session_id.clone()),
-                None => return Err(YummyStateError::RoomNotFound),
+                None => Err(YummyStateError::RoomNotFound),
             },
-            None => return Err(YummyStateError::UserNotFound)
+            None => Err(YummyStateError::UserNotFound)
         }
     }
 
@@ -336,7 +337,7 @@ impl YummyState {
                 // Remove room from user
                 match self.users.lock().get_mut(user_id) {
                     Some(user) => {
-                        if let None = user.joined_rooms.remove(room_id) {
+                        if user.joined_rooms.remove(room_id) .is_none(){
 
                             // User did not joined to room
                             return Err(YummyStateError::UserCouldNotFoundInRoom);
@@ -346,7 +347,7 @@ impl YummyState {
                 };
 
                 let mut session_to_room = self.session_to_room.lock();
-                let room_count = match session_to_room.get_mut(&session_id) {
+                let room_count = match session_to_room.get_mut(session_id) {
                     Some(rooms) => {
                         rooms.remove(room_id);
                         rooms.len()
@@ -355,10 +356,10 @@ impl YummyState {
                 };
 
                 if room_count == 0 {
-                    session_to_room.remove(&session_id);
+                    session_to_room.remove(session_id);
                 }
 
-                let user_removed = room.connections.remove(&session_id);
+                let user_removed = room.connections.remove(session_id);
 
                 match user_removed.is_some() {
                     true => Ok(room.connections.is_empty()),
@@ -476,25 +477,22 @@ impl YummyState {
 
     #[tracing::instrument(name="set_room_info", skip(self))]
     pub fn set_room_info(&self, room_id: &RoomId, query: Vec<RoomInfoType>) {
-        match self.rooms.lock().get_mut(room_id) {
-            Some(room) => {
-                for item in query.into_iter() {
-                    match item {
-                        RoomInfoType::RoomName(name) => room.name = name,
-                        RoomInfoType::Description(description) => room.description = description,
-                        RoomInfoType::Users(_) => (),
-                        RoomInfoType::MaxUser(max_user) => room.max_user = max_user,
-                        RoomInfoType::UserLength(_) => (),
-                        RoomInfoType::AccessType(access_type) => room.access_type = access_type,
-                        RoomInfoType::JoinRequest(join_request) => room.join_request = join_request,
-                        RoomInfoType::Tags(tags) => room.tags = tags,
-                        RoomInfoType::Metas(metas) => room.metas = metas,
-                        RoomInfoType::BannedUsers(banned_users) => room.banned_users = banned_users,
-                        RoomInfoType::InsertDate(_) => (),
-                    };
-                }
-            },
-            None => ()
+        if let Some(room) = self.rooms.lock().get_mut(room_id) {
+            for item in query.into_iter() {
+                match item {
+                    RoomInfoType::RoomName(name) => room.name = name,
+                    RoomInfoType::Description(description) => room.description = description,
+                    RoomInfoType::Users(_) => (),
+                    RoomInfoType::MaxUser(max_user) => room.max_user = max_user,
+                    RoomInfoType::UserLength(_) => (),
+                    RoomInfoType::AccessType(access_type) => room.access_type = access_type,
+                    RoomInfoType::JoinRequest(join_request) => room.join_request = join_request,
+                    RoomInfoType::Tags(tags) => room.tags = tags,
+                    RoomInfoType::Metas(metas) => room.metas = metas,
+                    RoomInfoType::BannedUsers(banned_users) => room.banned_users = banned_users,
+                    RoomInfoType::InsertDate(_) => (),
+                };
+            }
         }
     }
 

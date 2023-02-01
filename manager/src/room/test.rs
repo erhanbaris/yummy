@@ -69,7 +69,7 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new());
+    let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
@@ -817,7 +817,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new());
+    let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
@@ -963,7 +963,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new());
+    let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
@@ -1081,7 +1081,7 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new());
+    let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
@@ -1199,7 +1199,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new());
+    let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
@@ -1317,7 +1317,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
     let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::new());
+    let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 

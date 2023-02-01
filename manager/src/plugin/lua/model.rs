@@ -116,7 +116,7 @@ impl LuaUserData for ConnUserDisconnect {
 
 impl LuaUserData for GetUserInformation {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        methods.add_method("get_query", |lua, this, ()| {
+        methods.add_method("get_query", |_, this, ()| {
             Ok(this.query.clone())  
         });
     }

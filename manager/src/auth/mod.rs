@@ -116,12 +116,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
         };
 
         let session_id = self.states.new_session(&user_id, name.clone(), user_type);
-        let (token, auth_jwt) = self.generate_token(&user_id, name, Some(model.email.to_string()), Some(session_id.clone()), user_type)?;
+        let (token, auth_jwt) = self.generate_token(&user_id, name, Some(model.email.to_string()), Some(session_id), user_type)?;
 
         disconnect_if_already_auth_2!(model.auth, model.socket, self, _ctx);
 
         self.issue_system_async(UserConnected {
-            user_id: Arc::new(user_id.clone()),
+            user_id: Arc::new(user_id),
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth_jwt);
