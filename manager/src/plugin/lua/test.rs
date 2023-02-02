@@ -465,6 +465,8 @@ fn user_disconnected_checks() {
 
 #[test]
 fn get_user_informations_checks() {
+
+    // Me 
     let model = Rc::new(RefCell::new(GetUserInformation {
         query: GetUserInformationEnum::Me(Arc::new(None)),
         socket: Arc::new(general::test::DummyClient::default())
@@ -472,23 +474,57 @@ fn get_user_informations_checks() {
 
     let mut plugin = LuaPlugin::new();
     plugin.set_content(r#"
-    function dumpTable(table, depth)
-        if (depth > 200) then
-            print("Error: Depth > 200 in dumpTable()")
-            return
-        end
-        for k,v in pairs(table) do
-            if (type(v) == "table") then
-                print(string.rep("  ", depth)..k..":")
-                dumpTable(v, depth+1)
-            else
-                print(string.rep("  ", depth)..k..": ",v)
-            end
-        end
+    function pre_get_user_information(model)
+        query = model:get_query()
+        table = query:as_table()
+
+        assert(query:get_type(), "Me")
     end
 
+    function post_get_user_information(model)
+    end
+    "#).unwrap();
+
+    plugin.execute(model.clone(), "pre_get_user_information").unwrap();
+    plugin.execute_with_result(model.clone(), true, "post_get_user_information").unwrap();
+
+
+    // UserViaSystem 
+    let model = Rc::new(RefCell::new(GetUserInformation {
+        query: GetUserInformationEnum::UserViaSystem(UserId::new()),
+        socket: Arc::new(general::test::DummyClient::default())
+    } ));
+
+    let mut plugin = LuaPlugin::new();
+    plugin.set_content(r#"
     function pre_get_user_information(model)
-        dumpTable(model:get_query(), 10)
+        query = model:get_query()
+        table = query:as_table()
+
+        assert(query:get_type(), "UserViaSystem")
+    end
+
+    function post_get_user_information(model)
+    end
+    "#).unwrap();
+
+    plugin.execute(model.clone(), "pre_get_user_information").unwrap();
+    plugin.execute_with_result(model.clone(), true, "post_get_user_information").unwrap();
+
+
+    // User 
+    let model = Rc::new(RefCell::new(GetUserInformation {
+        query: GetUserInformationEnum::User { user: UserId::new(), requester: Arc::new(None) },
+        socket: Arc::new(general::test::DummyClient::default())
+    } ));
+
+    let mut plugin = LuaPlugin::new();
+    plugin.set_content(r#"
+    function pre_get_user_information(model)
+        query = model:get_query()
+        table = query:as_table()
+
+        assert(query:get_type(), "User")
     end
 
     function post_get_user_information(model)

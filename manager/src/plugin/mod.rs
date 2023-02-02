@@ -1,8 +1,8 @@
-use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, collections::HashMap, rc::Rc, cell::RefCell};
+use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, rc::Rc, cell::RefCell};
 
-use general::{model::UserType, meta::{MetaType, UserMetaAccess, MetaAction}, config::YummyConfig};
+use general::config::YummyConfig;
 
-use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::GetUserInformation};
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, UpdateUser}};
 
 pub mod lua;
 
@@ -65,21 +65,11 @@ pub trait YummyPlugin {
 
     // User manager
     create_plugin_func!(pre_get_user_information, post_get_user_information, GetUserInformation);
+    create_plugin_func!(pre_update_user, post_update_user, UpdateUser);
 }
 
 pub trait YummyPluginInstaller {
     fn install(&self, executer: &mut PluginExecuter, config: Arc<YummyConfig>);
-}
-
-pub struct UpdateUser {
-    pub name: Option<String>,
-    pub email: Option<String>,
-    pub password: Option<String>,
-    pub device_id: Option<String>,
-    pub custom_id: Option<String>,
-    pub user_type: Option<UserType>,
-    pub meta: Option<HashMap<String, MetaType<UserMetaAccess>>>,
-    pub meta_action: Option<MetaAction>
 }
 
 /*pub trait UserProxy {
@@ -129,6 +119,7 @@ impl PluginExecuter {
 
     // User manager
     create_executer_func!(pre_get_user_information, post_get_user_information, GetUserInformation);
+    create_executer_func!(pre_update_user, post_update_user, UpdateUser);
 }
 
 #[derive(Default)]

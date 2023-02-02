@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use crate::schema::*;
@@ -27,8 +28,8 @@ pub struct UserInsert<'a> {
 pub struct UserMetaInsert<'a> {
     pub id: UserMetaId,
     pub user_id: &'a UserId,
-    pub key: String,
-    pub value: String,
+    pub key: &'a str,
+    pub value: Cow<'a, String>,
     pub meta_type: i32,
     pub access: i32,
     pub insert_date: i32,

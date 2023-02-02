@@ -108,9 +108,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="UpdateUser", skip(self, _ctx))]
-    #[macros::api(name="UpdateUser", socket=true)]
+    #[macros::plugin_api(name="update_user", socket=true)]
     fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
-        let UpdateUser { name, socket, email, password, device_id, custom_id, user_type, meta, meta_action, target_user_id, .. } = model;
+        let UpdateUser { name, socket, email, password, device_id, custom_id, user_type, meta, meta_action, target_user_id, .. } = &model;
 
         let user_id = get_user_id_from_auth!(model);
 
@@ -135,30 +135,31 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
             None => return Err(anyhow::anyhow!(UserError::UserNotFound))
         };
 
-        updates.custom_id = custom_id.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
-        updates.device_id = device_id.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
-        updates.name = name.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} );
+        // Todo: dont use clone
+        updates.custom_id = custom_id.as_ref().map(|item| match item.trim().is_empty() { true => None, false => Some(item.clone())} );
+        updates.device_id = device_id.as_ref().map(|item| match item.trim().is_empty() { true => None, false => Some(item.clone())} );
+        updates.name = name.as_ref().map(|item| match item.trim().is_empty() { true => None, false => Some(item.clone())} );
         updates.user_type = user_type.map(|item| item.into());
 
         if let Some(password) = password {
             if password.trim().len() < 4 {
                 return Err(anyhow::anyhow!(UserError::PasswordIsTooSmall))
             }
-            updates.password = Some(password);
+            updates.password = Some(password.clone());
         }
 
         if let Some(email) = email {
             if user.email.is_some() {
                 return Err(anyhow::anyhow!(UserError::CannotChangeEmail));
             }
-            updates.email = Some(email)
+            updates.email = Some(email.clone())
         }
 
         let config = self.config.clone();
 
-        DB::transaction::<_, anyhow::Error, _>(&mut connection, move |connection| {
+        DB::transaction::<_, anyhow::Error, _>(&mut connection, |connection| {
 
-            let meta_action = meta_action.unwrap_or_default();
+            let meta_action = meta_action.clone().unwrap_or_default();
             let user_access_level_code = user_access_level.clone() as u8;
 
             let (to_be_inserted, to_be_removed, total_metas) = match meta_action {
@@ -177,11 +178,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
 
                                 let meta_access_level = value.get_access_level() as u8;
                                 if meta_access_level > user_access_level_code {
-                                    return Err(anyhow::anyhow!(UserError::MetaAccessLevelCannotBeBiggerThanUsersAccessLevel(key)));
+                                    return Err(anyhow::anyhow!(UserError::MetaAccessLevelCannotBeBiggerThanUsersAccessLevel(key.clone())));
                                 }
 
                                 // Check for meta already added into the user
-                                let row = user_old_metas.iter().find(|item| item.1 == key).map(|item| item.0.clone());
+                                let row = user_old_metas.iter().find(|item| &item.1 == key).map(|item| item.0.clone());
         
                                 /* Remove the key if exists in the database */
                                 if let Some(row_id) = row {
@@ -219,7 +220,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
                                 
                                 let meta_access_level = value.get_access_level() as u8;
                                 if meta_access_level > user_access_level_code {
-                                    return Err(anyhow::anyhow!(UserError::MetaAccessLevelCannotBeBiggerThanUsersAccessLevel(key)));
+                                    return Err(anyhow::anyhow!(UserError::MetaAccessLevelCannotBeBiggerThanUsersAccessLevel(key.clone())));
                                 }
 
                                 if let MetaType::Null = value {
@@ -267,11 +268,11 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
 
             // todo: convert to single execution
             if let Some(user_type) = user_type {
-                self.states.set_user_type(target_user_id, user_type);
+                self.states.set_user_type(target_user_id, *user_type);
             }
 
             if let Some(Some(name)) = updates.name {
-                self.states.set_user_name(target_user_id, name);
+                self.states.set_user_name(target_user_id, name.clone());
             }
             Ok(())
         })
