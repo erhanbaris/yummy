@@ -59,6 +59,8 @@ async fn state_2() -> anyhow::Result<()> {
 
 
     DummyActor{}.start().recipient::<SendMessage>();
+
+    #[allow(unused_mut)]
     let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
     
     state.close_session(&UserId::new(), &SessionId::new());
@@ -72,6 +74,7 @@ async fn state_2() -> anyhow::Result<()> {
 #[actix::test]
 async fn room_tests() -> anyhow::Result<()> {
     configure_environment();
+    #[allow(unused_mut)]
     let mut config = get_configuration().deref().clone();
 
     #[cfg(feature = "stateless")] {  
@@ -273,6 +276,7 @@ async fn room_meta_read_test() -> anyhow::Result<()> {
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
     DummyActor{}.start().recipient::<SendMessage>();
+    #[allow(unused_mut)]
     let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
     
     let room_id = RoomId::new();
@@ -321,6 +325,7 @@ async fn room_meta_update_test() -> anyhow::Result<()> {
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
     DummyActor{}.start().recipient::<SendMessage>();
+    #[allow(unused_mut)]
     let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
     
     let room_id = RoomId::new();
@@ -401,6 +406,7 @@ async fn room_meta_update_test() -> anyhow::Result<()> {
 #[actix::test]
 async fn join_request_test() -> anyhow::Result<()> {
     configure_environment();
+    #[allow(unused_mut)]
     let mut config = get_configuration().deref().clone();
 
     #[cfg(feature = "stateless")] {  

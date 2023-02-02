@@ -47,6 +47,11 @@ macro_rules! generate_type {
             pub fn get(&self) -> &Uuid {
                 &self.0
             }
+
+            #[allow(dead_code)]
+            fn try_from(data: String) -> Result<Self, uuid::Error> {
+                uuid::Uuid::parse_str(&data).map(|item| $name(item))
+            }
         }
 
         impl Default for $name {

@@ -185,15 +185,20 @@ impl LuaUserData for GetUserInformationEnum {
 impl LuaUserData for UpdateUser {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
         auth_macros!(methods);
-        methods.add_method("get_target_user_id", |_, this, ()| Ok(this.target_user_id.as_ref().map(|item| item.to_string()).unwrap_or_default()));
-        methods.add_method_mut("set_target_user_id", |_, this, target_user_id: String| {
-            if target_user_id.is_empty()  {
-                this.target_user_id = None;
-            } else {
-                this.target_user_id = Some(UserId::from(target_user_id));
+        methods.add_method("get_target_user_id", |_, this, ()| Ok(this.target_user_id.as_ref().map(|item| item.to_string())));
+        methods.add_method_mut("set_target_user_id", |_, this, target_user_id: Option<String>| {
+            let result = target_user_id.map(|id| UserId::try_from(id));
+            match result {
+                Some(Ok(target_user_id)) => {
+                    this.target_user_id = Some(target_user_id);
+                    Ok(())
+                },
+                Some(Err(error)) => Err(mlua::Error::RuntimeError(error.to_string())),
+                None => {
+                    this.target_user_id = None;
+                    Ok(())
+                }
             }
-            
-            Ok(())
         });
     }
 }

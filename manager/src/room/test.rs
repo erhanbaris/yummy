@@ -1,3 +1,5 @@
+#[allow(unused_mut)]
+
 use general::config::configure_environment;
 use general::model::CreateRoomAccessType;
 use general::state::RoomUserInformation;
