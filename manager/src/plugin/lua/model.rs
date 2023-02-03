@@ -1,6 +1,6 @@
-use std::ops::Deref;
+use std::{ops::Deref, collections::HashMap};
 
-use general::{password::Password, model::UserId};
+use general::{password::Password, model::{UserId, UserType}, meta::{MetaAction, MetaType, UserMetaAccess}};
 
 use mlua::prelude::*;
 
@@ -23,6 +23,35 @@ macro_rules! auth_macros {
             Ok(session_id)
         });
     }
+}
+
+macro_rules! nullable_set {
+    ($methods: expr, $name: expr, $field_name: ident, $field_type: ident) => {
+        nullable_set!($methods, String, $name, $field_name, $field_type);
+    };
+
+    ($methods: expr, $lua_type: ident, $name: expr, $field_name: ident, $field_type: ident) => {
+        $methods.add_method_mut($name, |_, this, field: Option<$lua_type>| {
+            let result = field.map(|id| $field_type::try_from(id));
+            match result {
+                Some(Ok(field)) => {
+                    this.$field_name = Some(field);
+                    Ok(())
+                },
+                Some(Err(error)) => Err(mlua::Error::RuntimeError(error.to_string())),
+                None => {
+                    this.$field_name = None;
+                    Ok(())
+                }
+            }
+        });
+    }
+}
+
+macro_rules! get {
+    ($methods: expr, $name: expr, $field_name: ident) => {
+        $methods.add_method($name, |_, this, ()| Ok(this.$field_name.clone()));
+    };
 }
 
 impl LuaUserData for EmailAuthRequest {
@@ -186,19 +215,27 @@ impl LuaUserData for UpdateUser {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
         auth_macros!(methods);
         methods.add_method("get_target_user_id", |_, this, ()| Ok(this.target_user_id.as_ref().map(|item| item.to_string())));
-        methods.add_method_mut("set_target_user_id", |_, this, target_user_id: Option<String>| {
-            let result = target_user_id.map(|id| UserId::try_from(id));
-            match result {
-                Some(Ok(target_user_id)) => {
-                    this.target_user_id = Some(target_user_id);
-                    Ok(())
-                },
-                Some(Err(error)) => Err(mlua::Error::RuntimeError(error.to_string())),
-                None => {
-                    this.target_user_id = None;
-                    Ok(())
-                }
-            }
+        get!(methods, "get_metas", meta);
+        get!(methods, "get_name", name);
+        get!(methods, "get_email", email);
+        get!(methods, "get_password", password);
+        get!(methods, "get_device_id", device_id);
+        get!(methods, "get_custom_id", custom_id);
+        get!(methods, "get_user_type", user_type);
+        get!(methods, "get_meta_action", meta_action);
+
+        nullable_set!(methods, "set_target_user_id", target_user_id, UserId);
+        nullable_set!(methods, "set_name", name, String);
+        nullable_set!(methods, "set_email", email, String);
+        nullable_set!(methods, "set_password", password, String);
+        nullable_set!(methods, "set_device_id", device_id, String);
+        nullable_set!(methods, "set_custom_id", custom_id, String);
+        nullable_set!(methods, i32, "set_user_type", user_type, UserType);
+        nullable_set!(methods, i32, "set_meta_action", meta_action, MetaAction);
+        
+        methods.add_method_mut("set_metas", |_, this, meta: Option<HashMap<String, MetaType<UserMetaAccess>>>| {
+            this.meta = meta;
+            Ok(())
         });
     }
 }

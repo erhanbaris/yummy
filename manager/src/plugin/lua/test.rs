@@ -1,12 +1,13 @@
 use std::{rc::Rc, cell::RefCell, sync::Arc, env::temp_dir};
 use std::io::Write;
 
+use general::meta::{MetaType, UserMetaAccess};
 use general::model::UserId;
 use general::{password::Password, config::YummyConfig};
 
 use crate::auth::model::ConnUserDisconnect;
 use crate::conn::model::UserConnected;
-use crate::user::model::{GetUserInformation, GetUserInformationEnum};
+use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use crate::{plugin::{EmailAuthRequest, PluginBuilder, lua::LuaPluginInstaller}, auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}};
 use super::LuaPlugin;
 
@@ -572,4 +573,60 @@ end
     
     assert_eq!(&model.email, "erhan@erhan.com");
 
+}
+
+#[test]
+fn create_meta_test() {
+    let mut config = YummyConfig::default();
+    config.lua_files_path = temp_dir().to_str().unwrap().to_string();
+    
+    let path = std::path::Path::new(&config.lua_files_path[..]).join("create_meta_test.lua").to_string_lossy().to_string();
+    let mut lua_file = std::fs::File::create(path).expect("create failed");
+    lua_file.write_all(r#"
+function pre_update_user(model)
+    model:set_email("erhan@erhan.com")
+    metas = {}
+    metas.string_value = new_user_meta("Test", 6)
+    metas.number_value = new_user_meta(123456, 5)
+    model:set_metas(metas)
+end
+
+function post_update_user(model, successed)
+    metas = model:get_metas()
+    assert(metas.string_value:get_value() == "Test")
+    assert(metas.string_value:get_access_level() == 6)
+    assert(model:get_email() == "erhan@erhan.com")
+end
+"#.as_bytes()).expect("write failed");
+
+    let model = UpdateUser {
+        auth: Arc::new(None),
+        email: None,
+        password: None,
+        socket: Arc::new(general::test::DummyClient::default()),
+        target_user_id: None,
+        name: None,
+        device_id: None,
+        custom_id: None,
+        user_type: None,
+        meta: None,
+        meta_action: None,
+    };
+
+    println!("wer");
+
+    let config = Arc::new(config);
+    let mut builder = PluginBuilder::default();
+    builder.add_installer(Box::new(LuaPluginInstaller::default()));
+
+    let executer = Arc::new(builder.build(config));
+
+    let model = executer.pre_update_user(model).unwrap();
+    let model = executer.post_update_user(model, true).unwrap();
+    
+    assert_eq!(model.email, Some("erhan@erhan.com".to_string()));
+    let metas = model.meta.unwrap();
+    assert_eq!(metas.len(), 2);
+    assert_eq!(metas.get("string_value").unwrap(), &MetaType::String("Test".to_string(), UserMetaAccess::System));
+    assert_eq!(metas.get("number_value").unwrap(), &MetaType::Number(123456.0, UserMetaAccess::Admin));
 }

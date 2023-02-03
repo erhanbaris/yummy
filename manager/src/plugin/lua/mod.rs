@@ -13,6 +13,7 @@ use crate::plugin::YummyPlugin;
 use crate::user::model::{GetUserInformation, UpdateUser};
 
 use general::config::YummyConfig;
+use general::meta::{UserMetaAccess, MetaType};
 use mlua::prelude::*;
 use glob::{MatchOptions, glob_with};
 
@@ -32,11 +33,11 @@ pub struct LuaPluginInstaller;
 
 impl YummyPluginInstaller for LuaPluginInstaller {
     fn install(&self, executer: &mut super::PluginExecuter, config: Arc<YummyConfig>) {
-        log::info!("Lua plugin installing");
+        println!("Lua plugin installing");
         let mut plugin = LuaPlugin::new();
 
         let path = Path::new(&config.lua_files_path).join("*.lua").to_string_lossy().to_string();
-        log::info!("Searhing lua files at {}", path);
+        println!("Searhing lua files at {}", path);
 
         let options = MatchOptions {
             case_sensitive: false,
@@ -49,16 +50,48 @@ impl YummyPluginInstaller for LuaPluginInstaller {
                 let path = path.unwrap().to_string_lossy().to_string();
                 let content = fs::read_to_string(&path).unwrap();
                 plugin.set_content(&content).unwrap();
-                log::info!("Lua file imported: {}", path);
+                println!("Lua file imported: {}", path);
             }
-    
+
+            // Bind all in-build functions
+            plugin.bind_buildin_functions().unwrap();
+            
             executer.add_plugin("lua".to_string(), Box::new(plugin));
         }
 
-        log::info!("Lua plugin installed");
+        println!("Lua plugin installed");
     }
 }
 
+fn new_user_meta<'a>(lua: &'a Lua, (value, access): (LuaValue, UserMetaAccess)) -> LuaResult<LuaValue<'a>> {
+    let value = match value {
+        LuaValue::Nil => Ok(MetaType::Null),
+        LuaValue::Boolean(val) => Ok(MetaType::Bool(val, access)),
+        LuaValue::LightUserData(_) => Ok(MetaType::Null),
+        LuaValue::Integer(val) => Ok(MetaType::Number(val as f64, access)),
+        LuaValue::Number(val) => Ok(MetaType::Number(val, access)),
+        LuaValue::String(val) =>  Ok(MetaType::String(val.to_str().unwrap_or_default().to_string(), access)),
+        LuaValue::Table(table) => {
+            let mut array = Vec::new();
+            
+            for row in table.sequence_values::<MetaType<UserMetaAccess>>() {
+                let row = row?;
+                array.push(row);
+            }
+
+            Ok(MetaType::List(Box::new(array), access))
+        },
+        LuaValue::Function(_) => Err(mlua::Error::RuntimeError("Meta does not have support for 'Function' type.".to_string())),
+        LuaValue::Thread(_) => Err(mlua::Error::RuntimeError("Meta does not have support for 'Thread' type.".to_string())),
+        LuaValue::UserData(_) => Err(mlua::Error::RuntimeError("Meta does not have support for 'UserData' type.".to_string())),
+        LuaValue::Error(_) => Err(mlua::Error::RuntimeError("Meta does not have support for 'Error' type.".to_string())),
+    };
+
+    let value = value?;
+
+    let value = lua.create_userdata(value)?;
+    Ok(LuaValue::UserData(value))
+}
 
 pub struct LuaPlugin {
     lua: Lua
@@ -71,12 +104,19 @@ impl LuaPlugin {
         Self { lua }
     }
 
+    pub fn bind_buildin_functions(&mut self) -> LuaResult<()> {
+        let globals = self.lua.globals();
+        globals.set("new_user_meta", self.lua.create_function(new_user_meta)?)?;
+        Ok(())
+    }
+
     pub fn set_content(&mut self, content: &str) -> anyhow::Result<()> {
         self.lua.load(content, ).exec()?;
         Ok(())
     }
 
     fn execute<T: LuaUserData + 'static>(&self, model: Rc<RefCell<T>>, func_name: &str) -> anyhow::Result<()> {
+        println!("Execute {}", func_name);
         if let Ok(function) = self.lua.globals().get::<_, LuaFunction>(func_name) {
             function.call::<_, ()>(model)?;
             self.lua.gc_collect()?;
@@ -86,6 +126,7 @@ impl LuaPlugin {
     }
 
     fn execute_with_result<T: LuaUserData + 'static>(&self, model: Rc<RefCell<T>>, successed: bool, func_name: &str) -> anyhow::Result<()> {
+        println!("Execute with result {}", func_name);
         if let Ok(function) = self.lua.globals().get::<_, LuaFunction>(func_name) {
             function.call::<_, ()>((model, successed))?;
             self.lua.gc_collect()?;

@@ -11,6 +11,7 @@ pub mod test;
 pub mod password;
 pub mod tls;
 pub mod websocket;
+pub mod lua;
 
 #[cfg(feature = "stateless")]
 pub mod pubsub;

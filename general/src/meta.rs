@@ -13,6 +13,18 @@ pub enum MetaAction {
     RemoveAllMetas = 2
 }
 
+impl TryFrom<i32> for MetaAction {
+    type Error = &'static str;
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(MetaAction::OnlyAddOrUpdate),
+            1 => Ok(MetaAction::RemoveUnusedMetas),
+            2 => Ok(MetaAction::RemoveAllMetas),
+            _ => Err("MetaAction value is not valid")
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Default, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
 pub enum UserMetaAccess {
@@ -96,7 +108,7 @@ impl From<i32> for RoomMetaAccess {
 
 #[derive(Debug, PartialEq, Clone)]
 #[repr(u8)]
-pub enum MetaType<T: Default + Debug + PartialEq + Clone> {
+pub enum MetaType<T: Default + Debug + PartialEq + Clone + From<i32>> {
     Null,
     Number(f64, T),
     String(String, T),
@@ -104,7 +116,7 @@ pub enum MetaType<T: Default + Debug + PartialEq + Clone> {
     List(Box<Vec<MetaType<T>>>, T)
 }
 
-impl<T: Default + Debug + PartialEq + Clone> MetaType<T> {
+impl<T: Default + Debug + PartialEq + Clone + From<i32>> MetaType<T> {
     pub fn get_access_level(&self) -> T {
         match self {
             MetaType::Null => T::default(),
@@ -114,9 +126,19 @@ impl<T: Default + Debug + PartialEq + Clone> MetaType<T> {
             MetaType::List(_, access_level) => access_level.clone(),
         }
     }
+
+    pub fn set_access_level(self, access_level: T) -> MetaType<T> where i32: std::convert::From<T> {
+        match self {
+            MetaType::Null => MetaType::Null,
+            MetaType::Number(value, _) => MetaType::Number(value, access_level),
+            MetaType::String(value, _) => MetaType::String(value, access_level),
+            MetaType::Bool(value, _) => MetaType::Bool(value, access_level),
+            MetaType::List(value, _) => MetaType::List(value, access_level),
+        }
+    }
 }
 
-impl<'de, T: Default + Debug + PartialEq + Clone + From<i32>> Deserialize<'de> for MetaType<T> {
+impl<'de, T: Default + Debug + PartialEq + Clone + From<i32> + Into<i32>> Deserialize<'de> for MetaType<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -125,7 +147,7 @@ impl<'de, T: Default + Debug + PartialEq + Clone + From<i32>> Deserialize<'de> f
     }
 }
 
-impl<T: Default + Debug + PartialEq + Clone> Serialize for MetaType<T> {
+impl<T: Default + Debug + PartialEq + Clone + From<i32>> Serialize for MetaType<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -147,12 +169,12 @@ impl<T: Default + Debug + PartialEq + Clone> Serialize for MetaType<T> {
 }
 
 #[derive(Default)]
-struct MetaVisitor<T: Default + Debug + PartialEq + Clone + From<i32>> {
+struct MetaVisitor<T: Default + Debug + PartialEq + Clone + From<i32> + Into<i32>> {
     _marker: PhantomData<T>
 }
 
 
-impl<'de, T: Default + Debug + PartialEq + Clone + From<i32>> Visitor<'de> for MetaVisitor<T> {
+impl<'de, T: Default + Debug + PartialEq + Clone + From<i32> + Into<i32>> Visitor<'de> for MetaVisitor<T> {
     type Value = MetaType<T>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
