@@ -583,18 +583,48 @@ fn create_meta_test() {
     let path = std::path::Path::new(&config.lua_files_path[..]).join("create_meta_test.lua").to_string_lossy().to_string();
     let mut lua_file = std::fs::File::create(path).expect("create failed");
     lua_file.write_all(r#"
+function do_tables_match( a, b )
+    return table.concat(a) == table.concat(b)
+end
+
 function pre_update_user(model)
     model:set_email("erhan@erhan.com")
     metas = {}
     metas.string_value = new_user_meta("Test", 6)
     metas.number_value = new_user_meta(123456, 5)
+    metas.bool_value = new_user_meta(true, 4)
+    metas.nil_value = new_user_meta(nil, 3)
+
+    array = {}
+    array[1] = true
+    array[2] = "2"
+    array[3] = 3
+    array[4] = {}
+    metas.array_value = new_user_meta(array, 3)
+
     model:set_metas(metas)
 end
 
 function post_update_user(model, successed)
     metas = model:get_metas()
     assert(metas.string_value:get_value() == "Test")
+    assert(metas.number_value:get_value() == 123456)
+    assert(metas.bool_value:get_value() == true)
+    assert(metas.nil_value:get_value() == nil)
+
+    array = metas.array_value:get_value()
+    assert(array ~= nil)
+
+    assert(array[1] == true)
+    assert(array[2] == "2")
+    assert(array[3] == 3)
+    assert(do_tables_match(array[4], {}))
+
     assert(metas.string_value:get_access_level() == 6)
+    assert(metas.number_value:get_access_level() == 5)
+    assert(metas.bool_value:get_access_level() == 4)
+    assert(metas.array_value:get_access_level() == 3)
+
     assert(model:get_email() == "erhan@erhan.com")
 end
 "#.as_bytes()).expect("write failed");
@@ -613,8 +643,6 @@ end
         meta_action: None,
     };
 
-    println!("wer");
-
     let config = Arc::new(config);
     let mut builder = PluginBuilder::default();
     builder.add_installer(Box::new(LuaPluginInstaller::default()));
@@ -626,7 +654,10 @@ end
     
     assert_eq!(model.email, Some("erhan@erhan.com".to_string()));
     let metas = model.meta.unwrap();
-    assert_eq!(metas.len(), 2);
+    assert_eq!(metas.len(), 5);
     assert_eq!(metas.get("string_value").unwrap(), &MetaType::String("Test".to_string(), UserMetaAccess::System));
     assert_eq!(metas.get("number_value").unwrap(), &MetaType::Number(123456.0, UserMetaAccess::Admin));
+    assert_eq!(metas.get("bool_value").unwrap(), &MetaType::Bool(true, UserMetaAccess::Mod));
+    assert_eq!(metas.get("nil_value").unwrap(), &MetaType::Null);
+    assert_eq!(metas.get("array_value").unwrap(), &MetaType::List(Box::new(vec![MetaType::Bool(true, UserMetaAccess::Anonymous), MetaType::String("2".to_string(), UserMetaAccess::Anonymous), MetaType::Number(3.0, UserMetaAccess::Anonymous), MetaType::List(Box::new(Vec::new()), UserMetaAccess::Anonymous)]), UserMetaAccess::Me));
 }

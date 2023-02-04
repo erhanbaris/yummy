@@ -33,11 +33,11 @@ pub struct LuaPluginInstaller;
 
 impl YummyPluginInstaller for LuaPluginInstaller {
     fn install(&self, executer: &mut super::PluginExecuter, config: Arc<YummyConfig>) {
-        println!("Lua plugin installing");
+        log::info!("Lua plugin installing");
         let mut plugin = LuaPlugin::new();
 
         let path = Path::new(&config.lua_files_path).join("*.lua").to_string_lossy().to_string();
-        println!("Searhing lua files at {}", path);
+        log::info!("Searhing lua files at {}", path);
 
         let options = MatchOptions {
             case_sensitive: false,
@@ -50,7 +50,7 @@ impl YummyPluginInstaller for LuaPluginInstaller {
                 let path = path.unwrap().to_string_lossy().to_string();
                 let content = fs::read_to_string(&path).unwrap();
                 plugin.set_content(&content).unwrap();
-                println!("Lua file imported: {}", path);
+                log::info!("Lua file imported: {}", path);
             }
 
             // Bind all in-build functions
@@ -59,12 +59,12 @@ impl YummyPluginInstaller for LuaPluginInstaller {
             executer.add_plugin("lua".to_string(), Box::new(plugin));
         }
 
-        println!("Lua plugin installed");
+        log::info!("Lua plugin installed");
     }
 }
 
-fn new_user_meta<'a>(lua: &'a Lua, (value, access): (LuaValue, UserMetaAccess)) -> LuaResult<LuaValue<'a>> {
-    let value = match value {
+fn lua_to_meta_user<'a>(lua: &'a Lua, (value, access): (LuaValue, UserMetaAccess)) -> LuaResult<MetaType<UserMetaAccess>> {
+    match value {
         LuaValue::Nil => Ok(MetaType::Null),
         LuaValue::Boolean(val) => Ok(MetaType::Bool(val, access)),
         LuaValue::LightUserData(_) => Ok(MetaType::Null),
@@ -74,8 +74,9 @@ fn new_user_meta<'a>(lua: &'a Lua, (value, access): (LuaValue, UserMetaAccess)) 
         LuaValue::Table(table) => {
             let mut array = Vec::new();
             
-            for row in table.sequence_values::<MetaType<UserMetaAccess>>() {
+            for row in table.sequence_values::<LuaValue>() {
                 let row = row?;
+                let row = lua_to_meta_user(lua, (row, UserMetaAccess::default()))?;
                 array.push(row);
             }
 
@@ -85,11 +86,11 @@ fn new_user_meta<'a>(lua: &'a Lua, (value, access): (LuaValue, UserMetaAccess)) 
         LuaValue::Thread(_) => Err(mlua::Error::RuntimeError("Meta does not have support for 'Thread' type.".to_string())),
         LuaValue::UserData(_) => Err(mlua::Error::RuntimeError("Meta does not have support for 'UserData' type.".to_string())),
         LuaValue::Error(_) => Err(mlua::Error::RuntimeError("Meta does not have support for 'Error' type.".to_string())),
-    };
+    }
+}
 
-    let value = value?;
-
-    let value = lua.create_userdata(value)?;
+fn new_user_meta<'a>(lua: &'a Lua, (value, access): (LuaValue, UserMetaAccess)) -> LuaResult<LuaValue<'a>> {
+    let value = lua.create_userdata(lua_to_meta_user(lua, (value, access))?)?;
     Ok(LuaValue::UserData(value))
 }
 
