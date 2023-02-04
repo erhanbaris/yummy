@@ -126,16 +126,6 @@ impl<T: Default + Debug + PartialEq + Clone + From<i32>> MetaType<T> {
             MetaType::List(_, access_level) => access_level.clone(),
         }
     }
-
-    pub fn set_access_level(self, access_level: T) -> MetaType<T> where i32: std::convert::From<T> {
-        match self {
-            MetaType::Null => MetaType::Null,
-            MetaType::Number(value, _) => MetaType::Number(value, access_level),
-            MetaType::String(value, _) => MetaType::String(value, access_level),
-            MetaType::Bool(value, _) => MetaType::Bool(value, access_level),
-            MetaType::List(value, _) => MetaType::List(value, access_level),
-        }
-    }
 }
 
 impl<'de, T: Default + Debug + PartialEq + Clone + From<i32> + Into<i32>> Deserialize<'de> for MetaType<T> {

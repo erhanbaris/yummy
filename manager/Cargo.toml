@@ -33,6 +33,7 @@ serde_repr.workspace = true
 uuid.workspace = true
 
 tracing.workspace = true
+tempdir.workspace = true
 
 validator.workspace = true
 serde_trim.workspace = true

@@ -79,6 +79,8 @@ diesel = { version = "2.0.3", features = ["sqlite", "numeric", "r2d2"] }
 diesel-derive-enum = { version = "1.1.2", features = ["sqlite"] }
 
 tempfile = "3.3.0"
+tempdir = "0.3.7"
+
 rcgen = "0.10.0"
 
 parking_lot = "0.12.1"
@@ -91,5 +93,4 @@ libsqlite3-sys = { version = "^0", features = ["bundled"] }
 
 cucumber = "0.19.1"
 async-trait = "0.1.64"
-
 mlua = { version = "0.8.7", features = ["lua54", "vendored"] }

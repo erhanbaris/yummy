@@ -1,8 +1,10 @@
 use std::{rc::Rc, cell::RefCell, sync::Arc, env::temp_dir};
 use std::io::Write;
 
-use general::meta::{MetaType, UserMetaAccess};
-use general::model::UserId;
+use tempdir::TempDir;
+
+use general::meta::{MetaType, UserMetaAccess, MetaAction};
+use general::model::{UserId, UserType};
 use general::{password::Password, config::YummyConfig};
 
 use crate::auth::model::ConnUserDisconnect;
@@ -578,9 +580,13 @@ end
 #[test]
 fn create_meta_test() {
     let mut config = YummyConfig::default();
-    config.lua_files_path = temp_dir().to_str().unwrap().to_string();
     
-    let path = std::path::Path::new(&config.lua_files_path[..]).join("create_meta_test.lua").to_string_lossy().to_string();
+    let dir = TempDir::new("test").unwrap();
+    let file_path = dir.path().join("create_meta_test.lua");
+
+    config.lua_files_path = dir.path().to_str().unwrap().to_string();
+    
+    let path = file_path.to_string_lossy().to_string();
     let mut lua_file = std::fs::File::create(path).expect("create failed");
     lua_file.write_all(r#"
 function do_tables_match( a, b )
@@ -588,13 +594,10 @@ function do_tables_match( a, b )
 end
 
 function pre_update_user(model)
-    model:set_email("erhan@erhan.com")
     metas = {}
     metas.string_value = new_user_meta("Test", 6)
     metas.number_value = new_user_meta(123456, 5)
     metas.bool_value = new_user_meta(true, 4)
-    metas.nil_value = new_user_meta(nil, 3)
-
     array = {}
     array[1] = true
     array[2] = "2"
@@ -610,7 +613,6 @@ function post_update_user(model, successed)
     assert(metas.string_value:get_value() == "Test")
     assert(metas.number_value:get_value() == 123456)
     assert(metas.bool_value:get_value() == true)
-    assert(metas.nil_value:get_value() == nil)
 
     array = metas.array_value:get_value()
     assert(array ~= nil)
@@ -625,7 +627,74 @@ function post_update_user(model, successed)
     assert(metas.bool_value:get_access_level() == 4)
     assert(metas.array_value:get_access_level() == 3)
 
+    assert(metas.string_value:get_type() == 2)
+    assert(metas.number_value:get_type() == 1)
+    assert(metas.bool_value:get_type() == 3)
+    assert(metas.array_value:get_type() == 4)
+end
+"#.as_bytes()).expect("write failed");
+
+    let model = UpdateUser {
+        auth: Arc::new(None),
+        email: None,
+        password: None,
+        socket: Arc::new(general::test::DummyClient::default()),
+        target_user_id: None,
+        name: None,
+        device_id: None,
+        custom_id: None,
+        user_type: None,
+        meta: None,
+        meta_action: None,
+    };
+
+    let config = Arc::new(config);
+    let mut builder = PluginBuilder::default();
+    builder.add_installer(Box::new(LuaPluginInstaller::default()));
+
+    let executer = Arc::new(builder.build(config));
+
+    let model = executer.pre_update_user(model).unwrap();
+    let model = executer.post_update_user(model, true).unwrap();
+    
+    let metas = model.meta.unwrap();
+    assert_eq!(metas.len(), 4);
+    assert_eq!(metas.get("string_value").unwrap(), &MetaType::String("Test".to_string(), UserMetaAccess::System));
+    assert_eq!(metas.get("number_value").unwrap(), &MetaType::Number(123456.0, UserMetaAccess::Admin));
+    assert_eq!(metas.get("bool_value").unwrap(), &MetaType::Bool(true, UserMetaAccess::Mod));
+    assert_eq!(metas.get("array_value").unwrap(), &MetaType::List(Box::new(vec![MetaType::Bool(true, UserMetaAccess::Anonymous), MetaType::String("2".to_string(), UserMetaAccess::Anonymous), MetaType::Number(3.0, UserMetaAccess::Anonymous), MetaType::List(Box::new(Vec::new()), UserMetaAccess::Anonymous)]), UserMetaAccess::Me));
+}
+
+
+#[test]
+fn user_update_test() {
+    let mut config = YummyConfig::default();
+    config.lua_files_path = temp_dir().to_str().unwrap().to_string();
+    
+    let path = std::path::Path::new(&config.lua_files_path[..]).join("user_update_test.lua").to_string_lossy().to_string();
+    let mut lua_file = std::fs::File::create(path).expect("create failed");
+    lua_file.write_all(r#"
+function pre_update_user(model)
+    model:set_name("erhan")
+    model:set_email("erhan@erhan.com")
+    model:set_password("123456")
+    model:set_device_id("234567890")
+    model:set_custom_id("0987654321")
+    model:set_user_type(1)
+    model:set_meta_action(2)
+    metas = {}
+    metas.string_value = new_user_meta("Test", 6)
+    model:set_metas(metas)
+end
+
+function post_update_user(model, successed)
     assert(model:get_email() == "erhan@erhan.com")
+    assert(model:get_name() == "erhan")
+    assert(model:get_password() == "123456")
+    assert(model:get_device_id() == "234567890")
+    assert(model:get_custom_id() == "0987654321")
+    assert(model:get_user_type() == 1)
+    assert(model:get_meta_action() == 2)
 end
 "#.as_bytes()).expect("write failed");
 
@@ -653,11 +722,14 @@ end
     let model = executer.post_update_user(model, true).unwrap();
     
     assert_eq!(model.email, Some("erhan@erhan.com".to_string()));
+    assert_eq!(model.name, Some("erhan".to_string()));
+    assert_eq!(model.password, Some("123456".to_string()));
+    assert_eq!(model.device_id, Some("234567890".to_string()));
+    assert_eq!(model.custom_id, Some("0987654321".to_string()));
+    assert_eq!(model.user_type, Some(UserType::User));
+    assert_eq!(model.meta_action, Some(MetaAction::RemoveAllMetas));
+
     let metas = model.meta.unwrap();
-    assert_eq!(metas.len(), 5);
+    assert_eq!(metas.len(), 1);
     assert_eq!(metas.get("string_value").unwrap(), &MetaType::String("Test".to_string(), UserMetaAccess::System));
-    assert_eq!(metas.get("number_value").unwrap(), &MetaType::Number(123456.0, UserMetaAccess::Admin));
-    assert_eq!(metas.get("bool_value").unwrap(), &MetaType::Bool(true, UserMetaAccess::Mod));
-    assert_eq!(metas.get("nil_value").unwrap(), &MetaType::Null);
-    assert_eq!(metas.get("array_value").unwrap(), &MetaType::List(Box::new(vec![MetaType::Bool(true, UserMetaAccess::Anonymous), MetaType::String("2".to_string(), UserMetaAccess::Anonymous), MetaType::Number(3.0, UserMetaAccess::Anonymous), MetaType::List(Box::new(Vec::new()), UserMetaAccess::Anonymous)]), UserMetaAccess::Me));
 }
