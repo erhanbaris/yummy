@@ -3,6 +3,7 @@ mod model;
 #[cfg(test)]
 mod test;
 
+use std::fmt::Debug;
 use std::path::Path;
 use std::{rc::Rc, cell::RefCell, sync::Arc};
 use std::fs;
@@ -10,10 +11,11 @@ use std::fs;
 use crate::auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect};
 use crate::conn::model::UserConnected;
 use crate::plugin::YummyPlugin;
+use crate::room::model::CreateRoomRequest;
 use crate::user::model::{GetUserInformation, UpdateUser};
 
 use general::config::YummyConfig;
-use general::meta::{UserMetaAccess, MetaType};
+use general::meta::{UserMetaAccess, MetaType, RoomMetaAccess};
 use mlua::prelude::*;
 use glob::{MatchOptions, glob_with};
 
@@ -63,7 +65,7 @@ impl YummyPluginInstaller for LuaPluginInstaller {
     }
 }
 
-fn lua_to_meta_user<'a>(lua: &'a Lua, (value, access): (LuaValue, UserMetaAccess)) -> LuaResult<MetaType<UserMetaAccess>> {
+fn lua_to_meta<'a, T: Default + Debug + PartialEq + Clone + From<i32>>(lua: &'a Lua, (value, access): (LuaValue, T)) -> LuaResult<MetaType<T>> {
     match value {
         LuaValue::Nil => Ok(MetaType::Null),
         LuaValue::Boolean(val) => Ok(MetaType::Bool(val, access)),
@@ -76,7 +78,7 @@ fn lua_to_meta_user<'a>(lua: &'a Lua, (value, access): (LuaValue, UserMetaAccess
             
             for row in table.sequence_values::<LuaValue>() {
                 let row = row?;
-                let row = lua_to_meta_user(lua, (row, UserMetaAccess::default()))?;
+                let row = lua_to_meta(lua, (row, T::default()))?;
                 array.push(row);
             }
 
@@ -90,7 +92,12 @@ fn lua_to_meta_user<'a>(lua: &'a Lua, (value, access): (LuaValue, UserMetaAccess
 }
 
 fn new_user_meta<'a>(lua: &'a Lua, (value, access): (LuaValue, UserMetaAccess)) -> LuaResult<LuaValue<'a>> {
-    let value = lua.create_userdata(lua_to_meta_user(lua, (value, access))?)?;
+    let value = lua.create_userdata(lua_to_meta(lua, (value, access))?)?;
+    Ok(LuaValue::UserData(value))
+}
+
+fn new_room_meta<'a>(lua: &'a Lua, (value, access): (LuaValue, RoomMetaAccess)) -> LuaResult<LuaValue<'a>> {
+    let value = lua.create_userdata(lua_to_meta(lua, (value, access))?)?;
     Ok(LuaValue::UserData(value))
 }
 
@@ -108,6 +115,7 @@ impl LuaPlugin {
     pub fn bind_buildin_functions(&mut self) -> LuaResult<()> {
         let globals = self.lua.globals();
         globals.set("new_user_meta", self.lua.create_function(new_user_meta)?)?;
+        globals.set("new_room_meta", self.lua.create_function(new_room_meta)?)?;
         Ok(())
     }
 
@@ -153,4 +161,7 @@ impl YummyPlugin for LuaPlugin {
     // User manager
     create_func!(pre_get_user_information, post_get_user_information, GetUserInformation);
     create_func!(pre_update_user, post_update_user, UpdateUser);
+
+    // Room Manager
+    create_func!(pre_create_room, post_create_room, CreateRoomRequest);
 }

@@ -136,7 +136,7 @@ pub fn create_websocket_server_with_config(config: Arc<YummyConfig>, test_server
 
         let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
         let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
-        let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start());
+        let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection), executer.clone()).start());
 
         let query_cfg = QueryConfig::default()
             .error_handler(|err, _| {
@@ -228,7 +228,7 @@ pub fn config(cfg: &mut ServiceConfig) {
 
     let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
     let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
-    let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start());
+    let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection), executer.clone()).start());
 
     let query_cfg = QueryConfig::default()
         .error_handler(|err, _| {

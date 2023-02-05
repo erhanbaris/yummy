@@ -63,7 +63,7 @@ pub struct UpdateUser {
     pub device_id: Option<String>,
     pub custom_id: Option<String>,
     pub user_type: Option<UserType>,
-    pub meta: Option<HashMap<String, MetaType<UserMetaAccess>>>,
+    pub metas: Option<HashMap<String, MetaType<UserMetaAccess>>>,
     pub meta_action: Option<MetaAction>
 }
 
@@ -80,7 +80,7 @@ impl Default for UpdateUser
             password: None,
             device_id: None,
             custom_id: None,
-            meta: None,
+            metas: None,
             meta_action: None,
             user_type: None,
         }

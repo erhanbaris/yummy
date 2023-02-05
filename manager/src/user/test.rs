@@ -360,7 +360,7 @@ async fn update_user_2() -> anyhow::Result<()> {
         target_user_id: Some(user_jwt.id.deref().clone()),
         socket: socket.clone(),
         name: Some("Erhan".to_string()),
-        meta: Some(HashMap::from([
+        metas: Some(HashMap::from([
             ("gender".to_string(), MetaType::String("Male".to_string(), UserMetaAccess::Friend)),
             ("location".to_string(), MetaType::String("Copenhagen".to_string(), UserMetaAccess::Friend)),
             ("postcode".to_string(), MetaType::Number(1000.0, UserMetaAccess::Mod)),
@@ -439,7 +439,7 @@ async fn update_user_3() -> anyhow::Result<()> {
         target_user_id: Some(user_jwt.id.deref().clone()),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
-        meta: Some(HashMap::from([
+        metas: Some(HashMap::from([
             ("1".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
             ("2".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
             ("3".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
@@ -460,7 +460,7 @@ async fn update_user_3() -> anyhow::Result<()> {
         target_user_id: Some(user_jwt.id.deref().clone()),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
-        meta: Some(HashMap::from([
+        metas: Some(HashMap::from([
             ("1".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
             ("2".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
             ("3".to_string(), MetaType::Bool(true, UserMetaAccess::Admin)),
@@ -513,7 +513,7 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     user_manager.send(UpdateUser {
         auth: admin.clone(),
         target_user_id: Some(user_id.clone()),
-        meta: Some(HashMap::from([
+        metas: Some(HashMap::from([
             //("system".to_string(), MetaType::Number(112233.0, UserMetaAccess::System)),
             ("admin".to_string(), MetaType::Number(123456789.0, UserMetaAccess::Admin)),
             ("moderator".to_string(), MetaType::String("Copennhagen".to_string(), UserMetaAccess::Mod)),
@@ -531,8 +531,8 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let information = information.result;
 
-    assert!(information.meta.is_some());
-    let information_meta = information.meta.unwrap();
+    assert!(information.metas.is_some());
+    let information_meta = information.metas.unwrap();
     assert_eq!(information_meta.len(), 4);
     assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
     assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
@@ -545,8 +545,8 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let information = information.result;
 
-    assert!(information.meta.is_some());
-    let information_meta = information.meta.unwrap();
+    assert!(information.metas.is_some());
+    let information_meta = information.metas.unwrap();
     assert_eq!(information_meta.len(), 5);
     assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
     assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
@@ -560,8 +560,8 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let information = information.result;
 
-    assert!(information.meta.is_some());
-    let information_meta = information.meta.unwrap();
+    assert!(information.metas.is_some());
+    let information_meta = information.metas.unwrap();
     assert_eq!(information_meta.len(), 6);
     assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
     assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
@@ -575,8 +575,8 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let information = information.result;
 
-    assert!(information.meta.is_some());
-    let information_meta = information.meta.unwrap();
+    assert!(information.metas.is_some());
+    let information_meta = information.metas.unwrap();
     assert_eq!(information_meta.len(), 6);
     assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
     assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
@@ -591,8 +591,8 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let information = information.result;
 
-    assert!(information.meta.is_some());
-    let information_meta = information.meta.unwrap();
+    assert!(information.metas.is_some());
+    let information_meta = information.metas.unwrap();
     assert_eq!(information_meta.len(), 2);
     assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
     assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
@@ -602,8 +602,8 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let information = information.result;
 
-    assert!(information.meta.is_some());
-    let information_meta = information.meta.unwrap();
+    assert!(information.metas.is_some());
+    let information_meta = information.metas.unwrap();
     assert_eq!(information_meta.len(), 1);
     assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
 
@@ -619,7 +619,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
         auth: user.clone(),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
-        meta: Some(HashMap::from([
+        metas: Some(HashMap::from([
             ("1".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
             ("2".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
             ("3".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
@@ -639,7 +639,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
         auth: user.clone(),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
-        meta: Some(HashMap::from([
+        metas: Some(HashMap::from([
             ("1".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
             ("2".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
             ("3".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
@@ -656,8 +656,8 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let information = information.result;
 
-    assert!(information.meta.is_some());
-    let information_meta = information.meta.unwrap();
+    assert!(information.metas.is_some());
+    let information_meta = information.metas.unwrap();
     assert_eq!(information_meta.len(), 5);
 
 
@@ -667,7 +667,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
         auth: user.clone(),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
-        meta: Some(HashMap::from([
+        metas: Some(HashMap::from([
             ("6".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
         ])),
         meta_action: Some(MetaAction::OnlyAddOrUpdate),
@@ -680,8 +680,8 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let information = information.result;
 
-    assert!(information.meta.is_some());
-    let information_meta = information.meta.unwrap();
+    assert!(information.metas.is_some());
+    let information_meta = information.metas.unwrap();
     assert_eq!(information_meta.len(), 6);
 
 
@@ -691,7 +691,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
         auth: user.clone(),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
-        meta: Some(HashMap::from([
+        metas: Some(HashMap::from([
             ("6".to_string(), MetaType::Null),
         ])),
         ..Default::default()
@@ -703,8 +703,8 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let information = information.result;
 
-    assert!(information.meta.is_some());
-    let information_meta = information.meta.unwrap();
+    assert!(information.metas.is_some());
+    let information_meta = information.metas.unwrap();
     assert_eq!(information_meta.len(), 5);
 
 
@@ -725,7 +725,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
     let information: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let information = information.result;
 
-    assert!(information.meta.is_none());
+    assert!(information.metas.is_none());
 
     Ok(())  
 }

@@ -1,10 +1,11 @@
 use std::{ops::Deref, collections::HashMap};
 
-use general::{password::Password, model::{UserId, UserType}, meta::{MetaAction, MetaType, UserMetaAccess}};
+use general::{password::Password, model::{UserId, UserType, CreateRoomAccessType}, meta::{MetaAction, MetaType, UserMetaAccess}};
+use general::meta::RoomMetaAccess;
 
 use mlua::prelude::*;
 
-use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser}};
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser}, room::model::CreateRoomRequest};
 
 macro_rules! auth_macros {
     ($methods: expr) => {
@@ -51,6 +52,15 @@ macro_rules! nullable_set {
 macro_rules! get {
     ($methods: expr, $name: expr, $field_name: ident) => {
         $methods.add_method($name, |_, this, ()| Ok(this.$field_name.clone()));
+    };
+}
+
+macro_rules! set {
+    ($methods: expr, $name: expr, $field_name: ident, $field_type: ident) => {
+        $methods.add_method_mut($name, |_, this, $field_name: $field_type| {
+            this.$field_name = $field_name;
+            Ok(())
+        });
     };
 }
 
@@ -215,7 +225,7 @@ impl LuaUserData for UpdateUser {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
         auth_macros!(methods);
         methods.add_method("get_target_user_id", |_, this, ()| Ok(this.target_user_id.as_ref().map(|item| item.to_string())));
-        get!(methods, "get_metas", meta);
+        get!(methods, "get_metas", metas);
         get!(methods, "get_name", name);
         get!(methods, "get_email", email);
         get!(methods, "get_password", password);
@@ -233,8 +243,37 @@ impl LuaUserData for UpdateUser {
         nullable_set!(methods, i32, "set_user_type", user_type, UserType);
         nullable_set!(methods, i32, "set_meta_action", meta_action, MetaAction);
         
-        methods.add_method_mut("set_metas", |_, this, meta: Option<HashMap<String, MetaType<UserMetaAccess>>>| {
-            this.meta = meta;
+        methods.add_method_mut("set_metas", |_, this, metas: Option<HashMap<String, MetaType<UserMetaAccess>>>| {
+            this.metas = metas;
+            Ok(())
+        });
+    }
+}
+
+impl LuaUserData for CreateRoomRequest {
+    fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        auth_macros!(methods);
+        get!(methods, "get_name", name);
+        get!(methods, "get_description", description);
+        get!(methods, "get_access_type", access_type);
+        get!(methods, "get_join_request", join_request);
+        get!(methods, "get_max_user", max_user);
+        get!(methods, "get_tags", tags);
+        get!(methods, "get_metas", metas);
+
+        nullable_set!(methods, "set_name", name, String);
+        nullable_set!(methods, "set_description", description, String);
+        set!(methods, "set_access_type", access_type, CreateRoomAccessType);
+        set!(methods, "set_join_request", join_request, bool);
+        set!(methods, "set_max_user", max_user, usize);
+
+        methods.add_method_mut("set_tags", |_, this, tags: Vec<String>| {
+            this.tags = tags;
+            Ok(())
+        });
+        
+        methods.add_method_mut("set_metas", |_, this, metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>| {
+            this.metas = metas;
             Ok(())
         });
     }

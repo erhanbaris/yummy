@@ -49,12 +49,12 @@ impl UserStoreTrait for SqliteStore {
 
         match result {
             Some((id, name, email, device_id, custom_id, user_type, insert_date, last_login_date)) => {
-                let meta: HashMap<_, _> = Self::get_user_meta(connection, user_id, access_type)?.into_iter().map(|(_, key, value)| (key, value)).collect();
-                let meta = match meta.is_empty() {
+                let metas: HashMap<_, _> = Self::get_user_meta(connection, user_id, access_type)?.into_iter().map(|(_, key, value)| (key, value)).collect();
+                let metas = match metas.is_empty() {
                     true => None,
-                    false => Some(meta)
+                    false => Some(metas)
                 };
-                Ok(Some(UserInformationModel { id, name, email, device_id, custom_id, meta, user_type: user_type.into(), insert_date, last_login_date, online: false }))
+                Ok(Some(UserInformationModel { id, name, email, device_id, custom_id, metas, user_type: user_type.into(), insert_date, last_login_date, online: false }))
             },
             None => Ok(None)
         }

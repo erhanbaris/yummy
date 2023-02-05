@@ -138,7 +138,7 @@ pub struct UserInformationModel {
     pub email: Option<String>,
     pub device_id: Option<String>,
     pub custom_id: Option<String>,
-    pub meta: Option<HashMap<String, MetaType<UserMetaAccess>>>,
+    pub metas: Option<HashMap<String, MetaType<UserMetaAccess>>>,
     pub user_type: UserType,
     pub online: bool,
     pub insert_date: i32,

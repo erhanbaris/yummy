@@ -21,6 +21,7 @@ use general::state::{YummyState, SendMessage, RoomInfoTypeVariant, RoomInfoType}
 use general::web::{GenericAnswer, Answer};
 
 use crate::auth::model::{AuthError, RoomUserDisconnect};
+use crate::plugin::PluginExecuter;
 use crate::{get_user_session_id_from_auth, get_user_id_from_auth, get_session_id_from_auth};
 use crate::user::model::UserError;
 
@@ -32,15 +33,17 @@ pub struct RoomManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
     states: YummyState,
+    executer: Arc<PluginExecuter>,
     _marker: PhantomData<DB>
 }
 
 impl<DB: DatabaseTrait + ?Sized> RoomManager<DB> {
-    pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>) -> Self {
+    pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>, executer: Arc<PluginExecuter>) -> Self {
         Self {
             config,
             database,
             states,
+            executer,
             _marker: PhantomData
         }
     }
@@ -268,18 +271,17 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="CreateRoom", skip(self, _ctx))]
-    #[macros::api(name="CreateRoom", socket=true)]
+    #[macros::plugin_api(name="create_room", socket=true)]
     fn handle(&mut self, model: CreateRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
-        let CreateRoomRequest { access_type, max_user, name, description, tags, metas, join_request, socket, .. } = model;
         
         // Check user information
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
 
         let mut connection = self.database.get()?;
 
-        let room_id = DB::transaction(&mut connection, move |connection| {
+        let room_id = DB::transaction(&mut connection, |connection| {
             let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
-            let room_id = DB::create_room(connection, name.clone(), access_type.clone(), max_user, join_request, &tags)?;
+            let room_id = DB::create_room(connection, model.name.clone(), model.access_type.clone(), model.max_user, model.join_request, &model.tags)?;
 
             DB::join_to_room(connection, &room_id, user_id, RoomUserType::Owner)?;
 
@@ -291,16 +293,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
             };
             
             #[allow(unused_mut)]
-            let (mut meta, _) = self.configure_metas(connection, &room_id, metas, Some(MetaAction::OnlyAddOrUpdate), access_level)?;
+            let (mut meta, _) = self.configure_metas(connection, &room_id, model.metas.clone(), Some(MetaAction::OnlyAddOrUpdate), access_level)?;
             
-            self.states.create_room(&room_id, insert_date, name, description, access_type, max_user, tags, meta, join_request);
+            self.states.create_room(&room_id, insert_date, model.name.clone(), model.description.clone(), model.access_type.clone(), model.max_user.clone(), model.tags.clone(), meta, model.join_request);
             self.states.join_to_room(&room_id, user_id, session_id, RoomUserType::Owner)?;
            
             anyhow::Ok(room_id)
         })?;
         
 
-        socket.send(GenericAnswer::success(RoomResponse::RoomCreated { room: room_id }).into());
+        model.socket.send(GenericAnswer::success(RoomResponse::RoomCreated { room: room_id }).into());
         Ok(())
     }
 }

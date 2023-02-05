@@ -4,7 +4,7 @@ use mlua::*;
 use mlua::prelude::*;
 
 use crate::meta::*;
-use crate::model::UserType;
+use crate::model::{UserType, CreateRoomAccessType};
 
 impl<T: Default + Debug + PartialEq + Clone + From<i32>> MetaType<T> where i32: std::convert::From<T> {
     pub fn as_lua_value<'lua>(&self, lua: &'lua Lua) -> LuaResult<LuaValue<'lua>> {
@@ -58,6 +58,21 @@ impl<'lua> ToLua<'lua> for UserMetaAccess {
     }
 }
 
+impl<'lua> FromLua<'lua> for RoomMetaAccess {
+    fn from_lua(lua_value: LuaValue<'lua>, _: &'lua Lua) -> LuaResult<Self> {
+        match lua_value {
+            Value::Integer(value) => Ok(RoomMetaAccess::from(value as i32)),
+            _ => Err(mlua::Error::RuntimeError("Meta does not have support for 'Error' type.".to_string()))
+        }
+    }
+}
+
+impl<'lua> ToLua<'lua> for RoomMetaAccess {
+    fn to_lua(self, _: &'lua Lua) -> LuaResult<Value<'lua>> {
+        Ok(Value::Integer(i32::from(self) as i64))
+    }
+}
+
 impl<'lua> FromLua<'lua> for MetaAction {
     fn from_lua(lua_value: LuaValue<'lua>, _: &'lua Lua) -> LuaResult<Self> {
         match lua_value {
@@ -83,6 +98,21 @@ impl<'lua> FromLua<'lua> for UserType {
 }
 
 impl<'lua> ToLua<'lua> for UserType {
+    fn to_lua(self, _: &'lua Lua) -> LuaResult<Value<'lua>> {
+        Ok(Value::Integer(self as i64))
+    }
+}
+
+impl<'lua> FromLua<'lua> for CreateRoomAccessType {
+    fn from_lua(lua_value: LuaValue<'lua>, _: &'lua Lua) -> LuaResult<Self> {
+        match lua_value {
+            Value::Integer(value) => Ok(CreateRoomAccessType::from(value as i32)),
+            _ => Err(mlua::Error::RuntimeError("User type does not have support for 'Error' type.".to_string()))
+        }
+    }
+}
+
+impl<'lua> ToLua<'lua> for CreateRoomAccessType {
     fn to_lua(self, _: &'lua Lua) -> LuaResult<Value<'lua>> {
         Ok(Value::Integer(self as i64))
     }

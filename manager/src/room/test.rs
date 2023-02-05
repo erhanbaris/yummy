@@ -77,7 +77,7 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
 
     let connection = create_connection(db_location.to_str().unwrap())?;
     create_database(&mut connection.clone().get()?)?;
-    Ok((RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone())).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer).start(), config, states.clone(), Arc::new(DummyClient::default())))
+    Ok((RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer).start(), config, states.clone(), Arc::new(DummyClient::default())))
 }
 
 #[actix::test]
@@ -825,8 +825,8 @@ async fn multi_room_support() -> anyhow::Result<()> {
 
     create_database(&mut connection.clone().get()?)?;
 
-    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer).start();
-    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start();
+    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start();
+    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer.clone()).start();
 
     let user_1_socket = Arc::new(DummyClient::default());
     let user_2_socket = Arc::new(DummyClient::default());
@@ -971,8 +971,8 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
 
     create_database(&mut connection.clone().get()?)?;
 
-    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer).start();
-    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start();
+    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start();
+    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer.clone()).start();
 
     let user_1_socket = Arc::new(DummyClient::default());
     let user_2_socket = Arc::new(DummyClient::default());
@@ -1089,8 +1089,8 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
 
     create_database(&mut connection.clone().get()?)?;
 
-    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer).start();
-    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start();
+    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start();
+    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer.clone()).start();
 
     let user_1_socket = Arc::new(DummyClient::default());
     let user_2_socket = Arc::new(DummyClient::default());
@@ -1207,8 +1207,8 @@ async fn user_ban_test() -> anyhow::Result<()> {
 
     create_database(&mut connection.clone().get()?)?;
 
-    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer).start();
-    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start();
+    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start();
+    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer.clone()).start();
 
     let user_1_socket = Arc::new(DummyClient::default());
     let user_2_socket = Arc::new(DummyClient::default());
@@ -1325,8 +1325,8 @@ async fn kick_ban_test() -> anyhow::Result<()> {
 
     create_database(&mut connection.clone().get()?)?;
 
-    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer).start();
-    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection)).start();
+    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start();
+    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer.clone()).start();
 
     let user_1_socket = Arc::new(DummyClient::default());
     let user_2_socket = Arc::new(DummyClient::default());

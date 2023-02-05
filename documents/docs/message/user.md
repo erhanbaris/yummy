@@ -63,7 +63,7 @@ Update user information. Current implementation only allow to update own informa
         | `device_id`   | string                      | Y        |                                                                                                                                |
         | `custom_id`   | string                      | Y        |                                                                                                                                |
         | `user_type`   | [UserType](#usertype)       | Y        |                                                                                                                                |
-        | `meta`        | [[Meta]](general-objects.md#meta)     | Y        | Array of [Meta](general-objects.md#meta) information. This is user based information and have access level to whom see that information. |
+        | `metas`       | [[Meta]](general-objects.md#meta)     | Y        | Array of [Meta](general-objects.md#meta) information. This is user based information and have access level to whom see that information. |
         | `meta_action` | [MetaAction](general-objects.md#meta-actions) | Y        | Default value is **0**                                                                                                         |
         
         **Example request:**

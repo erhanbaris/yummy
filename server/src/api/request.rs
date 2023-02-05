@@ -61,7 +61,7 @@ pub enum RequestUserType {
         #[serde(rename = "user_type")]
         user_type: Option<UserType>,
 
-        meta: Option<HashMap<String, MetaType<UserMetaAccess>>>,
+        metas: Option<HashMap<String, MetaType<UserMetaAccess>>>,
         meta_action: Option<MetaAction>
     }
 }

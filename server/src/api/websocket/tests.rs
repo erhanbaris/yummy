@@ -85,7 +85,7 @@ macro_rules! update_meta {
     ($client: expr, $meta: tt) => {
         let request = json!({
             "type": "UpdateUser",
-            "meta": $meta
+            "metas": $meta
         });
 
         $client.send(request).await;
@@ -127,7 +127,7 @@ pub fn create_websocket_server_with_config(config: Arc<YummyConfig>, test_server
 
         let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
         let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
-        let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection)).start());
+        let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection), executer.clone()).start());
 
         let query_cfg = QueryConfig::default()
             .error_handler(|err, _| {
@@ -913,7 +913,7 @@ async fn user_update_2() -> anyhow::Result<()> {
 
     client.send(json!({
         "type": "UpdateUser",
-        "meta": {}
+        "metas": {}
     })).await;
     let receive = client.get_text().await;
     assert!(receive.is_some());
@@ -964,7 +964,7 @@ async fn user_update_4() -> anyhow::Result<()> {
 
     let me = get_me!(client);
 
-    let me = me.meta;
+    let me = me.metas;
     assert_eq!(me.get("me type"), Some(&serde_json::Value::Number(serde_json::Number::from_f64(9.0).unwrap())));
     assert_eq!(me.get("user type"), Some(&serde_json::Value::Number(serde_json::Number::from_f64(8.0).unwrap())));
     

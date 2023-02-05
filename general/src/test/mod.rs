@@ -167,7 +167,7 @@ pub mod model {
         pub email: Option<String>,
         pub device_id: Option<String>,
         pub custom_id: Option<String>,
-        pub meta: serde_json::Value,
+        pub metas: serde_json::Value,
         pub user_type: i64,
         pub online: bool,
         pub insert_date: i64,

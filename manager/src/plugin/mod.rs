@@ -2,7 +2,7 @@ use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, rc::Rc, cell::RefCell};
 
 use general::config::YummyConfig;
 
-use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, UpdateUser}};
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, UpdateUser}, room::model::CreateRoomRequest};
 
 pub mod lua;
 
@@ -66,6 +66,9 @@ pub trait YummyPlugin {
     // User manager
     create_plugin_func!(pre_get_user_information, post_get_user_information, GetUserInformation);
     create_plugin_func!(pre_update_user, post_update_user, UpdateUser);
+
+    // Room Manager
+    create_plugin_func!(pre_create_room, post_create_room, CreateRoomRequest);
 }
 
 pub trait YummyPluginInstaller {
@@ -120,6 +123,9 @@ impl PluginExecuter {
     // User manager
     create_executer_func!(pre_get_user_information, post_get_user_information, GetUserInformation);
     create_executer_func!(pre_update_user, post_update_user, UpdateUser);
+
+    // Room Manager
+    create_executer_func!(pre_create_room, post_create_room, CreateRoomRequest);
 }
 
 #[derive(Default)]

@@ -3,12 +3,13 @@ use std::io::Write;
 
 use tempdir::TempDir;
 
-use general::meta::{MetaType, UserMetaAccess, MetaAction};
-use general::model::{UserId, UserType};
+use general::meta::{MetaType, UserMetaAccess, MetaAction, RoomMetaAccess};
+use general::model::{UserId, UserType, CreateRoomAccessType};
 use general::{password::Password, config::YummyConfig};
 
 use crate::auth::model::ConnUserDisconnect;
 use crate::conn::model::UserConnected;
+use crate::room::model::CreateRoomRequest;
 use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use crate::{plugin::{EmailAuthRequest, PluginBuilder, lua::LuaPluginInstaller}, auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}};
 use super::LuaPlugin;
@@ -644,7 +645,7 @@ end
         device_id: None,
         custom_id: None,
         user_type: None,
-        meta: None,
+        metas: None,
         meta_action: None,
     };
 
@@ -657,7 +658,7 @@ end
     let model = executer.pre_update_user(model).unwrap();
     let model = executer.post_update_user(model, true).unwrap();
     
-    let metas = model.meta.unwrap();
+    let metas = model.metas.unwrap();
     assert_eq!(metas.len(), 4);
     assert_eq!(metas.get("string_value").unwrap(), &MetaType::String("Test".to_string(), UserMetaAccess::System));
     assert_eq!(metas.get("number_value").unwrap(), &MetaType::Number(123456.0, UserMetaAccess::Admin));
@@ -708,7 +709,7 @@ end
         device_id: None,
         custom_id: None,
         user_type: None,
-        meta: None,
+        metas: None,
         meta_action: None,
     };
 
@@ -729,7 +730,78 @@ end
     assert_eq!(model.user_type, Some(UserType::User));
     assert_eq!(model.meta_action, Some(MetaAction::RemoveAllMetas));
 
-    let metas = model.meta.unwrap();
+    let metas = model.metas.unwrap();
     assert_eq!(metas.len(), 1);
     assert_eq!(metas.get("string_value").unwrap(), &MetaType::String("Test".to_string(), UserMetaAccess::System));
+}
+
+
+#[test]
+fn create_room_test() {
+    let mut config = YummyConfig::default();
+    config.lua_files_path = temp_dir().to_str().unwrap().to_string();
+    
+    let path = std::path::Path::new(&config.lua_files_path[..]).join("create_room_test.lua").to_string_lossy().to_string();
+    let mut lua_file = std::fs::File::create(path).expect("create failed");
+    lua_file.write_all(r#"
+function pre_create_room(model)
+    model:set_name("erhan")
+    model:set_description("desc")
+    model:set_access_type(2)
+    model:set_join_request(true)
+    model:set_max_user(10)
+
+    array = {}
+    array[1] = "1"
+    array[2] = "2"
+    array[3] = "3"
+    array[4] = "4"
+    
+    model:set_tags(array)
+
+    metas = {}
+    metas.string_value = new_room_meta("Test", 6)
+    model:set_metas(metas)
+end
+
+function post_create_room(model, successed)
+    assert(model:get_name() == "erhan")
+    assert(model:get_description() == "desc")
+    assert(model:get_access_type() == 2)
+    assert(model:get_join_request() == true)
+    assert(model:get_max_user() == 10)
+end
+"#.as_bytes()).expect("write failed");
+
+    let model = CreateRoomRequest {
+        auth: Arc::new(None),
+        socket: Arc::new(general::test::DummyClient::default()),
+        name: None,
+        metas: None,
+        description: None,
+        access_type: CreateRoomAccessType::Public,
+        join_request: false,
+        max_user: 0,
+        tags: Vec::new(),
+    };
+
+    let config = Arc::new(config);
+    let mut builder = PluginBuilder::default();
+    builder.add_installer(Box::new(LuaPluginInstaller::default()));
+
+    let executer = Arc::new(builder.build(config));
+
+    let model = executer.pre_create_room(model).unwrap();
+    let model = executer.post_create_room(model, true).unwrap();
+
+    assert_eq!(model.name, Some("erhan".to_string()));
+    assert_eq!(model.description, Some("desc".to_string()));
+    assert_eq!(model.access_type, CreateRoomAccessType::Friend);
+    assert_eq!(model.join_request, true);
+    assert_eq!(model.max_user, 10);
+    assert_eq!(model.tags, vec!["1".to_string(), "2".to_string(), "3".to_string(), "4".to_string()]);
+
+    let metas = model.metas.unwrap();
+    assert_eq!(metas.len(), 1);
+    assert_eq!(metas.get("string_value").unwrap(), &MetaType::String("Test".to_string(), RoomMetaAccess::Anonymous));
 }

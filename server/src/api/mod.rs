@@ -52,7 +52,7 @@ pub(crate) fn process_user<DB: DatabaseTrait + Unpin + 'static>(user_type: Reque
      match user_type {
         RequestUserType::Me => as_response!(user_manager, GetUserInformation::me(auth, socket)),
         RequestUserType::Get { user } => as_response!(user_manager, GetUserInformation::user(user, auth, socket)),
-        RequestUserType::Update { name, email, password, device_id, custom_id, user_type, meta, meta_action } => as_response!(user_manager, UpdateUser { auth, name, email, password, device_id, custom_id, meta, meta_action, user_type, socket, target_user_id: None }),
+        RequestUserType::Update { name, email, password, device_id, custom_id, user_type, metas, meta_action } => as_response!(user_manager, UpdateUser { auth, name, email, password, device_id, custom_id, metas, meta_action, user_type, socket, target_user_id: None }),
     };
     Ok(())
 }

@@ -110,7 +110,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
     #[tracing::instrument(name="UpdateUser", skip(self, _ctx))]
     #[macros::plugin_api(name="update_user", socket=true)]
     fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
-        let UpdateUser { name, socket, email, password, device_id, custom_id, user_type, meta, meta_action, target_user_id, .. } = &model;
+        let UpdateUser { name, socket, email, password, device_id, custom_id, user_type, metas, meta_action, target_user_id, .. } = &model;
 
         let user_id = get_user_id_from_auth!(model);
 
@@ -121,7 +121,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
 
         let has_user_update = custom_id.is_some() || device_id.is_some() || email.is_some() || name.is_some() || password.is_some() || user_type.is_some();
 
-        if !has_user_update && meta.as_ref().map(|dict| dict.len()).unwrap_or_default() == 0 {
+        if !has_user_update && metas.as_ref().map(|dict| dict.len()).unwrap_or_default() == 0 {
             return Err(anyhow::anyhow!(UserError::UpdateInformationMissing));
         }
 
@@ -168,13 +168,13 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
                 general::meta::MetaAction::OnlyAddOrUpdate => {
 
                     // Check for metas
-                    match meta {
-                        Some(meta) => {
+                    match metas {
+                        Some(metas) => {
                             let user_old_metas = DB::get_user_meta(connection, target_user_id, user_access_level)?;
                             let mut remove_list = Vec::new();
                             let mut insert_list = Vec::new();
 
-                            for (key, value) in meta.into_iter() {
+                            for (key, value) in metas.into_iter() {
 
                                 let meta_access_level = value.get_access_level() as u8;
                                 if meta_access_level > user_access_level_code {
@@ -211,12 +211,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
                 general::meta::MetaAction::RemoveUnusedMetas => {
 
                     // Check for metas
-                    match meta {
-                        Some(meta) => {
+                    match metas {
+                        Some(metas) => {
                             let remove_list = DB::get_user_meta(connection, target_user_id, user_access_level.clone())?.into_iter().map(|meta| meta.0).collect::<Vec<_>>();
                             let mut insert_list = Vec::new();
 
-                            for (key, value) in meta.into_iter() {
+                            for (key, value) in metas.into_iter() {
                                 
                                 let meta_access_level = value.get_access_level() as u8;
                                 if meta_access_level > user_access_level_code {

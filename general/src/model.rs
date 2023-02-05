@@ -182,6 +182,17 @@ impl From<CreateRoomAccessType> for i32 {
     }
 }
 
+impl From<i32> for CreateRoomAccessType {
+    fn from(user_type: i32) -> Self {
+        match user_type {
+            0 => CreateRoomAccessType::Public,
+            1 => CreateRoomAccessType::Private,
+            2 => CreateRoomAccessType::Friend,
+            _ => CreateRoomAccessType::default()
+        }
+    }
+}
+
 generate_redis_convert!(CreateRoomAccessType);
 
 #[derive(Default, Debug, Eq, PartialEq, PartialOrd, Clone, Serialize_repr, Deserialize_repr, FromPrimitive, ToPrimitive)]
