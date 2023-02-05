@@ -86,18 +86,18 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
                 Some(user) => execute(&mut connection, &user.user, UserMetaAccess::Me),
                 None => Err(anyhow::anyhow!(AuthError::TokenNotValid))
             },
-            GetUserInformationEnum::UserViaSystem(user) => execute(&mut connection, &user, UserMetaAccess::System),
+            GetUserInformationEnum::UserViaSystem(user) => execute(&mut connection, user, UserMetaAccess::System),
             GetUserInformationEnum::User { user, requester } => {
                 match requester.deref() {
                     Some(requester) => {
                         let user_type = DB::get_user_type(&mut connection, &requester.user)?;
-                        execute(&mut connection, &user, match user_type {
+                        execute(&mut connection, user, match user_type {
                             UserType::Admin => UserMetaAccess::Admin,
                             UserType::Mod => UserMetaAccess::Mod,
                             UserType::User => UserMetaAccess::User
                         })
                     },
-                    None => execute(&mut connection, &user, UserMetaAccess::Anonymous)
+                    None => execute(&mut connection, user, UserMetaAccess::Anonymous)
                 }
             }
         }
@@ -174,7 +174,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
                             let mut remove_list = Vec::new();
                             let mut insert_list = Vec::new();
 
-                            for (key, value) in metas.into_iter() {
+                            for (key, value) in metas {
 
                                 let meta_access_level = value.get_access_level() as u8;
                                 if meta_access_level > user_access_level_code {
@@ -216,7 +216,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
                             let remove_list = DB::get_user_meta(connection, target_user_id, user_access_level.clone())?.into_iter().map(|meta| meta.0).collect::<Vec<_>>();
                             let mut insert_list = Vec::new();
 
-                            for (key, value) in metas.into_iter() {
+                            for (key, value) in metas {
                                 
                                 let meta_access_level = value.get_access_level() as u8;
                                 if meta_access_level > user_access_level_code {
@@ -272,7 +272,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
             }
 
             if let Some(Some(name)) = updates.name {
-                self.states.set_user_name(target_user_id, name.clone());
+                self.states.set_user_name(target_user_id, name);
             }
             Ok(())
         })

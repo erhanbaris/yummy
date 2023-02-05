@@ -11,7 +11,7 @@ use std::fs;
 use crate::auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect};
 use crate::conn::model::UserConnected;
 use crate::plugin::YummyPlugin;
-use crate::room::model::CreateRoomRequest;
+use crate::room::model::{CreateRoomRequest, UpdateRoom};
 use crate::user::model::{GetUserInformation, UpdateUser};
 
 use general::config::YummyConfig;
@@ -65,7 +65,7 @@ impl YummyPluginInstaller for LuaPluginInstaller {
     }
 }
 
-fn lua_to_meta<'a, T: Default + Debug + PartialEq + Clone + From<i32>>(lua: &'a Lua, (value, access): (LuaValue, T)) -> LuaResult<MetaType<T>> {
+fn lua_to_meta<T: Default + Debug + PartialEq + Clone + From<i32>>(_lua: &'_ Lua, (value, access): (LuaValue, T)) -> LuaResult<MetaType<T>> {
     match value {
         LuaValue::Nil => Ok(MetaType::Null),
         LuaValue::Boolean(val) => Ok(MetaType::Bool(val, access)),
@@ -78,7 +78,7 @@ fn lua_to_meta<'a, T: Default + Debug + PartialEq + Clone + From<i32>>(lua: &'a 
             
             for row in table.sequence_values::<LuaValue>() {
                 let row = row?;
-                let row = lua_to_meta(lua, (row, T::default()))?;
+                let row = lua_to_meta(_lua, (row, T::default()))?;
                 array.push(row);
             }
 
@@ -164,4 +164,5 @@ impl YummyPlugin for LuaPlugin {
 
     // Room Manager
     create_func!(pre_create_room, post_create_room, CreateRoomRequest);
+    create_func!(pre_update_room, post_update_room, UpdateRoom);
 }

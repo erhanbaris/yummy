@@ -48,9 +48,9 @@ pub struct RoomInsert {
 
 #[derive(Default, Debug, AsChangeset)]
 #[diesel(table_name = room)]
-pub struct RoomUpdate {
-    pub name: Option<Option<String>>,
-    pub description: Option<Option<String>>,
+pub struct RoomUpdate<'a> {
+    pub name: Option<Option<&'a str>>,
+    pub description: Option<Option<&'a str>>,
     pub max_user: Option<i32>,
     pub join_request: Option<i32>,
     pub access_type: Option<i32>,

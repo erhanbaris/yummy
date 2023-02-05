@@ -295,7 +295,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
             #[allow(unused_mut)]
             let (mut meta, _) = self.configure_metas(connection, &room_id, model.metas.clone(), Some(MetaAction::OnlyAddOrUpdate), access_level)?;
             
-            self.states.create_room(&room_id, insert_date, model.name.clone(), model.description.clone(), model.access_type.clone(), model.max_user.clone(), model.tags.clone(), meta, model.join_request);
+            self.states.create_room(&room_id, insert_date, model.name.clone(), model.description.clone(), model.access_type.clone(), model.max_user, model.tags.clone(), meta, model.join_request);
             self.states.join_to_room(&room_id, user_id, session_id, RoomUserType::Owner)?;
            
             anyhow::Ok(room_id)
@@ -311,66 +311,65 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="UpdateRoom", skip(self, _ctx))]
-    #[macros::api(name="UpdateRoom", socket=true)]
+    #[macros::plugin_api(name="update_room", socket=true)]
     fn handle(&mut self, model: UpdateRoom, _ctx: &mut Context<Self>) -> Self::Result {
 
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
 
-        let UpdateRoom { room_id, name, description, socket, metas, meta_action, access_type, max_user, tags, user_permission, join_request, .. } = model;
+        let has_room_update = model.access_type.is_some() || model.max_user.is_some() || model.name.is_some() || model.description.is_some();
 
-        let has_room_update = access_type.is_some() || max_user.is_some() || name.is_some() || description.is_some();
-
-        if !has_room_update && metas.is_none() {
+        if !has_room_update && model.metas.is_none() {
             return Err(anyhow::anyhow!(RoomError::UpdateInformationMissing));
         }
 
         // Calculate room access level for user
-        let access_level = self.get_access_level_for_room(user_id, session_id, &room_id)?;
-
-        let updates = RoomUpdate {
-            max_user: max_user.map(|item| item as i32 ),
-            access_type: access_type.map(|item| item.into() ),
-            join_request: join_request.map(|item| item.into() ),
-            name: name.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} ),
-            description: description.map(|item| match item.trim().is_empty() { true => None, false => Some(item)} )
-        };
+        let access_level = self.get_access_level_for_room(user_id, session_id, &model.room_id)?;
 
         let mut connection = self.database.get()?;
 
-        DB::transaction::<_, anyhow::Error, _>(&mut connection, move |connection| {
+        DB::transaction::<_, anyhow::Error, _>(&mut connection, |connection| {
 
             /* Meta configuration */
             #[allow(unused_mut)]
-            let (mut metas, mut remaining) = self.configure_metas(connection, &model.room_id, metas, meta_action, access_level)?;
+            let (mut metas, mut remaining) = self.configure_metas(connection, &model.room_id, model.metas.clone(), model.meta_action.clone(), access_level)?;
 
             /* Tag configuration */
+            let tags = model.tags.clone();
             self.configure_tags(connection, &model.room_id, &tags)?;
 
             /* Change user permission */
-            if let Some(user_permission) = user_permission {
-                DB::update_room_user_permissions(connection, &model.room_id, &user_permission)?;
+            if let Some(user_permission) = &model.user_permission {
+                DB::update_room_user_permissions(connection, &model.room_id, user_permission)?;
                 
-                for (user_id, user_type) in user_permission.into_iter() {
-                    self.states.set_users_room_type(&user_id, &model.room_id, user_type)?;
+                for (user_id, user_type) in user_permission {
+                    self.states.set_users_room_type(user_id, &model.room_id, user_type.clone())?;
                 }
             }
             
             // Update user
+            let updates = RoomUpdate {
+                max_user: model.max_user.map(|item| item as i32 ),
+                access_type: model.access_type.as_ref().map(|item| item.clone().into() ),
+                join_request: model.join_request.map(|item| item.into() ),
+                name: model.name.as_ref().map(|item| match item.trim().is_empty() { true => None, false => Some(&item[..])} ),
+                description: model.description.as_ref().map(|item| match item.trim().is_empty() { true => None, false => Some(&item[..])} )
+            };
+
             match has_room_update {
                 true => match DB::update_room(connection, &model.room_id, &updates)? {
                     0 => return Err(anyhow::anyhow!(UserError::UserNotFound)),
-                    _ => socket.send(Answer::success().into())
+                    _ => model.socket.send(Answer::success().into())
                 },
-                false => socket.send(Answer::success().into())
+                false => model.socket.send(Answer::success().into())
             };
 
             // Update all caches
             let mut room_update_query = Vec::new();
             if let Some(name) = updates.name {
-                room_update_query.push(RoomInfoType::RoomName(name));
+                room_update_query.push(RoomInfoType::RoomName(name.map(|item| item.to_string())));
             }
             if let Some(description) = updates.description {
-                room_update_query.push(RoomInfoType::Description(description));
+                room_update_query.push(RoomInfoType::Description(description.map(|item| item.to_string())));
             }
 
             if let Some(max_user) = updates.max_user {
@@ -387,7 +386,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
             }
 
             if !room_update_query.is_empty() {
-                self.states.set_room_info(&room_id, room_update_query);
+                self.states.set_room_info(&model.room_id, room_update_query);
             }
             Ok(())
         })
