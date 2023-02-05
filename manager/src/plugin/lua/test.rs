@@ -9,7 +9,7 @@ use general::{password::Password, config::YummyConfig};
 
 use crate::auth::model::ConnUserDisconnect;
 use crate::conn::model::UserConnected;
-use crate::room::model::{CreateRoomRequest, UpdateRoom};
+use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest};
 use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use crate::{plugin::{EmailAuthRequest, PluginBuilder, lua::LuaPluginInstaller}, auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}};
 use super::LuaPlugin;
@@ -805,7 +805,6 @@ end
     assert_eq!(metas.get("string_value").unwrap(), &MetaType::String("Test".to_string(), RoomMetaAccess::Anonymous));
 }
 
-
 #[test]
 fn update_room_test() {
     let mut config = YummyConfig::default();
@@ -834,9 +833,9 @@ function pre_update_room(model)
     model:set_metas(metas)
 
     permissions = {}
-    permissions["0fea69b6-4032-4ea4-9a32-72e818ce11da"] = 0
-    permissions["0fea69b6-4032-4ea4-9a32-72e818ce11db"] = 1
-    permissions["0fea69b6-4032-4ea4-9a32-72e818ce11dc"] = 2
+    permissions["0fea69b6-4032-4ea4-9a32-72e818ce11da"] = 1
+    permissions["0fea69b6-4032-4ea4-9a32-72e818ce11db"] = 2
+    permissions["0fea69b6-4032-4ea4-9a32-72e818ce11dc"] = 3
     model:set_user_permission(permissions)
 end
 
@@ -889,4 +888,45 @@ end
     assert_eq!(user_permission.get(&UserId::from("0fea69b6-4032-4ea4-9a32-72e818ce11da".to_string())).unwrap(), &RoomUserType::User);
     assert_eq!(user_permission.get(&UserId::from("0fea69b6-4032-4ea4-9a32-72e818ce11db".to_string())).unwrap(), &RoomUserType::Moderator);
     assert_eq!(user_permission.get(&UserId::from("0fea69b6-4032-4ea4-9a32-72e818ce11dc".to_string())).unwrap(), &RoomUserType::Owner);
+}
+
+#[test]
+fn join_to_room_test() {
+    let mut config = YummyConfig::default();
+    config.lua_files_path = temp_dir().to_str().unwrap().to_string();
+    
+    let path = std::path::Path::new(&config.lua_files_path[..]).join("join_to_room_test.lua").to_string_lossy().to_string();
+    let mut lua_file = std::fs::File::create(path).expect("create failed");
+    lua_file.write_all(r#"
+function pre_join_to_room(model)
+    model:set_room("0fea69b6-4032-4ea4-9a32-72e818ce11da")
+    model:set_room_user_type(3)
+end
+
+function post_join_to_room(model, successed)
+    print(model:get_room())
+    print(model:get_room_user_type())
+    assert(model:get_room() == "0fea69b6-4032-4ea4-9a32-72e818ce11da")
+    assert(model:get_room_user_type() == 3)
+end
+"#.as_bytes()).expect("write failed");
+
+    let model = JoinToRoomRequest {
+        auth: Arc::new(None),
+        socket: Arc::new(general::test::DummyClient::default()),
+        room: RoomId::new(),
+        room_user_type: RoomUserType::User
+    };
+
+    let config = Arc::new(config);
+    let mut builder = PluginBuilder::default();
+    builder.add_installer(Box::new(LuaPluginInstaller::default()));
+
+    let executer = Arc::new(builder.build(config));
+
+    let model = executer.pre_join_to_room(model).unwrap();
+    let model = executer.post_join_to_room(model, true).unwrap();
+
+    assert_eq!(model.room, RoomId::from("0fea69b6-4032-4ea4-9a32-72e818ce11da".to_string()));
+    assert_eq!(model.room_user_type, RoomUserType::Owner);
 }

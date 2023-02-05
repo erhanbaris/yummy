@@ -421,7 +421,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="JoinToRoom", skip(self, _ctx))]
-    #[macros::api(name="JoinToRoom", socket=true)]
+    #[macros::plugin_api(name="join_to_room", socket=true)]
     fn handle(&mut self, model: JoinToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
         // Check user information
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
@@ -460,7 +460,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
             model.socket.send(GenericAnswer::success(RoomResponse::JoinRequested { room: &model.room }).into());
         } else {
             // User can directly try to join room
-            self.join_to_room(&mut connection, &model.room, user_id, session_id, model.room_user_type)?;
+            self.join_to_room(&mut connection, &model.room, user_id, session_id, model.room_user_type.clone())?;
         }
         Ok(())
     }

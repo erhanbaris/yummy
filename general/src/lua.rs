@@ -4,7 +4,7 @@ use mlua::*;
 use mlua::prelude::*;
 
 use crate::meta::*;
-use crate::model::{UserType, CreateRoomAccessType, RoomUserType, UserId};
+use crate::model::{UserType, CreateRoomAccessType, RoomUserType, UserId, RoomId};
 
 impl<T: Default + Debug + PartialEq + Clone + From<i32>> MetaType<T> where i32: std::convert::From<T> {
     pub fn as_lua_value<'lua>(&self, lua: &'lua Lua) -> LuaResult<LuaValue<'lua>> {
@@ -124,6 +124,26 @@ impl<'lua> FromLua<'lua> for UserId {
 }
 
 impl<'lua> ToLua<'lua> for UserId {
+    fn to_lua(self, lua: &'lua Lua) -> LuaResult<Value<'lua>> {
+        Ok(Value::String(lua.create_string(&self.to_string())?))
+    }
+}
+
+impl<'lua> FromLua<'lua> for RoomId {
+    fn from_lua(lua_value: LuaValue<'lua>, _: &'lua Lua) -> LuaResult<Self> {
+        match lua_value {
+            Value::String(value) => {
+                match value.to_str() {
+                    Ok(room_id) => Ok(RoomId::from(room_id.to_string())),
+                    Err(error) => Err(mlua::Error::RuntimeError(error.to_string()))
+                }
+            },
+            _ => Err(mlua::Error::RuntimeError("Room does not have support for 'Error' type.".to_string()))
+        }
+    }
+}
+
+impl<'lua> ToLua<'lua> for RoomId {
     fn to_lua(self, lua: &'lua Lua) -> LuaResult<Value<'lua>> {
         Ok(Value::String(lua.create_string(&self.to_string())?))
     }

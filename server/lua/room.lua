@@ -12,3 +12,11 @@ end
 
 function post_update_room(model, successed)
 end
+
+
+-- Update room
+function pre_join_to_room(model)
+end
+
+function post_join_to_room(model, successed)
+end

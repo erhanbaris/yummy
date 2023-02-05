@@ -11,7 +11,7 @@ use std::fs;
 use crate::auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect};
 use crate::conn::model::UserConnected;
 use crate::plugin::YummyPlugin;
-use crate::room::model::{CreateRoomRequest, UpdateRoom};
+use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest};
 use crate::user::model::{GetUserInformation, UpdateUser};
 
 use general::config::YummyConfig;
@@ -165,4 +165,5 @@ impl YummyPlugin for LuaPlugin {
     // Room Manager
     create_func!(pre_create_room, post_create_room, CreateRoomRequest);
     create_func!(pre_update_room, post_update_room, UpdateRoom);
+    create_func!(pre_join_to_room, post_join_to_room, JoinToRoomRequest);
 }

@@ -207,9 +207,9 @@ pub enum RoomUserType {
 impl From<RoomUserType> for i32 {
     fn from(item: RoomUserType) -> Self {
         match item {
-            RoomUserType::User => 0,
-            RoomUserType::Moderator => 1,
-            RoomUserType::Owner => 2,
+            RoomUserType::User => 1,
+            RoomUserType::Moderator => 2,
+            RoomUserType::Owner => 3,
         }
     }
 }
@@ -217,9 +217,9 @@ impl From<RoomUserType> for i32 {
 impl From<i32> for RoomUserType {
     fn from(user_type: i32) -> Self {
         match user_type {
-            0 => RoomUserType::User,
-            1 => RoomUserType::Moderator,
-            2 => RoomUserType::Owner,
+            1 => RoomUserType::User,
+            2 => RoomUserType::Moderator,
+            3 => RoomUserType::Owner,
             _ => RoomUserType::default()
         }
     }

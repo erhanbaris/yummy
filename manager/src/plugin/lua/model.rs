@@ -1,11 +1,11 @@
 use std::{ops::Deref, collections::HashMap};
 
-use general::{password::Password, model::{UserId, UserType, CreateRoomAccessType, RoomUserType}, meta::{MetaAction, MetaType, UserMetaAccess}};
+use general::{password::Password, model::{UserId, UserType, CreateRoomAccessType, RoomUserType, RoomId}, meta::{MetaAction, MetaType, UserMetaAccess}};
 use general::meta::RoomMetaAccess;
 
 use mlua::prelude::*;
 
-use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser}, room::model::{CreateRoomRequest, UpdateRoom}};
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest}};
 
 macro_rules! auth_macros {
     ($methods: expr) => {
@@ -308,5 +308,16 @@ impl LuaUserData for UpdateRoom {
             this.metas = metas;
             Ok(())
         });
+    }
+}
+
+impl LuaUserData for JoinToRoomRequest {
+    fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        auth_macros!(methods);
+        get!(methods, "get_room", room);
+        get!(methods, "get_room_user_type", room_user_type);
+
+        set!(methods, "set_room", room, RoomId);
+        set!(methods, "set_room_user_type", room_user_type, RoomUserType);
     }
 }
