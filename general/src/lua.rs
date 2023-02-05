@@ -52,12 +52,6 @@ impl<'lua> FromLua<'lua> for UserMetaAccess {
     }
 }
 
-impl<'lua> ToLua<'lua> for UserMetaAccess {
-    fn to_lua(self, _: &'lua Lua) -> LuaResult<Value<'lua>> {
-        Ok(Value::Integer(i32::from(self) as i64))
-    }
-}
-
 impl<'lua> FromLua<'lua> for RoomMetaAccess {
     fn from_lua(lua_value: LuaValue<'lua>, _: &'lua Lua) -> LuaResult<Self> {
         match lua_value {
@@ -73,27 +67,9 @@ impl<'lua> ToLua<'lua> for RoomMetaAccess {
     }
 }
 
-impl<'lua> FromLua<'lua> for MetaAction {
-    fn from_lua(lua_value: LuaValue<'lua>, _: &'lua Lua) -> LuaResult<Self> {
-        match lua_value {
-            Value::Integer(value) => Ok(MetaAction::try_from(value as i32).unwrap_or_default()),
-            _ => Err(mlua::Error::RuntimeError("Meta action does not have support for 'Error' type.".to_string()))
-        }
-    }
-}
-
 impl<'lua> ToLua<'lua> for MetaAction {
     fn to_lua(self, _: &'lua Lua) -> LuaResult<Value<'lua>> {
         Ok(Value::Integer(self as i64))
-    }
-}
-
-impl<'lua> FromLua<'lua> for UserType {
-    fn from_lua(lua_value: LuaValue<'lua>, _: &'lua Lua) -> LuaResult<Self> {
-        match lua_value {
-            Value::Integer(value) => Ok(UserType::from(value as i32)),
-            _ => Err(mlua::Error::RuntimeError("User type does not have support for 'Error' type.".to_string()))
-        }
     }
 }
 
