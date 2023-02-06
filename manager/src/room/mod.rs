@@ -471,14 +471,14 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<ProcessW
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="ProcessWaitingUser", skip(self, _ctx))]
-    #[macros::api(name="ProcessWaitingUser", socket=true)]
+    #[macros::plugin_api(name="process_waiting_user", socket=true)]
     fn handle(&mut self, model: ProcessWaitingUser, _ctx: &mut Context<Self>) -> Self::Result {        
         // Check user information
         let user_id = get_user_id_from_auth!(model);
         let (session_id, room_user_type) = self.states.remove_user_from_waiting_list(&model.user, &model.room)?;
         let mut connection = self.database.get()?;
 
-        DB::transaction(&mut connection, move |connection| {
+        DB::transaction(&mut connection, |connection| {
             DB::update_join_to_room_request(connection, &model.room, &model.user, user_id, model.status)?;
             
             if model.status {
@@ -508,7 +508,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<KickUser
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="KickUserFromRoom", skip(self, _ctx))]
-    #[macros::api(name="KickUserFromRoom", socket=true)]
+    #[macros::plugin_api(name="kick_user_from_room", socket=true)]
     fn handle(&mut self, model: KickUserFromRoom, _ctx: &mut Context<Self>) -> Self::Result {        
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
 
@@ -540,7 +540,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<KickUser
         }) {
             self.issue_system_async(SendMessage {
                 message,
-                user_id: Arc::new(model.user)
+                user_id: Arc::new(model.user.clone())
             })
         }
 

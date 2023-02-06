@@ -9,7 +9,7 @@ use general::{password::Password, config::YummyConfig};
 
 use crate::auth::model::ConnUserDisconnect;
 use crate::conn::model::UserConnected;
-use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest};
+use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom};
 use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use crate::{plugin::{EmailAuthRequest, PluginBuilder, lua::LuaPluginInstaller}, auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}};
 use super::LuaPlugin;
@@ -929,4 +929,90 @@ end
 
     assert_eq!(model.room, RoomId::from("0fea69b6-4032-4ea4-9a32-72e818ce11da".to_string()));
     assert_eq!(model.room_user_type, RoomUserType::Owner);
+}
+
+#[test]
+fn process_waiting_user_test() {
+    let mut config = YummyConfig::default();
+    config.lua_files_path = temp_dir().to_str().unwrap().to_string();
+    
+    let path = std::path::Path::new(&config.lua_files_path[..]).join("process_waiting_user_test.lua").to_string_lossy().to_string();
+    let mut lua_file = std::fs::File::create(path).expect("create failed");
+    lua_file.write_all(r#"
+function pre_process_waiting_user(model)
+    model:set_room("0fea69b6-4032-4ea4-9a32-72e818ce11da")
+    model:set_user("0fea69b6-4032-4ea4-9a32-72e818ce11db")
+    model:set_status(true)
+end
+
+function post_process_waiting_user(model, successed)
+    assert(model:get_room() == "0fea69b6-4032-4ea4-9a32-72e818ce11da")
+    assert(model:get_user() == "0fea69b6-4032-4ea4-9a32-72e818ce11db")
+    assert(model:get_status() == true)
+end
+"#.as_bytes()).expect("write failed");
+
+    let model = ProcessWaitingUser {
+        auth: Arc::new(None),
+        socket: Arc::new(general::test::DummyClient::default()),
+        room: RoomId::new(),
+        user: UserId::new(),
+        status: false
+    };
+
+    let config = Arc::new(config);
+    let mut builder = PluginBuilder::default();
+    builder.add_installer(Box::new(LuaPluginInstaller::default()));
+
+    let executer = Arc::new(builder.build(config));
+
+    let model = executer.pre_process_waiting_user(model).unwrap();
+    let model = executer.post_process_waiting_user(model, true).unwrap();
+
+    assert_eq!(model.room, RoomId::from("0fea69b6-4032-4ea4-9a32-72e818ce11da".to_string()));
+    assert_eq!(model.user, UserId::from("0fea69b6-4032-4ea4-9a32-72e818ce11db".to_string()));
+    assert_eq!(model.status, true);
+}
+
+#[test]
+fn kick_user_from_room_test() {
+    let mut config = YummyConfig::default();
+    config.lua_files_path = temp_dir().to_str().unwrap().to_string();
+    
+    let path = std::path::Path::new(&config.lua_files_path[..]).join("kick_user_from_room_test.lua").to_string_lossy().to_string();
+    let mut lua_file = std::fs::File::create(path).expect("create failed");
+    lua_file.write_all(r#"
+function pre_kick_user_from_room(model)
+    model:set_room("0fea69b6-4032-4ea4-9a32-72e818ce11da")
+    model:set_user("0fea69b6-4032-4ea4-9a32-72e818ce11db")
+    model:set_ban(true)
+end
+
+function post_kick_user_from_room(model, successed)
+    assert(model:get_room() == "0fea69b6-4032-4ea4-9a32-72e818ce11da")
+    assert(model:get_user() == "0fea69b6-4032-4ea4-9a32-72e818ce11db")
+    assert(model:get_ban() == true)
+end
+"#.as_bytes()).expect("write failed");
+
+    let model = KickUserFromRoom {
+        auth: Arc::new(None),
+        socket: Arc::new(general::test::DummyClient::default()),
+        room: RoomId::new(),
+        user: UserId::new(),
+        ban: false
+    };
+
+    let config = Arc::new(config);
+    let mut builder = PluginBuilder::default();
+    builder.add_installer(Box::new(LuaPluginInstaller::default()));
+
+    let executer = Arc::new(builder.build(config));
+
+    let model = executer.pre_kick_user_from_room(model).unwrap();
+    let model = executer.post_kick_user_from_room(model, true).unwrap();
+
+    assert_eq!(model.room, RoomId::from("0fea69b6-4032-4ea4-9a32-72e818ce11da".to_string()));
+    assert_eq!(model.user, UserId::from("0fea69b6-4032-4ea4-9a32-72e818ce11db".to_string()));
+    assert_eq!(model.ban, true);
 }

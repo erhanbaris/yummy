@@ -5,7 +5,7 @@ use general::meta::RoomMetaAccess;
 
 use mlua::prelude::*;
 
-use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest}};
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom}};
 
 macro_rules! auth_macros {
     ($methods: expr) => {
@@ -319,5 +319,31 @@ impl LuaUserData for JoinToRoomRequest {
 
         set!(methods, "set_room", room, RoomId);
         set!(methods, "set_room_user_type", room_user_type, RoomUserType);
+    }
+}
+
+impl LuaUserData for ProcessWaitingUser {
+    fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        auth_macros!(methods);
+        get!(methods, "get_room", room);
+        get!(methods, "get_user", user);
+        get!(methods, "get_status", status);
+
+        set!(methods, "set_room", room, RoomId);
+        set!(methods, "set_user", user, UserId);
+        set!(methods, "set_status", status, bool);
+    }
+}
+
+impl LuaUserData for KickUserFromRoom {
+    fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        auth_macros!(methods);
+        get!(methods, "get_room", room);
+        get!(methods, "get_user", user);
+        get!(methods, "get_ban", ban);
+
+        set!(methods, "set_room", room, RoomId);
+        set!(methods, "set_user", user, UserId);
+        set!(methods, "set_ban", ban, bool);
     }
 }
