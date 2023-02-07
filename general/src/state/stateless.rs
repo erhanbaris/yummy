@@ -499,7 +499,7 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="get_room_info", skip(self))]
-    pub fn get_room_info(&self, room_id: &RoomId, access_level: RoomMetaAccess, query: Vec<RoomInfoTypeVariant>) -> Result<RoomInfoTypeCollection, YummyStateError> {
+    pub fn get_room_info(&self, room_id: &RoomId, access_level: RoomMetaAccess, query: &[RoomInfoTypeVariant]) -> Result<RoomInfoTypeCollection, YummyStateError> {
         use std::collections::HashMap;
 
         use redis::FromRedisValue;
@@ -729,7 +729,7 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="get_rooms", skip(self))]
-    pub fn get_rooms(&self, tag: Option<String>, query: Vec<RoomInfoTypeVariant>) -> Result<Vec<RoomInfoTypeCollection>, YummyStateError> {
+    pub fn get_rooms(&self, tag: &Option<String>, query: &[RoomInfoTypeVariant]) -> Result<Vec<RoomInfoTypeCollection>, YummyStateError> {
         use std::collections::HashMap;
 
         use redis::FromRedisValue;

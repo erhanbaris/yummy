@@ -5,6 +5,7 @@ use mlua::prelude::*;
 
 use crate::meta::*;
 use crate::model::{UserType, CreateRoomAccessType, RoomUserType, UserId, RoomId};
+use crate::state::RoomInfoTypeVariant;
 
 impl<T: Default + Debug + PartialEq + Clone + From<i32>> MetaType<T> where i32: std::convert::From<T> {
     pub fn as_lua_value<'lua>(&self, lua: &'lua Lua) -> LuaResult<LuaValue<'lua>> {
@@ -146,5 +147,33 @@ impl<'lua> FromLua<'lua> for RoomId {
 impl<'lua> ToLua<'lua> for RoomId {
     fn to_lua(self, lua: &'lua Lua) -> LuaResult<Value<'lua>> {
         Ok(Value::String(lua.create_string(&self.to_string())?))
+    }
+}
+
+impl<'lua> FromLua<'lua> for RoomInfoTypeVariant {
+    fn from_lua(lua_value: LuaValue<'lua>, _: &'lua Lua) -> LuaResult<Self> {
+        match lua_value {
+            Value::Integer(value) => Ok(match value {
+                0 => RoomInfoTypeVariant::RoomName,
+                1 => RoomInfoTypeVariant::Description,
+                2 => RoomInfoTypeVariant::Users,
+                3 => RoomInfoTypeVariant::MaxUser,
+                4 => RoomInfoTypeVariant::UserLength,
+                5 => RoomInfoTypeVariant::AccessType,
+                6 => RoomInfoTypeVariant::Tags,
+                7 => RoomInfoTypeVariant::Metas,
+                8 => RoomInfoTypeVariant::InsertDate,
+                9 => RoomInfoTypeVariant::JoinRequest,
+                10 => RoomInfoTypeVariant::BannedUsers,
+                _ => return Err(mlua::Error::RuntimeError("Room info type not valid.".to_string()))
+            }),
+            _ => Err(mlua::Error::RuntimeError("Room does not have support for 'Error' type.".to_string()))
+        }
+    }
+}
+
+impl<'lua> ToLua<'lua> for RoomInfoTypeVariant {
+    fn to_lua(self, _: &'lua Lua) -> LuaResult<Value<'lua>> {
+        Ok(Value::Integer(self as i64))
     }
 }

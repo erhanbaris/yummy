@@ -1,11 +1,11 @@
 use std::{ops::Deref, collections::HashMap};
 
-use general::{password::Password, model::{UserId, UserType, CreateRoomAccessType, RoomUserType, RoomId}, meta::{MetaAction, MetaType, UserMetaAccess}};
+use general::{password::Password, model::{UserId, UserType, CreateRoomAccessType, RoomUserType, RoomId}, meta::{MetaAction, MetaType, UserMetaAccess}, state::RoomInfoTypeVariant};
 use general::meta::RoomMetaAccess;
 
 use mlua::prelude::*;
 
-use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom}};
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest}};
 
 macro_rules! auth_macros {
     ($methods: expr) => {
@@ -56,7 +56,7 @@ macro_rules! get {
 }
 
 macro_rules! set {
-    ($methods: expr, $name: expr, $field_name: ident, $field_type: ident) => {
+    ($methods: expr, $name: expr, $field_name: ident, $field_type: ty) => {
         $methods.add_method_mut($name, |_, this, $field_name: $field_type| {
             this.$field_name = $field_name;
             Ok(())
@@ -345,5 +345,52 @@ impl LuaUserData for KickUserFromRoom {
         set!(methods, "set_room", room, RoomId);
         set!(methods, "set_user", user, UserId);
         set!(methods, "set_ban", ban, bool);
+    }
+}
+
+impl LuaUserData for DisconnectFromRoomRequest {
+    fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        auth_macros!(methods);
+        get!(methods, "get_room", room);
+        set!(methods, "set_room", room, RoomId);
+    }
+}
+
+impl LuaUserData for MessageToRoomRequest {
+    fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        auth_macros!(methods);
+        get!(methods, "get_room", room);
+        get!(methods, "get_message", message);
+        set!(methods, "set_room", room, RoomId);
+        set!(methods, "set_message", message, String);
+    }
+}
+
+impl LuaUserData for RoomListRequest {
+    fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        get!(methods, "get_tag", tag);
+        get!(methods, "get_members", members);
+
+        set!(methods, "set_tag", tag, Option<String>);
+        set!(methods, "set_members", members, Vec<RoomInfoTypeVariant>);
+    }
+}
+
+impl LuaUserData for WaitingRoomJoins {
+    fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        auth_macros!(methods);
+        get!(methods, "get_room", room);
+        set!(methods, "set_room", room, RoomId);
+    }
+}
+
+impl LuaUserData for GetRoomRequest {
+    fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        auth_macros!(methods);
+        get!(methods, "get_room", room);
+        get!(methods, "get_members", members);
+        
+        set!(methods, "set_room", room, RoomId);
+        set!(methods, "set_members", members, Vec<RoomInfoTypeVariant>);
     }
 }

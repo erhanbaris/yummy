@@ -2,7 +2,7 @@ use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, rc::Rc, cell::RefCell};
 
 use general::config::YummyConfig;
 
-use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, UpdateUser}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom}};
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, UpdateUser}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest}};
 
 pub mod lua;
 
@@ -73,6 +73,11 @@ pub trait YummyPlugin {
     create_plugin_func!(pre_join_to_room, post_join_to_room, JoinToRoomRequest);
     create_plugin_func!(pre_process_waiting_user, post_process_waiting_user, ProcessWaitingUser);
     create_plugin_func!(pre_kick_user_from_room, post_kick_user_from_room, KickUserFromRoom);
+    create_plugin_func!(pre_disconnect_from_room_request, post_disconnect_from_room_request, DisconnectFromRoomRequest);
+    create_plugin_func!(pre_message_to_room_request, post_message_to_room_request, MessageToRoomRequest);
+    create_plugin_func!(pre_room_list_request, post_room_list_request, RoomListRequest);
+    create_plugin_func!(pre_waiting_room_joins, post_waiting_room_joins, WaitingRoomJoins);
+    create_plugin_func!(pre_get_room_request, post_get_room_request, GetRoomRequest);
 }
 
 pub trait YummyPluginInstaller {
@@ -134,6 +139,11 @@ impl PluginExecuter {
     create_executer_func!(pre_join_to_room, post_join_to_room, JoinToRoomRequest);
     create_executer_func!(pre_process_waiting_user, post_process_waiting_user, ProcessWaitingUser);
     create_executer_func!(pre_kick_user_from_room, post_kick_user_from_room, KickUserFromRoom);
+    create_executer_func!(pre_disconnect_from_room_request, post_disconnect_from_room_request, DisconnectFromRoomRequest);
+    create_executer_func!(pre_message_to_room_request, post_message_to_room_request, MessageToRoomRequest);
+    create_executer_func!(pre_room_list_request, post_room_list_request, RoomListRequest);
+    create_executer_func!(pre_waiting_room_joins, post_waiting_room_joins, WaitingRoomJoins);
+    create_executer_func!(pre_get_room_request, post_get_room_request, GetRoomRequest);
 }
 
 #[derive(Default)]

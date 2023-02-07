@@ -2,7 +2,6 @@ pub mod model;
 
 #[cfg(test)]
 mod test;
-
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{marker::PhantomData, ops::Deref};
@@ -26,6 +25,8 @@ use crate::{get_user_session_id_from_auth, get_user_id_from_auth, get_session_id
 use crate::user::model::UserError;
 
 use self::model::*;
+
+const ALL_ROOM_INFO_TYPE_VARIANTS: [RoomInfoTypeVariant; 10] = [RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::BannedUsers, RoomInfoTypeVariant::JoinRequest, RoomInfoTypeVariant::Metas];
 
 type ConfigureMetasResult = anyhow::Result<(Option<HashMap<String, MetaType<RoomMetaAccess>>>, HashMap<String, MetaType<RoomMetaAccess>>)>;
 
@@ -80,7 +81,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
 
         let access_level = self.get_access_level_for_room(user_id, session_id, room_id)?;
         
-        let infos = self.states.get_room_info(room_id, access_level, vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::Metas])?;
+        let infos = self.states.get_room_info(room_id, access_level, &[RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::Metas])?;
         let room_name = infos.get_room_name();
         let users = infos.get_users();
         let metas = infos.get_metas();
@@ -271,7 +272,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="CreateRoom", skip(self, _ctx))]
-    #[macros::plugin_api(name="create_room", socket=true)]
+    #[macros::plugin_api(name="create_room")]
     fn handle(&mut self, model: CreateRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
         
         // Check user information
@@ -311,7 +312,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="UpdateRoom", skip(self, _ctx))]
-    #[macros::plugin_api(name="update_room", socket=true)]
+    #[macros::plugin_api(name="update_room")]
     fn handle(&mut self, model: UpdateRoom, _ctx: &mut Context<Self>) -> Self::Result {
 
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
@@ -397,7 +398,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<WaitingR
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="WaitingRoomJoins", skip(self, _ctx))]
-    #[macros::api(name="WaitingRoomJoins", socket=true)]
+    #[macros::plugin_api(name="waiting_room_joins")]
     fn handle(&mut self, model: WaitingRoomJoins, _ctx: &mut Context<Self>) -> Self::Result {
         // Check user information
         let session_id = get_session_id_from_auth!(model);
@@ -421,12 +422,12 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="JoinToRoom", skip(self, _ctx))]
-    #[macros::plugin_api(name="join_to_room", socket=true)]
+    #[macros::plugin_api(name="join_to_room")]
     fn handle(&mut self, model: JoinToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
         // Check user information
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
 
-        let room_infos = self.states.get_room_info(&model.room, RoomMetaAccess::System, vec![RoomInfoTypeVariant::JoinRequest])?;
+        let room_infos = self.states.get_room_info(&model.room, RoomMetaAccess::System, &[RoomInfoTypeVariant::JoinRequest])?;
         let join_require_approvement = room_infos.get_join_request();
         let mut connection = self.database.get()?;
 
@@ -442,7 +443,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
             // Save to database
             DB::join_to_room_request(&mut connection, &model.room, user_id, model.room_user_type.clone())?;
 
-            let room_infos = self.states.get_room_info(&model.room, RoomMetaAccess::System, vec![RoomInfoTypeVariant::Users])?;
+            let room_infos = self.states.get_room_info(&model.room, RoomMetaAccess::System, &[RoomInfoTypeVariant::Users])?;
             let users = room_infos.get_users();
 
             let message: String = RoomResponse::NewJoinRequest { room: &model.room, user: user_id, user_type: model.room_user_type.clone() }.into();
@@ -471,7 +472,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<ProcessW
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="ProcessWaitingUser", skip(self, _ctx))]
-    #[macros::plugin_api(name="process_waiting_user", socket=true)]
+    #[macros::plugin_api(name="process_waiting_user")]
     fn handle(&mut self, model: ProcessWaitingUser, _ctx: &mut Context<Self>) -> Self::Result {        
         // Check user information
         let user_id = get_user_id_from_auth!(model);
@@ -508,7 +509,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<KickUser
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="KickUserFromRoom", skip(self, _ctx))]
-    #[macros::plugin_api(name="kick_user_from_room", socket=true)]
+    #[macros::plugin_api(name="kick_user_from_room")]
     fn handle(&mut self, model: KickUserFromRoom, _ctx: &mut Context<Self>) -> Self::Result {        
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
 
@@ -553,7 +554,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<Disconne
     type Result = ();
 
     #[tracing::instrument(name="DisconnectFromRoomRequest", skip(self, _ctx))]
-    #[macros::simple_api(name="DisconnectFromRoomRequest", socket=true)]
+    #[macros::plugin_api(name="disconnect_from_room_request", no_return=true)]
     fn handle(&mut self, model: DisconnectFromRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         #[allow(clippy::unused_unit)]
@@ -568,18 +569,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="MessageToRoomRequest", skip(self, _ctx))]
-    #[macros::api(name="MessageToRoomRequest", socket=true)]
-    fn handle(&mut self, model: MessageToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {   
-        let MessageToRoomRequest { auth, room, message, socket } = model;
-
-        let sender_user_id = match auth.deref() {
+    #[macros::plugin_api(name="message_to_room_request")]
+    fn handle(&mut self, model: MessageToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
+        let sender_user_id = match model.auth.deref() {
             Some(user) => &user.user,
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
-        match self.states.get_users_from_room(&room) {
+        match self.states.get_users_from_room(&model.room) {
             Ok(users) => {
-                let message: String = RoomResponse::MessageFromRoom { user: sender_user_id, room: &model.room, message: Arc::new(message) }.into();
+                let message: String = RoomResponse::MessageFromRoom { user: sender_user_id, room: &model.room, message: &model.message }.into();
 
                 for receiver_user in users.into_iter() {
                     if receiver_user.as_ref() != sender_user_id {
@@ -590,7 +589,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
                     }
                 }
 
-                socket.send(Answer::success().into());
+                model.socket.send(Answer::success().into());
                 Ok(())
             }
             Err(error) => Err(anyhow!(error))
@@ -602,15 +601,15 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomList
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="RoomListRequest", skip(self, _ctx))]
-    #[macros::api(name="RoomListRequest", socket=true)]
+    #[macros::plugin_api(name="room_list_request")]
     fn handle(&mut self, model: RoomListRequest, _ctx: &mut Context<Self>) -> Self::Result {
         let members = if model.members.is_empty() {
-            vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::BannedUsers]
+            &ALL_ROOM_INFO_TYPE_VARIANTS
         } else {
-            model.members
+            &model.members[..]
         };
 
-        let rooms = self.states.get_rooms(model.tag, members)?;
+        let rooms = self.states.get_rooms(&model.tag, members)?;
         model.socket.send(GenericAnswer::success(RoomResponse::RoomList { rooms }).into());
         Ok(())
     }
@@ -620,16 +619,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetRoomR
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="GetRoomRequest", skip(self, _ctx))]
-    #[macros::api(name="GetRoomRequest", socket=true)]
+    #[macros::plugin_api(name="get_room_request")]
     fn handle(&mut self, model: GetRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
         
         // Check user information
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
 
         let members = if model.members.is_empty() {
-            vec![RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::Metas, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::BannedUsers]
+            &ALL_ROOM_INFO_TYPE_VARIANTS
         } else {
-            model.members
+            &model.members[..]
         };
 
         let access_level = self.get_access_level_for_room(user_id, session_id, &model.room)?;

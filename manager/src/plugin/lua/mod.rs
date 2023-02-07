@@ -11,7 +11,7 @@ use std::fs;
 use crate::auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect};
 use crate::conn::model::UserConnected;
 use crate::plugin::YummyPlugin;
-use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom};
+use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest};
 use crate::user::model::{GetUserInformation, UpdateUser};
 
 use general::config::YummyConfig;
@@ -168,4 +168,9 @@ impl YummyPlugin for LuaPlugin {
     create_func!(pre_join_to_room, post_join_to_room, JoinToRoomRequest);
     create_func!(pre_process_waiting_user, post_process_waiting_user, ProcessWaitingUser);
     create_func!(pre_kick_user_from_room, post_kick_user_from_room, KickUserFromRoom);
+    create_func!(pre_disconnect_from_room_request, post_disconnect_from_room_request, DisconnectFromRoomRequest);
+    create_func!(pre_message_to_room_request, post_message_to_room_request, MessageToRoomRequest);
+    create_func!(pre_room_list_request, post_room_list_request, RoomListRequest);
+    create_func!(pre_waiting_room_joins, post_waiting_room_joins, WaitingRoomJoins);
+    create_func!(pre_get_room_request, post_get_room_request, GetRoomRequest);
 }

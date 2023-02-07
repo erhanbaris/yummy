@@ -114,7 +114,7 @@ impl Handler<UserConnected> for ConnectionManager {
     type Result = ();
 
     #[tracing::instrument(name="UserConnected", skip(self, _ctx))]
-    #[macros::plugin_api(name="user_connected", socket=true, no_return=true)]
+    #[macros::plugin_api(name="user_connected", no_return=true)]
     fn handle(&mut self, model: UserConnected, _ctx: &mut Self::Context) -> Self::Result {
         self.users.insert(model.user_id.deref().clone(), model.socket.clone());
     }
@@ -124,7 +124,7 @@ impl Handler<ConnUserDisconnect> for ConnectionManager {
     type Result = ();
 
     #[tracing::instrument(name="ConnUserDisconnect", skip(self, _ctx))]
-    #[macros::plugin_api(name="user_disconnected", socket=true, no_return=true)]
+    #[macros::plugin_api(name="user_disconnected", no_return=true)]
     fn handle(&mut self, model: ConnUserDisconnect, _ctx: &mut Self::Context) -> Self::Result {
         let user_id = match model.auth.deref() {
             Some(user) => &user.user,

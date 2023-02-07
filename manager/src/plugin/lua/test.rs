@@ -1,15 +1,17 @@
 use std::{rc::Rc, cell::RefCell, sync::Arc, env::temp_dir};
 use std::io::Write;
 
+use general::auth::UserAuth;
+use general::state::RoomInfoTypeVariant;
 use tempdir::TempDir;
 
 use general::meta::{MetaType, UserMetaAccess, MetaAction, RoomMetaAccess};
-use general::model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType};
+use general::model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType, SessionId};
 use general::{password::Password, config::YummyConfig};
 
 use crate::auth::model::ConnUserDisconnect;
 use crate::conn::model::UserConnected;
-use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom};
+use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest};
 use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use crate::{plugin::{EmailAuthRequest, PluginBuilder, lua::LuaPluginInstaller}, auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}};
 use super::LuaPlugin;
@@ -1015,4 +1017,175 @@ end
     assert_eq!(model.room, RoomId::from("0fea69b6-4032-4ea4-9a32-72e818ce11da".to_string()));
     assert_eq!(model.user, UserId::from("0fea69b6-4032-4ea4-9a32-72e818ce11db".to_string()));
     assert_eq!(model.ban, true);
+}
+
+#[test]
+fn disconnect_from_room_request_test() {
+    let mut config = YummyConfig::default();
+    config.lua_files_path = temp_dir().to_str().unwrap().to_string();
+    
+    let path = std::path::Path::new(&config.lua_files_path[..]).join("disconnect_from_room_request_test.lua").to_string_lossy().to_string();
+    let mut lua_file = std::fs::File::create(path).expect("create failed");
+    lua_file.write_all(r#"
+function pre_disconnect_from_room_request(model)
+    model:set_room("0fea69b6-4032-4ea4-9a32-72e818ce11da")
+end
+
+function post_disconnect_from_room_request(model, successed)
+    assert(model:get_room() == "0fea69b6-4032-4ea4-9a32-72e818ce11da")
+end
+"#.as_bytes()).expect("write failed");
+
+    let model = DisconnectFromRoomRequest {
+        auth: Arc::new(None),
+        socket: Arc::new(general::test::DummyClient::default()),
+        room: RoomId::new()
+    };
+
+    let config = Arc::new(config);
+    let mut builder = PluginBuilder::default();
+    builder.add_installer(Box::new(LuaPluginInstaller::default()));
+
+    let executer = Arc::new(builder.build(config));
+
+    let model = executer.pre_disconnect_from_room_request(model).unwrap();
+    let model = executer.post_disconnect_from_room_request(model, true).unwrap();
+
+    assert_eq!(model.room, RoomId::from("0fea69b6-4032-4ea4-9a32-72e818ce11da".to_string()));
+}
+
+
+#[test]
+fn room_list_request_test() {
+    let mut config = YummyConfig::default();
+    config.lua_files_path = temp_dir().to_str().unwrap().to_string();
+    
+    let path = std::path::Path::new(&config.lua_files_path[..]).join("room_list_request_test.lua").to_string_lossy().to_string();
+    let mut lua_file = std::fs::File::create(path).expect("create failed");
+    lua_file.write_all(r#"
+function pre_room_list_request(model)
+    array = {}
+    array[1] = 0
+    array[2] = 1
+    array[3] = 2
+    array[4] = 3
+
+    model:set_members(array)
+    model:set_tag("my tag")
+end
+
+function post_room_list_request(model, successed)
+    model:get_members()
+    assert(model:get_tag() == "my tag")
+end
+"#.as_bytes()).expect("write failed");
+
+    let model = RoomListRequest {
+        tag: None,
+        socket: Arc::new(general::test::DummyClient::default()),
+        members: Vec::new()
+    };
+
+    let config = Arc::new(config);
+    let mut builder = PluginBuilder::default();
+    builder.add_installer(Box::new(LuaPluginInstaller::default()));
+
+    let executer = Arc::new(builder.build(config));
+
+    let model = executer.pre_room_list_request(model).unwrap();
+    let model = executer.post_room_list_request(model, true).unwrap();
+
+    assert_eq!(model.members, vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Description, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser]);
+    assert_eq!(model.tag, Some("my tag".to_string()));
+}
+
+
+#[test]
+fn waiting_room_joins_test() {
+    let mut config = YummyConfig::default();
+    config.lua_files_path = temp_dir().to_str().unwrap().to_string();
+    
+    let path = std::path::Path::new(&config.lua_files_path[..]).join("waiting_room_joins_test.lua").to_string_lossy().to_string();
+    let mut lua_file = std::fs::File::create(path).expect("create failed");
+    lua_file.write_all(r#"
+function pre_waiting_room_joins(model)
+    model:set_room("0fea69b6-4032-4ea4-9a32-72e818ce11da")
+end
+
+function post_waiting_room_joins(model, successed)
+    assert(model:get_room() == "0fea69b6-4032-4ea4-9a32-72e818ce11da")
+end
+"#.as_bytes()).expect("write failed");
+
+    let model = WaitingRoomJoins {
+        auth: Arc::new(None),
+        socket: Arc::new(general::test::DummyClient::default()),
+        room: RoomId::new()
+    };
+
+    let config = Arc::new(config);
+    let mut builder = PluginBuilder::default();
+    builder.add_installer(Box::new(LuaPluginInstaller::default()));
+
+    let executer = Arc::new(builder.build(config));
+
+    let model = executer.pre_waiting_room_joins(model).unwrap();
+    let model = executer.post_waiting_room_joins(model, true).unwrap();
+
+    assert_eq!(model.room, RoomId::from("0fea69b6-4032-4ea4-9a32-72e818ce11da".to_string()));
+}
+
+
+#[test]
+fn get_room_request_test() {
+    let mut config = YummyConfig::default();
+    config.lua_files_path = temp_dir().to_str().unwrap().to_string();
+    
+    let path = std::path::Path::new(&config.lua_files_path[..]).join("get_room_request_test.lua").to_string_lossy().to_string();
+    let mut lua_file = std::fs::File::create(path).expect("create failed");
+    lua_file.write_all(r#"
+function pre_get_room_request(model)
+    model:set_room("0fea69b6-4032-4ea4-9a32-72e818ce11da")
+
+    array = {}
+    array[1] = 0
+    array[2] = 1
+    array[3] = 2
+    array[4] = 3
+
+    model:set_members(array)
+end
+
+function post_get_room_request(model, successed)
+    model:get_members()
+    assert(model:get_room() == "0fea69b6-4032-4ea4-9a32-72e818ce11da")
+    assert(model:get_user_id() ~= nil)
+    assert(model:get_session_id() ~= nil)
+
+    assert(model:get_user_id() ~= "")
+    assert(model:get_session_id() ~= "")
+end
+"#.as_bytes()).expect("write failed");
+
+    let model = GetRoomRequest {
+        auth: Arc::new(Some(UserAuth {
+            user: UserId::new(),
+            session: SessionId::new()
+        })),
+        socket: Arc::new(general::test::DummyClient::default()),
+        members: Vec::new(),
+        room: RoomId::new()
+    };
+
+    let config = Arc::new(config);
+    let mut builder = PluginBuilder::default();
+    builder.add_installer(Box::new(LuaPluginInstaller::default()));
+
+    let executer = Arc::new(builder.build(config));
+
+    let model = executer.pre_get_room_request(model).unwrap();
+    let model = executer.post_get_room_request(model, true).unwrap();
+
+    assert_eq!(model.members, vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Description, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser]);
+    assert_eq!(model.room, RoomId::from("0fea69b6-4032-4ea4-9a32-72e818ce11da".to_string()));
 }

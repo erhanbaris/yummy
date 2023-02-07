@@ -63,7 +63,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="GetUserInformation", skip(self, _ctx))]
-    #[macros::plugin_api(name="get_user_information", socket=true)]
+    #[macros::plugin_api(name="get_user_information")]
     fn handle(&mut self, model: GetUserInformation, _ctx: &mut Context<Self>) -> Self::Result {
 
         let mut connection = self.database.get()?;
@@ -108,7 +108,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="UpdateUser", skip(self, _ctx))]
-    #[macros::plugin_api(name="update_user", socket=true)]
+    #[macros::plugin_api(name="update_user")]
     fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
         let UpdateUser { name, socket, email, password, device_id, custom_id, user_type, metas, meta_action, target_user_id, .. } = &model;
 

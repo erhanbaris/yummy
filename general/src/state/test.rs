@@ -179,20 +179,20 @@ async fn get_room() -> anyhow::Result<()> {
     let room = RoomId::new();
     state.create_room(&room, 1234, Some("Room 1".to_string()), None, CreateRoomAccessType::Private, 10, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()], None, false);
 
-    let result = state.get_room_info(&room, RoomMetaAccess::Admin, Vec::new())?;
+    let result = state.get_room_info(&room, RoomMetaAccess::Admin, &[])?;
     assert_eq!(result.items.len(), 0);
 
-    let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::RoomName])?;
+    let result = state.get_room_info(&room, RoomMetaAccess::Admin, &[RoomInfoTypeVariant::RoomName])?;
     assert_eq!(result.items.len(), 1);
     assert_eq!(result.get_room_name().into_owned(), Some("Room 1".to_string()));
 
     state.set_room_info(&room, vec![RoomInfoType::RoomName(Some("New room".to_string()))]);
 
-    let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::RoomName])?;
+    let result = state.get_room_info(&room, RoomMetaAccess::Admin, &[RoomInfoTypeVariant::RoomName])?;
     assert_eq!(result.items.len(), 1);
     assert_eq!(result.get_room_name().into_owned(), Some("New room".to_string()));
 
-    let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::BannedUsers, RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength])?;
+    let result = state.get_room_info(&room, RoomMetaAccess::Admin, &[RoomInfoTypeVariant::BannedUsers, RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength])?;
     assert_eq!(result.items.len(), 8);
     assert_eq!(result.get_room_name().into_owned(), Some("New room".to_string()));
     assert_eq!(result.get_max_user().into_owned(), 10);
@@ -208,14 +208,14 @@ async fn get_room() -> anyhow::Result<()> {
     assert_eq!(tags, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()]);
 
     state.set_room_info(&room, vec![RoomInfoType::Tags(vec!["yummy1".to_string(), "yummy2".to_string(), "yummy3".to_string()])]);
-    let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::Tags])?;
+    let result = state.get_room_info(&room, RoomMetaAccess::Admin, &[RoomInfoTypeVariant::Tags])?;
     
     let mut tags = result.get_tags().into_owned();
     tags.sort_by(|a, b| a.partial_cmp(b).unwrap());
     assert_eq!(tags, vec!["yummy1".to_string(), "yummy2".to_string(), "yummy3".to_string()]);
 
     state.set_room_info(&room, vec![RoomInfoType::Tags(Vec::new())]);
-    let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::Tags])?;
+    let result = state.get_room_info(&room, RoomMetaAccess::Admin, &[RoomInfoTypeVariant::Tags])?;
     
     let tags = result.get_tags().into_owned();
     assert_eq!(tags, Vec::<String>::new());
@@ -236,7 +236,7 @@ async fn get_room() -> anyhow::Result<()> {
     state.join_to_room(&room, &user_2, &user_2_session, RoomUserType::Owner)?;
     state.join_to_room(&room, &user_3, &user_3_session, RoomUserType::Owner)?;
     
-    let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::Users])?;
+    let result = state.get_room_info(&room, RoomMetaAccess::Admin, &[RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::Users])?;
     assert_eq!(result.items.len(), 2);
     assert_eq!(result.get_user_length().into_owned(), 3);
 
@@ -247,7 +247,7 @@ async fn get_room() -> anyhow::Result<()> {
     // Change user permission
     state.set_users_room_type(&user_1, &room, RoomUserType::User)?;
     
-    let result = state.get_room_info(&room, RoomMetaAccess::Admin, vec![RoomInfoTypeVariant::Users])?;
+    let result = state.get_room_info(&room, RoomMetaAccess::Admin, &[RoomInfoTypeVariant::Users])?;
     assert_eq!(result.items.len(), 1);
 
     let mut users: Vec<RoomUserInformation> = result.get_users().into_owned();
@@ -259,7 +259,7 @@ async fn get_room() -> anyhow::Result<()> {
 
 macro_rules! meta_validation {
     ($state: expr, $room_id: expr, $access: expr, $len: expr, $map: expr) => {
-        let metas = $state.get_room_info(&$room_id, $access, vec![RoomInfoTypeVariant::Metas])?;
+        let metas = $state.get_room_info(&$room_id, $access, &[RoomInfoTypeVariant::Metas])?;
         let item = metas.get_metas().into_owned();
 
         assert_eq!(item.len(), $len);

@@ -173,7 +173,7 @@ pub enum RoomResponse<'a> {
     MessageFromRoom {
         user: &'a UserId,
         room: &'a RoomId,
-        message: Arc<String>
+        message: &'a String
     },
     RoomList {
         rooms: Vec<RoomInfoTypeCollection>
