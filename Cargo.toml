@@ -88,7 +88,7 @@ parking_lot = "0.12.1"
 syn = { version = "1", features = ["full"] }
 proc-macro2 = "1.0.51"
 quote = "1"
-darling = "0.14.2"
+darling = "0.14.3"
 libsqlite3-sys = { version = "^0", features = ["bundled"] }
 
 cucumber = "0.19.1"
