@@ -92,7 +92,7 @@ jobs:
         cargo install grcov
     
     - name: Start Redis
-      uses: supercharge/redis-github-action@1.4.0
+      uses: supercharge/redis-github-action@1.5.0
     
     - name: Run tests - stateless
       run: cargo test --all --features stateless
