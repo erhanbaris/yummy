@@ -236,13 +236,13 @@ pub struct UserAuthenticated(pub UserJwt);
 pub struct WebsocketMessage(pub String);
 
 impl WebsocketMessage {
-    pub fn success<T: Debug + Serialize + DeserializeOwned>(message: T) -> WebsocketMessage {
-        let message = serde_json::to_string(&GenericAnswer::success(message));
+    pub fn success<T: Debug + Serialize + DeserializeOwned>(request_id: Option<usize>, message: T) -> WebsocketMessage {
+        let message = serde_json::to_string(&GenericAnswer::success(request_id, message));
         WebsocketMessage(message.unwrap())
     }
     
-    pub fn fail<T: Debug + Serialize + DeserializeOwned>(message: T) -> WebsocketMessage {
-        let message = serde_json::to_string(&GenericAnswer::fail(message));
+    pub fn fail<T: Debug + Serialize + DeserializeOwned>(request_id: Option<usize>, message: T) -> WebsocketMessage {
+        let message = serde_json::to_string(&GenericAnswer::fail(request_id, message));
         WebsocketMessage(message.unwrap())
     }
 }

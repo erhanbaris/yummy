@@ -20,6 +20,7 @@ use super::LuaPlugin;
 fn executest_1() -> anyhow::Result<()> {
     let plugin = LuaPlugin::new();
     plugin.execute(Rc::new(RefCell::new(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "".to_string(),
         password: Password::from("123456".to_string()),
@@ -61,6 +62,7 @@ end
 "#).unwrap();
 
 plugin.execute(Rc::new(RefCell::new(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "".to_string(),
         password: Password::from("123456".to_string()),
@@ -72,6 +74,7 @@ plugin.execute(Rc::new(RefCell::new(EmailAuthRequest {
 #[test]
 fn change_email_address() {
     let model = Rc::new(RefCell::new(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "".to_string(),
         password: Password::from("123456".to_string()),
@@ -102,6 +105,7 @@ fn change_email_address() {
 #[test]
 fn execution_result() {
     let model = Rc::new(RefCell::new(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "".to_string(),
         password: Password::from("123456".to_string()),
@@ -132,6 +136,7 @@ fn execution_result() {
 #[test]
 fn fail_test() {
     let model = Rc::new(RefCell::new(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "old@email.com".to_string(),
         password: Password::from("123456".to_string()),
@@ -159,6 +164,7 @@ fn fail_test() {
 #[test]
 fn string_upper() {
     let model = Rc::new(RefCell::new(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "small@email.com".to_string(),
         password: Password::from("123456".to_string()),
@@ -181,6 +187,7 @@ fn string_upper() {
 #[test]
 fn multi_function() {
     let model = Rc::new(RefCell::new(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "small@email.com".to_string(),
         password: Password::from("123456".to_string()),
@@ -204,6 +211,7 @@ fn multi_function() {
 #[test]
 fn save_to_table() {
     let model = Rc::new(RefCell::new(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "small@email.com".to_string(),
         password: Password::from("123456".to_string()),
@@ -234,6 +242,7 @@ fn save_to_table() {
 #[test]
 fn lua_assert_check() {
     let model = Rc::new(RefCell::new(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "small@email.com".to_string(),
         password: Password::from("123456".to_string()),
@@ -255,6 +264,7 @@ fn lua_assert_check() {
 #[test]
 fn device_id_checks() {
     let model = Rc::new(RefCell::new(DeviceIdAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         id: "abc".to_string(),
         socket: Arc::new(general::test::DummyClient::default())
@@ -289,6 +299,7 @@ fn device_id_checks() {
 #[test]
 fn custom_id_checks() {
     let model = Rc::new(RefCell::new(CustomIdAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         id: "abc".to_string(),
         socket: Arc::new(general::test::DummyClient::default())
@@ -324,6 +335,7 @@ fn custom_id_checks() {
 #[test]
 fn logout_checks() {
     let model = Rc::new(RefCell::new(LogoutRequest {
+        request_id: None,
         auth: Arc::new(None),
         socket: Arc::new(general::test::DummyClient::default())
     } ));
@@ -350,6 +362,7 @@ fn logout_checks() {
 #[test]
 fn refresh_token_checks() {
     let model = Rc::new(RefCell::new(RefreshTokenRequest {
+        request_id: None,
         auth: Arc::new(None),
         token: "token".to_string(),
         socket: Arc::new(general::test::DummyClient::default())
@@ -383,6 +396,7 @@ fn refresh_token_checks() {
 #[test]
 fn restore_token_checks() {
     let model = Rc::new(RefCell::new(RestoreTokenRequest {
+        request_id: None,
         auth: Arc::new(None),
         token: "token".to_string(),
         socket: Arc::new(general::test::DummyClient::default())
@@ -440,6 +454,7 @@ fn user_connected_checks() {
 #[test]
 fn user_disconnected_checks() {
     let model = Rc::new(RefCell::new(ConnUserDisconnect {
+        request_id: None,
         auth: Arc::new(None),
         send_message: true,
         socket: Arc::new(general::test::DummyClient::default())
@@ -474,6 +489,7 @@ fn get_user_informations_checks() {
 
     // Me 
     let model = Rc::new(RefCell::new(GetUserInformation {
+        request_id: None,
         query: GetUserInformationEnum::Me(Arc::new(None)),
         socket: Arc::new(general::test::DummyClient::default())
     } ));
@@ -497,6 +513,7 @@ fn get_user_informations_checks() {
 
     // UserViaSystem 
     let model = Rc::new(RefCell::new(GetUserInformation {
+        request_id: None,
         query: GetUserInformationEnum::UserViaSystem(UserId::new()),
         socket: Arc::new(general::test::DummyClient::default())
     } ));
@@ -520,6 +537,7 @@ fn get_user_informations_checks() {
 
     // User 
     let model = Rc::new(RefCell::new(GetUserInformation {
+        request_id: None,
         query: GetUserInformationEnum::User { user: UserId::new(), requester: Arc::new(None) },
         socket: Arc::new(general::test::DummyClient::default())
     } ));
@@ -560,6 +578,7 @@ end
 "#.as_bytes()).expect("write failed");
 
     let model = EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "".to_string(),
         password: Password::from("123456".to_string()),
@@ -638,6 +657,7 @@ end
 "#.as_bytes()).expect("write failed");
 
     let model = UpdateUser {
+        request_id: None,
         auth: Arc::new(None),
         email: None,
         password: None,
@@ -702,6 +722,7 @@ end
 "#.as_bytes()).expect("write failed");
 
     let model = UpdateUser {
+        request_id: None,
         auth: Arc::new(None),
         email: None,
         password: None,
@@ -775,6 +796,7 @@ end
 "#.as_bytes()).expect("write failed");
 
     let model = CreateRoomRequest {
+        request_id: None,
         auth: Arc::new(None),
         socket: Arc::new(general::test::DummyClient::default()),
         name: None,
@@ -851,6 +873,7 @@ end
 "#.as_bytes()).expect("write failed");
 
     let model = UpdateRoom {
+        request_id: None,
         auth: Arc::new(None),
         socket: Arc::new(general::test::DummyClient::default()),
         name: None,
@@ -914,6 +937,7 @@ end
 "#.as_bytes()).expect("write failed");
 
     let model = JoinToRoomRequest {
+        request_id: None,
         auth: Arc::new(None),
         socket: Arc::new(general::test::DummyClient::default()),
         room: RoomId::new(),
@@ -955,6 +979,7 @@ end
 "#.as_bytes()).expect("write failed");
 
     let model = ProcessWaitingUser {
+        request_id: None,
         auth: Arc::new(None),
         socket: Arc::new(general::test::DummyClient::default()),
         room: RoomId::new(),
@@ -998,6 +1023,7 @@ end
 "#.as_bytes()).expect("write failed");
 
     let model = KickUserFromRoom {
+        request_id: None,
         auth: Arc::new(None),
         socket: Arc::new(general::test::DummyClient::default()),
         room: RoomId::new(),
@@ -1037,6 +1063,7 @@ end
 "#.as_bytes()).expect("write failed");
 
     let model = DisconnectFromRoomRequest {
+        request_id: None,
         auth: Arc::new(None),
         socket: Arc::new(general::test::DummyClient::default()),
         room: RoomId::new()
@@ -1081,6 +1108,7 @@ end
 "#.as_bytes()).expect("write failed");
 
     let model = RoomListRequest {
+        request_id: None,
         tag: None,
         socket: Arc::new(general::test::DummyClient::default()),
         members: Vec::new()
@@ -1118,6 +1146,7 @@ end
 "#.as_bytes()).expect("write failed");
 
     let model = WaitingRoomJoins {
+        request_id: None,
         auth: Arc::new(None),
         socket: Arc::new(general::test::DummyClient::default()),
         room: RoomId::new()
@@ -1168,6 +1197,7 @@ end
 "#.as_bytes()).expect("write failed");
 
     let model = GetRoomRequest {
+        request_id: None,
         auth: Arc::new(Some(UserAuth {
             user: UserId::new(),
             session: SessionId::new()

@@ -33,6 +33,7 @@ macro_rules! email_auth {
     ($auth_manager: expr, $config: expr, $email: expr, $password: expr, $create: expr, $recipient: expr) => {
         {
             $auth_manager.send(EmailAuthRequest {
+                request_id: None,
                 auth: Arc::new(None),
                 email: $email,
                 password: $password,
@@ -86,6 +87,7 @@ async fn create_room_1() -> anyhow::Result<()> {
     let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".into(), true, recipient);
 
     room_manager.send(CreateRoomRequest {
+        request_id: None,
         auth: user.clone(),
         name: None,
         description: None,
@@ -117,6 +119,7 @@ async fn create_room_2() -> anyhow::Result<()> {
     let user = email_auth!(auth_manager, config.clone(), "user@gmail.com".to_string(), "erhan".into(), true, recipient);
 
     room_manager.send(CreateRoomRequest {
+        request_id: None,
         auth: user.clone(),
         name: None,
         description: None,
@@ -154,6 +157,7 @@ async fn create_room_3() -> anyhow::Result<()> {
 
 
     room_manager.send(CreateRoomRequest {
+        request_id: None,
         auth: user_1.clone(),
         name: None,
         description: None,
@@ -171,6 +175,7 @@ async fn create_room_3() -> anyhow::Result<()> {
     assert!(!room_id.is_empty());
 
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_2.clone(),
         room: room_id,
         room_user_type: RoomUserType::User,
@@ -182,6 +187,7 @@ async fn create_room_3() -> anyhow::Result<()> {
     assert_eq!(&message.class_type[..], "Joined");
 
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_3.clone(),
         room: room_id,
         room_user_type: RoomUserType::User,
@@ -206,6 +212,7 @@ async fn create_room_3() -> anyhow::Result<()> {
     assert_eq!(&message.class_type[..], "UserJoinedToRoom");
 
     room_manager.send(CreateRoomRequest {
+        request_id: None,
         auth: user_1.clone(),
         name: None,
         description: None,
@@ -233,6 +240,7 @@ async fn create_room_4() -> anyhow::Result<()> {
     let user_3 = email_auth!(auth_manager, config.clone(), "user3@gmail.com".to_string(), "erhan".into(), true, user_3_socket);
 
     room_manager.send(CreateRoomRequest {
+        request_id: None,
         auth: user_1.clone(),
         name: None,
         description: None,
@@ -250,6 +258,7 @@ async fn create_room_4() -> anyhow::Result<()> {
     assert!(!room_id.is_empty());
 
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_2.clone(),
         room: room_id,
         room_user_type: RoomUserType::User,
@@ -261,6 +270,7 @@ async fn create_room_4() -> anyhow::Result<()> {
     assert_eq!(&message.class_type[..], "Joined");
 
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_3.clone(),
         room: room_id,
         room_user_type: RoomUserType::User,
@@ -289,6 +299,7 @@ async fn create_room_4() -> anyhow::Result<()> {
     assert_eq!(&message.class_type[..], "UserJoinedToRoom");
 
     room_manager.send(DisconnectFromRoomRequest {
+        request_id: None,
         auth: user_1.clone(),
         room: room_id,
         socket:user_1_socket.clone()
@@ -323,6 +334,7 @@ async fn message_to_room() -> anyhow::Result<()> {
     let user_3 = email_auth!(auth_manager, config.clone(), "user3@gmail.com".to_string(), "erhan".into(), true, user_3_socket);
 
     room_manager.send(CreateRoomRequest {
+        request_id: None,
         auth: user_1.clone(),
         name: None,
         description: None,
@@ -341,6 +353,7 @@ async fn message_to_room() -> anyhow::Result<()> {
 
     // Join to room
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_2.clone(),
         room: room_id,
         room_user_type: RoomUserType::User,
@@ -348,6 +361,7 @@ async fn message_to_room() -> anyhow::Result<()> {
     }).await??;
 
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_3.clone(),
         room: room_id,
         room_user_type: RoomUserType::User,
@@ -356,6 +370,7 @@ async fn message_to_room() -> anyhow::Result<()> {
 
     // Send message to room
     room_manager.send(MessageToRoomRequest {
+        request_id: None,
         auth: user_1.clone(),
         room: room_id,
         message: "HELLO".to_string(),
@@ -379,6 +394,7 @@ async fn message_to_room() -> anyhow::Result<()> {
 
     // Send message to room
     room_manager.send(MessageToRoomRequest {
+        request_id: None,
         auth: user_2.clone(),
         room: room_id,
         message: "WORLD".to_string(),
@@ -411,6 +427,7 @@ async fn get_rooms() -> anyhow::Result<()> {
         let auth = email_auth!(auth_manager, config.clone(), format!("user{}@gmail.com", i), "erhan".into(), true, user_socket.clone());
 
         room_manager.send(CreateRoomRequest {
+            request_id: None,
             auth,
             name: None,
             description: None,
@@ -424,6 +441,7 @@ async fn get_rooms() -> anyhow::Result<()> {
     }
 
     room_manager.send(RoomListRequest {
+        request_id: None,
         socket: user_1_socket.clone(),
         members: Vec::new(),
         tag: None
@@ -467,6 +485,7 @@ async fn room_meta_check() -> anyhow::Result<()> {
     let user_2_id = user_2.clone().deref().as_ref().unwrap().user.clone();
 
     room_manager.send(CreateRoomRequest {
+        request_id: None,
         auth: user_1.clone(),
         name: None,
         description: None,
@@ -486,6 +505,7 @@ async fn room_meta_check() -> anyhow::Result<()> {
     let room_id = room_id.room;
 
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_2.clone(),
         room: room_id,
         room_user_type: RoomUserType::User,
@@ -494,6 +514,7 @@ async fn room_meta_check() -> anyhow::Result<()> {
 
     // Get room information
     room_manager.send(GetRoomRequest {
+        request_id: None,
         auth: user_1,
         socket: user_1_socket.clone(),
         members: Vec::new(),
@@ -542,6 +563,7 @@ async fn room_meta_update() -> anyhow::Result<()> {
     let user_1_id = user_1.clone().deref().as_ref().unwrap().user.clone();
 
     room_manager.send(CreateRoomRequest {
+        request_id: None,
         auth: user_1.clone(),
         name: None,
         description: None,
@@ -557,6 +579,7 @@ async fn room_meta_update() -> anyhow::Result<()> {
     let room_id = room_id.room;
 
     room_manager.send(UpdateRoom {
+        request_id: None,
         auth: user_1.clone(),
         room_id,
         name: Some("Erhan".to_string()),
@@ -583,6 +606,7 @@ async fn room_meta_update() -> anyhow::Result<()> {
 
     /* Check room metas */
     room_manager.send(GetRoomRequest {
+        request_id: None,
         auth: user_1.clone(),
         socket: user_1_socket.clone(),
         members: Vec::new(),
@@ -599,6 +623,7 @@ async fn room_meta_update() -> anyhow::Result<()> {
 
     /* Add new meta and keep old metas */
     room_manager.send(UpdateRoom {
+        request_id: None,
         auth: user_1.clone(),
         room_id,
         name: Some("Erhan".to_string()),
@@ -617,6 +642,7 @@ async fn room_meta_update() -> anyhow::Result<()> {
 
     /* Check room metas */
     room_manager.send(GetRoomRequest {
+        request_id: None,
         auth: user_1.clone(),
         socket: user_1_socket.clone(),
         members: Vec::new(),
@@ -633,6 +659,7 @@ async fn room_meta_update() -> anyhow::Result<()> {
 
     /* Add and update new meta but remove unused metas */
     room_manager.send(UpdateRoom {
+        request_id: None,
         auth: user_1.clone(),
         room_id,
         name: Some("Erhan".to_string()),
@@ -652,6 +679,7 @@ async fn room_meta_update() -> anyhow::Result<()> {
 
     /* Check room metas */
     room_manager.send(GetRoomRequest {
+        request_id: None,
         auth: user_1.clone(),
         socket: user_1_socket.clone(),
         members: Vec::new(),
@@ -668,6 +696,7 @@ async fn room_meta_update() -> anyhow::Result<()> {
 
     /* Remove all metas */
     room_manager.send(UpdateRoom {
+        request_id: None,
         auth: user_1.clone(),
         room_id,
         name: Some("Erhan".to_string()),
@@ -686,6 +715,7 @@ async fn room_meta_update() -> anyhow::Result<()> {
 
     /* Check room metas */
     room_manager.send(GetRoomRequest {
+        request_id: None,
         auth: user_1.clone(),
         socket: user_1_socket.clone(),
         members: Vec::new(),
@@ -713,6 +743,7 @@ async fn room_update() -> anyhow::Result<()> {
     let user_2 = email_auth!(auth_manager, config.clone(), "user2@gmail.com".to_string(), "erhan".into(), true, user_2_socket);
 
     room_manager.send(CreateRoomRequest {
+        request_id: None,
         auth: user_1.clone(),
         name: None,
         description: None,
@@ -733,6 +764,7 @@ async fn room_update() -> anyhow::Result<()> {
     let room_id = room_id.room;
 
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_2.clone(),
         room: room_id,
         room_user_type: RoomUserType::User,
@@ -741,6 +773,7 @@ async fn room_update() -> anyhow::Result<()> {
 
     // Get room information
     room_manager.send(GetRoomRequest {
+        request_id: None,
         auth: user_1.clone(),
         socket: user_1_socket.clone(),
         members: Vec::new(),
@@ -758,6 +791,7 @@ async fn room_update() -> anyhow::Result<()> {
     assert_eq!(serde_json::from_value::<f64>(metas.get("score").unwrap().clone()).unwrap(), 15.3);
     
     room_manager.send(UpdateRoom {
+        request_id: None,
         auth: user_1.clone(),
         name: None,
         description: None,
@@ -778,6 +812,7 @@ async fn room_update() -> anyhow::Result<()> {
 
     // Get room information
     room_manager.send(GetRoomRequest {
+        request_id: None,
         auth: user_1.clone(),
         socket: user_1_socket.clone(),
         members: Vec::new(),
@@ -833,6 +868,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
 
     /* #region Auth */
     auth_manager.send(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "erhan@gmail.com".to_string(),
         password:"erhan".into(),
@@ -847,6 +883,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
     }));
 
     auth_manager.send(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "baris@gmail.com".to_string(),
         password:"erhan".into(),
@@ -863,6 +900,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
 
     /* #region Room configuration */
     room_manager.send(CreateRoomRequest {
+        request_id: None,
         auth: user_1_auth.clone(),
         name: None,
         description: None,
@@ -878,6 +916,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
     let room_1_id = room_1_id.room;
 
     room_manager.send(CreateRoomRequest {
+        request_id: None,
         auth: user_1_auth.clone(),
         name: None,
         description: None,
@@ -893,6 +932,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
     let room_2_id = room_2_id.room;
 
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_2_auth.clone(),
         room: room_1_id,
         room_user_type: RoomUserType::User,
@@ -904,6 +944,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
 
 
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_2_auth.clone(),
         room: room_2_id,
         room_user_type: RoomUserType::User,
@@ -917,6 +958,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
 
     /* #region Send messages to room */
     room_manager.send(MessageToRoomRequest {
+        request_id: None,
         auth: user_1_auth.clone(),
         room: room_1_id,
         message: "hello 1".to_string(),
@@ -926,6 +968,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
     message_received_from_room!(user_2_socket, user_1_auth_jwt.id.deref(), room_1_id, "hello 1");
 
     room_manager.send(MessageToRoomRequest {
+        request_id: None,
         auth: user_1_auth.clone(),
         room: room_2_id,
         message: "hello 2".to_string(),
@@ -935,6 +978,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
     message_received_from_room!(user_2_socket, user_1_auth_jwt.id.deref(), room_2_id, "hello 2");
 
     room_manager.send(MessageToRoomRequest {
+        request_id: None,
         auth: user_2_auth.clone(),
         room: room_1_id,
         message: "world 1".to_string(),
@@ -944,6 +988,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
     message_received_from_room!(user_1_socket, user_2_auth_jwt.id.deref(), room_1_id, "world 1");
 
     room_manager.send(MessageToRoomRequest {
+        request_id: None,
         auth: user_2_auth.clone(),
         room: room_2_id,
         message: "world 2".to_string(),
@@ -979,6 +1024,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
 
     /* #region Auth */
     auth_manager.send(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "erhan@gmail.com".to_string(),
         password:"erhan".into(),
@@ -993,6 +1039,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
     }));
 
     auth_manager.send(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "baris@gmail.com".to_string(),
         password:"erhan".into(),
@@ -1009,6 +1056,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
 
     /* #region Room configuration */
     room_manager.send(CreateRoomRequest {
+        request_id: None,
         auth: user_1_auth.clone(),
         name: None,
         description: None,
@@ -1024,6 +1072,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
     let room_1_id = room_1_id.room;
 
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_2_auth.clone(),
         room: room_1_id,
         room_user_type: RoomUserType::User,
@@ -1042,6 +1091,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
 
     // Get waiting list
     room_manager.send(WaitingRoomJoins {
+        request_id: None,
         auth: user_1_auth.clone(),
         room: room_1_id,
         socket:user_1_socket.clone()
@@ -1054,6 +1104,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
 
     // Approve waiting user
     room_manager.send(ProcessWaitingUser {
+        request_id: None,
         auth: user_1_auth.clone(),
         room: room_1_id,
         user: user_2_auth_jwt.id.deref().clone(),
@@ -1097,6 +1148,7 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
 
     /* #region Auth */
     auth_manager.send(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "erhan@gmail.com".to_string(),
         password:"erhan".into(),
@@ -1111,6 +1163,7 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
     }));
 
     auth_manager.send(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "baris@gmail.com".to_string(),
         password:"erhan".into(),
@@ -1127,6 +1180,7 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
 
     /* #region Room configuration */
     room_manager.send(CreateRoomRequest {
+        request_id: None,
         auth: user_1_auth.clone(),
         name: None,
         description: None,
@@ -1142,6 +1196,7 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
     let room_1_id = room_1_id.room;
 
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_2_auth.clone(),
         room: room_1_id,
         room_user_type: RoomUserType::User,
@@ -1160,6 +1215,7 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
 
     // Get waiting list
     room_manager.send(WaitingRoomJoins {
+        request_id: None,
         auth: user_1_auth.clone(),
         room: room_1_id,
         socket:user_1_socket.clone()
@@ -1172,6 +1228,7 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
 
     // Decline waiting user
     room_manager.send(ProcessWaitingUser {
+        request_id: None,
         auth: user_1_auth.clone(),
         room: room_1_id,
         user: user_2_auth_jwt.id.deref().clone(),
@@ -1215,6 +1272,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
 
     /* #region Auth */
     auth_manager.send(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "erhan@gmail.com".to_string(),
         password:"erhan".into(),
@@ -1229,6 +1287,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
     }));
 
     auth_manager.send(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "baris@gmail.com".to_string(),
         password:"erhan".into(),
@@ -1245,6 +1304,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
 
     /* #region Room configuration */
     room_manager.send(CreateRoomRequest {
+        request_id: None,
         auth: user_1_auth.clone(),
         name: None,
         description: None,
@@ -1260,6 +1320,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
     let room_1_id = room_1_id.room;
 
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_2_auth.clone(),
         room: room_1_id,
         room_user_type: RoomUserType::User,
@@ -1271,6 +1332,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
 
     // Not enough permission to ban user
     room_manager.send(KickUserFromRoom {
+        request_id: None,
         auth: user_2_auth.clone(),
         room: room_1_id,
         user: user_1_auth_jwt.id.deref().clone(),
@@ -1283,6 +1345,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
 
     // Room owner ban the user
     room_manager.send(KickUserFromRoom {
+        request_id: None,
         auth: user_1_auth.clone(),
         room: room_1_id,
         user: user_2_auth_jwt.id.deref().clone(),
@@ -1296,6 +1359,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
     
     // User try to connect room again, but it should be failed
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_2_auth.clone(),
         room: room_1_id,
         room_user_type: RoomUserType::User,
@@ -1333,6 +1397,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
 
     /* #region Auth */
     auth_manager.send(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "erhan@gmail.com".to_string(),
         password:"erhan".into(),
@@ -1347,6 +1412,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
     }));
 
     auth_manager.send(EmailAuthRequest {
+        request_id: None,
         auth: Arc::new(None),
         email: "baris@gmail.com".to_string(),
         password:"erhan".into(),
@@ -1363,6 +1429,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
 
     /* #region Room configuration */
     room_manager.send(CreateRoomRequest {
+        request_id: None,
         auth: user_1_auth.clone(),
         name: None,
         description: None,
@@ -1378,6 +1445,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
     let room_1_id = room_1_id.room;
 
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_2_auth.clone(),
         room: room_1_id,
         room_user_type: RoomUserType::User,
@@ -1389,6 +1457,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
 
     // Not enough permission to ban user
     room_manager.send(KickUserFromRoom {
+        request_id: None,
         auth: user_2_auth.clone(),
         room: room_1_id,
         user: user_1_auth_jwt.id.deref().clone(),
@@ -1401,6 +1470,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
 
     // Room owner ban the user
     room_manager.send(KickUserFromRoom {
+        request_id: None,
         auth: user_1_auth.clone(),
         room: room_1_id,
         user: user_2_auth_jwt.id.deref().clone(),
@@ -1413,6 +1483,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
     
     // User try to connect room again, but it should be failed
     room_manager.send(JoinToRoomRequest {
+        request_id: None,
         auth: user_2_auth.clone(),
         room: room_1_id,
         room_user_type: RoomUserType::User,

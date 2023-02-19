@@ -74,7 +74,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
             match user {
                 Some(mut user) => {
                     user.online = self.states.is_user_online(user_id);
-                    model.socket.send(GenericAnswer::success(UserResponse::UserInfo { user }).into());
+                    model.socket.send(GenericAnswer::success(model.request_id.clone(), UserResponse::UserInfo { user }).into());
                     Ok(())
                 },
                 None => Err(anyhow::anyhow!(UserError::UserNotFound))
@@ -261,9 +261,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
             match has_user_update {
                 true => match DB::update_user(connection, target_user_id, &updates)? {
                     0 => return Err(anyhow::anyhow!(UserError::UserNotFound)),
-                    _ => socket.send(Answer::success().into())
+                    _ => socket.send(Answer::success(model.request_id.clone()).into())
                 },
-                false => socket.send(Answer::success().into())
+                false => socket.send(Answer::success(model.request_id.clone()).into())
             };
 
             // todo: convert to single execution

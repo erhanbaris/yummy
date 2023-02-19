@@ -60,7 +60,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for RoomMa
 }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> {
-    fn join_to_room(&mut self, connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, room_user_type: RoomUserType) -> anyhow::Result<()> {
+    fn join_to_room(&mut self, connection: &mut PooledConnection, request_id: Option<usize>, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, room_user_type: RoomUserType) -> anyhow::Result<()> {
         /* Room does not require approvement */
         let users = self.states.get_users_from_room(room_id)?;
         self.states.join_to_room(room_id, user_id, session_id, room_user_type.clone())?;
@@ -88,7 +88,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         
         self.issue_system_async(SendMessage {
             user_id: Arc::new(user_id.clone()),
-            message: GenericAnswer::success(RoomResponse::Joined { room_name, users, metas, room: room_id }).into()
+            message: GenericAnswer::success(request_id, RoomResponse::Joined { room_name, users, metas, room: room_id }).into()
         });
         Ok(())
     }
@@ -303,7 +303,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
         })?;
         
 
-        model.socket.send(GenericAnswer::success(RoomResponse::RoomCreated { room: room_id }).into());
+        model.socket.send(GenericAnswer::success(model.request_id.clone(), RoomResponse::RoomCreated { room: room_id }).into());
         Ok(())
     }
 }
@@ -359,9 +359,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
             match has_room_update {
                 true => match DB::update_room(connection, &model.room_id, &updates)? {
                     0 => return Err(anyhow::anyhow!(UserError::UserNotFound)),
-                    _ => model.socket.send(Answer::success().into())
+                    _ => model.socket.send(Answer::success(model.request_id.clone()).into())
                 },
-                false => model.socket.send(Answer::success().into())
+                false => model.socket.send(Answer::success(model.request_id.clone()).into())
             };
 
             // Update all caches
@@ -413,7 +413,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<WaitingR
         }
 
         let users = self.states.get_join_requests(&model.room)?;
-        model.socket.send(GenericAnswer::success(RoomResponse::WaitingRoomJoins { room: &model.room, users }).into());
+        model.socket.send(GenericAnswer::success(model.request_id.clone(), RoomResponse::WaitingRoomJoins { room: &model.room, users }).into());
         Ok(())
     }
 }
@@ -458,10 +458,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
             }
 
             // Send message to user about waiting for approvement
-            model.socket.send(GenericAnswer::success(RoomResponse::JoinRequested { room: &model.room }).into());
+            model.socket.send(GenericAnswer::success(model.request_id.clone(), RoomResponse::JoinRequested { room: &model.room }).into());
         } else {
             // User can directly try to join room
-            self.join_to_room(&mut connection, &model.room, user_id, session_id, model.room_user_type.clone())?;
+            self.join_to_room(&mut connection,  model.request_id.clone(), &model.room, user_id, session_id, model.room_user_type.clone())?;
         }
         Ok(())
     }
@@ -485,18 +485,18 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<ProcessW
             if model.status {
 
                 // Moderator or room owner approve join request
-                self.join_to_room(connection, &model.room, &model.user, &session_id, room_user_type)?;
+                self.join_to_room(connection, model.request_id.clone(), &model.room, &model.user, &session_id, room_user_type)?;
             } else {
                 
                 // Room join request declined
                 self.issue_system_async(SendMessage {
                     user_id: Arc::new(model.user.clone()),
-                    message: GenericAnswer::success(RoomResponse::JoinRequestDeclined { room: &model.room }).into()
+                    message: GenericAnswer::success(model.request_id.clone(), RoomResponse::JoinRequestDeclined { room: &model.room }).into()
                 });
             }
 
             // Send operation successfully executed message to operator
-            model.socket.send(Answer::success().into());
+            model.socket.send(Answer::success(model.request_id.clone()).into());
             anyhow::Ok(())
         })?;
         
@@ -545,7 +545,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<KickUser
             })
         }
 
-        model.socket.send(Answer::success().into());
+        model.socket.send(Answer::success(model.request_id.clone()).into());
         Ok(())
     }
 }
@@ -561,7 +561,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<Disconne
         let (user_id, session_id) = get_user_session_id_from_auth!(model, ());
 
         self.disconnect_from_room(&model.room, user_id, session_id).unwrap_or_default();
-        model.socket.send(Answer::success().into());
+        model.socket.send(Answer::success(model.request_id.clone()).into());
     }
 }
 
@@ -589,7 +589,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
                     }
                 }
 
-                model.socket.send(Answer::success().into());
+                model.socket.send(Answer::success(model.request_id.clone()).into());
                 Ok(())
             }
             Err(error) => Err(anyhow!(error))
@@ -610,7 +610,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomList
         };
 
         let rooms = self.states.get_rooms(&model.tag, members)?;
-        model.socket.send(GenericAnswer::success(RoomResponse::RoomList { rooms }).into());
+        model.socket.send(GenericAnswer::success(model.request_id.clone(), RoomResponse::RoomList { rooms }).into());
         Ok(())
     }
 }
@@ -633,7 +633,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetRoomR
 
         let access_level = self.get_access_level_for_room(user_id, session_id, &model.room)?;
         let room = self.states.get_room_info(&model.room, access_level, members)?;
-        model.socket.send(GenericAnswer::success(RoomResponse::RoomInfo { room }).into());
+        model.socket.send(GenericAnswer::success(model.request_id.clone(), RoomResponse::RoomInfo { room }).into());
         Ok(())
     }
 }

@@ -1,6 +1,7 @@
-use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, rc::Rc, cell::RefCell};
+use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, rc::Rc, cell::RefCell, marker::PhantomData};
 
-use general::config::YummyConfig;
+use database::{Pool, DatabaseTrait};
+use general::{config::YummyConfig, model::UserId, meta::{UserMetaAccess, MetaType}};
 
 use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, UpdateUser}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest}};
 
@@ -84,12 +85,18 @@ pub trait YummyPluginInstaller {
     fn install(&self, executer: &mut PluginExecuter, config: Arc<YummyConfig>);
 }
 
-/*pub trait UserProxy {
-    fn get_user(&self, user: UserId) -> Option<UserInformationModel>;
-    fn get_user_meta(&self, user: UserId, key: String) -> Option<MetaType<UserMetaAccess>>;
-    fn set_user_meta(&self, user: UserId, key: String, meta: MetaType<UserMetaAccess>) -> Option<MetaType<UserMetaAccess>>;
-    fn remove_user_meta(&self, user: UserId, key: String);
-}*/
+pub struct UserProxy<DB: DatabaseTrait + ?Sized + 'static> {
+    database: Arc<Pool>,
+    _marker: PhantomData<DB>
+}
+
+impl<DB: database::DatabaseTrait> UserProxy<DB> {
+    pub fn get_user_meta(&self, user: UserId, _: String) -> anyhow::Result<Option<MetaType<UserMetaAccess>>> {
+        let mut connection = self.database.get()?;
+        DB::get_user_meta(&mut connection, &user, UserMetaAccess::System)?;
+        Ok(None)
+    }
+}
 
 pub enum YummyAuthError {
     AuthFailed(String),

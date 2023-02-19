@@ -161,16 +161,25 @@ pub enum RequestRoomType {
 #[serde(untagged)]
 pub enum Request {
     Auth {
+        #[serde(default)]
+        request_id: Option<usize>,
+
         #[serde(flatten)]
         auth_type: RequestAuthType
     },
     
     User {
+        #[serde(default)]
+        request_id: Option<usize>,
+
         #[serde(flatten)]
         user_type: RequestUserType
     },
     
     Room {
+        #[serde(default)]
+        request_id: Option<usize>,
+
         #[serde(flatten)]
         room_type: RequestRoomType
     }

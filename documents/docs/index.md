@@ -15,7 +15,6 @@ Our main goal of the developing this application is support game developer to ma
 - [ ] Close inactive connections
 - [ ] Dispose inactive rooms
 - [ ] Add parameter for OpenTelemetry configuration
-- [ ] Room metadata
 - [ ] Design document
 - [ ] Example projects
 - [ ] Friend add/remove/list integration
@@ -23,12 +22,13 @@ Our main goal of the developing this application is support game developer to ma
 - [ ] Protocol Buffers or FlatBuffers integration
 - [ ] Create Lua scripts for Redis operations
 - [ ] Server disconnect detection [Stateless]
-- [ ] Support for pre and post API calls
 - [ ] Web interface for system control
-- [ ] Lua, JS, .NET Core runtimes
 - [ ] Client libraries (JS, Python, Rust, Godot, Unity, etc.)
 - [ ] Create websocket tester application that control multiple connections
 - [ ] Create **system** user at startup to configure system remotely
+- [X] Support for pre and post API calls
+- [X] Room metadata
+- [X] Lua runtimes
 - [X] Multiple room support for user
 - [X] Room join request
 - [X] Ban and kick from room

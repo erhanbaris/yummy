@@ -7,8 +7,15 @@ use mlua::prelude::*;
 
 use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest}};
 
-macro_rules! auth_macros {
+macro_rules! general_macros {
     ($methods: expr) => {
+        $methods.add_method("get_request_id", |_, this, ()| {
+            let request_id = match this.request_id {
+                Some(request_id) => request_id.clone(),
+                None => 0
+            };
+            Ok(request_id)
+        });
         $methods.add_method("get_user_id", |_, this, ()| {
             let user_id = match this.auth.deref() {
                 Some(auth) => auth.user.to_string(),
@@ -66,7 +73,7 @@ macro_rules! set {
 
 impl LuaUserData for EmailAuthRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         methods.add_method("get_email", |_, this, ()| Ok(this.email.clone()));
         methods.add_method("get_password", |_, this, ()| Ok(this.password.get().clone()));
         methods.add_method("get_create", |_, this, ()| Ok(this.if_not_exist_create));
@@ -88,7 +95,7 @@ impl LuaUserData for EmailAuthRequest {
 
 impl LuaUserData for DeviceIdAuthRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         methods.add_method("get_id", |_, this, ()| Ok(this.id.clone()));
         methods.add_method_mut("set_id", |_, this, id: String| {
             this.id = id;
@@ -99,7 +106,7 @@ impl LuaUserData for DeviceIdAuthRequest {
 
 impl LuaUserData for CustomIdAuthRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         methods.add_method("get_id", |_, this, ()| Ok(this.id.clone()));
         methods.add_method_mut("set_id", |_, this, id: String| {
             this.id = id;
@@ -110,13 +117,13 @@ impl LuaUserData for CustomIdAuthRequest {
 
 impl LuaUserData for LogoutRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
     }
 }
 
 impl LuaUserData for RefreshTokenRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         methods.add_method("get_token", |_, this, ()| Ok(this.token.clone()));
         methods.add_method_mut("set_token", |_, this, token: String| {
             this.token = token;
@@ -127,7 +134,7 @@ impl LuaUserData for RefreshTokenRequest {
 
 impl LuaUserData for RestoreTokenRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         methods.add_method("get_token", |_, this, ()| Ok(this.token.clone()));
         methods.add_method_mut("set_token", |_, this, token: String| {
             this.token = token;
@@ -144,7 +151,7 @@ impl LuaUserData for UserConnected {
 
 impl LuaUserData for ConnUserDisconnect {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         methods.add_method("get_send_message", |_, this, ()| Ok(this.send_message));
         methods.add_method_mut("set_send_message", |_, this, send_message: bool| {
             this.send_message = send_message;
@@ -223,7 +230,7 @@ impl LuaUserData for GetUserInformationEnum {
 
 impl LuaUserData for UpdateUser {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         methods.add_method("get_target_user_id", |_, this, ()| Ok(this.target_user_id.as_ref().map(|item| item.to_string())));
         get!(methods, "get_metas", metas);
         get!(methods, "get_name", name);
@@ -252,7 +259,7 @@ impl LuaUserData for UpdateUser {
 
 impl LuaUserData for CreateRoomRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         get!(methods, "get_name", name);
         get!(methods, "get_description", description);
         get!(methods, "get_access_type", access_type);
@@ -281,7 +288,7 @@ impl LuaUserData for CreateRoomRequest {
 
 impl LuaUserData for UpdateRoom {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         get!(methods, "get_name", name);
         get!(methods, "get_description", description);
         get!(methods, "get_access_type", access_type);
@@ -313,7 +320,7 @@ impl LuaUserData for UpdateRoom {
 
 impl LuaUserData for JoinToRoomRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         get!(methods, "get_room", room);
         get!(methods, "get_room_user_type", room_user_type);
 
@@ -324,7 +331,7 @@ impl LuaUserData for JoinToRoomRequest {
 
 impl LuaUserData for ProcessWaitingUser {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         get!(methods, "get_room", room);
         get!(methods, "get_user", user);
         get!(methods, "get_status", status);
@@ -337,7 +344,7 @@ impl LuaUserData for ProcessWaitingUser {
 
 impl LuaUserData for KickUserFromRoom {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         get!(methods, "get_room", room);
         get!(methods, "get_user", user);
         get!(methods, "get_ban", ban);
@@ -350,7 +357,7 @@ impl LuaUserData for KickUserFromRoom {
 
 impl LuaUserData for DisconnectFromRoomRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         get!(methods, "get_room", room);
         set!(methods, "set_room", room, RoomId);
     }
@@ -358,7 +365,7 @@ impl LuaUserData for DisconnectFromRoomRequest {
 
 impl LuaUserData for MessageToRoomRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         get!(methods, "get_room", room);
         get!(methods, "get_message", message);
         set!(methods, "set_room", room, RoomId);
@@ -378,7 +385,7 @@ impl LuaUserData for RoomListRequest {
 
 impl LuaUserData for WaitingRoomJoins {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         get!(methods, "get_room", room);
         set!(methods, "set_room", room, RoomId);
     }
@@ -386,7 +393,7 @@ impl LuaUserData for WaitingRoomJoins {
 
 impl LuaUserData for GetRoomRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-        auth_macros!(methods);
+        general_macros!(methods);
         get!(methods, "get_room", room);
         get!(methods, "get_members", members);
         

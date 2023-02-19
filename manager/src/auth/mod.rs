@@ -64,6 +64,7 @@ macro_rules! disconnect_if_already_auth {
     ($model: expr, $self:expr, $ctx: expr) => {
         if $model.auth.is_some() {
             $self.issue_system_async(ConnUserDisconnect {
+                request_id: None,
                 auth: $model.auth.clone(),
                 send_message: false,
                 socket: $model.socket.clone()
@@ -77,6 +78,7 @@ macro_rules! disconnect_if_already_auth_2 {
     ($auth: expr, $socket: expr, $self:expr, $ctx: expr) => {
         if $auth.is_some() {
             $self.issue_system_async(ConnUserDisconnect {
+                request_id: None,
                 auth: $auth.clone(),
                 send_message: false,
                 socket: $socket.clone()
@@ -125,7 +127,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth_jwt);
-        model.socket.send(GenericAnswer::success(AuthResponse::Authenticated { token }).into());
+        model.socket.send(GenericAnswer::success(model.request_id.clone(), AuthResponse::Authenticated { token }).into());
         Ok(())
     }
 }
@@ -155,7 +157,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
-        model.socket.send(GenericAnswer::success(AuthResponse::Authenticated { token }).into());
+        model.socket.send(GenericAnswer::success(model.request_id.clone(), AuthResponse::Authenticated { token }).into());
         Ok(())
     }
 }
@@ -185,7 +187,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
-        model.socket.send(GenericAnswer::success(AuthResponse::Authenticated { token }).into());
+        model.socket.send(GenericAnswer::success(model.request_id.clone(), AuthResponse::Authenticated { token }).into());
         Ok(())
     }
 }
@@ -197,6 +199,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRe
     #[macros::plugin_api(name="logout")]
     fn handle(&mut self, model: LogoutRequest, _ctx: &mut Context<Self>) -> Self::Result {
         self.issue_system_async(ConnUserDisconnect {
+            request_id: model.request_id.clone(),
             auth: model.auth.clone(),
             send_message: true,
             socket: model.socket.clone()
@@ -217,7 +220,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
         match validate_auth(self.config.clone(), &model.token[..]) {
             Some(claims) => {
                 let (token, _) = self.generate_token(&claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session), claims.user.user_type)?;
-                model.socket.send(GenericAnswer::success(AuthResponse::Authenticated { token }).into());
+                model.socket.send(GenericAnswer::success(model.request_id.clone(), AuthResponse::Authenticated { token }).into());
                 Ok(())
             },
             None => Err(anyhow!(AuthError::TokenNotValid))
@@ -251,7 +254,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
                     socket: model.socket.clone()
                 });
                 model.socket.authenticated(auth);
-                model.socket.send(GenericAnswer::success(AuthResponse::Authenticated { token }).into());
+                model.socket.send(GenericAnswer::success(model.request_id.clone(), AuthResponse::Authenticated { token }).into());
                 Ok(())
             },
             None => Err(anyhow!(AuthError::TokenNotValid))
@@ -268,6 +271,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUse
         
         let timer = ctx.run_later(self.config.connection_restore_wait_timeout, move |manager, _ctx| {            
             manager.issue_system_async(ConnUserDisconnect {
+                request_id: None,
                 auth: model.auth.clone(),
                 send_message: false,
                 socket: model.socket.clone()
