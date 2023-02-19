@@ -10,6 +10,7 @@ use database::create_database;
 use general::state::YummyState;
 use general::websocket::WebsocketTestClient;
 use general::web::json_error_handler;
+use general::meta::MetaType;
 
 use manager::conn::ConnectionManager;
 use actix_web::web::Data;
