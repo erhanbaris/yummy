@@ -3,7 +3,7 @@ use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, rc::Rc, cell::RefCell, ma
 use database::{Pool, DatabaseTrait};
 use general::{config::YummyConfig, model::UserId, meta::{UserMetaAccess, MetaType}};
 
-use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, UpdateUser}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest}};
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::{model::{GetUserInformation, UpdateUser}, UserLogic}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest}};
 
 pub mod lua;
 
@@ -86,14 +86,12 @@ pub trait YummyPluginInstaller {
 }
 
 pub struct UserProxy<DB: DatabaseTrait + ?Sized + 'static> {
-    database: Arc<Pool>,
+    user_logic: UserLogic<DB>,
     _marker: PhantomData<DB>
 }
 
 impl<DB: database::DatabaseTrait> UserProxy<DB> {
-    pub fn get_user_meta(&self, user: UserId, _: String) -> anyhow::Result<Option<MetaType<UserMetaAccess>>> {
-        let mut connection = self.database.get()?;
-        DB::get_user_meta(&mut connection, &user, UserMetaAccess::System)?;
+    pub fn get_user_meta(&self, _: UserId, _: String) -> anyhow::Result<Option<MetaType<UserMetaAccess>>> {
         Ok(None)
     }
 }

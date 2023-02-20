@@ -22,6 +22,7 @@ pub const DEFAULT_LUA_FILES_PATH: &str = "./server/lua/";
 pub const DEFAULT_DEFAULT_INTEGRATION_KEY: &str = "YummyYummy";
 pub const DEFAULT_ROOM_PASSWORD_CHARSET: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 pub const DEFAULT_ROOM_PASSWORD_LENGTH: usize = 4;
+pub const DEFAULT_CACHE_DURATION: u64 = 5 * 60; // in seconds
 
 #[cfg(feature = "stateless")]
 pub const DEFAULT_REDIS_URL: &str = "redis://127.0.0.1/";
@@ -44,6 +45,7 @@ pub struct YummyConfig {
     pub token_lifetime: Duration,
     pub heartbeat_interval: Duration,
     pub heartbeat_timeout: Duration,
+    pub cache_duration: Duration,
     pub connection_restore_wait_timeout: Duration,
 
     pub max_user_meta: usize,
@@ -103,6 +105,7 @@ pub fn get_configuration() -> Arc<YummyConfig> {
         
         rust_log: get_env_var("RUST_LOG", DEFAULT_RUST_LOG.to_string()),
         heartbeat_timeout: Duration::from_secs(get_env_var("HEARTBEAT_TIMEOUT", DEFAULT_HEARTBEAT_TIMEOUT)),
+        cache_duration: Duration::from_secs(get_env_var("CACHE_DURATION", DEFAULT_CACHE_DURATION)),
         connection_restore_wait_timeout: Duration::from_secs(get_env_var("CONNECTION_RESTORE_WAIT_TIMEOUT", DEFAULT_CONNECTION_RESTORE_WAIT_TIMEOUT)),
         heartbeat_interval: Duration::from_secs(get_env_var("HEARTBEAT_INTERVAL", DEFAULT_HEARTBEAT_INTERVAL)),
         token_lifetime: Duration::from_secs(get_env_var("TOKEN_LIFETIME", DEFAULT_TOKEN_LIFETIME)),

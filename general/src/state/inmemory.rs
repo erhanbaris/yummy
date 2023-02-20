@@ -10,16 +10,16 @@ use crate::model::CreateRoomAccessType;
 use crate::model::RoomUserType;
 use crate::model::UserType;
 
-
 use super::*;
 
-#[derive(Debug)]
+use moka::sync::{Cache, ConcurrentCacheExt};
+
+#[derive(Clone)]
 struct ConnectionInfo {
     pub user_id: Arc<UserId>,
     pub room_user_type: RoomUserType
 }
 
-#[derive(Default, Debug)]
 struct RoomState {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -28,7 +28,7 @@ struct RoomState {
     pub tags: Vec<String>,
     pub insert_date: i32,
     pub join_request: bool,
-    pub connections: HashMap<SessionId, ConnectionInfo>,
+    pub connections: Cache<SessionId, ConnectionInfo>,
     pub banned_users: HashSet<UserId>,
     pub metas: HashMap<String, MetaType<RoomMetaAccess>>,
     pub join_requests: HashMap<SessionId, RoomUserType>,
@@ -118,8 +118,11 @@ impl YummyState {
         };
 
         if let Some(room) = self.rooms.lock().get_mut(room_id) {
-            match room.connections.get_mut(&session_id) {
-                Some(user) => user.room_user_type = user_type,
+            match room.connections.get(&session_id) {
+                Some(mut user) => {
+                    user.room_user_type = user_type;
+                    room.connections.insert(session_id, user);
+                },
                 None => return Err(YummyStateError::UserNotFound)
             };
         }
@@ -210,7 +213,7 @@ impl YummyState {
         self.rooms.lock().insert(*room_id, RoomState {
             max_user,
             insert_date,
-            connections: HashMap::new(),
+            connections: Cache::builder().time_to_idle(self.config.cache_duration.clone()).build(),
             tags,
             name,
             description,
@@ -231,7 +234,8 @@ impl YummyState {
                     return Err(YummyStateError::UserAlreadInRoom);
                 }
                 
-                let users_len = room.connections.len();
+                room.connections.sync();
+                let users_len = room.connections.entry_count() as usize;
 
                 // If the max_user 0 or lower than users count, add to room
                 if room.max_user == 0 || room.max_user > users_len {
@@ -285,15 +289,18 @@ impl YummyState {
     pub fn join_to_room(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, room_user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
         match self.rooms.lock().get_mut(room_id.borrow()) {
             Some(room) => {
-                let users_len = room.connections.len();
+                room.connections.sync();
+                let users_len = room.connections.entry_count() as usize;
 
                 // If the max_user 0 or lower than users count, add to room
                 if room.max_user == 0 || room.max_user > users_len {
 
                     // User alread in the room
-                    if room.connections.insert(session_id.clone(), ConnectionInfo { user_id: Arc::new(user_id.clone()), room_user_type }).is_some() {
+                    if room.connections.contains_key(session_id) {
                         return Err(YummyStateError::UserAlreadInRoom);
                     }
+
+                    room.connections.insert(session_id.clone(), ConnectionInfo { user_id: Arc::new(user_id.clone()), room_user_type });
                     
                     let mut user_to_room = self.session_to_room.lock();
                     match user_to_room.get_mut(session_id) {
@@ -359,10 +366,13 @@ impl YummyState {
                     session_to_room.remove(session_id);
                 }
 
-                let user_removed = room.connections.remove(session_id);
-
-                match user_removed.is_some() {
-                    true => Ok(room.connections.is_empty()),
+                let user_removed = room.connections.contains_key(session_id);
+                match user_removed {
+                    true => {
+                        room.connections.invalidate(session_id);
+                        room.connections.sync();
+                        Ok(room.connections.entry_count() == 0)
+                    },
                     false => Err(YummyStateError::UserCouldNotFoundInRoom)
                 }
             }
@@ -381,8 +391,8 @@ impl YummyState {
         match self.rooms.lock().get(room_id) {
             Some(room) => {
                 Ok(room.connections
-                    .values()
-                    .map(|connection| connection.user_id.clone())
+                    .iter()
+                    .map(|(_, connection)| connection.user_id.clone())
                     .collect::<Vec<_>>())
             }
             None => Err(YummyStateError::RoomNotFound)
@@ -427,20 +437,22 @@ impl YummyState {
         let mut result = RoomInfoTypeCollection::default();
         match self.rooms.lock().get(room_id) {
             Some(room) => {
+                room.connections.sync();
+
                 for item in query.iter() {
                     let item = match item {
                         RoomInfoTypeVariant::InsertDate => RoomInfoType::InsertDate(room.insert_date),
                         RoomInfoTypeVariant::MaxUser => RoomInfoType::MaxUser(room.max_user),
                         RoomInfoTypeVariant::RoomName => RoomInfoType::RoomName(room.name.clone()),
                         RoomInfoTypeVariant::Description => RoomInfoType::Description(room.description.clone()),
-                        RoomInfoTypeVariant::UserLength => RoomInfoType::UserLength(room.connections.len()),
+                        RoomInfoTypeVariant::UserLength => RoomInfoType::UserLength(room.connections.entry_count() as usize),
                         RoomInfoTypeVariant::AccessType => RoomInfoType::AccessType(room.access_type.clone()),
                         RoomInfoTypeVariant::JoinRequest => RoomInfoType::JoinRequest(room.join_request),
                         RoomInfoTypeVariant::Users => {
                             let mut users = Vec::new();
                             let user_cache = self.users.lock();
 
-                            for connection_info in room.connections.values() {
+                            for (_, connection_info) in room.connections.iter() {
                                 let name = match user_cache.get(connection_info.user_id.deref()) {
                                     Some(user) => user.name.clone(),
                                     None => None
@@ -511,6 +523,8 @@ impl YummyState {
                 .. Default::default()
             };
 
+            room_state.connections.sync();
+
             for item in query.iter() {
                 match item {
                     RoomInfoTypeVariant::InsertDate => room_info.items.push(RoomInfoType::InsertDate(room_state.insert_date)),
@@ -518,13 +532,13 @@ impl YummyState {
                     RoomInfoTypeVariant::JoinRequest => room_info.items.push(RoomInfoType::JoinRequest(room_state.join_request)),
                     RoomInfoTypeVariant::RoomName => room_info.items.push(RoomInfoType::RoomName(room_state.name.clone())),
                     RoomInfoTypeVariant::Description => room_info.items.push(RoomInfoType::Description(room_state.description.clone())),
-                    RoomInfoTypeVariant::UserLength => room_info.items.push(RoomInfoType::UserLength(room_state.connections.len())),
+                    RoomInfoTypeVariant::UserLength => room_info.items.push(RoomInfoType::UserLength(room_state.connections.entry_count() as usize)),
                     RoomInfoTypeVariant::AccessType => room_info.items.push(RoomInfoType::AccessType(room_state.access_type.clone())),
                     RoomInfoTypeVariant::Users => {                        
                         let mut users = Vec::new();
                         let user_cache = self.users.lock();
 
-                        for connection_info in room_state.connections.values() {
+                        for (_, connection_info) in room_state.connections.iter() {
                             let name = match user_cache.get(connection_info.user_id.deref()) {
                                 Some(user) => user.name.clone(),
                                 None => None

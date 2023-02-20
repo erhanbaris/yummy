@@ -16,13 +16,10 @@ use general::web::GenericAnswer;
 
 use crate::plugin::PluginExecuter;
 
-use self::logic::UserLogic;
+pub use self::logic::UserLogic;
 use self::model::*;
 
 pub struct UserManager<DB: DatabaseTrait + ?Sized> {
-    _config: Arc<YummyConfig>,
-    _database: Arc<Pool>,
-    _states: YummyState,
     executer: Arc<PluginExecuter>,
     _marker: PhantomData<DB>,
     logic: UserLogic<DB>
@@ -31,9 +28,6 @@ pub struct UserManager<DB: DatabaseTrait + ?Sized> {
 impl<DB: DatabaseTrait + ?Sized> UserManager<DB> {
     pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>, executer: Arc<PluginExecuter>) -> Self {
         Self {
-            _config: config.clone(),
-            _database: database.clone(),
-            _states: states.clone(),
             executer,
             _marker: PhantomData,
             logic: UserLogic::new(config.clone(), states.clone(), database.clone())

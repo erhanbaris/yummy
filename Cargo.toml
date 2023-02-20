@@ -94,3 +94,4 @@ libsqlite3-sys = { version = "^0", features = ["bundled"] }
 cucumber = "0.19.1"
 async-trait = "0.1.64"
 mlua = { version = "0.8.7", features = ["lua54", "vendored"] }
+moka = { version = "0.10", features = ["future"] }
