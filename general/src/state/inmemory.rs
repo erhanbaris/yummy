@@ -3,6 +3,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::borrow::Borrow;
 
+use crate::cache::YummyCache;
 use crate::config::YummyConfig;
 use crate::meta::{RoomMetaAccess, MetaType};
 use crate::model::{UserId, RoomId, SessionId};
@@ -28,7 +29,7 @@ struct RoomState {
     pub tags: Vec<String>,
     pub insert_date: i32,
     pub join_request: bool,
-    pub connections: Cache<SessionId, ConnectionInfo>,
+    pub connections: YummyCache<SessionId, ConnectionInfo>,
     pub banned_users: HashSet<UserId>,
     pub metas: HashMap<String, MetaType<RoomMetaAccess>>,
     pub join_requests: HashMap<SessionId, RoomUserType>,
@@ -118,10 +119,10 @@ impl YummyState {
         };
 
         if let Some(room) = self.rooms.lock().get_mut(room_id) {
-            match room.connections.get(&session_id) {
+            match room.connections.get(&session_id).map_err(|error| YummyStateError::CacheCouldNotReaded)? {
                 Some(mut user) => {
                     user.room_user_type = user_type;
-                    room.connections.insert(session_id, user);
+                    room.connections.set(session_id, user);
                 },
                 None => return Err(YummyStateError::UserNotFound)
             };
@@ -213,7 +214,7 @@ impl YummyState {
         self.rooms.lock().insert(*room_id, RoomState {
             max_user,
             insert_date,
-            connections: Cache::builder().time_to_idle(self.config.cache_duration.clone()).build(),
+            connections: YummyCache::new(self.config.clone(), |_| Ok(None)),
             tags,
             name,
             description,
@@ -230,12 +231,12 @@ impl YummyState {
         match self.rooms.lock().get_mut(room_id.borrow()) {
             Some(room) => {
 
-                if room.connections.contains_key(session_id) {
+                if room.connections.contains(session_id) {
                     return Err(YummyStateError::UserAlreadInRoom);
                 }
                 
                 room.connections.sync();
-                let users_len = room.connections.entry_count() as usize;
+                let users_len = room.connections.count() as usize;
 
                 // If the max_user 0 or lower than users count, add to room
                 if room.max_user == 0 || room.max_user > users_len {
@@ -290,17 +291,17 @@ impl YummyState {
         match self.rooms.lock().get_mut(room_id.borrow()) {
             Some(room) => {
                 room.connections.sync();
-                let users_len = room.connections.entry_count() as usize;
+                let users_len = room.connections.count() as usize;
 
                 // If the max_user 0 or lower than users count, add to room
                 if room.max_user == 0 || room.max_user > users_len {
 
                     // User alread in the room
-                    if room.connections.contains_key(session_id) {
+                    if room.connections.contains(session_id) {
                         return Err(YummyStateError::UserAlreadInRoom);
                     }
 
-                    room.connections.insert(session_id.clone(), ConnectionInfo { user_id: Arc::new(user_id.clone()), room_user_type });
+                    room.connections.set(session_id.clone(), ConnectionInfo { user_id: Arc::new(user_id.clone()), room_user_type });
                     
                     let mut user_to_room = self.session_to_room.lock();
                     match user_to_room.get_mut(session_id) {
@@ -366,12 +367,12 @@ impl YummyState {
                     session_to_room.remove(session_id);
                 }
 
-                let user_removed = room.connections.contains_key(session_id);
+                let user_removed = room.connections.contains(session_id);
                 match user_removed {
                     true => {
-                        room.connections.invalidate(session_id);
+                        room.connections.remove(session_id);
                         room.connections.sync();
-                        Ok(room.connections.entry_count() == 0)
+                        Ok(room.connections.count() == 0)
                     },
                     false => Err(YummyStateError::UserCouldNotFoundInRoom)
                 }
@@ -445,7 +446,7 @@ impl YummyState {
                         RoomInfoTypeVariant::MaxUser => RoomInfoType::MaxUser(room.max_user),
                         RoomInfoTypeVariant::RoomName => RoomInfoType::RoomName(room.name.clone()),
                         RoomInfoTypeVariant::Description => RoomInfoType::Description(room.description.clone()),
-                        RoomInfoTypeVariant::UserLength => RoomInfoType::UserLength(room.connections.entry_count() as usize),
+                        RoomInfoTypeVariant::UserLength => RoomInfoType::UserLength(room.connections.count() as usize),
                         RoomInfoTypeVariant::AccessType => RoomInfoType::AccessType(room.access_type.clone()),
                         RoomInfoTypeVariant::JoinRequest => RoomInfoType::JoinRequest(room.join_request),
                         RoomInfoTypeVariant::Users => {
@@ -532,7 +533,7 @@ impl YummyState {
                     RoomInfoTypeVariant::JoinRequest => room_info.items.push(RoomInfoType::JoinRequest(room_state.join_request)),
                     RoomInfoTypeVariant::RoomName => room_info.items.push(RoomInfoType::RoomName(room_state.name.clone())),
                     RoomInfoTypeVariant::Description => room_info.items.push(RoomInfoType::Description(room_state.description.clone())),
-                    RoomInfoTypeVariant::UserLength => room_info.items.push(RoomInfoType::UserLength(room_state.connections.entry_count() as usize)),
+                    RoomInfoTypeVariant::UserLength => room_info.items.push(RoomInfoType::UserLength(room_state.connections.count() as usize)),
                     RoomInfoTypeVariant::AccessType => room_info.items.push(RoomInfoType::AccessType(room_state.access_type.clone())),
                     RoomInfoTypeVariant::Users => {                        
                         let mut users = Vec::new();
