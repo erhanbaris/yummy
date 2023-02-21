@@ -91,10 +91,6 @@ impl<K, V> YummyCache<K, V>
         self.cache.invalidate(key)
     }
 
-    pub fn count(&self) -> u64 {
-        self.cache.entry_count()
-    }
-
     pub fn sync(&self) {
         self.cache.sync()
     }

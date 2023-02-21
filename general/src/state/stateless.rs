@@ -87,16 +87,16 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="get_users_room_type", skip(self))]
-    pub fn get_users_room_type(&mut self, session_id: &SessionId, room_id: &RoomId) -> Option<RoomUserType> {
+    pub fn get_users_room_type(&mut self, session_id: &SessionId, room_id: &RoomId) -> anyhow::Result<Option<RoomUserType>> {
 
         match self.redis.get() {
             Ok(mut redis) => match redis_result!(redis.hget(format!("{}room-sessions:{}", self.config.redis_prefix, room_id.to_string()), session_id.to_string())) {
-                Some(1) => Some(RoomUserType::User),
-                Some(2) => Some(RoomUserType::Moderator),
-                Some(3) => Some(RoomUserType::Owner),
-                _ => None
+                Some(1) => Ok(Some(RoomUserType::User)),
+                Some(2) => Ok(Some(RoomUserType::Moderator)),
+                Some(3) => Ok(Some(RoomUserType::Owner)),
+                _ => Ok(None)
             },
-            Err(_) => None
+            Err(_) => Ok(None)
         }
     }
 

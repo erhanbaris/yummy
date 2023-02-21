@@ -237,7 +237,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
 
     fn get_access_level_for_room(&mut self, user_id: &UserId, session_id: &SessionId, room_id: &RoomId) -> anyhow::Result<RoomMetaAccess> {
         match self.states.get_user_type(user_id) {
-            Some(UserType::User) => match self.states.get_users_room_type(session_id, room_id) {
+            Some(UserType::User) => match self.states.get_users_room_type(session_id, room_id)? {
                 Some(RoomUserType::User) => Ok(RoomMetaAccess::User),
                 Some(RoomUserType::Moderator) => Ok(RoomMetaAccess::Moderator),
                 Some(RoomUserType::Owner) => Ok(RoomMetaAccess::Owner),
@@ -403,7 +403,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<WaitingR
         // Check user information
         let session_id = get_session_id_from_auth!(model);
 
-        let user_type = match self.states.get_users_room_type(session_id, &model.room) {
+        let user_type = match self.states.get_users_room_type(session_id, &model.room)? {
             Some(room_user_type) => room_user_type,
             None => return Err(anyhow::anyhow!(RoomError::UserNotInTheRoom))
         };
@@ -513,7 +513,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<KickUser
     fn handle(&mut self, model: KickUserFromRoom, _ctx: &mut Context<Self>) -> Self::Result {        
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
 
-        let requester_user_type = self.states.get_users_room_type(session_id, &model.room).ok_or(RoomError::UserDoesNotHaveEnoughPermission)?;
+        let requester_user_type = self.states.get_users_room_type(session_id, &model.room)?.ok_or(RoomError::UserDoesNotHaveEnoughPermission)?;
 
         // User must be room owner or moderator
         if requester_user_type == RoomUserType::User {

@@ -109,12 +109,12 @@ async fn room_tests() -> anyhow::Result<()> {
     let user_3_session = state.new_session(&user_3, None, UserType::User);
     
     state.join_to_room(&room_1, &user_1, &user_1_session, RoomUserType::Owner)?;
-    assert_eq!(state.get_users_room_type(&user_1_session, &room_1).unwrap(), RoomUserType::Owner);
+    assert_eq!(state.get_users_room_type(&user_1_session, &room_1)?.unwrap(), RoomUserType::Owner);
 
     assert_eq!(state.join_to_room(&room_1, &user_1, &user_1_session, RoomUserType::Owner).err().unwrap(), YummyStateError::UserAlreadInRoom);
 
     state.join_to_room(&room_1, &user_2, &user_2_session, RoomUserType::User)?;
-    assert_eq!(state.get_users_room_type(&user_2_session, &room_1).unwrap(), RoomUserType::User);
+    assert_eq!(state.get_users_room_type(&user_2_session, &room_1)?.unwrap(), RoomUserType::User);
 
     assert_eq!(state.join_to_room(&room_1, &user_3, &user_3_session, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
     assert_eq!(state.join_to_room(&room_1, &user_2, &user_2_session, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
