@@ -1,6 +1,7 @@
 use actix::Actor;
 use actix::Addr;
 use anyhow::Ok;
+use general::model::UserInformationModel;
 use general::model::UserType;
 use std::ops::Deref;
 
@@ -20,7 +21,6 @@ use std::env::temp_dir;
 use std::sync::Arc;
 
 use database::{create_database, create_connection};
-use database::model::UserInformationModel;
 use general::meta::MetaType;
 
 use crate::auth::AuthManager;

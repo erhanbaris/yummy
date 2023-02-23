@@ -4,10 +4,10 @@ use std::sync::Arc;
 use std::borrow::Borrow;
 use std::sync::atomic::AtomicUsize;
 
-use crate::cache::YummyCache;
+use crate::cache::{YummyCache, YummyCacheGetter};
 use crate::config::YummyConfig;
-use crate::meta::{RoomMetaAccess, MetaType};
-use crate::model::{UserId, RoomId, SessionId};
+use crate::meta::{RoomMetaAccess, MetaType, UserMetaAccess};
+use crate::model::{UserId, RoomId, SessionId, UserInformationModel};
 use crate::model::CreateRoomAccessType;
 use crate::model::RoomUserType;
 use crate::model::UserType;
@@ -56,17 +56,30 @@ pub struct YummyState {
     rooms: Arc<parking_lot::Mutex<std::collections::HashMap<RoomId, RoomState>>>,
     session_to_users: Arc<parking_lot::Mutex<std::collections::HashMap<SessionId, Arc<UserId>>>>,
     session_to_room: Arc<parking_lot::Mutex<std::collections::HashMap<SessionId, std::collections::HashSet<RoomId>>>>,
+    user_informations: Arc<YummyCache<UserId, UserInformationModel>>
 }
 
 impl YummyState {
     pub fn new(config: Arc<YummyConfig>) -> Self {
         Self {
-            config,
+            config: config.clone(),
 
             users: Arc::new(parking_lot::Mutex::default()),
             rooms: Arc::new(parking_lot::Mutex::default()),
             session_to_users: Arc::new(parking_lot::Mutex::default()),
-            session_to_room: Arc::new(parking_lot::Mutex::default())            
+            session_to_room: Arc::new(parking_lot::Mutex::default()),
+            user_informations: Arc::new(YummyCache::new(config.clone()))
+        }
+    }
+
+    pub fn get_user_information(&self, user_id: &UserId, access_type: UserMetaAccess, getter: &YummyCacheGetter<UserId, UserInformationModel>) -> Result<Option<UserInformationModel>, YummyStateError> {
+        let mut result = self.user_informations.execute_get(user_id, getter)?;
+        match result {
+            Some(result) => {
+                // filter meta with access_type
+                Ok(Some(result))
+            },
+            None => Ok(None)
         }
     }
     
@@ -119,10 +132,10 @@ impl YummyState {
         };
 
         if let Some(room) = self.rooms.lock().get_mut(room_id) {
-            match room.connections.get(&session_id).map_err(|_| YummyStateError::CacheCouldNotReaded)? {
+            match room.connections.get(&session_id)? {
                 Some(mut user) => {
                     user.room_user_type = user_type;
-                    room.connections.set(session_id, user);
+                    room.connections.set(session_id, user)?;
                     room.connection_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 },
                 None => return Err(YummyStateError::UserNotFound)
@@ -216,7 +229,7 @@ impl YummyState {
             max_user,
             insert_date,
             connection_count: AtomicUsize::new(0),
-            connections: YummyCache::new(self.config.clone(), |_| Ok(None)),
+            connections: YummyCache::new(self.config.clone()),
             tags,
             name,
             description,
@@ -303,7 +316,7 @@ impl YummyState {
                     }
 
                     room.connection_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    room.connections.set(session_id.clone(), ConnectionInfo { user_id: Arc::new(user_id.clone()), room_user_type });
+                    room.connections.set(session_id.clone(), ConnectionInfo { user_id: Arc::new(user_id.clone()), room_user_type })?;
                     
                     let mut user_to_room = self.session_to_room.lock();
                     match user_to_room.get_mut(session_id) {

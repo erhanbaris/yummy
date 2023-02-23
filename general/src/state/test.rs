@@ -111,15 +111,21 @@ async fn room_tests() -> anyhow::Result<()> {
     state.join_to_room(&room_1, &user_1, &user_1_session, RoomUserType::Owner)?;
     assert_eq!(state.get_users_room_type(&user_1_session, &room_1)?.unwrap(), RoomUserType::Owner);
 
-    assert_eq!(state.join_to_room(&room_1, &user_1, &user_1_session, RoomUserType::Owner).err().unwrap(), YummyStateError::UserAlreadInRoom);
+    let result = state.join_to_room(&room_1, &user_1, &user_1_session, RoomUserType::Owner).err().unwrap();
+    if let YummyStateError::UserAlreadInRoom = result {} else { assert!(false, "expected UserAlreadInRoom")};
 
     state.join_to_room(&room_1, &user_2, &user_2_session, RoomUserType::User)?;
     assert_eq!(state.get_users_room_type(&user_2_session, &room_1)?.unwrap(), RoomUserType::User);
 
-    assert_eq!(state.join_to_room(&room_1, &user_3, &user_3_session, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
-    assert_eq!(state.join_to_room(&room_1, &user_2, &user_2_session, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
+    let result = state.join_to_room(&room_1, &user_3, &user_3_session, RoomUserType::Owner).err().unwrap();
+    if let YummyStateError::RoomHasMaxUsers = result {} else { assert!(false, "expected RoomHasMaxUsers")};
 
-    assert_eq!(state.join_to_room(&RoomId::new(), &UserId::new(), &SessionId::new(), RoomUserType::Owner).err().unwrap(), YummyStateError::RoomNotFound);
+    let result = state.join_to_room(&room_1, &user_2, &user_2_session, RoomUserType::Owner).err().unwrap();
+    if let YummyStateError::RoomHasMaxUsers = result {} else { assert!(false, "expected RoomHasMaxUsers")};
+
+    let result = state.join_to_room(&RoomId::new(), &UserId::new(), &SessionId::new(), RoomUserType::Owner).err().unwrap();
+    if let YummyStateError::RoomNotFound = result {} else { assert!(false, "expected RoomNotFound")};
+
     assert_eq!(state.get_users_from_room(&room_1)?.len(), 2);
 
     assert_eq!(state.disconnect_from_room(&room_1, &user_1, &user_1_session)?, false);

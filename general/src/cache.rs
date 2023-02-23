@@ -4,7 +4,18 @@ use moka::sync::{Cache, ConcurrentCacheExt};
 
 use crate::config::YummyConfig;
 
-pub type YummyCacheGetter<K, V> = fn(&K) -> anyhow::Result<Option<V>>;
+pub type YummyCacheGetter<K, V> = dyn Fn(&K) -> anyhow::Result<Option<V>>;
+pub type YummyCacheSetter<K, V> = dyn Fn(&K, &V) -> anyhow::Result<()>;
+
+fn default_getter<K, V>(_: &K) -> anyhow::Result<Option<V>>
+where 
+    K: Send + Sync + std::clone::Clone + std::hash::Hash + std::cmp::Eq + 'static, 
+    V: Send + Sync + std::clone::Clone + 'static { Ok(None) }
+
+fn default_setter<K, V>(_: &K, _: &V) -> anyhow::Result<()>
+where 
+    K: Send + Sync + std::clone::Clone + std::hash::Hash + std::cmp::Eq + 'static, 
+    V: Send + Sync + std::clone::Clone + 'static { Ok(()) }
 
 pub struct YummyCache<K, V>
     where
@@ -15,7 +26,8 @@ pub struct YummyCache<K, V>
     cache: Cache<K, V>,
 
     // Fetch information from resource callback
-    getter: YummyCacheGetter<K, V>,
+    getter: Box<YummyCacheGetter<K, V>>,
+    setter: Box<YummyCacheSetter<K, V>>,
 
     // Statistical data
     hit: AtomicUsize,
@@ -28,17 +40,18 @@ impl<K, V> YummyCache<K, V>
         K: Send + Sync + std::clone::Clone + std::hash::Hash + std::cmp::Eq + 'static, 
         V: Send + Sync + std::clone::Clone + 'static {
 
-    pub fn new(config: Arc<YummyConfig>, getter: YummyCacheGetter<K, V>) -> Self {
+    pub fn new(config: Arc<YummyConfig>) -> Self {
         Self {
             cache: Cache::builder().time_to_idle(config.cache_duration.clone()).build(),
-            getter,
+            getter: Box::new(default_getter),
+            setter: Box::new(default_setter),
             hit: AtomicUsize::new(0),
             lose: AtomicUsize::new(0),
             miss: AtomicUsize::new(0)
         }
     }
 
-    pub fn get(&self, key: &K) -> anyhow::Result<Option<V>> {
+    pub fn execute_get(&self, key: &K, resource_getter: &YummyCacheGetter<K, V>) -> anyhow::Result<Option<V>> {
 
         // Try to get information from cache
         match self.cache.get(key) {
@@ -52,7 +65,7 @@ impl<K, V> YummyCache<K, V>
             },
 
             // We dont have information in the cache. lets fetch it from resource
-            None => match (self.getter)(key)? {
+            None => match (resource_getter)(key)? {
 
                 // Information is in the resource and lets save it into the cache
                 Some(value) => {
@@ -61,7 +74,7 @@ impl<K, V> YummyCache<K, V>
                     self.lose.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
                     // Save information
-                    self.set(key.clone(), value.clone());
+                    self.set(key.clone(), value.clone())?;
 
                     // Return information
                     Ok(Some(value))
@@ -79,8 +92,21 @@ impl<K, V> YummyCache<K, V>
         }
     }
 
-    pub fn set(&self, key: K, value: V) {
-        self.cache.insert(key, value)
+    pub fn get(&self, key: &K) -> anyhow::Result<Option<V>> {
+        self.execute_get(key, &self.getter)
+    }
+
+    pub fn execute_set(&self, key: K, value: V, resource_setter: &YummyCacheSetter<K, V>) -> anyhow::Result<()> {
+        // First change resource
+        (resource_setter)(&key, &value)?;
+
+        // If the resource update success, update on the cache
+        self.cache.insert(key, value);
+        Ok(())
+    }
+
+    pub fn set(&self, key: K, value: V) -> anyhow::Result<()> {
+        self.execute_set(key, value, &self.setter)
     }
 
     pub fn contains(&self, key: &K) -> bool {
@@ -105,6 +131,14 @@ impl<K, V> YummyCache<K, V>
 
     pub fn get_miss(&self) -> usize {
         self.miss.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn set_getter(&mut self, getter: &'static YummyCacheGetter<K, V>) {
+        self.getter = Box::new(getter);
+    }
+
+    pub fn set_setter(&mut self, setter: &'static YummyCacheSetter<K, V>) {
+        self.setter = Box::new(setter);
     }
 
     pub fn iter(&self) -> YummyCacheIterator<K, V> {

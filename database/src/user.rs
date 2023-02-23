@@ -12,11 +12,11 @@ use diesel::result::OptionalExtension;
 use general::meta::MetaType;
 use general::meta::UserMetaAccess;
 use general::model::UserId;
+use general::model::UserInformationModel;
 use general::model::UserMetaId;
 use general::model::UserType;
 
 use crate::SqliteStore;
-use crate::model::UserInformationModel;
 use crate::model::UserMetaInsert;
 use crate::model::UserMetaModel;
 use crate::model::UserUpdate;

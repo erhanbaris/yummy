@@ -29,7 +29,7 @@ use crate::model::{UserId, RoomId};
 use crate::model::CreateRoomAccessType;
 use crate::model::RoomUserType;
 
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Debug)]
 pub enum YummyStateError {
     #[error("Room not found")]
     RoomNotFound,
@@ -50,7 +50,10 @@ pub enum YummyStateError {
     RoomHasMaxUsers,
     
     #[error("Cache could not readed")]
-    CacheCouldNotReaded
+    CacheCouldNotReaded,
+    
+    #[error("Cache error {0}")]
+    CacheError(#[from] anyhow::Error)
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]

@@ -1,7 +1,7 @@
 use std::{marker::PhantomData, sync::Arc, ops::Deref};
 
-use database::{DatabaseTrait, Pool, model::{UserInformationModel, UserUpdate}};
-use general::{config::YummyConfig, state::YummyState, model::{UserId, UserType}, meta::{UserMetaAccess, MetaType}};
+use database::{DatabaseTrait, Pool, model::UserUpdate};
+use general::{config::YummyConfig, state::YummyState, model::{UserId, UserType, UserInformationModel}, meta::{UserMetaAccess, MetaType}, cache::YummyCacheGetter};
 use general::web::Answer;
 
 use crate::{auth::model::AuthError, get_user_id_from_auth};
@@ -54,8 +54,15 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
         let mut connection = self.database.get()?;
 
         #[allow(unused_mut)]
-        let mut execute = |connection, user_id, access_type| -> anyhow::Result<UserInformationModel> {
-            let user = DB::get_user_information(connection, user_id, access_type)?;
+        let mut execute = |connection, user_id: &UserId, access_type: UserMetaAccess| -> anyhow::Result<UserInformationModel> {
+            
+            let mut connection = self.database.clone();
+            let user_id_copy = user_id.clone();
+            let user = self.states.get_user_information(user_id, access_type.clone(), &move |_| {
+                let mut connection = connection.get()?;
+                DB::get_user_information(&mut connection, &user_id_copy, access_type.clone())
+            })?;
+
             match user {
                 Some(mut user) => {
                     user.online = self.states.is_user_online(user_id);

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::hash::Hash;
 use std::fmt::Debug;
 use std::str::FromStr;
@@ -25,6 +26,7 @@ use num_traits::FromPrimitive;
 use uuid::Uuid;
 
 use crate::auth::UserJwt;
+use crate::meta::{UserMetaAccess, MetaType};
 use crate::web::GenericAnswer;
 
 macro_rules! generate_type {
@@ -245,4 +247,19 @@ impl WebsocketMessage {
         let message = serde_json::to_string(&GenericAnswer::fail(request_id, message));
         WebsocketMessage(message.unwrap())
     }
+}
+
+#[derive(Default, Clone, Debug, Queryable, Serialize, Deserialize, PartialEq)]
+#[diesel(table_name = user)]
+pub struct UserInformationModel {
+    pub id: UserId,
+    pub name: Option<String>,
+    pub email: Option<String>,
+    pub device_id: Option<String>,
+    pub custom_id: Option<String>,
+    pub metas: Option<HashMap<String, MetaType<UserMetaAccess>>>,
+    pub user_type: UserType,
+    pub online: bool,
+    pub insert_date: i32,
+    pub last_login_date: i32,
 }

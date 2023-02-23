@@ -1,8 +1,7 @@
 use std::{fmt::Debug, sync::Arc, collections::HashMap};
-use database::model::UserInformationModel;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use general::{client::ClientTrait, meta::MetaAction};
+use general::{client::ClientTrait, meta::MetaAction, model::UserInformationModel};
 
 use actix::prelude::Message;
 use validator::Validate;
