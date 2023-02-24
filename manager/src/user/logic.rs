@@ -1,8 +1,9 @@
 use std::{marker::PhantomData, sync::Arc, ops::Deref};
 
-use database::{DatabaseTrait, Pool, model::UserUpdate};
-use general::{config::YummyConfig, state::YummyState, model::{UserId, UserType, UserInformationModel}, meta::{UserMetaAccess, MetaType}, cache::YummyCacheGetter};
+use database::{DatabaseTrait, model::UserUpdate};
+use general::{config::YummyConfig, state::YummyState, model::{UserId, UserType, UserInformationModel}, meta::{UserMetaAccess, MetaType}};
 use general::web::Answer;
+use general::database::Pool;
 
 use crate::{auth::model::AuthError, get_user_id_from_auth};
 
@@ -51,17 +52,17 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
     }
 
     pub fn get_user_information(&mut self, model: &GetUserInformation) -> anyhow::Result<UserInformationModel> {
-        let mut connection = self.database.get()?;
-
         #[allow(unused_mut)]
-        let mut execute = |connection, user_id: &UserId, access_type: UserMetaAccess| -> anyhow::Result<UserInformationModel> {
+        let mut execute = |user_id: &UserId, access_type: UserMetaAccess| -> anyhow::Result<UserInformationModel> {
             
             let mut connection = self.database.clone();
             let user_id_copy = user_id.clone();
-            let user = self.states.get_user_information(user_id, access_type.clone(), &move |_| {
+            /*let user = self.states.get_user_information(user_id, access_type.clone(), &move |_| {
                 let mut connection = connection.get()?;
                 DB::get_user_information(&mut connection, &user_id_copy, access_type.clone())
-            })?;
+            })?;*/
+
+            let user = self.states.get_user_information(user_id, access_type.clone())?;
 
             match user {
                 Some(mut user) => {
@@ -74,21 +75,22 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
 
         match &model.query {
             GetUserInformationEnum::Me(user) => match user.deref() {
-                Some(user) => execute(&mut connection, &user.user, UserMetaAccess::Me),
+                Some(user) => execute(&user.user, UserMetaAccess::Me),
                 None => Err(anyhow::anyhow!(AuthError::TokenNotValid))
             },
-            GetUserInformationEnum::UserViaSystem(user) => execute(&mut connection, user, UserMetaAccess::System),
+            GetUserInformationEnum::UserViaSystem(user) => execute(user, UserMetaAccess::System),
             GetUserInformationEnum::User { user, requester } => {
                 match requester.deref() {
                     Some(requester) => {
+                        let mut connection = self.database.get()?;
                         let user_type = DB::get_user_type(&mut connection, &requester.user)?;
-                        execute(&mut connection, user, match user_type {
+                        execute(user, match user_type {
                             UserType::Admin => UserMetaAccess::Admin,
                             UserType::Mod => UserMetaAccess::Mod,
                             UserType::User => UserMetaAccess::User
                         })
                     },
-                    None => execute(&mut connection, user, UserMetaAccess::Anonymous)
+                    None => execute(user, UserMetaAccess::Anonymous)
                 }
             }
         }

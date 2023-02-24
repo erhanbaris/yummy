@@ -1,3 +1,5 @@
+pub mod resource;
+
 #[cfg(not(feature = "stateless"))]
 pub mod inmemory;
 

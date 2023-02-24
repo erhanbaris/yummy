@@ -8,11 +8,12 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use actix::{Context, Actor, Handler};
-use database::{Pool, DatabaseTrait};
+use database::DatabaseTrait;
 
 use general::config::YummyConfig;
 use general::state::YummyState;
 use general::web::GenericAnswer;
+use general::database::Pool;
 
 use crate::plugin::PluginExecuter;
 

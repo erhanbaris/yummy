@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::borrow::Borrow;
 use std::sync::atomic::AtomicUsize;
 
-use crate::cache::{YummyCache, YummyCacheGetter};
+use crate::cache::{YummyCache, YummyCacheResource};
 use crate::config::YummyConfig;
 use crate::meta::{RoomMetaAccess, MetaType, UserMetaAccess};
 use crate::model::{UserId, RoomId, SessionId, UserInformationModel};
@@ -13,11 +13,24 @@ use crate::model::RoomUserType;
 use crate::model::UserType;
 
 use super::*;
+use super::resource::StateResourceTrait;
 
 #[derive(Clone)]
-struct ConnectionInfo {
+pub struct ConnectionInfo {
     pub user_id: Arc<UserId>,
     pub room_user_type: RoomUserType
+}
+
+#[derive(Default)]
+pub struct ConnectionResource;
+
+impl YummyCacheResource for ConnectionResource {
+    type K=SessionId;
+    type V=ConnectionInfo;
+    
+    fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
+
+    fn set(&self, key: Self::K, value: Self::V) -> anyhow::Result<()> { Ok(()) }
 }
 
 struct RoomState {
@@ -60,7 +73,9 @@ pub struct YummyState {
 }
 
 impl YummyState {
-    pub fn new(config: Arc<YummyConfig>) -> Self {
+    pub fn new(config: Arc<YummyConfig>, user_information_resource: Box<dyn YummyCacheResource::<K=UserId, V=UserInformationModel>>) -> Self {
+        let user_informations = YummyCache::new(config.clone(), user_information_resource);
+
         Self {
             config: config.clone(),
 
@@ -68,12 +83,13 @@ impl YummyState {
             rooms: Arc::new(parking_lot::Mutex::default()),
             session_to_users: Arc::new(parking_lot::Mutex::default()),
             session_to_room: Arc::new(parking_lot::Mutex::default()),
-            user_informations: Arc::new(YummyCache::new(config.clone()))
+            user_informations: Arc::new(user_informations)
         }
     }
 
-    pub fn get_user_information(&self, user_id: &UserId, access_type: UserMetaAccess, getter: &YummyCacheGetter<UserId, UserInformationModel>) -> Result<Option<UserInformationModel>, YummyStateError> {
-        let mut result = self.user_informations.execute_get(user_id, getter)?;
+    pub fn get_user_information(&self, user_id: &UserId, access_type: UserMetaAccess) -> Result<Option<UserInformationModel>, YummyStateError> {
+        let mut result = self.user_informations.get(user_id)?;
+
         match result {
             Some(result) => {
                 // filter meta with access_type
@@ -229,7 +245,7 @@ impl YummyState {
             max_user,
             insert_date,
             connection_count: AtomicUsize::new(0),
-            connections: YummyCache::new(self.config.clone()),
+            connections: YummyCache::new(self.config.clone(), Box::new(ConnectionResource::default())),
             tags,
             name,
             description,

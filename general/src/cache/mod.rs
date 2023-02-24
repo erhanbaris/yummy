@@ -1,8 +1,18 @@
-use std::{sync::{Arc, atomic::AtomicUsize}, marker::PhantomData};
+use std::sync::{Arc, atomic::AtomicUsize};
 
 use moka::sync::{Cache, ConcurrentCacheExt};
 
 use crate::config::YummyConfig;
+
+pub trait YummyCacheResource {
+        type K: Send + Sync + std::clone::Clone + std::hash::Hash + std::cmp::Eq + 'static;
+        type V: Send + Sync + std::clone::Clone + 'static;
+
+    fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
+    fn set(&self, key: Self::K, value: Self::V) -> anyhow::Result<()> { Ok(()) }
+
+}
+
 
 pub type YummyCacheGetter<K, V> = dyn Fn(&K) -> anyhow::Result<Option<V>>;
 pub type YummyCacheSetter<K, V> = dyn Fn(&K, &V) -> anyhow::Result<()>;
@@ -29,6 +39,8 @@ pub struct YummyCache<K, V>
     getter: Box<YummyCacheGetter<K, V>>,
     setter: Box<YummyCacheSetter<K, V>>,
 
+    resource: Box<dyn YummyCacheResource<K = K, V = V>>,
+
     // Statistical data
     hit: AtomicUsize,
     lose: AtomicUsize,
@@ -40,18 +52,19 @@ impl<K, V> YummyCache<K, V>
         K: Send + Sync + std::clone::Clone + std::hash::Hash + std::cmp::Eq + 'static, 
         V: Send + Sync + std::clone::Clone + 'static {
 
-    pub fn new(config: Arc<YummyConfig>) -> Self {
+    pub fn new(config: Arc<YummyConfig>, resource: Box<dyn YummyCacheResource::<K = K, V = V>>) -> Self {
         Self {
             cache: Cache::builder().time_to_idle(config.cache_duration.clone()).build(),
             getter: Box::new(default_getter),
             setter: Box::new(default_setter),
+            resource,
             hit: AtomicUsize::new(0),
             lose: AtomicUsize::new(0),
             miss: AtomicUsize::new(0)
         }
     }
 
-    pub fn execute_get(&self, key: &K, resource_getter: &YummyCacheGetter<K, V>) -> anyhow::Result<Option<V>> {
+    pub fn get(&self, key: &K) -> anyhow::Result<Option<V>> {
 
         // Try to get information from cache
         match self.cache.get(key) {
@@ -65,7 +78,7 @@ impl<K, V> YummyCache<K, V>
             },
 
             // We dont have information in the cache. lets fetch it from resource
-            None => match (resource_getter)(key)? {
+            None => match self.resource.get(key)? {
 
                 // Information is in the resource and lets save it into the cache
                 Some(value) => {
@@ -90,10 +103,6 @@ impl<K, V> YummyCache<K, V>
                 }
             }
         }
-    }
-
-    pub fn get(&self, key: &K) -> anyhow::Result<Option<V>> {
-        self.execute_get(key, &self.getter)
     }
 
     pub fn execute_set(&self, key: K, value: V, resource_setter: &YummyCacheSetter<K, V>) -> anyhow::Result<()> {
@@ -143,8 +152,6 @@ impl<K, V> YummyCache<K, V>
 
     pub fn iter(&self) -> YummyCacheIterator<K, V> {
         YummyCacheIterator {
-            _marker1: PhantomData,
-            _marker2: PhantomData,
             iter: self.cache.iter()
         } 
     }
@@ -154,8 +161,6 @@ pub struct YummyCacheIterator<'a, K, V>
     where
         K: Send + Sync + std::clone::Clone + std::hash::Hash + std::cmp::Eq + 'static,
         V: Send + Sync + std::clone::Clone + 'static {
-    _marker1: PhantomData<K>,
-    _marker2: PhantomData<V>,
     iter: moka::sync::Iter<'a, K, V>
 }
 
@@ -167,4 +172,26 @@ impl<'a, K, V> Iterator for YummyCacheIterator<'a, K, V> where
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next()
     }
+}
+
+
+pub trait YummyCacheProperty {
+    type K;
+    type V;
+
+    fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
+    fn set(&self, key: Self::K, value: Self::V) -> anyhow::Result<()> { Ok(()) }
+}
+
+pub struct UserInformationCache {
+    cache: YummyCache<String, String>
+}
+
+impl YummyCacheProperty for UserInformationCache {
+    type K = String;
+    type V = String;
+
+    fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
+
+    fn set(&self, key: Self::K, value: Self::V) -> anyhow::Result<()> { Ok(()) }
 }

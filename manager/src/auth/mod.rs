@@ -13,9 +13,10 @@ use general::config::YummyConfig;
 use actix_broker::BrokerSubscribe;
 
 use actix::{Context, Handler, Actor, AsyncContext, SpawnHandle};
-use database::{Pool, DatabaseTrait};
+use database::DatabaseTrait;
 use anyhow::{anyhow, Ok};
 use general::model::{UserId, SessionId};
+use general::database::Pool;
 
 use crate::plugin::PluginExecuter;
 use self::model::*;

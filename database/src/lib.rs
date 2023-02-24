@@ -5,6 +5,7 @@ pub mod auth;
 pub mod model;
 pub mod user;
 pub mod room;
+pub mod state_resource;
 pub(crate) mod schema;
 
 #[cfg(test)]
@@ -12,16 +13,12 @@ mod test;
 
 use auth::AuthStoreTrait;
 use diesel::r2d2::ConnectionManager;
-use diesel::SqliteConnection;
 use diesel::*;
-use diesel::Connection;
 
 use user::UserStoreTrait;
 use room::RoomStoreTrait;
 
-pub type ConnectionType = SqliteConnection;
-pub type Pool = r2d2::Pool<ConnectionManager<ConnectionType>>;
-pub type PooledConnection = ::r2d2::PooledConnection<ConnectionManager<ConnectionType>>;
+use general::database::{PooledConnection, Pool, ConnectionType};
 
 pub trait DatabaseTrait: AuthStoreTrait + UserStoreTrait + RoomStoreTrait + Sized {
     fn transaction<T, E, F>(connection: &mut PooledConnection, f: F) -> Result<T, E>

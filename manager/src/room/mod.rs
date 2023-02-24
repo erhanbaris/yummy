@@ -10,7 +10,7 @@ use actix::{Context, Actor, Handler};
 use actix_broker::{BrokerSubscribe, BrokerIssue};
 use anyhow::anyhow;
 use database::model::RoomUpdate;
-use database::{Pool, DatabaseTrait, PooledConnection};
+use database::DatabaseTrait;
 
 use general::config::YummyConfig;
 use general::meta::{MetaType, MetaAction};
@@ -18,6 +18,8 @@ use general::meta::RoomMetaAccess;
 use general::model::{RoomId, UserId, RoomUserType, UserType, SessionId};
 use general::state::{YummyState, SendMessage, RoomInfoTypeVariant, RoomInfoType};
 use general::web::{GenericAnswer, Answer};
+use general::database::Pool;
+use general::database::PooledConnection;
 
 use crate::auth::model::{AuthError, RoomUserDisconnect};
 use crate::plugin::PluginExecuter;
