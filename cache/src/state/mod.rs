@@ -20,16 +20,12 @@ use std::borrow::Cow;
 use std::sync::Arc;
 use std::fmt::Debug;
 
-use actix::Message;
+use general::meta::{RoomMetaAccess, MetaType};
+use general::model::{UserId, RoomUserType, CreateRoomAccessType, RoomId};
 use serde::ser::SerializeMap;
 use strum_macros::EnumDiscriminants;
 use serde::{Serialize, Deserialize, Serializer};
 use thiserror::Error;
-
-use crate::meta::{RoomMetaAccess, MetaType};
-use crate::model::{UserId, RoomId};
-use crate::model::CreateRoomAccessType;
-use crate::model::RoomUserType;
 
 #[derive(Error, Debug)]
 pub enum YummyStateError {
@@ -65,13 +61,6 @@ pub struct RoomUserInformation {
 
     #[serde(rename = "type")]
     pub user_type: RoomUserType
-}
-
-#[derive(Message, Debug, Clone, Serialize, Deserialize)]
-#[rtype(result = "()")]
-pub struct SendMessage {
-    pub user_id: Arc<UserId>,
-    pub message: String
 }
 
 #[derive(Debug, Clone, EnumDiscriminants, PartialEq, Deserialize)]

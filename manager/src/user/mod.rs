@@ -11,10 +11,9 @@ use actix::{Context, Actor, Handler};
 use database::DatabaseTrait;
 
 use general::config::YummyConfig;
-use general::state::YummyState;
 use general::web::GenericAnswer;
 use general::database::Pool;
-
+use cache::state::YummyState;
 use crate::plugin::PluginExecuter;
 
 pub use self::logic::UserLogic;

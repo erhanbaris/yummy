@@ -5,12 +5,15 @@ use std::env::temp_dir;
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use cache::state_resource::ResourceFactory;
+use database::DefaultDatabaseStore;
+use cache::state::YummyState;
 use uuid::Uuid;
 use database::create_database;
-use general::state::YummyState;
 use general::websocket::WebsocketTestClient;
 use general::web::json_error_handler;
 use general::meta::MetaType;
+use testing::model::*;
 
 use manager::conn::ConnectionManager;
 use actix_web::web::Data;
@@ -130,7 +133,8 @@ pub fn create_websocket_server_with_config(config: Arc<YummyConfig>, test_server
         #[cfg(feature = "stateless")]
         let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-        let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+        let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+        let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
         let executer = Arc::new(PluginExecuter::default());
 
         ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
@@ -222,7 +226,8 @@ pub fn config(cfg: &mut ServiceConfig) {
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();

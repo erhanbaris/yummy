@@ -3,7 +3,7 @@ mod api;
 
 use std::sync::Arc;
 
-use database::state_resource::UserInformationResource;
+use database::DefaultDatabaseStore;
 use general::config::{get_configuration, configure_environment};
 use general::tls::load_rustls_config;
 use general::web::json_error_handler;
@@ -15,6 +15,9 @@ use manager::auth::AuthManager;
 
 use manager::plugin::PluginBuilder;
 
+use cache::state::YummyState;
+use cache::state_resource::ResourceFactory;
+
 use actix::Actor;
 use actix_web::error::InternalError;
 use actix_web::web::{JsonConfig, QueryConfig};
@@ -23,12 +26,9 @@ use actix_web::{middleware, App, HttpServer, web::Data};
 
 use crate::api::websocket::websocket_endpoint;
 
-type DefaultDatabaseStore = database::SqliteStore;
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
 
-    use general::state::YummyState;
     use manager::room::RoomManager;
 
     configure_environment();
@@ -48,8 +48,9 @@ async fn main() -> std::io::Result<()> {
 
     #[cfg(feature = "stateless")]
     let redis_client = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), database.clone());
 
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] redis_client.clone(), Box::new(UserInformationResource::<DefaultDatabaseStore>::new(config.clone(), database.clone())));
+    let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] redis_client.clone());
 
     let mut builder = PluginBuilder::default();
     builder.add_installer(Box::new(LuaPluginInstaller::default()));

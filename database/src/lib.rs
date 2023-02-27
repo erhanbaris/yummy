@@ -5,7 +5,6 @@ pub mod auth;
 pub mod model;
 pub mod user;
 pub mod room;
-pub mod state_resource;
 pub(crate) mod schema;
 
 #[cfg(test)]
@@ -31,6 +30,8 @@ pub trait DatabaseTrait: AuthStoreTrait + UserStoreTrait + RoomStoreTrait + Size
 }
 
 pub struct SqliteStore;
+
+pub type DefaultDatabaseStore = SqliteStore;
 
 impl DatabaseTrait for SqliteStore { }
 

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::fmt::Debug;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -262,4 +263,11 @@ pub struct UserInformationModel {
     pub online: bool,
     pub insert_date: i32,
     pub last_login_date: i32,
+}
+
+#[derive(Message, Debug, Clone, Serialize, Deserialize)]
+#[rtype(result = "()")]
+pub struct SendMessage {
+    pub user_id: Arc<UserId>,
+    pub message: String
 }

@@ -5,7 +5,8 @@ mod test;
 
 use std::ops::Deref;
 use actix_broker::BrokerIssue;
-use general::{auth::{generate_auth, UserJwt, validate_auth}, state::YummyState, web::GenericAnswer, model::UserType};
+use cache::state::YummyState;
+use general::{auth::{generate_auth, UserJwt, validate_auth}, web::GenericAnswer, model::UserType};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::collections::HashMap;

@@ -4,7 +4,10 @@ members = [
     "server",
     "manager",
     "database",
-    "general"
+    "general",
+    "cache",
+    "lua",
+    "testing"
 ]
 
 [workspace.package]
@@ -20,6 +23,9 @@ manager = { path = "./manager", features = [] }
 server = { path = "./server", features = [] }
 database = { path = "./database" }
 macros = { path = "./macros" }
+cache = { path = "./cache" }
+lua = { path = "./lua" }
+testing = { path = "./testing" }
 
 redis = { version = "0.22.3", features = ["r2d2", "tokio-comp"] }
 r2d2 =  { version = "0.8.10" }

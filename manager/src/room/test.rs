@@ -1,18 +1,19 @@
+use database::DefaultDatabaseStore;
+use cache::state_resource::ResourceFactory;
 #[allow(unused_mut)]
 
 use general::config::configure_environment;
 use general::model::CreateRoomAccessType;
-use general::state::RoomUserInformation;
-use general::test::model::*;
+use cache::state::RoomUserInformation;
 use uuid::Uuid;
+use testing::model::*;
 
 use general::auth::UserAuth;
 use general::auth::validate_auth;
 use general::config::YummyConfig;
 use general::config::get_configuration;
-use general::state::YummyState;
 use general::web::GenericAnswer;
-use general::test::DummyClient;
+use testing::client::DummyClient;
 
 use std::env::temp_dir;
 use std::sync::Arc;
@@ -56,6 +57,7 @@ macro_rules! email_auth {
 fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>, YummyState, Arc<DummyClient>)> {
     let mut db_location = temp_dir();
     db_location.push(format!("{}.db", Uuid::new_v4()));
+    let connection = create_connection(db_location.to_str().unwrap())?;
     
     configure_environment();
 
@@ -71,12 +73,12 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
-    let connection = create_connection(db_location.to_str().unwrap())?;
     create_database(&mut connection.clone().get()?)?;
     Ok((RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer).start(), config, states.clone(), Arc::new(DummyClient::default())))
 }
@@ -182,7 +184,7 @@ async fn create_room_3() -> anyhow::Result<()> {
         socket:user_2_socket.clone()
     }).await??;
 
-    let message: GenericAnswer<general::test::model::Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    let message: GenericAnswer<Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     let message = message.result;
     assert_eq!(&message.class_type[..], "Joined");
 
@@ -194,7 +196,7 @@ async fn create_room_3() -> anyhow::Result<()> {
         socket:user_3_socket.clone()
     }).await??;
 
-    let message: GenericAnswer<general::test::model::Joined> = serde_json::from_str(&user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    let message: GenericAnswer<Joined> = serde_json::from_str(&user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     let message = message.result;
     assert_eq!(&message.class_type[..], "Joined");
 
@@ -265,7 +267,7 @@ async fn create_room_4() -> anyhow::Result<()> {
         socket:user_2_socket.clone()
     }).await??;
 
-    let message: GenericAnswer<general::test::model::Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    let message: GenericAnswer<Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     let message = message.result;
     assert_eq!(&message.class_type[..], "Joined");
 
@@ -277,7 +279,7 @@ async fn create_room_4() -> anyhow::Result<()> {
         socket:user_3_socket.clone()
     }).await??;
 
-    let message: GenericAnswer<general::test::model::Joined> = serde_json::from_str(&user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
+    let message: GenericAnswer<Joined> = serde_json::from_str(&user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     let message = message.result;
     assert_eq!(&message.class_type[..], "Joined");
 
@@ -853,7 +855,8 @@ async fn multi_room_support() -> anyhow::Result<()> {
 
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
@@ -1009,7 +1012,8 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
 
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
@@ -1112,7 +1116,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
         socket: user_1_socket.clone()
     }).await??;
 
-    let message: GenericAnswer<general::test::model::Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    let message: GenericAnswer<Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
     let message = message.result;
     assert_eq!(&message.class_type[..], "Joined");
 
@@ -1133,7 +1137,8 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
 
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
@@ -1257,7 +1262,8 @@ async fn user_ban_test() -> anyhow::Result<()> {
 
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
@@ -1382,7 +1388,8 @@ async fn kick_ban_test() -> anyhow::Result<()> {
 
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();

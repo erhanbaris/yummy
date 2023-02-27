@@ -2,12 +2,13 @@ use std::{rc::Rc, cell::RefCell, sync::Arc, env::temp_dir};
 use std::io::Write;
 
 use general::auth::UserAuth;
-use general::state::RoomInfoTypeVariant;
+use cache::state::RoomInfoTypeVariant;
 use tempdir::TempDir;
 
 use general::meta::{MetaType, UserMetaAccess, MetaAction, RoomMetaAccess};
 use general::model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType, SessionId};
 use general::{password::Password, config::YummyConfig};
+use testing::client::DummyClient;
 
 use crate::auth::model::ConnUserDisconnect;
 use crate::conn::model::UserConnected;
@@ -25,7 +26,7 @@ fn executest_1() -> anyhow::Result<()> {
         email: "".to_string(),
         password: Password::from("123456".to_string()),
         if_not_exist_create: false,
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } )), "pre_email_auth")?;
     Ok(())
 }
@@ -67,7 +68,7 @@ plugin.execute(Rc::new(RefCell::new(EmailAuthRequest {
         email: "".to_string(),
         password: Password::from("123456".to_string()),
         if_not_exist_create: false,
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } )), "pre_email_auth").unwrap();
 }
 
@@ -79,7 +80,7 @@ fn change_email_address() {
         email: "".to_string(),
         password: Password::from("123456".to_string()),
         if_not_exist_create: false,
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -110,7 +111,7 @@ fn execution_result() {
         email: "".to_string(),
         password: Password::from("123456".to_string()),
         if_not_exist_create: false,
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -141,7 +142,7 @@ fn fail_test() {
         email: "old@email.com".to_string(),
         password: Password::from("123456".to_string()),
         if_not_exist_create: false,
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -169,7 +170,7 @@ fn string_upper() {
         email: "small@email.com".to_string(),
         password: Password::from("123456".to_string()),
         if_not_exist_create: false,
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -192,7 +193,7 @@ fn multi_function() {
         email: "small@email.com".to_string(),
         password: Password::from("123456".to_string()),
         if_not_exist_create: false,
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -216,7 +217,7 @@ fn save_to_table() {
         email: "small@email.com".to_string(),
         password: Password::from("123456".to_string()),
         if_not_exist_create: false,
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -247,7 +248,7 @@ fn lua_assert_check() {
         email: "small@email.com".to_string(),
         password: Password::from("123456".to_string()),
         if_not_exist_create: false,
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -267,7 +268,7 @@ fn device_id_checks() {
         request_id: None,
         auth: Arc::new(None),
         id: "abc".to_string(),
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -302,7 +303,7 @@ fn custom_id_checks() {
         request_id: None,
         auth: Arc::new(None),
         id: "abc".to_string(),
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -337,7 +338,7 @@ fn logout_checks() {
     let model = Rc::new(RefCell::new(LogoutRequest {
         request_id: None,
         auth: Arc::new(None),
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -365,7 +366,7 @@ fn refresh_token_checks() {
         request_id: None,
         auth: Arc::new(None),
         token: "token".to_string(),
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -399,7 +400,7 @@ fn restore_token_checks() {
         request_id: None,
         auth: Arc::new(None),
         token: "token".to_string(),
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -431,7 +432,7 @@ fn restore_token_checks() {
 fn user_connected_checks() {
     let model = Rc::new(RefCell::new(UserConnected {
         user_id: Arc::new(UserId::new()),
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -457,7 +458,7 @@ fn user_disconnected_checks() {
         request_id: None,
         auth: Arc::new(None),
         send_message: true,
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -491,7 +492,7 @@ fn get_user_informations_checks() {
     let model = Rc::new(RefCell::new(GetUserInformation {
         request_id: None,
         query: GetUserInformationEnum::Me(Arc::new(None)),
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -515,7 +516,7 @@ fn get_user_informations_checks() {
     let model = Rc::new(RefCell::new(GetUserInformation {
         request_id: None,
         query: GetUserInformationEnum::UserViaSystem(UserId::new()),
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -539,7 +540,7 @@ fn get_user_informations_checks() {
     let model = Rc::new(RefCell::new(GetUserInformation {
         request_id: None,
         query: GetUserInformationEnum::User { user: UserId::new(), requester: Arc::new(None) },
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     } ));
 
     let mut plugin = LuaPlugin::new();
@@ -583,7 +584,7 @@ end
         email: "".to_string(),
         password: Password::from("123456".to_string()),
         if_not_exist_create: false,
-        socket: Arc::new(general::test::DummyClient::default())
+        socket: Arc::new(DummyClient::default())
     };
 
     let config = Arc::new(config);
@@ -661,7 +662,7 @@ end
         auth: Arc::new(None),
         email: None,
         password: None,
-        socket: Arc::new(general::test::DummyClient::default()),
+        socket: Arc::new(DummyClient::default()),
         target_user_id: None,
         name: None,
         device_id: None,
@@ -726,7 +727,7 @@ end
         auth: Arc::new(None),
         email: None,
         password: None,
-        socket: Arc::new(general::test::DummyClient::default()),
+        socket: Arc::new(DummyClient::default()),
         target_user_id: None,
         name: None,
         device_id: None,
@@ -798,7 +799,7 @@ end
     let model = CreateRoomRequest {
         request_id: None,
         auth: Arc::new(None),
-        socket: Arc::new(general::test::DummyClient::default()),
+        socket: Arc::new(DummyClient::default()),
         name: None,
         metas: None,
         description: None,
@@ -875,7 +876,7 @@ end
     let model = UpdateRoom {
         request_id: None,
         auth: Arc::new(None),
-        socket: Arc::new(general::test::DummyClient::default()),
+        socket: Arc::new(DummyClient::default()),
         name: None,
         metas: None,
         description: None,
@@ -939,7 +940,7 @@ end
     let model = JoinToRoomRequest {
         request_id: None,
         auth: Arc::new(None),
-        socket: Arc::new(general::test::DummyClient::default()),
+        socket: Arc::new(DummyClient::default()),
         room: RoomId::new(),
         room_user_type: RoomUserType::User
     };
@@ -981,7 +982,7 @@ end
     let model = ProcessWaitingUser {
         request_id: None,
         auth: Arc::new(None),
-        socket: Arc::new(general::test::DummyClient::default()),
+        socket: Arc::new(DummyClient::default()),
         room: RoomId::new(),
         user: UserId::new(),
         status: false
@@ -1025,7 +1026,7 @@ end
     let model = KickUserFromRoom {
         request_id: None,
         auth: Arc::new(None),
-        socket: Arc::new(general::test::DummyClient::default()),
+        socket: Arc::new(DummyClient::default()),
         room: RoomId::new(),
         user: UserId::new(),
         ban: false
@@ -1065,7 +1066,7 @@ end
     let model = DisconnectFromRoomRequest {
         request_id: None,
         auth: Arc::new(None),
-        socket: Arc::new(general::test::DummyClient::default()),
+        socket: Arc::new(DummyClient::default()),
         room: RoomId::new()
     };
 
@@ -1110,7 +1111,7 @@ end
     let model = RoomListRequest {
         request_id: None,
         tag: None,
-        socket: Arc::new(general::test::DummyClient::default()),
+        socket: Arc::new(DummyClient::default()),
         members: Vec::new()
     };
 
@@ -1148,7 +1149,7 @@ end
     let model = WaitingRoomJoins {
         request_id: None,
         auth: Arc::new(None),
-        socket: Arc::new(general::test::DummyClient::default()),
+        socket: Arc::new(DummyClient::default()),
         room: RoomId::new()
     };
 
@@ -1202,7 +1203,7 @@ end
             user: UserId::new(),
             session: SessionId::new()
         })),
-        socket: Arc::new(general::test::DummyClient::default()),
+        socket: Arc::new(DummyClient::default()),
         members: Vec::new(),
         room: RoomId::new()
     };

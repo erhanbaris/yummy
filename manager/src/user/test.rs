@@ -1,6 +1,8 @@
 use actix::Actor;
 use actix::Addr;
 use anyhow::Ok;
+use database::DefaultDatabaseStore;
+use cache::state_resource::ResourceFactory;
 use general::model::UserInformationModel;
 use general::model::UserType;
 use std::ops::Deref;
@@ -13,9 +15,9 @@ use general::config::configure_environment;
 use general::config::get_configuration;
 use general::meta::MetaAction;
 use general::meta::UserMetaAccess;
-use general::test::model::AuthenticatedModel;
+use testing::model::AuthenticatedModel;
 use general::web::GenericAnswer;
-use general::test::DummyClient;
+use testing::client::DummyClient;
 use std::collections::HashMap;
 use std::env::temp_dir;
 use std::sync::Arc;
@@ -58,18 +60,19 @@ macro_rules! email_auth {
 fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>, Arc<DummyClient>)> {
     let mut db_location = temp_dir();
     db_location.push(format!("{}.db", uuid::Uuid::new_v4()));
+    let connection = create_connection(db_location.to_str().unwrap())?;
     
     configure_environment();
     let config = get_configuration();
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
-    let connection = create_connection(db_location.to_str().unwrap())?;
     create_database(&mut connection.clone().get()?)?;
     Ok((UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer).start(), config, Arc::new(DummyClient::default())))
 }

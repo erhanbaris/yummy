@@ -14,11 +14,11 @@ use actix::Actor;
 use actix::Context;
 use actix_broker::BrokerSubscribe;
 
+use cache::state::YummyState;
 use general::client::ClientTrait;
 use general::config::YummyConfig;
+use general::model::SendMessage;
 use general::model::UserId;
-use general::state::SendMessage;
-use general::state::YummyState;
 
 use actix_broker::*;
 

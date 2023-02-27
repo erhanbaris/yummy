@@ -15,6 +15,8 @@ doctest = false
 general.workspace = true
 database.workspace = true
 manager.workspace = true
+cache.workspace = true
+testing.workspace = true
 
 actix.workspace = true
 actix-cors.workspace = true

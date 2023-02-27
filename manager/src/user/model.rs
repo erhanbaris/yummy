@@ -2,9 +2,9 @@ use std::{fmt::Debug, sync::Arc, collections::HashMap};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use general::{client::ClientTrait, meta::MetaAction, model::UserInformationModel};
-
 use actix::prelude::Message;
 use validator::Validate;
+use testing::client::DummyClient;
 
 use general::{model::{UserId, UserType}, auth::UserAuth, meta::{MetaType, UserMetaAccess}};
 
@@ -79,7 +79,7 @@ impl Default for UpdateUser
             auth: Arc::new(None),
             target_user_id: None,
             name: None,
-            socket: Arc::new(general::test::DummyClient::default()),
+            socket: Arc::new(DummyClient::default()),
             email: None,
             password: None,
             device_id: None,

@@ -15,6 +15,9 @@ doctest = false
 general.workspace = true
 database.workspace = true
 macros.workspace = true
+cache.workspace = true
+lua.workspace = true
+testing.workspace = true
 
 actix.workspace = true
 actix-web-actors.workspace = true

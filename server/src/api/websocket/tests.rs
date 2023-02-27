@@ -6,10 +6,11 @@ use actix_web::HttpResponse;
 use actix_web::error::InternalError;
 use actix_web::web::{QueryConfig, JsonConfig};
 use actix_web::{web::Data, App};
-use database::{create_database, create_connection};
+use cache::state::YummyState;
+use cache::state_resource::ResourceFactory;
+use database::{create_database, create_connection, DefaultDatabaseStore};
 use general::meta::UserMetaAccess;
-use general::state::YummyState;
-use general::test::model::{ReceiveError, AuthenticatedModel, RoomCreated};
+use testing::model::{ReceiveError, AuthenticatedModel, RoomCreated};
 use general::tls::load_temporary_rustls_config;
 use general::web::Answer;
 use manager::auth::AuthManager;
@@ -19,10 +20,10 @@ use serde_json::json;
 use uuid::Uuid;
 use std::env::temp_dir;
 use std::ops::Deref;
-use general::test::model::MeModel;
 use std::sync::Arc;
 use std::time::Duration;
 use general::web::json_error_handler;
+use testing::model::MeModel;
 
 use super::*;
 
@@ -120,7 +121,8 @@ pub fn create_websocket_server_with_config(config: Arc<YummyConfig>, test_server
         #[cfg(feature = "stateless")]
         let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-        let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+        let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+        let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
         let executer = Arc::new(PluginExecuter::default());
 
         ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
@@ -1096,7 +1098,7 @@ async fn pub_sub_test() -> anyhow::Result<()> {
         "room_user_type": 1
     })).await;
 
-    let receive = serde_json::from_str::<general::test::model::Joined>(&client_2.get_text().await.unwrap())?;
+    let receive = serde_json::from_str::<Joined>(&client_2.get_text().await.unwrap())?;
     assert_eq!(&receive.class_type, "Joined");
     
     Ok(())

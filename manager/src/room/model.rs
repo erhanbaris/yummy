@@ -1,11 +1,12 @@
 use std::{fmt::Debug, sync::Arc, collections::HashMap, borrow::Cow};
 
 use actix::prelude::Message;
+use cache::state::{RoomInfoTypeVariant, RoomUserInformation, RoomInfoTypeCollection};
 use serde::Serialize;
 use thiserror::Error;
 use validator::Validate;
 
-use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::{RoomUserInformation, RoomInfoTypeVariant, RoomInfoTypeCollection}, meta::{MetaType, RoomMetaAccess, MetaAction}};
+use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, meta::{MetaType, RoomMetaAccess, MetaAction}};
 
 
 #[derive(Message, Validate, Debug)]

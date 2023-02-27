@@ -4,16 +4,15 @@ use std::sync::Arc;
 use std::borrow::Borrow;
 use std::sync::atomic::AtomicUsize;
 
+use database::model::UserUpdate;
+use general::model::*;
+use general::meta::*;
+use general::config::YummyConfig;
+
 use crate::cache::{YummyCache, YummyCacheResource};
-use crate::config::YummyConfig;
-use crate::meta::{RoomMetaAccess, MetaType, UserMetaAccess};
-use crate::model::{UserId, RoomId, SessionId, UserInformationModel};
-use crate::model::CreateRoomAccessType;
-use crate::model::RoomUserType;
-use crate::model::UserType;
 
 use super::*;
-use super::resource::StateResourceTrait;
+use super::resource::YummyCacheResourceFactory;
 
 #[derive(Clone)]
 pub struct ConnectionInfo {
@@ -28,9 +27,9 @@ impl YummyCacheResource for ConnectionResource {
     type K=SessionId;
     type V=ConnectionInfo;
     
-    fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
+    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
 
-    fn set(&self, key: Self::K, value: Self::V) -> anyhow::Result<()> { Ok(()) }
+    fn set(&self, _: &Self::K, _: &Self::V) -> anyhow::Result<()> { Ok(()) }
 }
 
 struct RoomState {
@@ -73,8 +72,8 @@ pub struct YummyState {
 }
 
 impl YummyState {
-    pub fn new(config: Arc<YummyConfig>, user_information_resource: Box<dyn YummyCacheResource::<K=UserId, V=UserInformationModel>>) -> Self {
-        let user_informations = YummyCache::new(config.clone(), user_information_resource);
+    pub fn new(config: Arc<YummyConfig>, resource_factory: Box<dyn YummyCacheResourceFactory>) -> Self {
+        let user_informations = YummyCache::new(config.clone(), resource_factory.user_information());
 
         Self {
             config: config.clone(),
@@ -88,15 +87,22 @@ impl YummyState {
     }
 
     pub fn get_user_information(&self, user_id: &UserId, access_type: UserMetaAccess) -> Result<Option<UserInformationModel>, YummyStateError> {
-        let mut result = self.user_informations.get(user_id)?;
-
-        match result {
-            Some(result) => {
-                // filter meta with access_type
+        match self.user_informations.get(user_id)? {
+            Some(mut result) => {
+                let access_type = access_type as i32;
+                result.metas = result.metas.map(|metas| metas.into_iter().filter(|(_, value)| value.get_access_level() as i32 <= access_type).collect());
                 Ok(Some(result))
             },
             None => Ok(None)
         }
+    }
+
+    pub fn update_user_information(&self, user_id: &UserId, updates: &UserUpdate) -> Result<(), YummyStateError> {
+        /*self.user_informations.set(&user_id, UserInformationModel {
+            id: user_id.clone(),
+            name: updates.
+        })*/
+        Ok(())
     }
     
     #[tracing::instrument(name="ban_user_from_room", skip(self))]
@@ -151,7 +157,7 @@ impl YummyState {
             match room.connections.get(&session_id)? {
                 Some(mut user) => {
                     user.room_user_type = user_type;
-                    room.connections.set(session_id, user)?;
+                    room.connections.set(&session_id, user)?;
                     room.connection_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 },
                 None => return Err(YummyStateError::UserNotFound)
@@ -258,7 +264,7 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="join_to_room_request", skip(self))]
-    pub fn join_to_room_request(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
+    pub fn join_to_room_request(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, user_type: RoomUserType) -> Result<(), YummyStateError> {
         match self.rooms.lock().get_mut(room_id.borrow()) {
             Some(room) => {
 
@@ -317,7 +323,7 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="join_to_room", skip(self))]
-    pub fn join_to_room(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, room_user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
+    pub fn join_to_room(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, room_user_type: RoomUserType) -> Result<(), YummyStateError> {
         match self.rooms.lock().get_mut(room_id.borrow()) {
             Some(room) => {
 
@@ -332,7 +338,7 @@ impl YummyState {
                     }
 
                     room.connection_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    room.connections.set(session_id.clone(), ConnectionInfo { user_id: Arc::new(user_id.clone()), room_user_type })?;
+                    room.connections.set(&session_id, ConnectionInfo { user_id: Arc::new(user_id.clone()), room_user_type })?;
                     
                     let mut user_to_room = self.session_to_room.lock();
                     match user_to_room.get_mut(session_id) {

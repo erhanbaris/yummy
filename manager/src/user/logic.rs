@@ -1,7 +1,8 @@
 use std::{marker::PhantomData, sync::Arc, ops::Deref};
 
+use cache::state::YummyState;
 use database::{DatabaseTrait, model::UserUpdate};
-use general::{config::YummyConfig, state::YummyState, model::{UserId, UserType, UserInformationModel}, meta::{UserMetaAccess, MetaType}};
+use general::{config::YummyConfig, model::{UserId, UserType, UserInformationModel}, meta::{UserMetaAccess, MetaType}};
 use general::web::Answer;
 use general::database::Pool;
 
@@ -55,13 +56,6 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
         #[allow(unused_mut)]
         let mut execute = |user_id: &UserId, access_type: UserMetaAccess| -> anyhow::Result<UserInformationModel> {
             
-            let mut connection = self.database.clone();
-            let user_id_copy = user_id.clone();
-            /*let user = self.states.get_user_information(user_id, access_type.clone(), &move |_| {
-                let mut connection = connection.get()?;
-                DB::get_user_information(&mut connection, &user_id_copy, access_type.clone())
-            })?;*/
-
             let user = self.states.get_user_information(user_id, access_type.clone())?;
 
             match user {
@@ -117,7 +111,7 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
         let mut connection = self.database.get()?;
         let user_access_level = self.get_user_access_level(user_id, target_user_id)?;
 
-        let user = match DB::get_user_information(&mut connection, target_user_id, user_access_level.clone())? {
+        let user_information = match self.states.get_user_information(target_user_id, user_access_level.clone())? {
             Some(user) => user,
             None => return Err(anyhow::anyhow!(UserError::UserNotFound))
         };
@@ -136,7 +130,7 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
         }
 
         if let Some(email) = email {
-            if user.email.is_some() {
+            if user_information.email.is_some() {
                 return Err(anyhow::anyhow!(UserError::CannotChangeEmail));
             }
             updates.email = Some(email.clone())
@@ -244,7 +238,6 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                 DB::insert_user_metas(connection, target_user_id, to_be_inserted)?;
             }
             
-            // Update user
             let response = match has_user_update {
                 true => match DB::update_user(connection, target_user_id, &updates)? {
                     0 => return Err(anyhow::anyhow!(UserError::UserNotFound)),
@@ -252,6 +245,8 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                 },
                 false => Answer::success(model.request_id.clone()).into()
             };
+
+            self.states.update_user_information(target_user_id, &updates)?;
 
             // todo: convert to single execution
             if let Some(user_type) = user_type {

@@ -9,14 +9,14 @@ use std::sync::Arc;
 use actix::{Context, Actor, Handler};
 use actix_broker::{BrokerSubscribe, BrokerIssue};
 use anyhow::anyhow;
+use cache::state::{RoomInfoTypeVariant, YummyState, RoomInfoType};
 use database::model::RoomUpdate;
 use database::DatabaseTrait;
 
 use general::config::YummyConfig;
 use general::meta::{MetaType, MetaAction};
 use general::meta::RoomMetaAccess;
-use general::model::{RoomId, UserId, RoomUserType, UserType, SessionId};
-use general::state::{YummyState, SendMessage, RoomInfoTypeVariant, RoomInfoType};
+use general::model::{RoomId, UserId, RoomUserType, UserType, SessionId, SendMessage};
 use general::web::{GenericAnswer, Answer};
 use general::database::Pool;
 use general::database::PooledConnection;

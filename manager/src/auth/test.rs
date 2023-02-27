@@ -1,6 +1,8 @@
 use actix::Actor;
 use actix::Addr;
 use anyhow::Ok;
+use database::DefaultDatabaseStore;
+use cache::state_resource::ResourceFactory;
 
 use std::time::Duration;
 use general::auth::UserAuth;
@@ -8,12 +10,8 @@ use general::config::YummyConfig;
 use general::auth::validate_auth;
 use general::config::configure_environment;
 use general::model::RoomUserType;
-use general::state::YummyState;
-use general::test::model::AuthenticatedModel;
-use general::test::model::RoomCreated;
-use general::test::model::UserDisconnectedFromRoom;
-use general::test::model::UserJoinedToRoom;
-use general::test::DummyClient;
+use testing::model::*;
+use testing::client::DummyClient;
 
 use std::sync::Arc;
 
@@ -33,8 +31,8 @@ fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<da
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
     let executer = Arc::new(PluginExecuter::default());
-
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
@@ -390,7 +388,8 @@ async fn double_login_test() -> anyhow::Result<()> {
 
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
@@ -498,7 +497,8 @@ async fn user_disconnect_from_room_test() -> anyhow::Result<()> {
 
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] conn.clone());
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
     let executer = Arc::new(PluginExecuter::default());
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
