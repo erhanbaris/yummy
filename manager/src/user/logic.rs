@@ -111,16 +111,43 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
         let mut connection = self.database.get()?;
         let user_access_level = self.get_user_access_level(user_id, target_user_id)?;
 
-        let user_information = match self.states.get_user_information(target_user_id, user_access_level.clone())? {
+        let mut user_information = match self.states.get_user_information(target_user_id, user_access_level.clone())? {
             Some(user) => user,
             None => return Err(anyhow::anyhow!(UserError::UserNotFound))
         };
 
         // Todo: dont use clone
-        updates.custom_id = custom_id.as_ref().map(|item| match item.trim().is_empty() { true => None, false => Some(item.clone())} );
-        updates.device_id = device_id.as_ref().map(|item| match item.trim().is_empty() { true => None, false => Some(item.clone())} );
-        updates.name = name.as_ref().map(|item| match item.trim().is_empty() { true => None, false => Some(item.clone())} );
-        updates.user_type = user_type.map(|item| item.into());
+        updates.custom_id = custom_id.as_ref().map(|item| {
+            let result = match item.trim().is_empty() {
+                true => None,
+                false => Some(item.clone())
+            };
+            user_information.custom_id = result.clone();
+            result
+        });
+
+        updates.device_id = device_id.as_ref().map(|item| {
+            let result = match item.trim().is_empty() {
+                true => None,
+                false => Some(item.clone())
+            };
+            user_information.device_id = result.clone();
+            result
+        });
+
+        updates.name = name.as_ref().map(|item| {
+            let result = match item.trim().is_empty() {
+                true => None,
+                false => Some(item.clone())
+            };
+            user_information.name = result.clone();
+            result
+        });
+
+        updates.user_type = user_type.map(|item| {
+            user_information.user_type = item.into();
+            item.into()
+        });
 
         if let Some(password) = password {
             if password.trim().len() < 4 {
@@ -133,7 +160,9 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
             if user_information.email.is_some() {
                 return Err(anyhow::anyhow!(UserError::CannotChangeEmail));
             }
-            updates.email = Some(email.clone())
+
+            user_information.email = Some(email.clone());
+            updates.email = Some(email.clone());
         }
 
         let config = self.config.clone();
@@ -151,7 +180,8 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                     // Check for metas
                     match metas {
                         Some(metas) => {
-                            let user_old_metas = DB::get_user_meta(connection, target_user_id, user_access_level)?;
+
+                            let user_old_metas = self.states.get_user_meta(target_user_id, user_access_level.clone())?;
                             let mut remove_list = Vec::new();
                             let mut insert_list = Vec::new();
 
@@ -163,7 +193,7 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                                 }
 
                                 // Check for meta already added into the user
-                                let row = user_old_metas.iter().find(|item| &item.1 == key).map(|item| item.0.clone());
+                                let row = user_old_metas.iter().find(|item| &item.name == key).map(|item| item.id.clone());
         
                                 /* Remove the key if exists in the database */
                                 if let Some(row_id) = row {
@@ -246,7 +276,7 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                 false => Answer::success(model.request_id.clone()).into()
             };
 
-            self.states.update_user_information(target_user_id, &updates)?;
+            self.states.update_user_information(target_user_id, user_information)?;
 
             // todo: convert to single execution
             if let Some(user_type) = user_type {

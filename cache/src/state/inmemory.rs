@@ -4,12 +4,12 @@ use std::sync::Arc;
 use std::borrow::Borrow;
 use std::sync::atomic::AtomicUsize;
 
-use database::model::UserUpdate;
 use general::model::*;
 use general::meta::*;
 use general::config::YummyConfig;
 
 use crate::cache::{YummyCache, YummyCacheResource};
+use crate::state_resource::UserMetaInformation;
 
 use super::*;
 use super::resource::YummyCacheResourceFactory;
@@ -68,12 +68,14 @@ pub struct YummyState {
     rooms: Arc<parking_lot::Mutex<std::collections::HashMap<RoomId, RoomState>>>,
     session_to_users: Arc<parking_lot::Mutex<std::collections::HashMap<SessionId, Arc<UserId>>>>,
     session_to_room: Arc<parking_lot::Mutex<std::collections::HashMap<SessionId, std::collections::HashSet<RoomId>>>>,
-    user_informations: Arc<YummyCache<UserId, UserInformationModel>>
+    user_informations: Arc<YummyCache<UserId, UserInformationModel>>,
+    user_metas: Arc<YummyCache<UserId, Vec<UserMetaInformation>>>
 }
 
 impl YummyState {
     pub fn new(config: Arc<YummyConfig>, resource_factory: Box<dyn YummyCacheResourceFactory>) -> Self {
         let user_informations = YummyCache::new(config.clone(), resource_factory.user_information());
+        let user_metas = YummyCache::new(config.clone(), resource_factory.user_metas());
 
         Self {
             config: config.clone(),
@@ -82,27 +84,39 @@ impl YummyState {
             rooms: Arc::new(parking_lot::Mutex::default()),
             session_to_users: Arc::new(parking_lot::Mutex::default()),
             session_to_room: Arc::new(parking_lot::Mutex::default()),
-            user_informations: Arc::new(user_informations)
+            user_informations: Arc::new(user_informations),
+            user_metas: Arc::new(user_metas),
         }
     }
 
-    pub fn get_user_information(&self, user_id: &UserId, access_type: UserMetaAccess) -> Result<Option<UserInformationModel>, YummyStateError> {
+    pub fn get_user_information(&self, user_id: &UserId, access: UserMetaAccess) -> Result<Option<UserInformationModel>, YummyStateError> {
         match self.user_informations.get(user_id)? {
             Some(mut result) => {
-                let access_type = access_type as i32;
-                result.metas = result.metas.map(|metas| metas.into_iter().filter(|(_, value)| value.get_access_level() as i32 <= access_type).collect());
+                let access = access as i32;
+                result.metas = result.metas.map(|metas| metas.into_iter().filter(|(_, value)| value.get_access_level() as i32 <= access).collect());
                 Ok(Some(result))
             },
             None => Ok(None)
         }
     }
 
-    pub fn update_user_information(&self, user_id: &UserId, updates: &UserUpdate) -> Result<(), YummyStateError> {
-        /*self.user_informations.set(&user_id, UserInformationModel {
-            id: user_id.clone(),
-            name: updates.
-        })*/
+    pub fn update_user_information(&self, user_id: &UserId, informations: UserInformationModel) -> Result<(), YummyStateError> {
+        self.user_informations.set(user_id, informations)?;
         Ok(())
+    }
+
+    pub fn get_user_meta(&self, user_id: &UserId, access: UserMetaAccess) -> Result<Vec<UserMetaInformation>, YummyStateError> {
+        match self.user_metas.get(user_id)? {
+            Some(mut metas) => {
+                let access_type = access as i32;
+                metas = metas
+                    .into_iter()
+                    .filter(|meta| meta.meta.get_access_level() as i32 <= access_type)
+                    .collect::<Vec<UserMetaInformation>>();
+                Ok(metas)
+            },
+            None => Ok(Vec::new())
+        }
     }
     
     #[tracing::instrument(name="ban_user_from_room", skip(self))]

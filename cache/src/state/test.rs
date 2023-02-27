@@ -9,6 +9,7 @@ use general::model::UserInformationModel;
 use general::model::UserType;
 
 use crate::cache::YummyCacheResource;
+use crate::state_resource::UserMetaInformation;
 
 use actix::Actor;
 use actix::Context;
@@ -32,16 +33,28 @@ impl Handler<SendMessage> for DummyActor {
 
 pub struct DummyResourceFactory;
 pub struct DummyUserInformationResource;
+pub struct DummyUserMetaResource;
 
 impl YummyCacheResourceFactory for DummyResourceFactory {
     fn user_information(&self) -> Box<dyn YummyCacheResource<K=UserId, V=UserInformationModel>> {
         Box::new(DummyUserInformationResource {})
+    }
+
+    fn user_metas(&self) -> Box<dyn YummyCacheResource<K=UserId, V=Vec<crate::state_resource::UserMetaInformation>>> {
+        Box::new(DummyUserMetaResource {})
     }
 }
 
 impl YummyCacheResource for DummyUserInformationResource {
     type K=UserId;
     type V=UserInformationModel;
+
+    fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
+}
+
+impl YummyCacheResource for DummyUserMetaResource {
+    type K=UserId;
+    type V=Vec<UserMetaInformation>;
 
     fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
 }
