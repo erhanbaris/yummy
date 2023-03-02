@@ -27,7 +27,7 @@ actix = "0.13"
 actix-web = { version = "4", features = ["rustls"] }
 actix-test-server = "0.2.2"
 actix-test = { version = "0.1.1", features = ["rustls"] } 
-actix-http = "3.3.0"
+actix-http = "3.3.1"
 actix-tls = { version = "3", features = ["rustls"] }
 tokio = { version = "1.26.0", features = ["full"] }
 bytes = "1.4.0"
