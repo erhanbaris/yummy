@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use general::{model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType}, meta::{MetaType, RoomMetaAccess, UserMetaAccess, MetaAction}, password::Password};
+use general::password::Password;
+use model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType, meta::{MetaType, RoomMetaAccess, UserMetaAccess, MetaAction}};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]

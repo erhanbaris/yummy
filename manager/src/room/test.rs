@@ -1,18 +1,18 @@
 use database::DefaultDatabaseStore;
 use cache::state_resource::ResourceFactory;
+use ::model::CreateRoomAccessType;
 #[allow(unused_mut)]
 
-use general::config::configure_environment;
-use general::model::CreateRoomAccessType;
+use ::model::config::configure_environment;
 use cache::state::RoomUserInformation;
 use uuid::Uuid;
 use testing::model::*;
 
-use general::auth::UserAuth;
-use general::auth::validate_auth;
-use general::config::YummyConfig;
-use general::config::get_configuration;
-use general::web::GenericAnswer;
+use ::model::auth::UserAuth;
+use ::model::auth::validate_auth;
+use ::model::config::YummyConfig;
+use ::model::config::get_configuration;
+use ::model::web::GenericAnswer;
 use testing::client::DummyClient;
 
 use std::env::temp_dir;
@@ -94,7 +94,7 @@ async fn create_room_1() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: false,
-        access_type: general::model::CreateRoomAccessType::Friend,
+        access_type: CreateRoomAccessType::Friend,
         max_user: 4,
         metas: None,
         tags: Vec::new(),
@@ -126,7 +126,7 @@ async fn create_room_2() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: false,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
@@ -164,7 +164,7 @@ async fn create_room_3() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: false,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
@@ -219,7 +219,7 @@ async fn create_room_3() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: false,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
@@ -247,7 +247,7 @@ async fn create_room_4() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: false,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
@@ -341,7 +341,7 @@ async fn message_to_room() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: false,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
@@ -434,7 +434,7 @@ async fn get_rooms() -> anyhow::Result<()> {
             name: None,
             description: None,
             join_request: false,
-            access_type: general::model::CreateRoomAccessType::Public,
+            access_type: CreateRoomAccessType::Public,
             max_user: 4,
             metas: None,
             tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
@@ -492,7 +492,7 @@ async fn room_meta_check() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: false,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: Some(HashMap::from([
             ("gender".to_string(), MetaType::String("Male".to_string(), RoomMetaAccess::User)),
@@ -570,7 +570,7 @@ async fn room_meta_update() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: false,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
@@ -750,7 +750,7 @@ async fn room_update() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: false,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: Some(HashMap::from([
             ("gender".to_string(), MetaType::String("Male".to_string(), RoomMetaAccess::User)),
@@ -850,7 +850,7 @@ macro_rules! message_received_from_room {
 #[actix::test]
 async fn multi_room_support() -> anyhow::Result<()> {
 
-    let config = ::general::config::get_configuration();
+    let config = ::model::config::get_configuration();
     let connection = create_connection(":memory:")?;
 
     #[cfg(feature = "stateless")]
@@ -908,7 +908,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: false,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
@@ -924,7 +924,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: false,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
@@ -1007,7 +1007,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
 #[actix::test]
 async fn room_join_request_approve() -> anyhow::Result<()> {
 
-    let config = ::general::config::get_configuration();
+    let config = ::model::config::get_configuration();
     let connection = create_connection(":memory:")?;
 
     #[cfg(feature = "stateless")]
@@ -1065,7 +1065,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: true,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
@@ -1132,7 +1132,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
 #[actix::test]
 async fn room_join_request_decline() -> anyhow::Result<()> {
 
-    let config = ::general::config::get_configuration();
+    let config = ::model::config::get_configuration();
     let connection = create_connection(":memory:")?;
 
     #[cfg(feature = "stateless")]
@@ -1190,7 +1190,7 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: true,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
@@ -1257,7 +1257,7 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
 #[actix::test]
 async fn user_ban_test() -> anyhow::Result<()> {
 
-    let config = ::general::config::get_configuration();
+    let config = ::model::config::get_configuration();
     let connection = create_connection(":memory:")?;
 
     #[cfg(feature = "stateless")]
@@ -1315,7 +1315,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: false,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
@@ -1383,7 +1383,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
 #[actix::test]
 async fn kick_ban_test() -> anyhow::Result<()> {
 
-    let config = ::general::config::get_configuration();
+    let config = ::model::config::get_configuration();
     let connection = create_connection(":memory:")?;
 
     #[cfg(feature = "stateless")]
@@ -1441,7 +1441,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: false,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],

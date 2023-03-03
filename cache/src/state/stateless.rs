@@ -9,7 +9,7 @@ use super::*;
 use crate::config::YummyConfig;
 use crate::meta::{RoomMetaAccess, MetaType};
 use crate::model::{UserId, RoomId, SessionId};
-use crate::model::CreateRoomAccessType;
+use crate::CreateRoomAccessType;
 use crate::model::RoomUserType;
 use crate::model::UserType;
 

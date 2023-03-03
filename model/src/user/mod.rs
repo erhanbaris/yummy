@@ -1,10 +1,19 @@
 use std::borrow::Cow;
 
+use crate::RoomId;
+use crate::RoomMetaId;
+use crate::RoomTagId;
+use crate::RoomUserBanId;
+use crate::RoomUserId;
+use crate::RoomUserRequestId;
+use crate::UserId;
+use crate::UserMetaId;
+use crate::UserType;
 use crate::schema::*;
 use diesel::*;
-use general::model::*;
 use serde::Serialize;
 use serde::Deserialize;
+
 
 #[derive(Debug, Insertable)]
 #[diesel(table_name = user)]

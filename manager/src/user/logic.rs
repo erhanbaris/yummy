@@ -1,15 +1,31 @@
 use std::{marker::PhantomData, sync::Arc, ops::Deref};
 
 use cache::state::YummyState;
-use database::{DatabaseTrait, model::UserUpdate};
-use general::{config::YummyConfig, model::{UserId, UserType, UserInformationModel}, meta::{UserMetaAccess, MetaType}};
-use general::web::Answer;
+use database::DatabaseTrait;
+use model::user::UserUpdate;
+use model::{UserId, UserType, UserInformationModel};
+use model::config::YummyConfig;
+use model::meta::{UserMetaAccess, MetaType};
+use model::web::Answer;
 use general::database::Pool;
 
 use crate::{auth::model::AuthError, get_user_id_from_auth};
 
 use super::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use super::model::UserError;
+
+macro_rules! update_optional_property {
+    ($updates: expr, $user_information: expr, $property: ident) => {
+        $updates.$property = $property.as_ref().map(|item| {
+            let result = match item.trim().is_empty() {
+                true => None,
+                false => Some(item.clone())
+            };
+            $user_information.$property = result.clone();
+            result
+        });
+    }
+}
 
 #[derive(Default)]
 pub struct LogicResponse {
@@ -116,33 +132,9 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
             None => return Err(anyhow::anyhow!(UserError::UserNotFound))
         };
 
-        // Todo: dont use clone
-        updates.custom_id = custom_id.as_ref().map(|item| {
-            let result = match item.trim().is_empty() {
-                true => None,
-                false => Some(item.clone())
-            };
-            user_information.custom_id = result.clone();
-            result
-        });
-
-        updates.device_id = device_id.as_ref().map(|item| {
-            let result = match item.trim().is_empty() {
-                true => None,
-                false => Some(item.clone())
-            };
-            user_information.device_id = result.clone();
-            result
-        });
-
-        updates.name = name.as_ref().map(|item| {
-            let result = match item.trim().is_empty() {
-                true => None,
-                false => Some(item.clone())
-            };
-            user_information.name = result.clone();
-            result
-        });
+        update_optional_property!(updates, user_information, custom_id);
+        update_optional_property!(updates, user_information, device_id);
+        update_optional_property!(updates, user_information, name);
 
         updates.user_type = user_type.map(|item| {
             user_information.user_type = item.into();
@@ -175,7 +167,7 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
             let (to_be_inserted, to_be_removed, total_metas) = match meta_action {
 
                 // Dont remove old metas
-                general::meta::MetaAction::OnlyAddOrUpdate => {
+                model::meta::MetaAction::OnlyAddOrUpdate => {
 
                     // Check for metas
                     match metas {
@@ -219,7 +211,7 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                 },
 
                 // Add ne metas than remove all old meta informations
-                general::meta::MetaAction::RemoveUnusedMetas => {
+                ::model::meta::MetaAction::RemoveUnusedMetas => {
 
                     // Check for metas
                     match metas {
@@ -250,7 +242,7 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                         None => (None, None, 0)
                     }
                 },
-                general::meta::MetaAction::RemoveAllMetas => {
+                ::model::meta::MetaAction::RemoveAllMetas => {
                     // Discard all new meta insertion list and remove all old meta that based on user access level.
                     (None, Some(DB::get_user_meta(connection, target_user_id, user_access_level)?.into_iter().map(|meta| meta.0).collect::<Vec<_>>()), 0)
                 },    

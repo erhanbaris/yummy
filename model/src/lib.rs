@@ -1,3 +1,13 @@
+#[macro_use]
+extern crate diesel;
+
+pub mod auth;
+pub mod config;
+pub mod user;
+pub mod meta;
+pub mod web;
+pub mod schema;
+
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::fmt::Debug;

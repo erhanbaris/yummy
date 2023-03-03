@@ -12,6 +12,8 @@ homepage.workspace = true
 doctest = false
 
 [dependencies]
+model.workspace = true
+
 actix.workspace = true
 actix-web.workspace = true
 diesel.workspace = true

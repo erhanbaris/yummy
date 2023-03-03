@@ -40,7 +40,7 @@ pub fn plugin_api(args: TokenStream, input: TokenStream) -> TokenStream {
             (quote! { let __socket__ = model.socket.clone(); },
              quote! {
                 if let Err(result) = response.as_ref() {
-                    __socket__.send(general::model::WebsocketMessage::fail(model.request_id.clone(), result.to_string()).0)
+                    __socket__.send(::model::WebsocketMessage::fail(model.request_id.clone(), result.to_string()).0)
                 }
             })
         },

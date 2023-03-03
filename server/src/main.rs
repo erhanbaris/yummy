@@ -4,9 +4,9 @@ mod api;
 use std::sync::Arc;
 
 use database::DefaultDatabaseStore;
-use general::config::{get_configuration, configure_environment};
+use model::config::{get_configuration, configure_environment};
 use general::tls::load_rustls_config;
-use general::web::json_error_handler;
+use model::web::json_error_handler;
 
 use manager::plugin::lua::*;
 use manager::conn::ConnectionManager;

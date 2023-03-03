@@ -3,27 +3,27 @@ use actix::Addr;
 use anyhow::Ok;
 use database::DefaultDatabaseStore;
 use cache::state_resource::ResourceFactory;
-use general::model::UserInformationModel;
-use general::model::UserType;
+use ::model::UserInformationModel;
+use ::model::UserType;
 use std::ops::Deref;
 
 use anyhow::anyhow;
-use general::auth::UserAuth;
-use general::auth::validate_auth;
-use general::config::YummyConfig;
-use general::config::configure_environment;
-use general::config::get_configuration;
-use general::meta::MetaAction;
-use general::meta::UserMetaAccess;
+use ::model::auth::UserAuth;
+use ::model::auth::validate_auth;
+use ::model::config::YummyConfig;
+use ::model::config::configure_environment;
+use ::model::config::get_configuration;
+use ::model::meta::MetaAction;
+use ::model::meta::UserMetaAccess;
 use testing::model::AuthenticatedModel;
-use general::web::GenericAnswer;
+use ::model::web::GenericAnswer;
 use testing::client::DummyClient;
 use std::collections::HashMap;
 use std::env::temp_dir;
 use std::sync::Arc;
 
 use database::{create_database, create_connection};
-use general::meta::MetaType;
+use ::model::meta::MetaType;
 
 use crate::auth::AuthManager;
 use crate::auth::model::*;

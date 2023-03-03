@@ -14,8 +14,8 @@ use crate::plugin::YummyPlugin;
 use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest};
 use crate::user::model::{GetUserInformation, UpdateUser};
 
-use general::config::YummyConfig;
-use general::meta::MetaType;
+use ::model::config::YummyConfig;
+use ::model::meta::MetaType;
 use lua::{MetaTypeWrapper, UserMetaAccessWrapper, RoomMetaAccessWrapper};
 use mlua::prelude::*;
 use glob::{MatchOptions, glob_with};

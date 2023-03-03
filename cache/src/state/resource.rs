@@ -1,4 +1,4 @@
-use general::model::{UserId, UserInformationModel};
+use model::{UserId, UserInformationModel};
 
 use crate::{cache::YummyCacheResource, state_resource::UserMetaInformation};
 

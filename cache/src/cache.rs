@@ -1,6 +1,6 @@
 use std::sync::{Arc, atomic::AtomicUsize};
 
-use general::config::YummyConfig;
+use model::config::YummyConfig;
 use moka::sync::{Cache, ConcurrentCacheExt};
 
 pub trait YummyCacheResource {

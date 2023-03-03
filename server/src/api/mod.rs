@@ -8,7 +8,8 @@ use std::sync::Arc;
 
 use actix::Addr;
 use database::DatabaseTrait;
-use general::{auth::UserAuth, client::ClientTrait};
+use general::client::ClientTrait;
+use model::auth::UserAuth;
 use manager::auth::AuthManager;
 use manager::room::RoomManager;
 use manager::user::UserManager;

@@ -1,4 +1,4 @@
-use crate::meta::{RoomMetaAccess, MetaType, UserMetaAccess};
+use model::meta::{RoomMetaAccess, MetaType, UserMetaAccess};
 
 use serde_json;
 

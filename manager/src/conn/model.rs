@@ -5,7 +5,7 @@ use actix::prelude::Message;
 use general::client::ClientTrait;
 use validator::Validate;
 
-use general::model::UserId;
+use model::UserId;
 
 
 #[derive(Message, Validate, Debug, Clone)]

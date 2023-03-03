@@ -1,13 +1,14 @@
 use std::{rc::Rc, cell::RefCell, sync::Arc, env::temp_dir};
 use std::io::Write;
 
-use general::auth::UserAuth;
+use ::model::auth::UserAuth;
 use cache::state::RoomInfoTypeVariant;
+use model::config::YummyConfig;
 use tempdir::TempDir;
 
-use general::meta::{MetaType, UserMetaAccess, MetaAction, RoomMetaAccess};
-use general::model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType, SessionId};
-use general::{password::Password, config::YummyConfig};
+use model::meta::{MetaType, UserMetaAccess, MetaAction, RoomMetaAccess};
+use model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType, SessionId};
+use general::password::Password;
 use testing::client::DummyClient;
 
 use crate::auth::model::ConnUserDisconnect;

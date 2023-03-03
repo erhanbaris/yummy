@@ -1,10 +1,10 @@
 use std::{fmt::Debug, sync::Arc};
 use actix::prelude::Message;
-use general::{model::SessionId, auth::UserAuth, password::Password};
+use model::{auth::UserAuth, SessionId};
 use serde::Serialize;
 use thiserror::Error;
 use validator::{Validate, ValidationError};
-use general::client::ClientTrait;
+use general::{client::ClientTrait, password::Password};
 
 fn validate_unique_password(pass: &Password) -> Result<(), ValidationError> {
     let pass = pass.get();

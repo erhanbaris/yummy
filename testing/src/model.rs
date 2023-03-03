@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use serde::Serialize;
 use serde::Deserialize;
 
-use general::model::UserId;
-use general::model::RoomId;
-use general::model::RoomUserType;
+use model::UserId;
+use model::RoomId;
+use model::RoomUserType;
 
 use cache::state::RoomUserInformation;
 

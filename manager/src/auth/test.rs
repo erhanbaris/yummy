@@ -3,13 +3,14 @@ use actix::Addr;
 use anyhow::Ok;
 use database::DefaultDatabaseStore;
 use cache::state_resource::ResourceFactory;
+use ::model::CreateRoomAccessType;
+use ::model::RoomUserType;
 
 use std::time::Duration;
-use general::auth::UserAuth;
-use general::config::YummyConfig;
-use general::auth::validate_auth;
-use general::config::configure_environment;
-use general::model::RoomUserType;
+use ::model::auth::UserAuth;
+use ::model::config::YummyConfig;
+use ::model::auth::validate_auth;
+use ::model::config::configure_environment;
 use testing::model::*;
 use testing::client::DummyClient;
 
@@ -43,7 +44,7 @@ fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<da
 /* email unit tests */
 #[actix::test]
 async fn create_user_via_email() -> anyhow::Result<()> {
-    let (address, socket) = create_actor(::general::config::get_configuration())?;
+    let (address, socket) = create_actor(::model::config::get_configuration())?;
     address.send(EmailAuthRequest {
         request_id: None,
         auth: Arc::new(None),
@@ -57,7 +58,7 @@ async fn create_user_via_email() -> anyhow::Result<()> {
 
 #[actix::test]
 async fn login_user_via_email() -> anyhow::Result<()> {
-    let mut config = ::general::config::get_configuration().deref().clone();
+    let mut config = ::model::config::get_configuration().deref().clone();
     config.connection_restore_wait_timeout = Duration::from_secs(1);
     config.heartbeat_interval = Duration::from_secs(1);
     config.heartbeat_timeout = Duration::from_secs(1);
@@ -97,7 +98,7 @@ async fn login_user_via_email() -> anyhow::Result<()> {
 
 #[actix::test]
 async fn failed_login_user_via_email_1() -> anyhow::Result<()> {
-    let (address, socket) = create_actor(::general::config::get_configuration())?;
+    let (address, socket) = create_actor(::model::config::get_configuration())?;
     let result = address.send(EmailAuthRequest {
         request_id: None,
         auth: Arc::new(None),
@@ -113,7 +114,7 @@ async fn failed_login_user_via_email_1() -> anyhow::Result<()> {
 
 #[actix::test]
 async fn failed_login_user_via_email_2() -> anyhow::Result<()> {
-    let (address, socket) = create_actor(::general::config::get_configuration())?;
+    let (address, socket) = create_actor(::model::config::get_configuration())?;
     address.send(EmailAuthRequest {
         request_id: None,
         auth: Arc::new(None),
@@ -139,14 +140,14 @@ async fn failed_login_user_via_email_2() -> anyhow::Result<()> {
 /* device id unit tests */
 #[actix::test]
 async fn create_user_via_device_id() -> anyhow::Result<()> {
-    let (address, socket) = create_actor(::general::config::get_configuration())?;
+    let (address, socket) = create_actor(::model::config::get_configuration())?;
     address.send(DeviceIdAuthRequest::new(None, Arc::new(None), "1234567890".to_string(), socket)).await??;
     Ok(())
 }
 
 #[actix::test]
 async fn login_user_via_device_id() -> anyhow::Result<()> {
-    let mut config = ::general::config::get_configuration().deref().clone();
+    let mut config = ::model::config::get_configuration().deref().clone();
     config.connection_restore_wait_timeout = Duration::from_secs(1);
     config.heartbeat_interval = Duration::from_secs(1);
     config.heartbeat_timeout = Duration::from_secs(1);
@@ -177,7 +178,7 @@ async fn login_user_via_device_id() -> anyhow::Result<()> {
 
 #[actix::test]
 async fn login_users_via_device_id() -> anyhow::Result<()> {
-    let (address, socket) = create_actor(::general::config::get_configuration())?;
+    let (address, socket) = create_actor(::model::config::get_configuration())?;
     address.send(DeviceIdAuthRequest::new(None, Arc::new(None), "1234567890".to_string(), socket.clone())).await??;
     let login_1 = socket.clone().auth.lock().unwrap().clone();
 
@@ -191,14 +192,14 @@ async fn login_users_via_device_id() -> anyhow::Result<()> {
 /* custom id unit tests */
 #[actix::test]
 async fn create_user_via_custom_id() -> anyhow::Result<()> {
-    let (address, socket) = create_actor(::general::config::get_configuration())?;
+    let (address, socket) = create_actor(::model::config::get_configuration())?;
     address.send(CustomIdAuthRequest::new(None, Arc::new(None), "1234567890".to_string(), socket)).await??;
     Ok(())
 }
 
 #[actix::test]
 async fn login_user_via_custom_id() -> anyhow::Result<()> {
-    let mut config = ::general::config::get_configuration().deref().clone();
+    let mut config = ::model::config::get_configuration().deref().clone();
     config.connection_restore_wait_timeout = Duration::from_secs(1);
     config.heartbeat_interval = Duration::from_secs(1);
     config.heartbeat_timeout = Duration::from_secs(1);
@@ -228,7 +229,7 @@ async fn login_user_via_custom_id() -> anyhow::Result<()> {
 
 #[actix::test]
 async fn login_users_via_custom_id() -> anyhow::Result<()> {
-    let (address, socket) = create_actor(::general::config::get_configuration())?;
+    let (address, socket) = create_actor(::model::config::get_configuration())?;
     address.send(CustomIdAuthRequest::new(None, Arc::new(None), "1234567890".to_string(), socket.clone())).await??;
     let login_1 = socket.clone().messages.lock().unwrap().pop_back().unwrap();
     
@@ -243,7 +244,7 @@ async fn login_users_via_custom_id() -> anyhow::Result<()> {
 #[actix::test]
 async fn token_restore_test_1() -> anyhow::Result<()> {
     configure_environment();
-    let config = ::general::config::get_configuration();
+    let config = ::model::config::get_configuration();
     let (address, socket) = create_actor(config.clone())?;
     address.send(DeviceIdAuthRequest::new(None, Arc::new(None), "1234567890".to_string(), socket.clone())).await??;
     let old_token: AuthenticatedModel = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
@@ -272,7 +273,7 @@ async fn token_restore_test_1() -> anyhow::Result<()> {
 
 #[actix::test]
 async fn fail_token_restore_test_1() -> anyhow::Result<()> {
-    let mut config = ::general::config::get_configuration().deref().clone();
+    let mut config = ::model::config::get_configuration().deref().clone();
     config.token_lifetime = Duration::from_secs(1);
 
     let (address, socket) = create_actor(Arc::new(config))?;
@@ -293,7 +294,7 @@ async fn fail_token_restore_test_1() -> anyhow::Result<()> {
 #[actix::test]
 async fn token_refresh_test_1() -> anyhow::Result<()> {
     configure_environment();
-    let config = ::general::config::get_configuration();
+    let config = ::model::config::get_configuration();
     let (address, socket) = create_actor(config.clone())?;
     address.send(DeviceIdAuthRequest::new(None, Arc::new(None), "1234567890".to_string(), socket.clone())).await??;
     let old_token = socket.clone().messages.lock().unwrap().pop_back().unwrap();
@@ -326,7 +327,7 @@ async fn token_refresh_test_1() -> anyhow::Result<()> {
 #[actix::test]
 async fn token_refresh_test_2() -> anyhow::Result<()> {
     configure_environment();
-    let config = ::general::config::get_configuration();
+    let config = ::model::config::get_configuration();
     let (address, socket) = create_actor(config.clone())?;
     address.send(EmailAuthRequest {
         request_id: None,
@@ -365,7 +366,7 @@ async fn token_refresh_test_2() -> anyhow::Result<()> {
 
 #[actix::test]
 async fn logout() -> anyhow::Result<()> {
-    let (address, socket) = create_actor(::general::config::get_configuration())?;
+    let (address, socket) = create_actor(::model::config::get_configuration())?;
     address.send(DeviceIdAuthRequest::new(None, Arc::new(None), "1234567890".to_string(), socket.clone())).await??;
     let user = socket.clone().auth.lock().unwrap().clone();
 
@@ -383,7 +384,7 @@ async fn logout() -> anyhow::Result<()> {
 #[actix::test]
 async fn double_login_test() -> anyhow::Result<()> {
 
-    let config = ::general::config::get_configuration();
+    let config = ::model::config::get_configuration();
     let connection = create_connection(":memory:")?;
 
     #[cfg(feature = "stateless")]
@@ -441,7 +442,7 @@ async fn double_login_test() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: false,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],
@@ -486,7 +487,7 @@ async fn double_login_test() -> anyhow::Result<()> {
 #[actix::test]
 async fn user_disconnect_from_room_test() -> anyhow::Result<()> {
 
-    let mut config = ::general::config::get_configuration().deref().clone();
+    let mut config = ::model::config::get_configuration().deref().clone();
     config.connection_restore_wait_timeout = Duration::from_secs(1);
     config.heartbeat_interval = Duration::from_secs(1);
     config.heartbeat_timeout = Duration::from_secs(1);
@@ -550,7 +551,7 @@ async fn user_disconnect_from_room_test() -> anyhow::Result<()> {
         name: None,
         description: None,
         join_request: false,
-        access_type: general::model::CreateRoomAccessType::Public,
+        access_type: CreateRoomAccessType::Public,
         max_user: 4,
         metas: None,
         tags: vec!["tag 1".to_string(), "tag 2".to_string(), "tag 3".to_string(), "tag 4".to_string()],

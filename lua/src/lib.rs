@@ -2,8 +2,8 @@ use std::fmt::Debug;
 
 use mlua::*;
 use mlua::prelude::*;
-use general::meta::*;
-use general::model::*;
+use model::meta::*;
+use model::*;
 use cache::state::RoomInfoTypeVariant;
 
 #[derive(Default, Debug, PartialEq, Eq, Clone, Hash)]

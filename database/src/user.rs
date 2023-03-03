@@ -9,19 +9,20 @@ use diesel::QueryDsl;
 use diesel::ExpressionMethods;
 use diesel::RunQueryDsl;
 use diesel::result::OptionalExtension;
-use general::meta::MetaType;
-use general::meta::UserMetaAccess;
-use general::model::UserId;
-use general::model::UserInformationModel;
-use general::model::UserMetaId;
-use general::model::UserType;
+use model::meta::MetaType;
+use model::meta::UserMetaAccess;
+use model::UserId;
+use model::UserInformationModel;
+use model::UserMetaId;
+use model::UserType;
+use model::user::UserMetaInsert;
+use model::user::UserMetaModel;
+use model::user::UserUpdate;
 
 use crate::SqliteStore;
-use crate::model::UserMetaInsert;
-use crate::model::UserMetaModel;
-use crate::model::UserUpdate;
-use crate::schema::user_meta;
-use crate::{PooledConnection, schema::user};
+use model::schema::user_meta;
+use model::schema::user;
+use crate::PooledConnection;
 
 pub trait UserStoreTrait: Sized {
     fn update_user(connection: &mut PooledConnection, user_id: &UserId, update_request: &UserUpdate) -> anyhow::Result<usize>;

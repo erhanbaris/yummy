@@ -1,11 +1,8 @@
-#[macro_use]
 extern crate diesel;
 
 pub mod auth;
-pub mod model;
 pub mod user;
 pub mod room;
-pub(crate) mod schema;
 
 #[cfg(test)]
 mod test;

@@ -11,8 +11,8 @@ use cache::state::YummyState;
 use uuid::Uuid;
 use database::create_database;
 use general::websocket::WebsocketTestClient;
-use general::web::json_error_handler;
-use general::meta::MetaType;
+use model::web::json_error_handler;
+use model::meta::MetaType;
 use testing::model::*;
 
 use manager::conn::ConnectionManager;
@@ -39,7 +39,7 @@ use actix_web::web::get;
 
 use cucumber::*;
 use database::create_connection;
-use general::config::YummyConfig;
+use model::config::YummyConfig;
 
 #[derive(Default)]
 pub struct CustomWriter {
@@ -166,7 +166,7 @@ pub struct TestServerCapsule {
 
 impl TestServerCapsule {
     pub fn new() -> Self {
-        Self { server: create_websocket_server_with_config(::general::config::get_configuration(), TestServerConfig::default()) }
+        Self { server: create_websocket_server_with_config(::model::config::get_configuration(), TestServerConfig::default()) }
     }
 
     pub fn url(&self, uri: &str) -> String {
@@ -216,7 +216,7 @@ impl Debug for YummyWorld {
 }
 
 pub fn config(cfg: &mut ServiceConfig) {
-    let config = ::general::config::get_configuration();
+    let config = ::model::config::get_configuration();
     let mut db_location = temp_dir();
     db_location.push(format!("{}.db", Uuid::new_v4()));
 

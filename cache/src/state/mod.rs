@@ -20,8 +20,8 @@ use std::borrow::Cow;
 use std::sync::Arc;
 use std::fmt::Debug;
 
-use general::meta::{RoomMetaAccess, MetaType};
-use general::model::{UserId, RoomUserType, CreateRoomAccessType, RoomId};
+use model::meta::{RoomMetaAccess, MetaType};
+use model::{UserId, RoomUserType, CreateRoomAccessType, RoomId};
 use serde::ser::SerializeMap;
 use strum_macros::EnumDiscriminants;
 use serde::{Serialize, Deserialize, Serializer};

@@ -1,12 +1,12 @@
 
 use std::ops::Deref;
 
-use general::config::configure_environment;
-use general::config::get_configuration;
-use general::model::SendMessage;
-use general::model::SessionId;
-use general::model::UserInformationModel;
-use general::model::UserType;
+use model::config::configure_environment;
+use model::config::get_configuration;
+use model::SendMessage;
+use model::SessionId;
+use model::UserInformationModel;
+use model::UserType;
 
 use crate::cache::YummyCacheResource;
 use crate::state_resource::UserMetaInformation;

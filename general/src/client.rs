@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::auth::UserJwt;
+use model::auth::UserJwt;
 
 pub trait ClientTrait: Debug {
     fn send(&self, message: String);

@@ -4,9 +4,9 @@ use std::sync::Arc;
 use std::borrow::Borrow;
 use std::sync::atomic::AtomicUsize;
 
-use general::model::*;
-use general::meta::*;
-use general::config::YummyConfig;
+use model::*;
+use model::meta::*;
+use model::config::YummyConfig;
 
 use crate::cache::{YummyCache, YummyCacheResource};
 use crate::state_resource::UserMetaInformation;

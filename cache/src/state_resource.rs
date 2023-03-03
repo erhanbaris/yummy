@@ -1,7 +1,8 @@
 use std::{sync::Arc, marker::PhantomData};
 
 use database::DatabaseTrait;
-use general::{config::YummyConfig, database::Pool, meta::{UserMetaAccess, MetaType}, model::{UserInformationModel, UserId, UserMetaId}};
+use general::database::Pool;
+use model::{config::YummyConfig, UserId, UserInformationModel, meta::{UserMetaAccess, MetaType}, UserMetaId};
 
 use crate::{cache::YummyCacheResource, state::resource::YummyCacheResourceFactory};
 

@@ -1,7 +1,8 @@
 use std::{ops::Deref, collections::HashMap};
 
-use general::{password::Password, model::{UserId, UserType, CreateRoomAccessType}, meta::{MetaAction, UserMetaAccess}};
-use general::meta::RoomMetaAccess;
+use general::password::Password;
+use model::{UserId, UserType, CreateRoomAccessType, meta::{MetaAction, UserMetaAccess}};
+use model::meta::RoomMetaAccess;
 use cache::state::RoomInfoTypeVariant;
 use lua::{CreateRoomAccessTypeWrapper, RoomUserTypeWrapper, UserIdWrapper, RoomInfoTypeVariantWrapper, RoomIdWrapper, MetaActionWrapper, UserTypeWrapper, UserMetaAccessWrapper, RoomMetaAccessWrapper};
 

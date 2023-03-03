@@ -6,13 +6,13 @@ use actix_web::HttpRequest;
 use actix_web::web::Data;
 use actix_web::web::Payload;
 use database::DatabaseTrait;
-use general::auth::ApiIntegration;
-use general::auth::UserAuth;
+use model::WebsocketMessage;
+use model::auth::ApiIntegration;
+use model::auth::UserAuth;
 use general::client::ClientTrait;
 use general::error::YummyError;
-use general::model::UserAuthenticated;
-use general::model::WebsocketMessage;
-use general::web::GenericAnswer;
+use model::UserAuthenticated;
+use model::web::GenericAnswer;
 use manager::auth::model::StartUserTimeout;
 use manager::room::RoomManager;
 use manager::user::UserManager;
@@ -29,7 +29,7 @@ use actix_web::Result;
 use actix_web_actors::ws;
 use manager::auth::AuthManager;
 
-use general::config::YummyConfig;
+use model::config::YummyConfig;
 use crate::api::process_auth;
 use crate::api::process_user;
 use crate::api::request::*;
@@ -209,7 +209,7 @@ impl ClientTrait for GameWebsocketClient {
         self.sender.do_send(WebsocketMessage(message));
     }
 
-    fn authenticated(&self, user: general::auth::UserJwt) {
+    fn authenticated(&self, user: model::auth::UserJwt) {
         self.auth.do_send(UserAuthenticated(user));
     }
 }

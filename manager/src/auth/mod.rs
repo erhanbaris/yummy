@@ -6,17 +6,17 @@ mod test;
 use std::ops::Deref;
 use actix_broker::BrokerIssue;
 use cache::state::YummyState;
-use general::{auth::{generate_auth, UserJwt, validate_auth}, web::GenericAnswer, model::UserType};
+use ::model::{auth::{generate_auth, UserJwt, validate_auth}, web::GenericAnswer, UserType};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::collections::HashMap;
-use general::config::YummyConfig;
+use ::model::config::YummyConfig;
 use actix_broker::BrokerSubscribe;
 
 use actix::{Context, Handler, Actor, AsyncContext, SpawnHandle};
 use database::DatabaseTrait;
 use anyhow::{anyhow, Ok};
-use general::model::{UserId, SessionId};
+use ::model::{UserId, SessionId};
 use general::database::Pool;
 
 use crate::plugin::PluginExecuter;

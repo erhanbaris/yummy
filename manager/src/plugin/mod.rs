@@ -1,7 +1,7 @@
 use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, rc::Rc, cell::RefCell, marker::PhantomData};
 
 use database::DatabaseTrait;
-use general::{config::YummyConfig, model::UserId, meta::{UserMetaAccess, MetaType}};
+use model::{config::YummyConfig, UserId, meta::{UserMetaAccess, MetaType}};
 
 use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::{model::{GetUserInformation, UpdateUser}, UserLogic}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest}};
 

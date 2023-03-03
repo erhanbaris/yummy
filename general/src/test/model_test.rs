@@ -1,4 +1,4 @@
-use crate::model::UserId;
+use model::UserId;
 
 #[test]
 fn user_id() -> anyhow::Result<()> {

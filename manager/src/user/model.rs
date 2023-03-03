@@ -1,12 +1,10 @@
 use std::{fmt::Debug, sync::Arc, collections::HashMap};
+use general::client::ClientTrait;
+use model::{auth::UserAuth, UserId, UserType, meta::{UserMetaAccess, MetaType, MetaAction}, UserInformationModel};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use general::{client::ClientTrait, meta::MetaAction, model::UserInformationModel};
 use actix::prelude::Message;
 use validator::Validate;
-use testing::client::DummyClient;
-
-use general::{model::{UserId, UserType}, auth::UserAuth, meta::{MetaType, UserMetaAccess}};
 
 #[derive(Message, Validate, Clone, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
@@ -79,7 +77,7 @@ impl Default for UpdateUser
             auth: Arc::new(None),
             target_user_id: None,
             name: None,
-            socket: Arc::new(DummyClient::default()),
+            socket: Arc::new(testing::client::DummyClient::default()),
             email: None,
             password: None,
             device_id: None,

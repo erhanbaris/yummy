@@ -16,13 +16,13 @@ use actix_broker::BrokerSubscribe;
 
 use cache::state::YummyState;
 use general::client::ClientTrait;
-use general::config::YummyConfig;
-use general::model::SendMessage;
-use general::model::UserId;
+use ::model::config::YummyConfig;
+use ::model::SendMessage;
+use ::model::UserId;
 
 use actix_broker::*;
 
-use general::web::Answer;
+use ::model::web::Answer;
 #[cfg(feature = "stateless")]
 use redis::Commands;
 

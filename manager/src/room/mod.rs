@@ -10,14 +10,14 @@ use actix::{Context, Actor, Handler};
 use actix_broker::{BrokerSubscribe, BrokerIssue};
 use anyhow::anyhow;
 use cache::state::{RoomInfoTypeVariant, YummyState, RoomInfoType};
-use database::model::RoomUpdate;
 use database::DatabaseTrait;
 
-use general::config::YummyConfig;
-use general::meta::{MetaType, MetaAction};
-use general::meta::RoomMetaAccess;
-use general::model::{RoomId, UserId, RoomUserType, UserType, SessionId, SendMessage};
-use general::web::{GenericAnswer, Answer};
+use ::model::config::YummyConfig;
+use ::model::meta::{MetaType, MetaAction};
+use ::model::meta::RoomMetaAccess;
+use ::model::user::RoomUpdate;
+use ::model::{RoomId, UserId, RoomUserType, UserType, SessionId, SendMessage};
+use ::model::web::{GenericAnswer, Answer};
 use general::database::Pool;
 use general::database::PooledConnection;
 
@@ -125,7 +125,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         let (to_be_inserted_metas, to_be_removed_metas, total_metas, remaining) = match meta_action {
 
             // Dont remove old metas
-            general::meta::MetaAction::OnlyAddOrUpdate => {
+            ::model::meta::MetaAction::OnlyAddOrUpdate => {
 
                 // Check for metas
                 if let Some(ref metas) = metas {
@@ -168,7 +168,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
             },
 
             // Add new metas than remove all old meta informations
-            general::meta::MetaAction::RemoveUnusedMetas => {
+            ::model::meta::MetaAction::RemoveUnusedMetas => {
 
                 // Check for metas
                 if let Some(ref metas) = metas {
@@ -198,7 +198,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
                     (None, None, 0, HashMap::default())
                 }
             },
-            general::meta::MetaAction::RemoveAllMetas => {
+            ::model::meta::MetaAction::RemoveAllMetas => {
                 // Discard all new meta insertion list and remove all old meta that based on user access level.
                 let remove_list = DB::get_room_meta(connection, room_id, access_level)?.into_iter().map(|meta| meta.0).collect::<Vec<_>>();
                 metas = Some(HashMap::default());

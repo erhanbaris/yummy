@@ -1,13 +1,13 @@
 use std::env::temp_dir;
 
 use anyhow::Ok;
+use model::user::UserUpdate;
 use uuid::Uuid;
 use crate::SqliteStore;
-use crate::model::UserUpdate;
 use crate::{create_database, create_connection, PooledConnection};
 use crate::auth::*;
-use general::meta::*;
-use general::model::*;
+use model::meta::*;
+use model::*;
 use crate::user::*;
 
 fn db_conection() -> anyhow::Result<PooledConnection> {

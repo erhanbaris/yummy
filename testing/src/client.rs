@@ -1,6 +1,7 @@
 use std::{sync::Mutex, collections::VecDeque};
 
-use general::{auth::UserJwt, client::ClientTrait};
+use general::client::ClientTrait;
+use model::auth::UserJwt;
 
 #[derive(Debug)]
 pub struct DummyClient {
