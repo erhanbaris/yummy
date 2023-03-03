@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::{marker::PhantomData, sync::Arc, ops::Deref};
 
 use cache::state::YummyState;
@@ -185,14 +186,17 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                                 }
 
                                 // Check for meta already added into the user
-                                let row = user_old_metas.iter().find(|item| &item.name == key).map(|item| item.id.clone());
+                                let row = user_old_metas.iter().find(|item| &item.name == key).map(|item| (item.name.clone(), item.id.clone()));
         
                                 /* Remove the key if exists in the database */
-                                if let Some(row_id) = row {
-                                    remove_list.push(row_id);
+                                if let Some(row_info) = row {
+                                    remove_list.push(row_info);
                                 }
         
-                                /* Remove meta */
+                                /* 
+                                If the meta value is Null, skip to add insert_list.
+                                We already add all metas into the remove_list variable.
+                                */
                                 if let MetaType::Null = value {
                                     continue;
                                 }
@@ -216,7 +220,7 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                     // Check for metas
                     match metas {
                         Some(metas) => {
-                            let remove_list = DB::get_user_meta(connection, target_user_id, user_access_level.clone())?.into_iter().map(|meta| meta.0).collect::<Vec<_>>();
+                            let remove_list = DB::get_user_meta(connection, target_user_id, user_access_level.clone())?.into_iter().map(|meta| (meta.1, meta.0)).collect::<Vec<_>>();
                             let mut insert_list = Vec::new();
 
                             for (key, value) in metas {
@@ -226,6 +230,10 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                                     return Err(anyhow::anyhow!(UserError::MetaAccessLevelCannotBeBiggerThanUsersAccessLevel(key.clone())));
                                 }
 
+                                /* 
+                                If the meta value is Null, skip to add insert_list.
+                                We already add all metas into the remove_list variable.
+                                */
                                 if let MetaType::Null = value {
                                     continue;
                                 }
@@ -244,7 +252,7 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                 },
                 ::model::meta::MetaAction::RemoveAllMetas => {
                     // Discard all new meta insertion list and remove all old meta that based on user access level.
-                    (None, Some(DB::get_user_meta(connection, target_user_id, user_access_level)?.into_iter().map(|meta| meta.0).collect::<Vec<_>>()), 0)
+                    (None, Some(DB::get_user_meta(connection, target_user_id, user_access_level)?.into_iter().map(|meta| (meta.1, meta.0)).collect::<Vec<_>>()), 0)
                 },    
             };
 
@@ -252,12 +260,40 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                 return Err(anyhow::anyhow!(UserError::MetaLimitOverToMaximum));
             }
 
+            /* Remove metas from database and cache */
             if let Some(to_be_removed) = to_be_removed {
-                DB::remove_user_metas(connection, to_be_removed)?;
+                DB::remove_user_metas(connection, to_be_removed.iter().map(|(_, id)| id.clone()).collect::<Vec<_>>())?;
+
+                // If the metas are already None, no need to do anything
+                if let Some(metas) = user_information.metas.as_mut() {
+                    for (name, _) in to_be_removed.into_iter() {
+                        metas.remove(&name);
+                    }
+                }
             }
 
             if let Some(to_be_inserted) = to_be_inserted {
-                DB::insert_user_metas(connection, target_user_id, to_be_inserted)?;
+                DB::insert_user_metas(connection, target_user_id, to_be_inserted.clone())?;
+
+                user_information.metas = match user_information.metas {
+
+                    // Add new metas to current cache
+                    Some(mut metas) => {
+                        for (name, value) in to_be_inserted.into_iter() {
+                            metas.insert(name.clone(), value.clone());
+                        }
+                        Some(metas)
+                    }
+
+                    // Metas cache is None, create new meta hashmap and new metas to current cache
+                    None => {
+                        let mut metas = HashMap::new();
+                        for (name, value) in to_be_inserted.into_iter() {
+                            metas.insert(name.clone(), value.clone());
+                        }
+                        Some(metas)
+                    }
+                };
             }
             
             let response = match has_user_update {
