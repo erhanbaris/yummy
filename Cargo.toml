@@ -34,10 +34,10 @@ r2d2 =  { version = "0.8.10" }
 actix = "0.13"
 actix-web = { version = "4", features = ["rustls"] }
 actix-test-server = "0.2.2"
-actix-test = { version = "0.1.0", features = ["rustls"] } 
-actix-http = "3.3.0"
+actix-test = { version = "0.1.1", features = ["rustls"] } 
+actix-http = "3.3.1"
 actix-tls = { version = "3", features = ["rustls"] }
-tokio = { version = "1.25.0", features = ["full"] }
+tokio = { version = "1.26.0", features = ["full"] }
 bytes = "1.4.0"
 serde = { version = "1.0.152", features = ["derive", "rc"] }
 serde_json = "1.0.93"
@@ -72,7 +72,7 @@ serde_trim = "0.4.0"
 
 dotenv = "0.15.0"
 
-awc = { version = "3.1.0", features = ["rustls"] }
+awc = { version = "3.1.1", features = ["rustls"] }
 actix-codec = "0.5.0"
 futures = "0.3.26"
 futures-util = "0.3.26"
@@ -86,7 +86,7 @@ actix-files = "0.6.2"
 diesel = { version = "2.0.3", features = ["sqlite", "numeric", "r2d2"] }
 diesel-derive-enum = { version = "2.0.1", features = ["sqlite"] }
 
-tempfile = "3.3.0"
+tempfile = "3.4.0"
 tempdir = "0.3.7"
 
 rcgen = "0.10.0"
