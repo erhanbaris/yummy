@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate diesel;
 
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
 pub mod auth;
 pub mod config;
 pub mod user;
@@ -8,12 +11,15 @@ pub mod meta;
 pub mod web;
 pub mod schema;
 
-use std::collections::HashMap;
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use std::hash::Hash;
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use meta::collection::UserMetaCollection;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Serialize_repr, Deserialize_repr};
@@ -40,6 +46,13 @@ use crate::auth::UserJwt;
 use crate::meta::{UserMetaAccess, MetaType};
 use crate::web::GenericAnswer;
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* **************************************************************************************************************** */
 macro_rules! generate_type {
     ($name: ident) => {
         
@@ -119,18 +132,6 @@ macro_rules! generate_type {
     }
 }
 
-generate_type!(UserId);
-generate_type!(UserMetaId);
-generate_type!(SessionId);
-generate_type!(RoomId);
-generate_type!(RoomMetaId);
-generate_type!(RoomTagId);
-generate_type!(RoomUserId);
-generate_type!(RoomUserBanId);
-generate_type!(RoomUserRequestId);
-
-impl Copy for RoomId { }
-
 macro_rules! generate_redis_convert {
     ($name: ident) => {
         #[cfg(feature = "stateless")]
@@ -146,6 +147,48 @@ macro_rules! generate_redis_convert {
     }
 }
 
+/* **************************************************************************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
+#[derive(Message, Debug, Clone, Serialize, Deserialize)]
+#[rtype(result = "()")]
+pub struct SendMessage {
+    pub user_id: Arc<UserId>,
+    pub message: String
+}
+
+#[derive(Message, Debug)]
+#[rtype(result = "()")]
+pub struct UserAuthenticated(pub UserJwt);
+
+#[derive(Message, Debug)]
+#[rtype(result = "()")]
+pub struct WebsocketMessage(pub String);
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct UserMetaInformation {
+    pub id: UserMetaId,
+    pub name: String,
+    pub meta: MetaType<UserMetaAccess>
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct UserInformationModel {
+    pub id: UserId,
+    pub name: Option<String>,
+    pub email: Option<String>,
+    pub device_id: Option<String>,
+    pub custom_id: Option<String>,
+    pub metas: Option<UserMetaCollection>,
+    pub user_type: UserType,
+    pub online: bool,
+    pub insert_date: i32,
+    pub last_login_date: i32,
+}
+
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* **************************************************************************************************************** */
 #[derive(Debug, PartialEq, Eq, Serialize_repr, Deserialize_repr, Copy, Clone, Default)]
 #[repr(u8)]
 pub enum UserType {
@@ -154,6 +197,49 @@ pub enum UserType {
     Mod = 2,
     Admin = 3
 }
+
+#[derive(Default, Clone, Debug, Serialize_repr, Deserialize_repr, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[repr(u8)]
+pub enum CreateRoomAccessType {
+    #[default]
+    Public = 0,
+    Private = 1,
+    Friend = 2
+}
+
+#[derive(Default, Debug, Eq, PartialEq, PartialOrd, Clone, Serialize_repr, Deserialize_repr, FromPrimitive, ToPrimitive)]
+#[repr(u8)]
+pub enum RoomUserType {
+    #[default]
+    User = 1,
+    Moderator = 2,
+    Owner = 3,
+}
+
+/* **************************************************************************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
+impl WebsocketMessage {
+    pub fn success<T: Debug + Serialize + DeserializeOwned>(request_id: Option<usize>, message: T) -> WebsocketMessage {
+        let message = serde_json::to_string(&GenericAnswer::success(request_id, message));
+        WebsocketMessage(message.unwrap())
+    }
+    
+    pub fn fail<T: Debug + Serialize + DeserializeOwned>(request_id: Option<usize>, message: T) -> WebsocketMessage {
+        let message = serde_json::to_string(&GenericAnswer::fail(request_id, message));
+        WebsocketMessage(message.unwrap())
+    }
+}
+
+/* **************************************************************************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* **************************************************************************************************************** */
+impl Copy for RoomId { }
 
 impl From<UserType> for i32 {
     fn from(user_type: UserType) -> Self {
@@ -174,15 +260,6 @@ impl From<i32> for UserType {
             _ => UserType::default()
         }
     }
-}
-
-#[derive(Default, Clone, Debug, Serialize_repr, Deserialize_repr, PartialEq, Eq, FromPrimitive, ToPrimitive)]
-#[repr(u8)]
-pub enum CreateRoomAccessType {
-    #[default]
-    Public = 0,
-    Private = 1,
-    Friend = 2
 }
 
 impl From<CreateRoomAccessType> for i32 {
@@ -206,17 +283,6 @@ impl From<i32> for CreateRoomAccessType {
     }
 }
 
-generate_redis_convert!(CreateRoomAccessType);
-
-#[derive(Default, Debug, Eq, PartialEq, PartialOrd, Clone, Serialize_repr, Deserialize_repr, FromPrimitive, ToPrimitive)]
-#[repr(u8)]
-pub enum RoomUserType {
-    #[default]
-    User = 1,
-    Moderator = 2,
-    Owner = 3,
-}
-
 impl From<RoomUserType> for i32 {
     fn from(item: RoomUserType) -> Self {
         match item {
@@ -238,46 +304,22 @@ impl From<i32> for RoomUserType {
     }
 }
 
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* **************************************************************************************************************** */
+generate_type!(UserId);
+generate_type!(UserMetaId);
+generate_type!(SessionId);
+generate_type!(RoomId);
+generate_type!(RoomMetaId);
+generate_type!(RoomTagId);
+generate_type!(RoomUserId);
+generate_type!(RoomUserBanId);
+generate_type!(RoomUserRequestId);
+
+generate_redis_convert!(CreateRoomAccessType);
 generate_redis_convert!(RoomUserType);
 
-#[derive(Message, Debug)]
-#[rtype(result = "()")]
-pub struct UserAuthenticated(pub UserJwt);
-
-#[derive(Message, Debug)]
-#[rtype(result = "()")]
-pub struct WebsocketMessage(pub String);
-
-impl WebsocketMessage {
-    pub fn success<T: Debug + Serialize + DeserializeOwned>(request_id: Option<usize>, message: T) -> WebsocketMessage {
-        let message = serde_json::to_string(&GenericAnswer::success(request_id, message));
-        WebsocketMessage(message.unwrap())
-    }
-    
-    pub fn fail<T: Debug + Serialize + DeserializeOwned>(request_id: Option<usize>, message: T) -> WebsocketMessage {
-        let message = serde_json::to_string(&GenericAnswer::fail(request_id, message));
-        WebsocketMessage(message.unwrap())
-    }
-}
-
-#[derive(Default, Clone, Debug, Queryable, Serialize, Deserialize, PartialEq)]
-#[diesel(table_name = user)]
-pub struct UserInformationModel {
-    pub id: UserId,
-    pub name: Option<String>,
-    pub email: Option<String>,
-    pub device_id: Option<String>,
-    pub custom_id: Option<String>,
-    pub metas: Option<HashMap<String, MetaType<UserMetaAccess>>>,
-    pub user_type: UserType,
-    pub online: bool,
-    pub insert_date: i32,
-    pub last_login_date: i32,
-}
-
-#[derive(Message, Debug, Clone, Serialize, Deserialize)]
-#[rtype(result = "()")]
-pub struct SendMessage {
-    pub user_id: Arc<UserId>,
-    pub message: String
-}
+/* **************************************************************************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */

@@ -1,3 +1,10 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use actix::Actor;
 use actix::Addr;
 use anyhow::Ok;
@@ -32,6 +39,13 @@ use crate::plugin::PluginExecuter;
 
 use super::*;
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* **************************************************************************************************************** */
 macro_rules! email_auth {
     ($auth_manager: expr, $config: expr, $email: expr, $password: expr, $create: expr, $socket: expr) => {
         {
@@ -56,7 +70,14 @@ macro_rules! email_auth {
     };
 }
 
+/* **************************************************************************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* **************************************************************************************************************** */
 
+/* **************************************************************************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* **************************************************************************************************************** */
 fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, Addr<AuthManager<database::SqliteStore>>, Arc<YummyConfig>, Arc<DummyClient>)> {
     let mut db_location = temp_dir();
     db_location.push(format!("{}.db", uuid::Uuid::new_v4()));
@@ -77,6 +98,16 @@ fn create_actor() -> anyhow::Result<(Addr<UserManager<database::SqliteStore>>, A
     Ok((UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer).start(), config, Arc::new(DummyClient::default())))
 }
 
+/* **************************************************************************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* ************************************************* MACROS CALL ************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */
 #[actix::test]
 async fn get_private_user_1() -> anyhow::Result<()> {
     let (user_manager, _, _, socket) = create_actor()?;
@@ -548,10 +579,10 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     assert!(information.metas.is_some());
     let information_meta = information.metas.unwrap();
     assert_eq!(information_meta.len(), 4);
-    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "anonymous").cloned().map(|item| item.meta), Some(MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "user").cloned().map(|item| item.meta), Some(MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "friend").cloned().map(|item| item.meta), Some(MetaType::String("123".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "me").cloned().map(|item| item.meta), Some(MetaType::Bool(true, UserMetaAccess::Anonymous)));
 
     /* Check for moderator */
     user_manager.send(GetUserInformation::user(None, user_id.clone(), moderator.clone(), socket.clone())).await??;
@@ -562,11 +593,11 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     assert!(information.metas.is_some());
     let information_meta = information.metas.unwrap();
     assert_eq!(information_meta.len(), 5);
-    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "anonymous").cloned().map(|item| item.meta), Some(MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "user").cloned().map(|item| item.meta), Some(MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "friend").cloned().map(|item| item.meta), Some(MetaType::String("123".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "me").cloned().map(|item| item.meta), Some(MetaType::Bool(true, UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "moderator").cloned().map(|item| item.meta), Some(MetaType::String("Copennhagen".to_string(), UserMetaAccess::Anonymous)));
 
 
     /* Check for admin */
@@ -577,12 +608,12 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     assert!(information.metas.is_some());
     let information_meta = information.metas.unwrap();
     assert_eq!(information_meta.len(), 6);
-    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("admin"), Some(&MetaType::Number(123456789.0, UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "anonymous").cloned().map(|item| item.meta), Some(MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "user").cloned().map(|item| item.meta), Some(MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "friend").cloned().map(|item| item.meta), Some(MetaType::String("123".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "me").cloned().map(|item| item.meta), Some(MetaType::Bool(true, UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "moderator").cloned().map(|item| item.meta), Some(MetaType::String("Copennhagen".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "admin").cloned().map(|item| item.meta), Some(MetaType::Number(123456789.0, UserMetaAccess::Anonymous)));
 
     /* Check for system */
     user_manager.send(GetUserInformation::user_via_system(None, user_id.clone(), socket.clone())).await??;
@@ -592,13 +623,13 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     assert!(information.metas.is_some());
     let information_meta = information.metas.unwrap();
     assert_eq!(information_meta.len(), 6);
-    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("friend"), Some(&MetaType::String("123".to_string(), UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("me"), Some(&MetaType::Bool(true, UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("moderator"), Some(&MetaType::String("Copennhagen".to_string(), UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("admin"), Some(&MetaType::Number(123456789.0, UserMetaAccess::Anonymous)));
-    //assert_eq!(information_meta.get("system"), Some(&MetaType::Number(112233.0, UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "anonymous").cloned().map(|item| item.meta), Some(MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "user").cloned().map(|item| item.meta), Some(MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "friend").cloned().map(|item| item.meta), Some(MetaType::String("123".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "me").cloned().map(|item| item.meta), Some(MetaType::Bool(true, UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "moderator").cloned().map(|item| item.meta), Some(MetaType::String("Copennhagen".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "admin").cloned().map(|item| item.meta), Some(MetaType::Number(123456789.0, UserMetaAccess::Anonymous)));
+    //assert_eq!(information_meta.get("system"), Some(MetaType::Number(112233.0, UserMetaAccess::Anonymous)));
 
     /* Check for other user */
     user_manager.send(GetUserInformation::user(None, user_id.clone(), other_user.clone(), socket.clone())).await??;
@@ -608,8 +639,8 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     assert!(information.metas.is_some());
     let information_meta = information.metas.unwrap();
     assert_eq!(information_meta.len(), 2);
-    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
-    assert_eq!(information_meta.get("user"), Some(&MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "anonymous").cloned().map(|item| item.meta), Some(MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "user").cloned().map(|item| item.meta), Some(MetaType::String("88".to_string(), UserMetaAccess::Anonymous)));
 
     /* Check for anonymous */
     user_manager.send(GetUserInformation::user(None, user_id.clone(), Arc::new(None), socket.clone())).await??;
@@ -619,7 +650,7 @@ async fn meta_manupulation_test_1() -> anyhow::Result<()> {
     assert!(information.metas.is_some());
     let information_meta = information.metas.unwrap();
     assert_eq!(information_meta.len(), 1);
-    assert_eq!(information_meta.get("anonymous"), Some(&MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
+    assert_eq!(information_meta.iter().find(|item| &item.name == "anonymous").cloned().map(|item| item.meta), Some(MetaType::String("99".to_string(), UserMetaAccess::Anonymous)));
 
     Ok(())
 }

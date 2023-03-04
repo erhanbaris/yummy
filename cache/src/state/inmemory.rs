@@ -1,3 +1,7 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -7,12 +11,18 @@ use std::sync::atomic::AtomicUsize;
 use model::*;
 use model::meta::*;
 use model::config::YummyConfig;
+use model::meta::collection::UserMetaCollection;
 
 use crate::cache::{YummyCache, YummyCacheResource};
-use crate::state_resource::UserMetaInformation;
 
 use super::*;
 use super::resource::YummyCacheResourceFactory;
+
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
 
 #[derive(Clone)]
 pub struct ConnectionInfo {
@@ -22,16 +32,6 @@ pub struct ConnectionInfo {
 
 #[derive(Default)]
 pub struct ConnectionResource;
-
-impl YummyCacheResource for ConnectionResource {
-    type K=SessionId;
-    type V=ConnectionInfo;
-    
-    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
-
-    fn set(&self, _: &Self::K, _: &Self::V) -> anyhow::Result<()> { Ok(()) }
-}
-
 struct RoomState {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -46,7 +46,6 @@ struct RoomState {
     pub metas: HashMap<String, MetaType<RoomMetaAccess>>,
     pub join_requests: HashMap<SessionId, RoomUserType>,
 }
-
 
 #[derive(Serialize, Deserialize)]
 #[derive(Debug)]
@@ -69,9 +68,18 @@ pub struct YummyState {
     session_to_users: Arc<parking_lot::Mutex<std::collections::HashMap<SessionId, Arc<UserId>>>>,
     session_to_room: Arc<parking_lot::Mutex<std::collections::HashMap<SessionId, std::collections::HashSet<RoomId>>>>,
     user_informations: Arc<YummyCache<UserId, UserInformationModel>>,
-    user_metas: Arc<YummyCache<UserId, Vec<UserMetaInformation>>>
+    user_metas: Arc<YummyCache<UserId, UserMetaCollection>>
 }
 
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
 impl YummyState {
     pub fn new(config: Arc<YummyConfig>, resource_factory: Box<dyn YummyCacheResourceFactory>) -> Self {
         let user_informations = YummyCache::new(config.clone(), resource_factory.user_information());
@@ -93,7 +101,7 @@ impl YummyState {
         match self.user_informations.get(user_id)? {
             Some(mut result) => {
                 let access = access as i32;
-                result.metas = result.metas.map(|metas| metas.into_iter().filter(|(_, value)| value.get_access_level() as i32 <= access).collect());
+                result.metas = result.metas.map(|metas| metas.into_iter().filter(|item| item.meta.get_access_level() as i32 <= access).collect());
                 Ok(Some(result))
             },
             None => Ok(None)
@@ -101,21 +109,23 @@ impl YummyState {
     }
 
     pub fn update_user_information(&self, user_id: &UserId, informations: UserInformationModel) -> Result<(), YummyStateError> {
+        let metas = informations.metas.clone().unwrap_or_default();
         self.user_informations.set(user_id, informations)?;
+        self.user_metas.set(user_id, metas)?;
         Ok(())
     }
 
-    pub fn get_user_meta(&self, user_id: &UserId, access: UserMetaAccess) -> Result<Vec<UserMetaInformation>, YummyStateError> {
+    pub fn get_user_meta(&self, user_id: &UserId, access: UserMetaAccess) -> Result<UserMetaCollection, YummyStateError> {
         match self.user_metas.get(user_id)? {
             Some(mut metas) => {
                 let access_type = access as i32;
                 metas = metas
                     .into_iter()
                     .filter(|meta| meta.meta.get_access_level() as i32 <= access_type)
-                    .collect::<Vec<UserMetaInformation>>();
+                    .collect::<UserMetaCollection>();
                 Ok(metas)
             },
-            None => Ok(Vec::new())
+            None => Ok(UserMetaCollection::new())
         }
     }
     
@@ -616,3 +626,20 @@ impl YummyState {
         Ok(result)
     }
 }
+
+/* **************************************************************************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* **************************************************************************************************************** */
+impl YummyCacheResource for ConnectionResource {
+    type K=SessionId;
+    type V=ConnectionInfo;
+    
+    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
+
+    fn set(&self, _: &Self::K, _: &Self::V) -> anyhow::Result<()> { Ok(()) }
+}
+
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */

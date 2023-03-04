@@ -1,6 +1,12 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use std::borrow::Borrow;
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::ops::Deref;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
@@ -15,6 +21,7 @@ use model::UserId;
 use model::UserInformationModel;
 use model::UserMetaId;
 use model::UserType;
+use model::meta::collection::UserMetaCollection;
 use model::user::UserMetaInsert;
 use model::user::UserMetaModel;
 use model::user::UserUpdate;
@@ -24,9 +31,20 @@ use model::schema::user_meta;
 use model::schema::user;
 use crate::PooledConnection;
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* **************************************************************************************************************** */
 pub trait UserStoreTrait: Sized {
     fn update_user(connection: &mut PooledConnection, user_id: &UserId, update_request: &UserUpdate) -> anyhow::Result<usize>;
-    fn get_user_meta(connection: &mut PooledConnection, user_id: &UserId, filter: UserMetaAccess) -> anyhow::Result<Vec<(UserMetaId, String, MetaType<UserMetaAccess>)>>;
+    fn get_user_meta(connection: &mut PooledConnection, user_id: &UserId, filter: UserMetaAccess) -> anyhow::Result<UserMetaCollection>;
     fn remove_user_metas(connection: &mut PooledConnection, meta_ids: Vec<UserMetaId>) -> anyhow::Result<()>;
     fn insert_user_metas<'a>(connection: &mut PooledConnection, user_id: &UserId, metas: Vec<(&'a String, &'a MetaType<UserMetaAccess>)>) -> anyhow::Result<()>;
     fn get_user_information(connection: &mut PooledConnection, user_id: &UserId, access_type: UserMetaAccess) -> anyhow::Result<Option<UserInformationModel>>;
@@ -34,6 +52,13 @@ pub trait UserStoreTrait: Sized {
     fn get_user_type(connection: &mut PooledConnection, user_id: &UserId) -> anyhow::Result<UserType>;
 }
 
+/* **************************************************************************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* **************************************************************************************************************** */
 impl UserStoreTrait for SqliteStore {
     #[tracing::instrument(name="Update user", skip(connection))]
     fn update_user(connection: &mut PooledConnection, user_id: &UserId, update_request: &UserUpdate) -> anyhow::Result<usize> {
@@ -50,7 +75,7 @@ impl UserStoreTrait for SqliteStore {
 
         match result {
             Some((id, name, email, device_id, custom_id, user_type, insert_date, last_login_date)) => {
-                let metas: HashMap<_, _> = Self::get_user_meta(connection, user_id, access_type)?.into_iter().map(|(_, key, value)| (key, value)).collect();
+                let metas = Self::get_user_meta(connection, user_id, access_type)?;
                 let metas = match metas.is_empty() {
                     true => None,
                     false => Some(metas)
@@ -62,14 +87,16 @@ impl UserStoreTrait for SqliteStore {
     }
 
     #[tracing::instrument(name="Get user meta", skip(connection))]
-    fn get_user_meta(connection: &mut PooledConnection, user_id: &UserId, filter: UserMetaAccess) -> anyhow::Result<Vec<(UserMetaId, String, MetaType<UserMetaAccess>)>> {
+    fn get_user_meta(connection: &mut PooledConnection, user_id: &UserId, filter: UserMetaAccess) -> anyhow::Result<UserMetaCollection> {
         let records: Vec<UserMetaModel> = user_meta::table
             .select((user_meta::id, user_meta::key, user_meta::value, user_meta::meta_type, user_meta::access))
             .filter(user_meta::user_id.eq(user_id))
             .filter(user_meta::access.le(i32::from(filter)))
             .load::<UserMetaModel>(connection)?;
 
-        let records = records.into_iter().map(|record| {
+        let mut results = UserMetaCollection::new();
+
+        for record in records.into_iter(){
             let UserMetaModel { id, key, value, meta_type, access } = record;
 
             let meta = match meta_type {
@@ -80,10 +107,10 @@ impl UserStoreTrait for SqliteStore {
                 _ => MetaType::String("".to_string(), access.into()),
             };
 
-            (id, key, meta)
-        }).collect();
+            results.add_with_id(id, key, meta);
+        }
             
-        Ok(records)
+        Ok(results)
     }
 
     #[tracing::instrument(name="Get User type", skip(connection))]
@@ -140,3 +167,8 @@ impl UserStoreTrait for SqliteStore {
         Ok(())
     }
 }
+
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */

@@ -1,10 +1,17 @@
-use std::collections::HashMap;
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use std::{marker::PhantomData, sync::Arc, ops::Deref};
 
 use cache::state::YummyState;
 use database::DatabaseTrait;
+use model::meta::collection::UserMetaCollection;
 use model::user::UserUpdate;
-use model::{UserId, UserType, UserInformationModel};
+use model::{UserId, UserType, UserInformationModel, UserMetaId};
 use model::config::YummyConfig;
 use model::meta::{UserMetaAccess, MetaType};
 use model::web::Answer;
@@ -15,6 +22,10 @@ use crate::{auth::model::AuthError, get_user_id_from_auth};
 use super::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use super::model::UserError;
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* **************************************************************************************************************** */
 macro_rules! update_optional_property {
     ($updates: expr, $user_information: expr, $property: ident) => {
         $updates.$property = $property.as_ref().map(|item| {
@@ -27,16 +38,12 @@ macro_rules! update_optional_property {
         });
     }
 }
-
+/* **************************************************************************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
 #[derive(Default)]
 pub struct LogicResponse {
     pub items: Vec<String>
-}
-
-impl LogicResponse {
-    pub fn add<T>(&mut self, answer: T) where T: Into<String> {
-        self.items.push(answer.into());
-    }
 }
 
 pub struct UserLogic<DB: DatabaseTrait + ?Sized> {
@@ -44,6 +51,21 @@ pub struct UserLogic<DB: DatabaseTrait + ?Sized> {
     database: Arc<Pool>,
     states: YummyState,
     _marker: PhantomData<DB>
+}
+
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
+impl LogicResponse {
+    pub fn add<T>(&mut self, answer: T) where T: Into<String> {
+        self.items.push(answer.into());
+    }
 }
 
 impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
@@ -220,7 +242,7 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                     // Check for metas
                     match metas {
                         Some(metas) => {
-                            let remove_list = DB::get_user_meta(connection, target_user_id, user_access_level.clone())?.into_iter().map(|meta| (meta.1, meta.0)).collect::<Vec<_>>();
+                            let remove_list = DB::get_user_meta(connection, target_user_id, user_access_level.clone())?.into_iter().map(|meta| (meta.name, meta.id)).collect::<Vec<_>>();
                             let mut insert_list = Vec::new();
 
                             for (key, value) in metas {
@@ -252,7 +274,7 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                 },
                 ::model::meta::MetaAction::RemoveAllMetas => {
                     // Discard all new meta insertion list and remove all old meta that based on user access level.
-                    (None, Some(DB::get_user_meta(connection, target_user_id, user_access_level)?.into_iter().map(|meta| (meta.1, meta.0)).collect::<Vec<_>>()), 0)
+                    (None, Some(self.states.get_user_meta(target_user_id, user_access_level)?.into_iter().map(|meta| (meta.name, meta.id)).collect::<Vec<_>>()), 0)
                 },    
             };
 
@@ -262,13 +284,21 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
 
             /* Remove metas from database and cache */
             if let Some(to_be_removed) = to_be_removed {
-                DB::remove_user_metas(connection, to_be_removed.iter().map(|(_, id)| id.clone()).collect::<Vec<_>>())?;
+                DB::remove_user_metas(connection, to_be_removed.iter().filter_map(|item| item.1.clone()).collect::<Vec<UserMetaId>>())?;
 
                 // If the metas are already None, no need to do anything
                 if let Some(metas) = user_information.metas.as_mut() {
                     for (name, _) in to_be_removed.into_iter() {
-                        metas.remove(&name);
+
+                        // Find to be removed meta in the users meta list 
+                        metas.remove_with_name(&name);
                     }
+                }
+
+                /* Set metas to None if the there is no records at metas */
+                let is_empty = user_information.metas.as_ref().map_or(false, |item| item.is_empty());
+                if is_empty {
+                    user_information.metas = None;
                 }
             }
 
@@ -280,16 +310,16 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                     // Add new metas to current cache
                     Some(mut metas) => {
                         for (name, value) in to_be_inserted.into_iter() {
-                            metas.insert(name.clone(), value.clone());
+                            metas.add(name.clone(), value.clone());
                         }
                         Some(metas)
                     }
 
                     // Metas cache is None, create new meta hashmap and new metas to current cache
                     None => {
-                        let mut metas = HashMap::new();
+                        let mut metas = UserMetaCollection::new();
                         for (name, value) in to_be_inserted.into_iter() {
-                            metas.insert(name.clone(), value.clone());
+                            metas.add(name.clone(), value.clone());
                         }
                         Some(metas)
                     }
@@ -318,3 +348,9 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
         })
     }
 }
+
+/* **************************************************************************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */

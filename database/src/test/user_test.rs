@@ -1,3 +1,10 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use std::env::temp_dir;
 
 use anyhow::Ok;
@@ -10,6 +17,16 @@ use model::meta::*;
 use model::*;
 use crate::user::*;
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* **************************************************************************************************************** */
 fn db_conection() -> anyhow::Result<PooledConnection> {
     let mut db_location = temp_dir();
     db_location.push(format!("{}.db", Uuid::new_v4()));
@@ -18,6 +35,18 @@ fn db_conection() -> anyhow::Result<PooledConnection> {
     create_database(&mut connection)?;
     Ok(connection)
 }
+
+/* **************************************************************************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* ************************************************* MACROS CALL ************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */
+
 
 #[test]
 fn fail_get_user_information_1() -> anyhow::Result<()> {
@@ -144,7 +173,7 @@ fn meta() -> anyhow::Result<()> {
     assert_eq!(meta.len(), 1);
 
     // Remove meta
-    SqliteStore::remove_user_metas(&mut connection, vec![meta[0].0.clone()])?;
+    SqliteStore::remove_user_metas(&mut connection, vec![meta[0].id.clone().unwrap()])?;
     assert_eq!(SqliteStore::get_user_meta(&mut connection, &user_id, UserMetaAccess::Friend)?.len(), 0);
     assert_eq!(SqliteStore::get_user_meta(&mut connection, &user_id, UserMetaAccess::Anonymous)?.len(), 0);
     assert_eq!(SqliteStore::get_user_meta(&mut connection, &user_id, UserMetaAccess::System)?.len(), 0);
@@ -159,13 +188,13 @@ fn meta() -> anyhow::Result<()> {
     // Filter with anonymous
     let meta = SqliteStore::get_user_meta(&mut connection, &user_id, UserMetaAccess::Anonymous)?;
     assert_eq!(meta.len(), 1);
-    assert_eq!(meta.into_iter().map(|(_, key, value)| (key, value)).collect::<Vec<(String, MetaType<UserMetaAccess>)>>(), vec![
+    assert_eq!(meta.into_iter().map(|item| (item.name, item.meta)).collect::<Vec<(String, MetaType<UserMetaAccess>)>>(), vec![
         ("location".to_string(), MetaType::String("copenhagen".to_string(), UserMetaAccess::Anonymous))]);
 
     // Filter with system
     let meta = SqliteStore::get_user_meta(&mut connection, &user_id, UserMetaAccess::System)?;
     assert_eq!(meta.len(), 2);
-    assert_eq!(meta.into_iter().map(|(_, key, value)| (key, value)).collect::<Vec<(String, MetaType<UserMetaAccess>)>>(), vec![
+    assert_eq!(meta.into_iter().map(|item| (item.name, item.meta)).collect::<Vec<(String, MetaType<UserMetaAccess>)>>(), vec![
         ("location".to_string(), MetaType::String("copenhagen".to_string(), UserMetaAccess::Anonymous)),
         ("score".to_string(), MetaType::Number(123.0, UserMetaAccess::Friend))]);
 

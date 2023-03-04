@@ -1,4 +1,10 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
 mod steps;
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 
 use std::collections::HashMap;
 use std::env::temp_dir;
@@ -12,8 +18,6 @@ use uuid::Uuid;
 use database::create_database;
 use general::websocket::WebsocketTestClient;
 use model::web::json_error_handler;
-use model::meta::MetaType;
-use testing::model::*;
 
 use manager::conn::ConnectionManager;
 use actix_web::web::Data;
@@ -40,7 +44,14 @@ use actix_web::web::get;
 use cucumber::*;
 use database::create_connection;
 use model::config::YummyConfig;
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* **************************************************************************************************************** */
 
+/* **************************************************************************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
 #[derive(Default)]
 pub struct CustomWriter {
     passed_steps: usize,
@@ -50,6 +61,145 @@ pub struct CustomWriter {
     hook_errors: usize,
 }
 
+pub struct TestServerCapsule {
+    pub server: TestServer,
+}
+
+pub struct ClientInfo {
+    socket: WebsocketTestClient<String, String>,
+    last_message: Option<String>,
+    last_error: Option<String>,
+    room_id: Option<usize>,
+    name: Option<String>,
+    message: String,
+    token: String,
+    memory: HashMap<String, String>,
+    rooms: HashMap<String, String>
+}
+
+#[derive(World)]
+pub struct YummyWorld {
+    ws_server: TestServerCapsule,
+    ws_clients: HashMap<String, ClientInfo>,
+    rooms: HashMap<String, String>
+}
+
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* **************************************************************************************************************** */
+pub fn create_websocket_server_with_config(config: Arc<YummyConfig>, test_server_config: TestServerConfig) -> TestServer {
+    let config = config.clone();
+    
+    actix_test::start_with(test_server_config, move || {
+        let mut db_location = temp_dir();
+        db_location.push(format!("{}.db", Uuid::new_v4()));
+
+        let connection = create_connection(db_location.to_str().unwrap()).unwrap();
+        create_database(&mut connection.clone().get().unwrap()).unwrap();
+        
+        #[cfg(feature = "stateless")]
+        let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
+
+        let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+        let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
+        let executer = Arc::new(PluginExecuter::default());
+
+        ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
+
+        let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
+        let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
+        let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection), executer.clone()).start());
+
+        let query_cfg = QueryConfig::default()
+            .error_handler(|err, _| {
+                log::error!("{:?}", err);
+                InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
+            });
+
+        App::new()
+            .app_data(auth_manager)
+            .app_data(user_manager)
+            .app_data(room_manager)
+            .app_data(query_cfg)
+            .app_data(JsonConfig::default().error_handler(json_error_handler))
+            .app_data(Data::new(config.clone()))
+            .route("/v1/socket", get().to(websocket_endpoint::<database::SqliteStore>))
+    })
+}
+
+pub fn config(cfg: &mut ServiceConfig) {
+    let config = ::model::config::get_configuration();
+    let mut db_location = temp_dir();
+    db_location.push(format!("{}.db", Uuid::new_v4()));
+
+    let connection = create_connection(db_location.to_str().unwrap()).unwrap();
+    create_database(&mut connection.clone().get().unwrap()).unwrap();
+    
+    #[cfg(feature = "stateless")]
+    let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
+
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
+    let executer = Arc::new(PluginExecuter::default());
+
+    ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
+
+    let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
+    let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
+    let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection), executer.clone()).start());
+
+    let query_cfg = QueryConfig::default()
+        .error_handler(|err, _| {
+            log::error!("{:?}", err);
+            InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
+        });
+
+    cfg
+        .app_data(auth_manager)
+        .app_data(user_manager)
+        .app_data(room_manager)
+        .app_data(query_cfg)
+        .app_data(JsonConfig::default().error_handler(json_error_handler))
+        .app_data(Data::new(config.clone()))
+        .route("/v1/socket", get().to(websocket_endpoint::<database::SqliteStore>));
+}
+
+#[actix_web::test]
+async fn cucumber_test() {
+    use actix_web::test::init_service;
+    use cucumber::WriterExt;
+    let writer = CustomWriter::default();
+
+    init_service(App::new().configure(config)).await;
+    YummyWorld::cucumber()
+        .with_writer(writer.normalized())
+        .run_and_exit("./tests/").await;
+}
+
+/* **************************************************************************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
+impl TestServerCapsule {
+    pub fn new() -> Self {
+        Self { server: create_websocket_server_with_config(::model::config::get_configuration(), TestServerConfig::default()) }
+    }
+
+    pub fn url(&self, uri: &str) -> String {
+        self.server.url(uri)
+    }
+}
+
+/* **************************************************************************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* **************************************************************************************************************** */
 #[async_trait(?Send)]
 impl<W: 'static> cucumber::Writer<W> for CustomWriter {
     type Cli = cli::Empty; // we provide no CLI options
@@ -120,83 +270,10 @@ impl<W: 'static> cucumber::StatsWriter<W> for CustomWriter {
     }
 }
 
-pub fn create_websocket_server_with_config(config: Arc<YummyConfig>, test_server_config: TestServerConfig) -> TestServer {
-    let config = config.clone();
-    
-    actix_test::start_with(test_server_config, move || {
-        let mut db_location = temp_dir();
-        db_location.push(format!("{}.db", Uuid::new_v4()));
-
-        let connection = create_connection(db_location.to_str().unwrap()).unwrap();
-        create_database(&mut connection.clone().get().unwrap()).unwrap();
-        
-        #[cfg(feature = "stateless")]
-        let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-
-        let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
-        let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
-        let executer = Arc::new(PluginExecuter::default());
-
-        ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
-
-        let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
-        let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
-        let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection), executer.clone()).start());
-
-        let query_cfg = QueryConfig::default()
-            .error_handler(|err, _| {
-                log::error!("{:?}", err);
-                InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
-            });
-
-        App::new()
-            .app_data(auth_manager)
-            .app_data(user_manager)
-            .app_data(room_manager)
-            .app_data(query_cfg)
-            .app_data(JsonConfig::default().error_handler(json_error_handler))
-            .app_data(Data::new(config.clone()))
-            .route("/v1/socket", get().to(websocket_endpoint::<database::SqliteStore>))
-    })
-}
-
-pub struct TestServerCapsule {
-    pub server: TestServer,
-}
-
-impl TestServerCapsule {
-    pub fn new() -> Self {
-        Self { server: create_websocket_server_with_config(::model::config::get_configuration(), TestServerConfig::default()) }
-    }
-
-    pub fn url(&self, uri: &str) -> String {
-        self.server.url(uri)
-    }
-}
-
 impl Debug for TestServerCapsule {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "TestServerCapsule")
     }
-}
-
-pub struct ClientInfo {
-    socket: WebsocketTestClient<String, String>,
-    last_message: Option<String>,
-    last_error: Option<String>,
-    room_id: Option<usize>,
-    name: Option<String>,
-    message: String,
-    token: String,
-    memory: HashMap<String, String>,
-    rooms: HashMap<String, String>
-}
-
-#[derive(World)]
-pub struct YummyWorld {
-    ws_server: TestServerCapsule,
-    ws_clients: HashMap<String, ClientInfo>,
-    rooms: HashMap<String, String>
 }
 
 impl Default for YummyWorld {
@@ -215,51 +292,7 @@ impl Debug for YummyWorld {
     }
 }
 
-pub fn config(cfg: &mut ServiceConfig) {
-    let config = ::model::config::get_configuration();
-    let mut db_location = temp_dir();
-    db_location.push(format!("{}.db", Uuid::new_v4()));
-
-    let connection = create_connection(db_location.to_str().unwrap()).unwrap();
-    create_database(&mut connection.clone().get().unwrap()).unwrap();
-    
-    #[cfg(feature = "stateless")]
-    let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-
-    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
-    let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::default());
-
-    ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
-
-    let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
-    let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start());
-    let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection), executer.clone()).start());
-
-    let query_cfg = QueryConfig::default()
-        .error_handler(|err, _| {
-            log::error!("{:?}", err);
-            InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
-        });
-
-    cfg
-        .app_data(auth_manager)
-        .app_data(user_manager)
-        .app_data(room_manager)
-        .app_data(query_cfg)
-        .app_data(JsonConfig::default().error_handler(json_error_handler))
-        .app_data(Data::new(config.clone()))
-        .route("/v1/socket", get().to(websocket_endpoint::<database::SqliteStore>));
-}
-
-#[actix_web::test]
-async fn cucumber_test() {
-    use actix_web::test::init_service;
-    use cucumber::WriterExt;
-    let writer = CustomWriter::default();
-
-    init_service(App::new().configure(config)).await;
-    YummyWorld::cucumber()
-        .with_writer(writer.normalized())
-        .run_and_exit("./tests/").await;
-}
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */

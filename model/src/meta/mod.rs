@@ -1,9 +1,33 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
+pub mod collection;
+
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use serde::{Serialize, de::Visitor, de::MapAccess, Deserialize, Deserializer, Serializer};
 use std::{fmt::{self, Debug}, marker::PhantomData};
 use serde::de::{self};
 use serde::ser::SerializeSeq;
 use serde_repr::{Serialize_repr, Deserialize_repr};
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
+#[derive(Default)]
+struct MetaVisitor<T: Default + Debug + PartialEq + Clone + From<i32> + Into<i32>> {
+    _marker: PhantomData<T>
+}
+
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* **************************************************************************************************************** */
 #[derive(Debug, PartialEq, Eq, Clone, Default, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
 pub enum MetaAction {
@@ -11,18 +35,6 @@ pub enum MetaAction {
     OnlyAddOrUpdate = 0,
     RemoveUnusedMetas = 1,
     RemoveAllMetas = 2
-}
-
-impl TryFrom<i32> for MetaAction {
-    type Error = &'static str;
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(MetaAction::OnlyAddOrUpdate),
-            1 => Ok(MetaAction::RemoveUnusedMetas),
-            2 => Ok(MetaAction::RemoveAllMetas),
-            _ => Err("MetaAction value is not valid")
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default, Serialize_repr, Deserialize_repr)]
@@ -36,6 +48,46 @@ pub enum UserMetaAccess {
     Mod = 4,
     Admin = 5,
     System = 6
+}
+
+#[derive(Debug, PartialEq, PartialOrd, Eq, Copy, Clone, Default, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
+pub enum RoomMetaAccess {
+    #[default]
+    Anonymous = 0,
+    User = 1,
+    Moderator = 2,
+    Owner = 3,
+    Admin = 4,
+    System = 5
+}
+
+#[derive(Debug, PartialEq, Clone)]
+#[repr(u8)]
+pub enum MetaType<T: Default + Debug + PartialEq + Clone + From<i32>> {
+    Null,
+    Number(f64, T),
+    String(String, T),
+    Bool(bool, T),
+    List(Box<Vec<MetaType<T>>>, T)
+}
+
+/* **************************************************************************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* **************************************************************************************************************** */
+impl TryFrom<i32> for MetaAction {
+    type Error = &'static str;
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(MetaAction::OnlyAddOrUpdate),
+            1 => Ok(MetaAction::RemoveUnusedMetas),
+            2 => Ok(MetaAction::RemoveAllMetas),
+            _ => Err("MetaAction value is not valid")
+        }
+    }
 }
 
 impl From<UserMetaAccess> for i32 {
@@ -67,18 +119,6 @@ impl From<i32> for UserMetaAccess {
     }
 }
 
-#[derive(Debug, PartialEq, PartialOrd, Eq, Copy, Clone, Default, Serialize_repr, Deserialize_repr)]
-#[repr(u8)]
-pub enum RoomMetaAccess {
-    #[default]
-    Anonymous = 0,
-    User = 1,
-    Moderator = 2,
-    Owner = 3,
-    Admin = 4,
-    System = 5
-}
-
 impl From<RoomMetaAccess> for i32 {
     fn from(access: RoomMetaAccess) -> Self {
         match access {
@@ -104,16 +144,6 @@ impl From<i32> for RoomMetaAccess {
             _ => RoomMetaAccess::default()
         }
     }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-#[repr(u8)]
-pub enum MetaType<T: Default + Debug + PartialEq + Clone + From<i32>> {
-    Null,
-    Number(f64, T),
-    String(String, T),
-    Bool(bool, T),
-    List(Box<Vec<MetaType<T>>>, T)
 }
 
 impl<T: Default + Debug + PartialEq + Clone + From<i32>> MetaType<T> {
@@ -157,12 +187,6 @@ impl<T: Default + Debug + PartialEq + Clone + From<i32>> Serialize for MetaType<
         }
     }
 }
-
-#[derive(Default)]
-struct MetaVisitor<T: Default + Debug + PartialEq + Clone + From<i32> + Into<i32>> {
-    _marker: PhantomData<T>
-}
-
 
 impl<'de, T: Default + Debug + PartialEq + Clone + From<i32> + Into<i32>> Visitor<'de> for MetaVisitor<T> {
     type Value = MetaType<T>;
@@ -246,3 +270,8 @@ impl<'de, T: Default + Debug + PartialEq + Clone + From<i32> + Into<i32>> Visito
         }
     }
 }
+
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */
