@@ -30,7 +30,7 @@ impl<DB: DatabaseTrait + ?Sized> UserManager<DB> {
         Self {
             executer,
             _marker: PhantomData,
-            logic: UserLogic::new(config.clone(), states.clone(), database.clone())
+            logic: UserLogic::new(config, states, database)
         }
     }
 }
@@ -46,7 +46,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
     #[macros::plugin_api(name="get_user_information")]
     fn handle(&mut self, model: GetUserInformation, _ctx: &mut Context<Self>) -> Self::Result {
         let user = self.logic.get_user_information(&model)?;
-        model.socket.send(GenericAnswer::success(model.request_id.clone(), UserResponse::UserInfo { user }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, UserResponse::UserInfo { user }).into());
         Ok(())
     }
 }

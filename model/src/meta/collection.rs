@@ -96,7 +96,7 @@ impl<T, I> MetaCollection<T, I> where
     }
 
     pub fn remove_with_name(&mut self, name: &str) {
-        let index = self.items.iter().position(|x| &x.name == name);
+        let index = self.items.iter().position(|x| x.name == name);
 
         // Meta found
         if let Some(index) = index {
@@ -110,7 +110,7 @@ impl<T, I> MetaCollection<T, I> where
     }
 
     pub fn get_with_name(&self, name: &str) -> Option<&MetaInformation<T, I>> {
-        self.items.iter().find(|item| &item.name == name)
+        self.items.iter().find(|item| item.name == name)
     }
 
     pub fn is_empty(&self) -> bool {

@@ -37,6 +37,7 @@ struct DummyActor;
 pub struct DummyResourceFactory;
 pub struct DummyUserInformationResource;
 pub struct DummyUserMetaResource;
+pub struct DummyUserTypeResource;
 
 /* **************************************************************************************************************** */
 /* **************************************************** ENUMS ***************************************************** */
@@ -67,20 +68,31 @@ impl YummyCacheResourceFactory for DummyResourceFactory {
     fn user_metas(&self) -> Box<dyn YummyCacheResource<K=UserId, V=UserMetaCollection>> {
         Box::new(DummyUserMetaResource {})
     }
+
+    fn user_type(&self) -> Box<dyn YummyCacheResource<K=UserId, V=UserType>> {
+        Box::new(DummyUserTypeResource {})
+    }
 }
 
 impl YummyCacheResource for DummyUserInformationResource {
     type K=UserId;
     type V=UserInformationModel;
 
-    fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
+    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
 }
 
 impl YummyCacheResource for DummyUserMetaResource {
     type K=UserId;
     type V=UserMetaCollection;
 
-    fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
+    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
+}
+
+impl YummyCacheResource for DummyUserTypeResource {
+    type K=UserId;
+    type V=UserType;
+
+    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
 }
 
 /* **************************************************************************************************************** */
@@ -103,7 +115,7 @@ async fn state_1() -> anyhow::Result<()> {
     let mut state = YummyState::new(config, Box::new(DummyResourceFactory{}), #[cfg(feature = "stateless")] conn);
     let user_id = UserId::new();
     let session_id = state.new_session(&user_id, None, UserType::Mod);
-    assert_eq!(state.get_user_type(&user_id), Some(UserType::Mod));
+    assert_eq!(state.get_user_type(&user_id)?, Some(UserType::Mod));
 
     assert!(state.is_session_online(&session_id));
     assert!(state.is_user_online(&user_id));
@@ -301,9 +313,9 @@ async fn get_room() -> anyhow::Result<()> {
     let user_2_session = state.new_session(&user_2, Some("user2".to_string()), UserType::Mod);
     let user_3_session = state.new_session(&user_3, Some("user3".to_string()), UserType::Admin);
 
-    assert_eq!(state.get_user_type(&user_1), Some(UserType::User));
-    assert_eq!(state.get_user_type(&user_2), Some(UserType::Mod));
-    assert_eq!(state.get_user_type(&user_3), Some(UserType::Admin));
+    assert_eq!(state.get_user_type(&user_1)?, Some(UserType::User));
+    assert_eq!(state.get_user_type(&user_2)?, Some(UserType::Mod));
+    assert_eq!(state.get_user_type(&user_3)?, Some(UserType::Admin));
 
     state.join_to_room(&room, &user_1, &user_1_session, RoomUserType::Owner)?;
     state.join_to_room(&room, &user_2, &user_2_session, RoomUserType::Owner)?;

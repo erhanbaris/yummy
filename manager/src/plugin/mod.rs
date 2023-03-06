@@ -1,12 +1,27 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
+pub mod lua;
+
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, rc::Rc, cell::RefCell, marker::PhantomData};
 
-use database::DatabaseTrait;
+use cache::state::YummyState;
+use database::{DatabaseTrait, DefaultDatabaseStore};
+use general::database::Pool;
 use model::{config::YummyConfig, UserId, meta::{UserMetaAccess, MetaType}};
 
 use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::{model::{GetUserInformation, UpdateUser}, UserLogic}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest}};
 
-pub mod lua;
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************************************************************************** */
 
+/* **************************************************************************************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* **************************************************************************************************************** */
 macro_rules! create_plugin_func {
     ($pre: ident, $post: ident, $model: path) => {
         fn $pre <'a>(&self, _model: Rc<RefCell<$model>>) -> anyhow::Result<()> { Ok(()) }
@@ -18,7 +33,7 @@ macro_rules! create_executer_func {
     ($pre_func_name: ident, $post_func_name: ident, $model: path) => {
         pub fn $pre_func_name(&self, model: $model) -> anyhow::Result<$model> {
             let model = Rc::new(RefCell::new(model));
-            for plugin in self.auth_interfaces.iter() {
+            for plugin in self.plugins.iter() {
                 if plugin.active.load(Ordering::Relaxed) {
                     plugin.plugin.$pre_func_name(model.clone())?;
                 }
@@ -35,7 +50,7 @@ macro_rules! create_executer_func {
 
         pub fn $post_func_name(&self, model: $model, successed: bool) -> anyhow::Result<$model> {
             let model = Rc::new(RefCell::new(model));
-            for plugin in self.auth_interfaces.iter() {
+            for plugin in self.plugins.iter() {
                 if plugin.active.load(Ordering::Relaxed) {
                     plugin.plugin.$post_func_name(model.clone(), successed)?;
                 }
@@ -49,6 +64,50 @@ macro_rules! create_executer_func {
             }
         }
     }
+}
+
+/* **************************************************************************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
+#[derive(Default)]
+pub struct PluginBuilder {
+    installers: Vec<Box<dyn YummyPluginInstaller>>
+}
+
+#[derive(Clone)]
+pub struct YummyPluginContext<DB: DatabaseTrait + ?Sized + 'static> {
+    user_logic: UserLogic<DB>,
+    _marker: PhantomData<DB>
+}
+
+pub struct PluginInfo {
+    pub plugin: Box<dyn YummyPlugin>,
+    pub name: String,
+    pub active: AtomicBool
+}
+
+pub struct PluginExecuter {
+    plugins: Vec<PluginInfo>,
+    pub context: YummyPluginContext<DefaultDatabaseStore>
+}
+
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* **************************************************************************************************************** */
+pub enum YummyAuthError {
+    AuthFailed(String),
+    Other(String)
+}
+
+/* **************************************************************************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* **************************************************************************************************************** */
+pub trait YummyPluginInstaller {
+    fn install(&self, executer: &mut PluginExecuter, config: Arc<YummyConfig>);
 }
 
 pub trait YummyPlugin {
@@ -81,41 +140,22 @@ pub trait YummyPlugin {
     create_plugin_func!(pre_get_room_request, post_get_room_request, GetRoomRequest);
 }
 
-pub trait YummyPluginInstaller {
-    fn install(&self, executer: &mut PluginExecuter, config: Arc<YummyConfig>);
-}
-
-pub struct UserProxy<DB: DatabaseTrait + ?Sized + 'static> {
-    user_logic: UserLogic<DB>,
-    _marker: PhantomData<DB>
-}
-
-impl<DB: database::DatabaseTrait> UserProxy<DB> {
-    pub fn get_user_meta(&self, _: UserId, _: String) -> anyhow::Result<Option<MetaType<UserMetaAccess>>> {
-        Ok(None)
-    }
-}
-
-pub enum YummyAuthError {
-    AuthFailed(String),
-    Other(String)
-}
-
-pub struct PluginInfo {
-    pub plugin: Box<dyn YummyPlugin>,
-    pub name: String,
-    pub active: AtomicBool
-}
-
-#[derive(Default)]
-pub struct PluginExecuter {
-    auth_interfaces: Vec<PluginInfo>
-}
-
+/* **************************************************************************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
 impl PluginExecuter {
+    pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>) -> Self {
+        Self {
+            plugins: Vec::new(),
+            context: YummyPluginContext {
+                user_logic: UserLogic::new(config, states, database),
+                _marker: PhantomData
+            }
+        }
+    }
 
     pub fn add_plugin(&mut self, name: String, plugin: Box<dyn YummyPlugin>) {
-        self.auth_interfaces.push(PluginInfo {
+        self.plugins.push(PluginInfo {
             plugin,
             name,
             active: AtomicBool::new(true)
@@ -151,9 +191,10 @@ impl PluginExecuter {
     create_executer_func!(pre_get_room_request, post_get_room_request, GetRoomRequest);
 }
 
-#[derive(Default)]
-pub struct PluginBuilder {
-    installers: Vec<Box<dyn YummyPluginInstaller>>
+impl<DB: database::DatabaseTrait> YummyPluginContext<DB> {
+    pub fn get_user_meta(&self, user_id: UserId, key: String) -> anyhow::Result<Option<MetaType<UserMetaAccess>>> {
+        self.user_logic.get_user_meta(user_id, key)
+    }
 }
 
 impl PluginBuilder {
@@ -161,8 +202,8 @@ impl PluginBuilder {
         self.installers.push(installer);
     }
 
-    pub fn build(&self, config: Arc<YummyConfig>) -> PluginExecuter {
-        let mut executer = PluginExecuter::default(); 
+    pub fn build(&self, config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>) -> PluginExecuter {
+        let mut executer = PluginExecuter::new(config.clone(), states, database); 
         for installer in self.installers.iter() {
             installer.install(&mut executer, config.clone());
         }
@@ -170,3 +211,9 @@ impl PluginBuilder {
         executer
     }
 }
+
+/* **************************************************************************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */

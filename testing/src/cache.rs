@@ -5,13 +5,8 @@
 /* **************************************************************************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
 /* **************************************************************************************************************** */
-use std::{sync::Arc, marker::PhantomData};
-
-use database::DatabaseTrait;
-use general::database::Pool;
-use model::{UserId, UserInformationModel, meta::{UserMetaAccess, collection::UserMetaCollection}, UserType};
-
-use crate::{cache::YummyCacheResource, state::resource::YummyCacheResourceFactory};
+use cache::{state::resource::YummyCacheResourceFactory, cache::YummyCacheResource};
+use model::{UserId, UserType, meta::collection::UserMetaCollection, UserInformationModel};
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
@@ -21,120 +16,57 @@ use crate::{cache::YummyCacheResource, state::resource::YummyCacheResourceFactor
 /* **************************************************************************************************************** */
 /* *************************************************** STRUCTS **************************************************** */
 /* **************************************************************************************************************** */
-pub struct UserInformationResource<DB: DatabaseTrait + ?Sized> {
-    database: Arc<Pool>,
-    _marker: PhantomData<DB>
-}
-
-pub struct ResourceFactory<DB: DatabaseTrait + ?Sized> {
-    database: Arc<Pool>,
-    _marker: PhantomData<DB>
-}
-
-pub struct UserMetaResource<DB: DatabaseTrait + ?Sized> {
-    database: Arc<Pool>,
-    _marker: PhantomData<DB>
-}
-
-pub struct UserTypeResource<DB: DatabaseTrait + ?Sized> {
-    database: Arc<Pool>,
-    _marker: PhantomData<DB>
-}
+pub struct DummyResourceFactory;
+pub struct DummyUserInformationResource;
+pub struct DummyUserMetaResource;
+pub struct DummyUserTypeResource;
 
 /* **************************************************************************************************************** */
 /* **************************************************** ENUMS ***************************************************** */
 /* ************************************************** FUNCTIONS *************************************************** */
 /* *************************************************** TRAITS ***************************************************** */
-/* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
 
-impl<DB: DatabaseTrait + ?Sized> UserInformationResource<DB> {
-    pub fn new(database: Arc<Pool>) -> Self {
-        Self {
-            database,
-            _marker: PhantomData
-        }
+/* **************************************************************************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
+impl YummyCacheResourceFactory for DummyResourceFactory {
+    fn user_information(&self) -> Box<dyn YummyCacheResource<K=UserId, V=UserInformationModel>> {
+        Box::new(DummyUserInformationResource {})
+    }
+
+    fn user_metas(&self) -> Box<dyn YummyCacheResource<K=UserId, V=UserMetaCollection>> {
+        Box::new(DummyUserMetaResource {})
+    }
+
+    fn user_type(&self) -> Box<dyn YummyCacheResource<K=UserId, V=UserType>> {
+        Box::new(DummyUserTypeResource {})
     }
 }
 
-impl<DB: DatabaseTrait + ?Sized> ResourceFactory<DB> {
-    pub fn new(database: Arc<Pool>) -> Self {
-        Self {
-            database,
-            _marker: PhantomData
-        }
-    }
+impl YummyCacheResource for DummyUserInformationResource {
+    type K=UserId;
+    type V=UserInformationModel;
+
+    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
 }
 
-impl<DB: DatabaseTrait + ?Sized> UserMetaResource<DB> {
-    pub fn new(database: Arc<Pool>) -> Self {
-        Self {
-            database,
-            _marker: PhantomData
-        }
-    }
+impl YummyCacheResource for DummyUserMetaResource {
+    type K=UserId;
+    type V=UserMetaCollection;
+
+    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
 }
 
-impl<DB: DatabaseTrait + ?Sized> UserTypeResource<DB> {
-    pub fn new(database: Arc<Pool>) -> Self {
-        Self {
-            database,
-            _marker: PhantomData
-        }
-    }
+impl YummyCacheResource for DummyUserTypeResource {
+    type K=UserId;
+    type V=UserType;
+
+    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
 }
 
 /* **************************************************************************************************************** */
 /* ********************************************** TRAIT IMPLEMENTS ************************************************ */
-/* **************************************************************************************************************** */
-
-impl<DB: DatabaseTrait + ?Sized + 'static> YummyCacheResourceFactory for ResourceFactory<DB> {
-    fn user_information(&self) -> Box<dyn YummyCacheResource<K=UserId, V=UserInformationModel>> {
-        Box::new(UserInformationResource::<DB>::new(self.database.clone()))
-    }
-
-    fn user_metas(&self) -> Box<dyn YummyCacheResource<K=UserId, V=UserMetaCollection>> {
-        Box::new(UserMetaResource::<DB>::new(self.database.clone()))
-    }
-
-    fn user_type(&self) -> Box<dyn YummyCacheResource<K=UserId, V=model::UserType>> {
-        Box::new(UserTypeResource::<DB>::new(self.database.clone()))
-    }
-}
-
-impl<DB: DatabaseTrait + ?Sized> YummyCacheResource for UserInformationResource<DB> {
-    type K=UserId;
-    type V=UserInformationModel;
-
-    fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>> {
-        let mut connection = self.database.get()?;
-        DB::get_user_information(&mut connection, key, UserMetaAccess::System)
-    }
-}
-
-impl<DB: DatabaseTrait + ?Sized> YummyCacheResource for UserMetaResource<DB> {
-    type K=UserId;
-    type V=UserMetaCollection;
-
-    fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>> {
-        let mut connection = self.database.get()?;
-        let result = DB::get_user_meta(&mut connection, key, UserMetaAccess::System)?;
-        Ok(Some(result))
-    }
-}
-
-impl<DB: DatabaseTrait + ?Sized> YummyCacheResource for UserTypeResource<DB> {
-    type K=UserId;
-    type V=UserType;
-
-    fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>> {
-        let mut connection = self.database.get()?;
-        let result = DB::get_user_type(&mut connection, key)?;
-        Ok(Some(result))
-    }
-}
-
-/* **************************************************************************************************************** */
 /* ************************************************* MACROS CALL ************************************************** */
 /* ************************************************** UNIT TESTS ************************************************** */
 /* **************************************************************************************************************** */

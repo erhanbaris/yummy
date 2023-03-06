@@ -49,7 +49,7 @@ pub enum GetUserInformationEnum {
     User { user: UserId, requester: Arc<Option<UserAuth>> }
 }
 
-#[derive(Message, Validate, Debug)]
+#[derive(Clone, Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct UpdateUser {
     pub request_id: Option<usize>,

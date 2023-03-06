@@ -26,6 +26,7 @@ pub trait DatabaseTrait: AuthStoreTrait + UserStoreTrait + RoomStoreTrait + Size
     }
 }
 
+#[derive(Default, Clone)]
 pub struct SqliteStore;
 
 pub type DefaultDatabaseStore = SqliteStore;

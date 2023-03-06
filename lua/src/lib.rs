@@ -1,3 +1,10 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use std::fmt::Debug;
 
 use mlua::*;
@@ -6,6 +13,14 @@ use model::meta::*;
 use model::*;
 use cache::state::RoomInfoTypeVariant;
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
 #[derive(Default, Debug, PartialEq, Eq, Clone, Hash)]
 pub struct UserIdWrapper(pub UserId);
 #[derive(Default, Debug, PartialEq, Eq, Clone)]
@@ -25,6 +40,54 @@ pub struct UserMetaAccessWrapper(pub UserMetaAccess);
 pub struct RoomMetaAccessWrapper(pub RoomMetaAccess);
 pub struct RoomInfoTypeVariantWrapper(pub RoomInfoTypeVariant);
 
+
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* **************************************************************************************************************** */
+fn convert_user_meta(item: MetaType<UserMetaAccessWrapper>) -> MetaType<UserMetaAccess> {
+    match item {
+        MetaType::Null => MetaType::Null,
+        MetaType::Number(value, access) => MetaType::Number(value, access.0),
+        MetaType::String(value, access) => MetaType::String(value, access.0),
+        MetaType::Bool(value, access) => MetaType::Bool(value, access.0),
+        MetaType::List(value, access) => {
+            let mut items: Vec<MetaType<UserMetaAccess>> = Vec::new();
+            for item in value.into_iter() {
+                items.push(convert_user_meta(item));
+            }
+            MetaType::List(Box::new(items), access.0)
+        },
+    }
+}
+
+fn convert_room_meta(item: MetaType<RoomMetaAccessWrapper>) -> MetaType<RoomMetaAccess> {
+    match item {
+        MetaType::Null => MetaType::Null,
+        MetaType::Number(value, access) => MetaType::Number(value, access.0),
+        MetaType::String(value, access) => MetaType::String(value, access.0),
+        MetaType::Bool(value, access) => MetaType::Bool(value, access.0),
+        MetaType::List(value, access) => {
+            let mut items: Vec<MetaType<RoomMetaAccess>> = Vec::new();
+            for item in value.into_iter() {
+                items.push(convert_room_meta(item));
+            }
+            MetaType::List(Box::new(items), access.0)
+        },
+    }
+}
+
+/* **************************************************************************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* **************************************************************************************************************** */
 impl From<i32> for UserMetaAccessWrapper {
     fn from(access: i32) -> Self {
         UserMetaAccessWrapper(UserMetaAccess::from(access))
@@ -49,40 +112,6 @@ impl From<RoomMetaAccessWrapper> for i32 {
     }
 }
 
-/*impl<T> From<MetaTypeWrapper<T>> for MetaType<T> where T: Default + Debug + PartialEq + Clone + From<i32> {
-    fn from(item: MetaTypeWrapper<T>) -> Self {
-        match item.0 {
-            MetaType::Null => MetaType::Null,
-            MetaType::Number(value, access) => MetaType::Number(value, access),
-            MetaType::String(value, access) => MetaType::String(value, access),
-            MetaType::Bool(value, access) => MetaType::Bool(value, access),
-            MetaType::List(value, access) => {
-                let mut items: Vec<MetaType<T>> = Vec::new();
-                for item in value.into_iter() {
-                    items.push(item);
-                }
-                MetaType::List(Box::new(items), access)
-            },
-        }
-    }
-}*/
-
-fn convert_user_meta(item: MetaType<UserMetaAccessWrapper>) -> MetaType<UserMetaAccess> {
-    match item {
-        MetaType::Null => MetaType::Null,
-        MetaType::Number(value, access) => MetaType::Number(value, access.0),
-        MetaType::String(value, access) => MetaType::String(value, access.0),
-        MetaType::Bool(value, access) => MetaType::Bool(value, access.0),
-        MetaType::List(value, access) => {
-            let mut items: Vec<MetaType<UserMetaAccess>> = Vec::new();
-            for item in value.into_iter() {
-                items.push(convert_user_meta(item));
-            }
-            MetaType::List(Box::new(items), access.0)
-        },
-    }
-}
-
 impl From<MetaTypeWrapper<UserMetaAccessWrapper>> for MetaType<UserMetaAccess> {
     fn from(item: MetaTypeWrapper<UserMetaAccessWrapper>) -> Self {
         match item.0 {
@@ -98,22 +127,6 @@ impl From<MetaTypeWrapper<UserMetaAccessWrapper>> for MetaType<UserMetaAccess> {
                 MetaType::List(Box::new(items), access.0)
             },
         }
-    }
-}
-
-fn convert_room_meta(item: MetaType<RoomMetaAccessWrapper>) -> MetaType<RoomMetaAccess> {
-    match item {
-        MetaType::Null => MetaType::Null,
-        MetaType::Number(value, access) => MetaType::Number(value, access.0),
-        MetaType::String(value, access) => MetaType::String(value, access.0),
-        MetaType::Bool(value, access) => MetaType::Bool(value, access.0),
-        MetaType::List(value, access) => {
-            let mut items: Vec<MetaType<RoomMetaAccess>> = Vec::new();
-            for item in value.into_iter() {
-                items.push(convert_room_meta(item));
-            }
-            MetaType::List(Box::new(items), access.0)
-        },
     }
 }
 
@@ -325,3 +338,8 @@ impl<'lua> ToLua<'lua> for RoomInfoTypeVariantWrapper {
         Ok(Value::Integer(self.0 as i64))
     }
 }
+
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */

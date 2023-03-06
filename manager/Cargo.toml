@@ -50,6 +50,9 @@ redis = { workspace = true, optional = true }
 mlua.workspace = true
 moka.workspace = true
 
+[dev-dependencies]
+testing.workspace = true
+
 [features]
 stateless = ["dep:redis", "dep:r2d2"]
 default = []

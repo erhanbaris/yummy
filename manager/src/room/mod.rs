@@ -1,5 +1,11 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
 pub mod model;
 
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 #[cfg(test)]
 mod test;
 use std::collections::HashMap;
@@ -28,10 +34,21 @@ use crate::user::model::UserError;
 
 use self::model::*;
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************************************************************************** */
 const ALL_ROOM_INFO_TYPE_VARIANTS: [RoomInfoTypeVariant; 10] = [RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::BannedUsers, RoomInfoTypeVariant::JoinRequest, RoomInfoTypeVariant::Metas];
 
 type ConfigureMetasResult = anyhow::Result<(Option<HashMap<String, MetaType<RoomMetaAccess>>>, HashMap<String, MetaType<RoomMetaAccess>>)>;
 
+
+/* **************************************************************************************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
 pub struct RoomManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
@@ -40,6 +57,15 @@ pub struct RoomManager<DB: DatabaseTrait + ?Sized> {
     _marker: PhantomData<DB>
 }
 
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
 impl<DB: DatabaseTrait + ?Sized> RoomManager<DB> {
     pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>, executer: Arc<PluginExecuter>) -> Self {
         Self {
@@ -49,15 +75,6 @@ impl<DB: DatabaseTrait + ?Sized> RoomManager<DB> {
             executer,
             _marker: PhantomData
         }
-    }
-}
-
-impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for RoomManager<DB> {
-    type Context = Context<Self>;
-    
-    fn started(&mut self, ctx: &mut Self::Context) {
-        self.subscribe_system_async::<RoomUserDisconnect>(ctx);
-        self.subscribe_system_async::<DisconnectFromRoomRequest>(ctx);
     }
 }
 
@@ -238,7 +255,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
     }
 
     fn get_access_level_for_room(&mut self, user_id: &UserId, session_id: &SessionId, room_id: &RoomId) -> anyhow::Result<RoomMetaAccess> {
-        match self.states.get_user_type(user_id) {
+        match self.states.get_user_type(user_id)? {
             Some(UserType::User) => match self.states.get_users_room_type(session_id, room_id)? {
                 Some(RoomUserType::User) => Ok(RoomMetaAccess::User),
                 Some(RoomUserType::Moderator) => Ok(RoomMetaAccess::Moderator),
@@ -249,6 +266,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
             Some(UserType::Admin) => Ok(RoomMetaAccess::Admin),
             None => Err(anyhow::anyhow!(UserError::UserNotFound))
         }
+    }
+}
+
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for RoomManager<DB> {
+    type Context = Context<Self>;
+    
+    fn started(&mut self, ctx: &mut Self::Context) {
+        self.subscribe_system_async::<RoomUserDisconnect>(ctx);
+        self.subscribe_system_async::<DisconnectFromRoomRequest>(ctx);
     }
 }
 
@@ -288,7 +315,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
 
             DB::join_to_room(connection, &room_id, user_id, RoomUserType::Owner)?;
 
-            let access_level = match self.states.get_user_type(user_id) {
+            let access_level = match self.states.get_user_type(user_id)? {
                 Some(UserType::User) => RoomMetaAccess::Owner,
                 Some(UserType::Mod) => RoomMetaAccess::Owner,
                 Some(UserType::Admin) => RoomMetaAccess::Admin,
@@ -305,7 +332,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
         })?;
         
 
-        model.socket.send(GenericAnswer::success(model.request_id.clone(), RoomResponse::RoomCreated { room: room_id }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::RoomCreated { room: room_id }).into());
         Ok(())
     }
 }
@@ -361,9 +388,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
             match has_room_update {
                 true => match DB::update_room(connection, &model.room_id, &updates)? {
                     0 => return Err(anyhow::anyhow!(UserError::UserNotFound)),
-                    _ => model.socket.send(Answer::success(model.request_id.clone()).into())
+                    _ => model.socket.send(Answer::success(model.request_id).into())
                 },
-                false => model.socket.send(Answer::success(model.request_id.clone()).into())
+                false => model.socket.send(Answer::success(model.request_id).into())
             };
 
             // Update all caches
@@ -415,7 +442,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<WaitingR
         }
 
         let users = self.states.get_join_requests(&model.room)?;
-        model.socket.send(GenericAnswer::success(model.request_id.clone(), RoomResponse::WaitingRoomJoins { room: &model.room, users }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::WaitingRoomJoins { room: &model.room, users }).into());
         Ok(())
     }
 }
@@ -460,10 +487,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
             }
 
             // Send message to user about waiting for approvement
-            model.socket.send(GenericAnswer::success(model.request_id.clone(), RoomResponse::JoinRequested { room: &model.room }).into());
+            model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::JoinRequested { room: &model.room }).into());
         } else {
             // User can directly try to join room
-            self.join_to_room(&mut connection,  model.request_id.clone(), &model.room, user_id, session_id, model.room_user_type.clone())?;
+            self.join_to_room(&mut connection,  model.request_id, &model.room, user_id, session_id, model.room_user_type.clone())?;
         }
         Ok(())
     }
@@ -487,18 +514,18 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<ProcessW
             if model.status {
 
                 // Moderator or room owner approve join request
-                self.join_to_room(connection, model.request_id.clone(), &model.room, &model.user, &session_id, room_user_type)?;
+                self.join_to_room(connection, model.request_id, &model.room, &model.user, &session_id, room_user_type)?;
             } else {
                 
                 // Room join request declined
                 self.issue_system_async(SendMessage {
                     user_id: Arc::new(model.user.clone()),
-                    message: GenericAnswer::success(model.request_id.clone(), RoomResponse::JoinRequestDeclined { room: &model.room }).into()
+                    message: GenericAnswer::success(model.request_id, RoomResponse::JoinRequestDeclined { room: &model.room }).into()
                 });
             }
 
             // Send operation successfully executed message to operator
-            model.socket.send(Answer::success(model.request_id.clone()).into());
+            model.socket.send(Answer::success(model.request_id).into());
             anyhow::Ok(())
         })?;
         
@@ -547,7 +574,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<KickUser
             })
         }
 
-        model.socket.send(Answer::success(model.request_id.clone()).into());
+        model.socket.send(Answer::success(model.request_id).into());
         Ok(())
     }
 }
@@ -563,7 +590,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<Disconne
         let (user_id, session_id) = get_user_session_id_from_auth!(model, ());
 
         self.disconnect_from_room(&model.room, user_id, session_id).unwrap_or_default();
-        model.socket.send(Answer::success(model.request_id.clone()).into());
+        model.socket.send(Answer::success(model.request_id).into());
     }
 }
 
@@ -591,7 +618,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
                     }
                 }
 
-                model.socket.send(Answer::success(model.request_id.clone()).into());
+                model.socket.send(Answer::success(model.request_id).into());
                 Ok(())
             }
             Err(error) => Err(anyhow!(error))
@@ -612,7 +639,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomList
         };
 
         let rooms = self.states.get_rooms(&model.tag, members)?;
-        model.socket.send(GenericAnswer::success(model.request_id.clone(), RoomResponse::RoomList { rooms }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::RoomList { rooms }).into());
         Ok(())
     }
 }
@@ -635,7 +662,13 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetRoomR
 
         let access_level = self.get_access_level_for_room(user_id, session_id, &model.room)?;
         let room = self.states.get_room_info(&model.room, access_level, members)?;
-        model.socket.send(GenericAnswer::success(model.request_id.clone(), RoomResponse::RoomInfo { room }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::RoomInfo { room }).into());
         Ok(())
     }
 }
+
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */
+/* **************************************************************************************************************** */

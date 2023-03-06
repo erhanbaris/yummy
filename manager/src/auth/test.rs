@@ -31,14 +31,15 @@ fn create_actor(config: Arc<YummyConfig>) -> anyhow::Result<(Addr<AuthManager<da
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-    let executer = Arc::new(PluginExecuter::default());
-    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(Arc::new(connection.clone()));
     let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
 
+    let connection = Arc::new(connection);
+    let executer = Arc::new(PluginExecuter::new(config.clone(), states.clone(), connection.clone()));
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
-    Ok((AuthManager::<database::SqliteStore>::new(config.clone(), states, Arc::new(connection), executer).start(), Arc::new(DummyClient::default())))
+    Ok((AuthManager::<database::SqliteStore>::new(config.clone(), states, connection, executer).start(), Arc::new(DummyClient::default())))
 }
 
 /* email unit tests */
@@ -389,16 +390,17 @@ async fn double_login_test() -> anyhow::Result<()> {
 
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(Arc::new(connection.clone()));
     let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::default());
+    let connection = Arc::new(connection);
+    let executer = Arc::new(PluginExecuter::new(config.clone(), states.clone(), connection.clone()));
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
 
-    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start();
-    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer.clone()).start();
+    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer.clone()).start();
+    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer.clone()).start();
 
     let user_1_socket = Arc::new(DummyClient::default());
     let user_2_socket = Arc::new(DummyClient::default());
@@ -498,16 +500,17 @@ async fn user_disconnect_from_room_test() -> anyhow::Result<()> {
 
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(Arc::new(connection.clone()));
     let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::default());
+    let connection = Arc::new(connection);
+    let executer = Arc::new(PluginExecuter::new(config.clone(), states.clone(), connection.clone()));
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
 
-    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start();
-    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer.clone()).start();
+    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer.clone()).start();
+    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer.clone()).start();
 
     let user_1_socket = Arc::new(DummyClient::default());
     let user_2_socket = Arc::new(DummyClient::default());

@@ -1,3 +1,4 @@
+mod bind;
 mod model;
 
 #[cfg(test)]
@@ -58,6 +59,9 @@ impl YummyPluginInstaller for LuaPluginInstaller {
 
             // Bind all in-build functions
             plugin.bind_buildin_functions().unwrap();
+
+            // Bind all context related functions
+            plugin.bind_context(executer).unwrap();
             
             executer.add_plugin("lua".to_string(), Box::new(plugin));
         }

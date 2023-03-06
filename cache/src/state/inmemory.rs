@@ -23,7 +23,6 @@ use super::resource::YummyCacheResourceFactory;
 /* **************************************************** MACROS **************************************************** */
 /* *************************************************** STRUCTS **************************************************** */
 /* **************************************************************************************************************** */
-
 #[derive(Clone)]
 pub struct ConnectionInfo {
     pub user_id: Arc<UserId>,
@@ -68,6 +67,7 @@ pub struct YummyState {
     session_to_users: Arc<parking_lot::Mutex<std::collections::HashMap<SessionId, Arc<UserId>>>>,
     session_to_room: Arc<parking_lot::Mutex<std::collections::HashMap<SessionId, std::collections::HashSet<RoomId>>>>,
     user_informations: Arc<YummyCache<UserId, UserInformationModel>>,
+    user_types: Arc<YummyCache<UserId, UserType>>,
     user_metas: Arc<YummyCache<UserId, UserMetaCollection>>
 }
 
@@ -84,9 +84,10 @@ impl YummyState {
     pub fn new(config: Arc<YummyConfig>, resource_factory: Box<dyn YummyCacheResourceFactory>) -> Self {
         let user_informations = YummyCache::new(config.clone(), resource_factory.user_information());
         let user_metas = YummyCache::new(config.clone(), resource_factory.user_metas());
+        let user_types = YummyCache::new(config.clone(), resource_factory.user_type());
 
         Self {
-            config: config.clone(),
+            config,
 
             users: Arc::new(parking_lot::Mutex::default()),
             rooms: Arc::new(parking_lot::Mutex::default()),
@@ -94,6 +95,7 @@ impl YummyState {
             session_to_room: Arc::new(parking_lot::Mutex::default()),
             user_informations: Arc::new(user_informations),
             user_metas: Arc::new(user_metas),
+            user_types: Arc::new(user_types)
         }
     }
 
@@ -109,8 +111,19 @@ impl YummyState {
     }
 
     pub fn update_user_information(&self, user_id: &UserId, informations: UserInformationModel) -> Result<(), YummyStateError> {
+        // Copy metas to update meta cache
         let metas = informations.metas.clone().unwrap_or_default();
+
+        // Update user's type cache
+        self.set_user_type(user_id, informations.user_type)?;
+        
+        // Update user's name cache
+        self.set_user_name(user_id, informations.name.clone().unwrap_or_default());
+
+        // Update user's information cache
         self.user_informations.set(user_id, informations)?;
+
+        // Update user's metas cache
         self.user_metas.set(user_id, metas)?;
         Ok(())
     }
@@ -154,15 +167,14 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="get_user_type", skip(self))]
-    pub fn get_user_type(&mut self, user_id: &UserId) -> Option<UserType> {
-        self.users.lock().get(user_id).map(|user| user.user_type)
+    pub fn get_user_type(&self, user_id: &UserId) -> anyhow::Result<Option<UserType>> {
+        self.user_types.get(user_id)
     }
-    
     
     #[tracing::instrument(name="get_users_room_type", skip(self))]
     pub fn get_users_room_type(&mut self, session_id: &SessionId, room_id: &RoomId) -> anyhow::Result<Option<RoomUserType>> {
         match self.rooms.lock().get(room_id) {
-            Some(room) => Ok(room.connections.get(session_id)?.map(|connection| connection.room_user_type.clone())),
+            Some(room) => Ok(room.connections.get(session_id)?.map(|connection| connection.room_user_type)),
             None => Ok(None)
         }
     }
@@ -205,6 +217,9 @@ impl YummyState {
 
         let mut users = self.users.lock();
 
+        // Set user's type cache
+        self.user_types.set(user_id, user_type).unwrap_or_default();
+
         match users.get_mut(user_id) {
             Some(user) => {
                 user.sessions.insert(session_id.clone());
@@ -224,10 +239,8 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="set_user_type", skip(self))]
-    pub fn set_user_type(&self, user_id: &UserId, user_type: UserType) {
-        if let Some(user) = self.users.lock().get_mut(user_id) {
-            user.user_type = user_type
-        }
+    pub fn set_user_type(&self, user_id: &UserId, user_type: UserType) -> anyhow::Result<()>{
+        self.user_types.set(user_id, user_type)
     }
 
     #[tracing::instrument(name="set_user_name", skip(self))]
@@ -362,7 +375,7 @@ impl YummyState {
                     }
 
                     room.connection_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    room.connections.set(&session_id, ConnectionInfo { user_id: Arc::new(user_id.clone()), room_user_type })?;
+                    room.connections.set(session_id, ConnectionInfo { user_id: Arc::new(user_id.clone()), room_user_type })?;
                     
                     let mut user_to_room = self.session_to_room.lock();
                     match user_to_room.get_mut(session_id) {
@@ -454,7 +467,7 @@ impl YummyState {
             Some(room) => {
                 Ok(room.connections
                     .iter()
-                    .map(|(_, connection)| connection.user_id.clone())
+                    .map(|(_, connection)| connection.user_id)
                     .collect::<Vec<_>>())
             }
             None => Err(YummyStateError::RoomNotFound)
@@ -575,7 +588,7 @@ impl YummyState {
         let mut result = Vec::default();
         let rooms = self.rooms.lock();
         let rooms = match tag {
-            Some(tag) => rooms.iter().filter(|item| item.1.tags.contains(&tag)).collect::<Vec<_>>(),
+            Some(tag) => rooms.iter().filter(|item| item.1.tags.contains(tag)).collect::<Vec<_>>(),
             None => rooms.iter().collect::<Vec<_>>()
         };
 

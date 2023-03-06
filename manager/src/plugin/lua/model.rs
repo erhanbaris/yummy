@@ -412,7 +412,7 @@ impl LuaUserData for MessageToRoomRequest {
 impl LuaUserData for RoomListRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
         get!(methods, "get_tag", tag);
-        methods.add_method("get_members", |_, this, ()| Ok(this.members.clone().into_iter().map(|item| RoomInfoTypeVariantWrapper(item)).collect::<Vec<RoomInfoTypeVariantWrapper>>()));
+        methods.add_method("get_members", |_, this, ()| Ok(this.members.clone().into_iter().map(RoomInfoTypeVariantWrapper).collect::<Vec<RoomInfoTypeVariantWrapper>>()));
 
         set!(methods, "set_tag", tag, Option<String>);
         methods.add_method_mut("set_members", |_, this, members: Vec<RoomInfoTypeVariantWrapper>| {
@@ -434,7 +434,7 @@ impl LuaUserData for GetRoomRequest {
     fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
         general_macros!(methods);
         get_wrapper!(methods, "get_room", room, RoomIdWrapper);
-        methods.add_method("get_members", |_, this, ()| Ok(this.members.clone().into_iter().map(|item| RoomInfoTypeVariantWrapper(item)).collect::<Vec<RoomInfoTypeVariantWrapper>>()));
+        methods.add_method("get_members", |_, this, ()| Ok(this.members.clone().into_iter().map(RoomInfoTypeVariantWrapper).collect::<Vec<RoomInfoTypeVariantWrapper>>()));
         
         set_wrapper!(methods, "set_room", room, RoomIdWrapper);
         methods.add_method_mut("set_members", |_, this, members: Vec<RoomInfoTypeVariantWrapper>| {

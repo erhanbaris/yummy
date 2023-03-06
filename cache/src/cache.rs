@@ -1,17 +1,23 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use std::sync::{Arc, atomic::AtomicUsize};
 
 use model::config::YummyConfig;
 use moka::sync::{Cache, ConcurrentCacheExt};
 
-pub trait YummyCacheResource {
-        type K: Send + Sync + std::clone::Clone + std::hash::Hash + std::cmp::Eq + 'static;
-        type V: Send + Sync + std::clone::Clone + 'static;
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* **************************************************************************************************************** */
 
-    fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>>;
-    fn set(&self, _: &Self::K, _: &Self::V) -> anyhow::Result<()> { Ok(()) }
-
-}
-
+/* **************************************************************************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
 pub struct YummyCache<K, V>
     where
         K: Send + Sync + std::clone::Clone + std::hash::Hash + std::cmp::Eq + 'static,
@@ -26,9 +32,37 @@ pub struct YummyCache<K, V>
     // Statistical data
     hit: AtomicUsize,
     lose: AtomicUsize,
-    miss: AtomicUsize
+    miss: AtomicUsize,
+    insert: AtomicUsize,
+    delete: AtomicUsize
 }
 
+pub struct YummyCacheIterator<'a, K, V>
+    where
+        K: Send + Sync + std::clone::Clone + std::hash::Hash + std::cmp::Eq + 'static,
+        V: Send + Sync + std::clone::Clone + 'static {
+    iter: moka::sync::Iter<'a, K, V>
+}
+
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* **************************************************************************************************************** */
+pub trait YummyCacheResource {
+    type K: Send + Sync + std::clone::Clone + std::hash::Hash + std::cmp::Eq + 'static;
+    type V: Send + Sync + std::clone::Clone + 'static;
+
+    fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>>;
+    fn set(&self, _: &Self::K, _: &Self::V) -> anyhow::Result<()> { Ok(()) }
+}
+
+/* **************************************************************************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
 impl<K, V> YummyCache<K, V>
     where 
         K: Send + Sync + std::clone::Clone + std::hash::Hash + std::cmp::Eq + 'static, 
@@ -36,11 +70,13 @@ impl<K, V> YummyCache<K, V>
 
     pub fn new(config: Arc<YummyConfig>, resource: Box<dyn YummyCacheResource::<K = K, V = V>>) -> Self {
         Self {
-            cache: Cache::builder().time_to_idle(config.cache_duration.clone()).build(),
+            cache: Cache::builder().time_to_idle(config.cache_duration).build(),
             resource,
             hit: AtomicUsize::new(0),
             lose: AtomicUsize::new(0),
-            miss: AtomicUsize::new(0)
+            miss: AtomicUsize::new(0),
+            insert: AtomicUsize::new(0),
+            delete: AtomicUsize::new(0)
         }
     }
 
@@ -67,7 +103,7 @@ impl<K, V> YummyCache<K, V>
                     self.lose.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
                     // Save information
-                    self.set(&key, value.clone())?;
+                    self.set(key, value.clone())?;
 
                     // Return information
                     Ok(Some(value))
@@ -86,6 +122,9 @@ impl<K, V> YummyCache<K, V>
     }
 
     pub fn set(&self, key: &K, value: V) -> anyhow::Result<()> {
+        // Increase insert counter
+        self.insert.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
         // First change resource
         self.resource.set(key, &value)?;
 
@@ -99,6 +138,9 @@ impl<K, V> YummyCache<K, V>
     }
 
     pub fn remove(&self, key: &K) {
+        // Increase delete counter
+        self.delete.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
         self.cache.invalidate(key)
     }
 
@@ -125,13 +167,9 @@ impl<K, V> YummyCache<K, V>
     }
 }
 
-pub struct YummyCacheIterator<'a, K, V>
-    where
-        K: Send + Sync + std::clone::Clone + std::hash::Hash + std::cmp::Eq + 'static,
-        V: Send + Sync + std::clone::Clone + 'static {
-    iter: moka::sync::Iter<'a, K, V>
-}
-
+/* **************************************************************************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* **************************************************************************************************************** */
 impl<'a, K, V> Iterator for YummyCacheIterator<'a, K, V> where
     K: Send + Sync + std::clone::Clone + std::hash::Hash + std::cmp::Eq + 'static,
     V: Send + Sync + std::clone::Clone + 'static {
@@ -141,3 +179,8 @@ impl<'a, K, V> Iterator for YummyCacheIterator<'a, K, V> where
         self.iter.next()
     }
 }
+
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */

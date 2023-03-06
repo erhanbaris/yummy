@@ -1,8 +1,14 @@
-pub mod model;
-
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
 #[cfg(test)]
 mod test;
 
+pub mod model;
+
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use std::ops::Deref;
 use actix_broker::BrokerIssue;
 use cache::state::YummyState;
@@ -23,6 +29,43 @@ use crate::plugin::PluginExecuter;
 use self::model::*;
 use crate::conn::model::UserConnected;
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* **************************************************************************************************************** */
+macro_rules! disconnect_if_already_auth {
+    ($model: expr, $self:expr, $ctx: expr) => {
+        if $model.auth.is_some() {
+            $self.issue_system_async(ConnUserDisconnect {
+                request_id: None,
+                auth: $model.auth.clone(),
+                send_message: false,
+                socket: $model.socket.clone()
+            });
+        }   
+    }
+}
+
+
+macro_rules! disconnect_if_already_auth_2 {
+    ($auth: expr, $socket: expr, $self:expr, $ctx: expr) => {
+        if $auth.is_some() {
+            $self.issue_system_async(ConnUserDisconnect {
+                request_id: None,
+                auth: $auth.clone(),
+                send_message: false,
+                socket: $socket.clone()
+            });
+        }   
+    }
+}
+
+/* **************************************************************************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
 pub struct AuthManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
@@ -32,6 +75,15 @@ pub struct AuthManager<DB: DatabaseTrait + ?Sized> {
     _auth: PhantomData<DB>
 }
 
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
 impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
     pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>, executer: Arc<PluginExecuter>) -> Self {
         Self {
@@ -62,33 +114,9 @@ impl<DB: DatabaseTrait + ?Sized> AuthManager<DB> {
     }
 }
 
-macro_rules! disconnect_if_already_auth {
-    ($model: expr, $self:expr, $ctx: expr) => {
-        if $model.auth.is_some() {
-            $self.issue_system_async(ConnUserDisconnect {
-                request_id: None,
-                auth: $model.auth.clone(),
-                send_message: false,
-                socket: $model.socket.clone()
-            });
-        }   
-    }
-}
-
-
-macro_rules! disconnect_if_already_auth_2 {
-    ($auth: expr, $socket: expr, $self:expr, $ctx: expr) => {
-        if $auth.is_some() {
-            $self.issue_system_async(ConnUserDisconnect {
-                request_id: None,
-                auth: $auth.clone(),
-                send_message: false,
-                socket: $socket.clone()
-            });
-        }   
-    }
-}
-
+/* **************************************************************************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* **************************************************************************************************************** */
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for AuthManager<DB> {
     type Context = Context<Self>;
 
@@ -129,7 +157,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth_jwt);
-        model.socket.send(GenericAnswer::success(model.request_id.clone(), AuthResponse::Authenticated { token }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, AuthResponse::Authenticated { token }).into());
         Ok(())
     }
 }
@@ -159,7 +187,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
-        model.socket.send(GenericAnswer::success(model.request_id.clone(), AuthResponse::Authenticated { token }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, AuthResponse::Authenticated { token }).into());
         Ok(())
     }
 }
@@ -189,7 +217,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
-        model.socket.send(GenericAnswer::success(model.request_id.clone(), AuthResponse::Authenticated { token }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, AuthResponse::Authenticated { token }).into());
         Ok(())
     }
 }
@@ -201,7 +229,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRe
     #[macros::plugin_api(name="logout")]
     fn handle(&mut self, model: LogoutRequest, _ctx: &mut Context<Self>) -> Self::Result {
         self.issue_system_async(ConnUserDisconnect {
-            request_id: model.request_id.clone(),
+            request_id: model.request_id,
             auth: model.auth.clone(),
             send_message: true,
             socket: model.socket.clone()
@@ -222,7 +250,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
         match validate_auth(self.config.clone(), &model.token[..]) {
             Some(claims) => {
                 let (token, _) = self.generate_token(&claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session), claims.user.user_type)?;
-                model.socket.send(GenericAnswer::success(model.request_id.clone(), AuthResponse::Authenticated { token }).into());
+                model.socket.send(GenericAnswer::success(model.request_id, AuthResponse::Authenticated { token }).into());
                 Ok(())
             },
             None => Err(anyhow!(AuthError::TokenNotValid))
@@ -256,7 +284,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
                     socket: model.socket.clone()
                 });
                 model.socket.authenticated(auth);
-                model.socket.send(GenericAnswer::success(model.request_id.clone(), AuthResponse::Authenticated { token }).into());
+                model.socket.send(GenericAnswer::success(model.request_id, AuthResponse::Authenticated { token }).into());
                 Ok(())
             },
             None => Err(anyhow!(AuthError::TokenNotValid))
@@ -313,3 +341,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StopUser
         Ok(())
     }
 }
+
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */

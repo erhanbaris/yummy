@@ -48,14 +48,14 @@ async fn main() -> std::io::Result<()> {
 
     #[cfg(feature = "stateless")]
     let redis_client = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), database.clone());
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(database.clone());
 
     let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] redis_client.clone());
 
     let mut builder = PluginBuilder::default();
     builder.add_installer(Box::new(LuaPluginInstaller::default()));
 
-    let executer = Arc::new(builder.build(config.clone()));
+    let executer = Arc::new(builder.build(config.clone(), states.clone(), database.clone()));
 
     let user_manager = Data::new(UserManager::<DefaultDatabaseStore>::new(config.clone(), states.clone(), database.clone(), executer.clone()).start());
     let room_manager = Data::new(RoomManager::<DefaultDatabaseStore>::new(config.clone(), states.clone(), database.clone(), executer.clone()).start());

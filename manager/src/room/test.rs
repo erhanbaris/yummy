@@ -73,14 +73,15 @@ fn create_actor() -> anyhow::Result<(Addr<RoomManager<database::SqliteStore>>, A
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
 
-    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(Arc::new(connection.clone()));
     let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::default());
+    let connection = Arc::new(connection);
+    let executer = Arc::new(PluginExecuter::new(config.clone(), states.clone(), connection.clone()));
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
-    Ok((RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer).start(), config, states.clone(), Arc::new(DummyClient::default())))
+    Ok((RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer.clone()).start(), AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer).start(), config, states.clone(), Arc::new(DummyClient::default())))
 }
 
 #[actix::test]
@@ -855,16 +856,17 @@ async fn multi_room_support() -> anyhow::Result<()> {
 
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(Arc::new(connection.clone()));
     let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::default());
+    let connection = Arc::new(connection);
+    let executer = Arc::new(PluginExecuter::new(config.clone(), states.clone(), connection.clone()));
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
 
-    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start();
-    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer.clone()).start();
+    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer.clone()).start();
+    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer.clone()).start();
 
     let user_1_socket = Arc::new(DummyClient::default());
     let user_2_socket = Arc::new(DummyClient::default());
@@ -1012,16 +1014,17 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
 
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(Arc::new(connection.clone()));
     let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::default());
+    let connection = Arc::new(connection);
+    let executer = Arc::new(PluginExecuter::new(config.clone(), states.clone(), connection.clone()));
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
 
-    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start();
-    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer.clone()).start();
+    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer.clone()).start();
+    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer.clone()).start();
 
     let user_1_socket = Arc::new(DummyClient::default());
     let user_2_socket = Arc::new(DummyClient::default());
@@ -1137,16 +1140,17 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
 
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(Arc::new(connection.clone()));
     let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::default());
+    let connection = Arc::new(connection);
+    let executer = Arc::new(PluginExecuter::new(config.clone(), states.clone(), connection.clone()));
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
 
-    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start();
-    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer.clone()).start();
+    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer.clone()).start();
+    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer.clone()).start();
 
     let user_1_socket = Arc::new(DummyClient::default());
     let user_2_socket = Arc::new(DummyClient::default());
@@ -1262,16 +1266,17 @@ async fn user_ban_test() -> anyhow::Result<()> {
 
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(Arc::new(connection.clone()));
     let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::default());
+    let connection = Arc::new(connection);
+    let executer = Arc::new(PluginExecuter::new(config.clone(), states.clone(), connection.clone()));
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
 
-    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start();
-    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer.clone()).start();
+    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer.clone()).start();
+    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer.clone()).start();
 
     let user_1_socket = Arc::new(DummyClient::default());
     let user_2_socket = Arc::new(DummyClient::default());
@@ -1388,16 +1393,17 @@ async fn kick_ban_test() -> anyhow::Result<()> {
 
     #[cfg(feature = "stateless")]
     let conn = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
-    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(config.clone(), Arc::new(connection.clone()));
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(Arc::new(connection.clone()));
     let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] conn.clone());
-    let executer = Arc::new(PluginExecuter::default());
+    let connection = Arc::new(connection);
+    let executer = Arc::new(PluginExecuter::new(config.clone(), states.clone(), connection.clone()));
 
     ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] conn.clone()).start();
 
     create_database(&mut connection.clone().get()?)?;
 
-    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection.clone()), executer.clone()).start();
-    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), Arc::new(connection), executer.clone()).start();
+    let auth_manager = AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer.clone()).start();
+    let room_manager = RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), connection.clone(), executer.clone()).start();
 
     let user_1_socket = Arc::new(DummyClient::default());
     let user_2_socket = Arc::new(DummyClient::default());

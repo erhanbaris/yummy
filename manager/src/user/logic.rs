@@ -13,7 +13,7 @@ use model::meta::collection::UserMetaCollection;
 use model::user::UserUpdate;
 use model::{UserId, UserType, UserInformationModel, UserMetaId};
 use model::config::YummyConfig;
-use model::meta::{UserMetaAccess, MetaType};
+use model::meta::{UserMetaAccess, MetaType, UserMetaType};
 use model::web::Answer;
 use general::database::Pool;
 
@@ -41,11 +41,7 @@ macro_rules! update_optional_property {
 /* **************************************************************************************************************** */
 /* *************************************************** STRUCTS **************************************************** */
 /* **************************************************************************************************************** */
-#[derive(Default)]
-pub struct LogicResponse {
-    pub items: Vec<String>
-}
-
+#[derive(Clone)]
 pub struct UserLogic<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
@@ -62,12 +58,6 @@ pub struct UserLogic<DB: DatabaseTrait + ?Sized> {
 /* **************************************************************************************************************** */
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
-impl LogicResponse {
-    pub fn add<T>(&mut self, answer: T) where T: Into<String> {
-        self.items.push(answer.into());
-    }
-}
-
 impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
     pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>) -> Self {
         Self {
@@ -83,7 +73,7 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
             return Ok(UserMetaAccess::Me);
         }
 
-        match self.states.get_user_type(current_user_id) {
+        match self.states.get_user_type(current_user_id)? {
             Some(UserType::User) => Ok(UserMetaAccess::User),
             Some(UserType::Mod) => Ok(UserMetaAccess::Mod),
             Some(UserType::Admin) => Ok(UserMetaAccess::Admin),
@@ -91,11 +81,18 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
         }
     }
 
+    pub fn get_user_meta(&self, user_id: UserId, key: String) -> anyhow::Result<Option<UserMetaType>> {
+        Ok(self.states.get_user_meta(&user_id, UserMetaAccess::System)?
+            .get_with_name(&key)
+            .cloned()
+            .map(|item| item.meta))
+    }
+
     pub fn get_user_information(&mut self, model: &GetUserInformation) -> anyhow::Result<UserInformationModel> {
         #[allow(unused_mut)]
         let mut execute = |user_id: &UserId, access_type: UserMetaAccess| -> anyhow::Result<UserInformationModel> {
             
-            let user = self.states.get_user_information(user_id, access_type.clone())?;
+            let user = self.states.get_user_information(user_id, access_type)?;
 
             match user {
                 Some(mut user) => {
@@ -115,9 +112,8 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
             GetUserInformationEnum::User { user, requester } => {
                 match requester.deref() {
                     Some(requester) => {
-                        let mut connection = self.database.get()?;
-                        let user_type = DB::get_user_type(&mut connection, &requester.user)?;
-                        execute(user, match user_type {
+                        let user_type = self.states.get_user_type(&requester.user)?;
+                        execute(user, match user_type.unwrap_or_default() {
                             UserType::Admin => UserMetaAccess::Admin,
                             UserType::Mod => UserMetaAccess::Mod,
                             UserType::User => UserMetaAccess::User
@@ -160,7 +156,7 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
         update_optional_property!(updates, user_information, name);
 
         updates.user_type = user_type.map(|item| {
-            user_information.user_type = item.into();
+            user_information.user_type = item;
             item.into()
         });
 
@@ -242,7 +238,7 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
                     // Check for metas
                     match metas {
                         Some(metas) => {
-                            let remove_list = DB::get_user_meta(connection, target_user_id, user_access_level.clone())?.into_iter().map(|meta| (meta.name, meta.id)).collect::<Vec<_>>();
+                            let remove_list = self.states.get_user_meta(target_user_id, user_access_level.clone())?.into_iter().map(|meta| (meta.name, meta.id)).collect::<Vec<_>>();
                             let mut insert_list = Vec::new();
 
                             for (key, value) in metas {
@@ -329,21 +325,14 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
             let response = match has_user_update {
                 true => match DB::update_user(connection, target_user_id, &updates)? {
                     0 => return Err(anyhow::anyhow!(UserError::UserNotFound)),
-                    _ => Answer::success(model.request_id.clone()).into()
+                    _ => Answer::success(model.request_id)
                 },
-                false => Answer::success(model.request_id.clone()).into()
+                false => Answer::success(model.request_id)
             };
 
+            // Update user cache
             self.states.update_user_information(target_user_id, user_information)?;
 
-            // todo: convert to single execution
-            if let Some(user_type) = user_type {
-                self.states.set_user_type(target_user_id, *user_type);
-            }
-
-            if let Some(Some(name)) = updates.name {
-                self.states.set_user_name(target_user_id, name);
-            }
             Ok(response)
         })
     }

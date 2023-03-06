@@ -1,22 +1,76 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use std::{rc::Rc, cell::RefCell, sync::Arc, env::temp_dir};
 use std::io::Write;
 
 use ::model::auth::UserAuth;
-use cache::state::RoomInfoTypeVariant;
+use cache::state::{RoomInfoTypeVariant, YummyState};
 use model::config::YummyConfig;
+use model::meta::collection::UserMetaCollection;
 use tempdir::TempDir;
 
 use model::meta::{MetaType, UserMetaAccess, MetaAction, RoomMetaAccess};
-use model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType, SessionId};
+use model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType, SessionId, UserInformationModel};
 use general::password::Password;
+use testing::cache::DummyResourceFactory;
 use testing::client::DummyClient;
+use testing::database::get_database_pool;
 
 use crate::auth::model::ConnUserDisconnect;
 use crate::conn::model::UserConnected;
+use crate::plugin::PluginExecuter;
 use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest};
 use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use crate::{plugin::{EmailAuthRequest, PluginBuilder, lua::LuaPluginInstaller}, auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}};
 use super::LuaPlugin;
+
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* **************************************************************************************************************** */
+fn create_lua_environtment(file_name: &str, content: &str) -> (Arc<PluginExecuter>, YummyState) {
+    let mut config = YummyConfig::default();
+    
+    let dir = TempDir::new("test").unwrap();
+    let file_path = dir.path().join(file_name);
+
+    config.lua_files_path = dir.path().to_str().unwrap().to_string();
+    
+    let path = file_path.to_string_lossy().to_string();
+    let mut lua_file = std::fs::File::create(path).expect("create failed");
+    lua_file.write_all(content.as_bytes()).expect("write failed");
+
+    let config = Arc::new(config);
+    let mut builder = PluginBuilder::default();
+    builder.add_installer(Box::new(LuaPluginInstaller::default()));
+
+    
+    let connection = get_database_pool();
+    let state = YummyState::new(config.clone(), Box::new(DummyResourceFactory{}));
+    (Arc::new(builder.build(config, state.clone(), connection)), state)
+}
+
+/* **************************************************************************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* ************************************************* MACROS CALL ************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */
 
 #[test]
 fn executest_1() -> anyhow::Result<()> {
@@ -566,6 +620,8 @@ fn get_user_informations_checks() {
 fn plugin_builder_test() {
     let mut config = YummyConfig::default();
     config.lua_files_path = temp_dir().to_str().unwrap().to_string();
+
+    let connection = get_database_pool();
     
     let path = std::path::Path::new(&config.lua_files_path[..]).join("test.lua").to_string_lossy().to_string();
     let mut lua_file = std::fs::File::create(path).expect("create failed");
@@ -592,7 +648,9 @@ end
     let mut builder = PluginBuilder::default();
     builder.add_installer(Box::new(LuaPluginInstaller::default()));
 
-    let executer = Arc::new(builder.build(config));
+    let state = YummyState::new(config.clone(), Box::new(DummyResourceFactory{}));
+
+    let executer = Arc::new(builder.build(config, state, connection));
 
     let model = executer.pre_email_auth(model).unwrap();
     let model = executer.post_email_auth(model, true).unwrap();
@@ -603,16 +661,7 @@ end
 
 #[test]
 fn create_meta_test() {
-    let mut config = YummyConfig::default();
-    
-    let dir = TempDir::new("test").unwrap();
-    let file_path = dir.path().join("create_meta_test.lua");
-
-    config.lua_files_path = dir.path().to_str().unwrap().to_string();
-    
-    let path = file_path.to_string_lossy().to_string();
-    let mut lua_file = std::fs::File::create(path).expect("create failed");
-    lua_file.write_all(r#"
+    let (executer, _) = create_lua_environtment("create_meta_test.lua", r#"
 function do_tables_match( a, b )
     return table.concat(a) == table.concat(b)
 end
@@ -656,7 +705,7 @@ function post_update_user(model, successed)
     assert(metas.bool_value:get_type() == 3)
     assert(metas.array_value:get_type() == 4)
 end
-"#.as_bytes()).expect("write failed");
+"#);
 
     let model = UpdateUser {
         request_id: None,
@@ -672,12 +721,6 @@ end
         metas: None,
         meta_action: None,
     };
-
-    let config = Arc::new(config);
-    let mut builder = PluginBuilder::default();
-    builder.add_installer(Box::new(LuaPluginInstaller::default()));
-
-    let executer = Arc::new(builder.build(config));
 
     let model = executer.pre_update_user(model).unwrap();
     let model = executer.post_update_user(model, true).unwrap();
@@ -742,7 +785,10 @@ end
     let mut builder = PluginBuilder::default();
     builder.add_installer(Box::new(LuaPluginInstaller::default()));
 
-    let executer = Arc::new(builder.build(config));
+    
+    let connection = get_database_pool();
+    let state = YummyState::new(config.clone(), Box::new(DummyResourceFactory{}));
+    let executer = Arc::new(builder.build(config, state, connection));
 
     let model = executer.pre_update_user(model).unwrap();
     let model = executer.post_update_user(model, true).unwrap();
@@ -814,7 +860,9 @@ end
     let mut builder = PluginBuilder::default();
     builder.add_installer(Box::new(LuaPluginInstaller::default()));
 
-    let executer = Arc::new(builder.build(config));
+    let connection = get_database_pool();
+    let state = YummyState::new(config.clone(), Box::new(DummyResourceFactory{}));
+    let executer = Arc::new(builder.build(config, state, connection));
 
     let model = executer.pre_create_room(model).unwrap();
     let model = executer.post_create_room(model, true).unwrap();
@@ -894,7 +942,9 @@ end
     let mut builder = PluginBuilder::default();
     builder.add_installer(Box::new(LuaPluginInstaller::default()));
 
-    let executer = Arc::new(builder.build(config));
+    let connection = get_database_pool();
+    let state = YummyState::new(config.clone(), Box::new(DummyResourceFactory{}));
+    let executer = Arc::new(builder.build(config, state, connection));
 
     let model = executer.pre_update_room(model).unwrap();
     let model = executer.post_update_room(model, true).unwrap();
@@ -950,7 +1000,9 @@ end
     let mut builder = PluginBuilder::default();
     builder.add_installer(Box::new(LuaPluginInstaller::default()));
 
-    let executer = Arc::new(builder.build(config));
+    let connection = get_database_pool();
+    let state = YummyState::new(config.clone(), Box::new(DummyResourceFactory{}));
+    let executer = Arc::new(builder.build(config, state, connection));
 
     let model = executer.pre_join_to_room(model).unwrap();
     let model = executer.post_join_to_room(model, true).unwrap();
@@ -993,7 +1045,9 @@ end
     let mut builder = PluginBuilder::default();
     builder.add_installer(Box::new(LuaPluginInstaller::default()));
 
-    let executer = Arc::new(builder.build(config));
+    let connection = get_database_pool();
+    let state = YummyState::new(config.clone(), Box::new(DummyResourceFactory{}));
+    let executer = Arc::new(builder.build(config, state, connection));
 
     let model = executer.pre_process_waiting_user(model).unwrap();
     let model = executer.post_process_waiting_user(model, true).unwrap();
@@ -1037,7 +1091,9 @@ end
     let mut builder = PluginBuilder::default();
     builder.add_installer(Box::new(LuaPluginInstaller::default()));
 
-    let executer = Arc::new(builder.build(config));
+    let connection = get_database_pool();
+    let state = YummyState::new(config.clone(), Box::new(DummyResourceFactory{}));
+    let executer = Arc::new(builder.build(config, state, connection));
 
     let model = executer.pre_kick_user_from_room(model).unwrap();
     let model = executer.post_kick_user_from_room(model, true).unwrap();
@@ -1075,7 +1131,9 @@ end
     let mut builder = PluginBuilder::default();
     builder.add_installer(Box::new(LuaPluginInstaller::default()));
 
-    let executer = Arc::new(builder.build(config));
+    let connection = get_database_pool();
+    let state = YummyState::new(config.clone(), Box::new(DummyResourceFactory{}));
+    let executer = Arc::new(builder.build(config, state, connection));
 
     let model = executer.pre_disconnect_from_room_request(model).unwrap();
     let model = executer.post_disconnect_from_room_request(model, true).unwrap();
@@ -1120,7 +1178,9 @@ end
     let mut builder = PluginBuilder::default();
     builder.add_installer(Box::new(LuaPluginInstaller::default()));
 
-    let executer = Arc::new(builder.build(config));
+    let connection = get_database_pool();
+    let state = YummyState::new(config.clone(), Box::new(DummyResourceFactory{}));
+    let executer = Arc::new(builder.build(config, state, connection));
 
     let model = executer.pre_room_list_request(model).unwrap();
     let model = executer.post_room_list_request(model, true).unwrap();
@@ -1158,7 +1218,9 @@ end
     let mut builder = PluginBuilder::default();
     builder.add_installer(Box::new(LuaPluginInstaller::default()));
 
-    let executer = Arc::new(builder.build(config));
+    let connection = get_database_pool();
+    let state = YummyState::new(config.clone(), Box::new(DummyResourceFactory{}));
+    let executer = Arc::new(builder.build(config, state, connection));
 
     let model = executer.pre_waiting_room_joins(model).unwrap();
     let model = executer.post_waiting_room_joins(model, true).unwrap();
@@ -1213,11 +1275,84 @@ end
     let mut builder = PluginBuilder::default();
     builder.add_installer(Box::new(LuaPluginInstaller::default()));
 
-    let executer = Arc::new(builder.build(config));
+    let connection = get_database_pool();
+    let state = YummyState::new(config.clone(), Box::new(DummyResourceFactory{}));
+    let executer = Arc::new(builder.build(config, state, connection));
 
     let model = executer.pre_get_room_request(model).unwrap();
     let model = executer.post_get_room_request(model, true).unwrap();
 
     assert_eq!(model.members, vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Description, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser]);
     assert_eq!(model.room, RoomId::from("0fea69b6-4032-4ea4-9a32-72e818ce11da".to_string()));
+}
+
+#[test]
+fn get_user_meta_test() {
+    let (executer, state) = create_lua_environtment("get_user_meta_test.lua", r#"
+    function do_tables_match( a, b )
+    return table.concat(a) == table.concat(b)
+end
+
+function pre_update_user(model)
+    metas = {}
+    metas.string_value = new_user_meta("Test", 6)
+    metas.number_value = new_user_meta(123456, 5)
+    metas.bool_value = new_user_meta(true, 4)
+    array = {}
+    array[1] = true
+    array[2] = "2"
+    array[3] = 3
+    array[4] = {}
+    metas.array_value = new_user_meta(array, 3)
+
+    model:set_metas(metas)
+end
+
+function post_update_user(model, successed)
+    string_value = user.get_user_meta(model:get_user_id(), "string_value")
+    assert(string_value:get_value() == "Test")
+    assert(string_value ~= nil)
+end"#);
+
+    let user_id = UserId::new();
+    let model = UpdateUser {
+        request_id: None,
+        auth: Arc::new(Some(UserAuth {
+            user: user_id.clone(),
+            session: SessionId::new()
+        })),
+        email: None,
+        password: None,
+        socket: Arc::new(DummyClient::default()),
+        target_user_id: None,
+        name: None,
+        device_id: None,
+        custom_id: None,
+        user_type: None,
+        metas: None,
+        meta_action: None,
+    };
+
+    let model = executer.pre_update_user(model).unwrap();
+    let mut metas = UserMetaCollection::new();
+    if let Some(current_metas) = &model.metas {
+        for (key, value) in current_metas.iter() {
+            metas.add(key.clone(), value.clone());
+        }
+    }
+
+    state.update_user_information(&user_id, UserInformationModel {
+        id: user_id.clone(),
+        name: None,
+        email: None,
+        device_id: None,
+        custom_id: None,
+        metas: Some(metas),
+        user_type: UserType::User,
+        online: false,
+        insert_date: 0,
+        last_login_date: 0
+    }).unwrap();
+    
+    executer.post_update_user(model, true).unwrap();
 }
