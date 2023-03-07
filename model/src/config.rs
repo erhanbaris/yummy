@@ -29,6 +29,7 @@ pub const DEFAULT_API_KEY_NAME: &str = "x-yummy-api";
 pub const DEFAULT_SALT_KEY: &str = "YUMMY-SALT";
 pub const DEFAULT_DATABASE_PATH: &str = "yummy.db";
 pub const DEFAULT_LUA_FILES_PATH: &str = "./server/lua/";
+pub const DEFAULT_PYTHON_FILES_PATH: &str = "./server/py/";
 pub const DEFAULT_DEFAULT_INTEGRATION_KEY: &str = "YummyYummy";
 pub const DEFAULT_ROOM_PASSWORD_CHARSET: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 pub const DEFAULT_ROOM_PASSWORD_LENGTH: usize = 4;
@@ -74,6 +75,7 @@ pub struct YummyConfig {
     pub salt_key: String,
     pub database_path: String,
     pub lua_files_path: String,
+    pub python_files_path: String,
 
     #[cfg(feature = "stateless")]
     pub redis_url: String,
@@ -141,6 +143,7 @@ pub fn get_raw_configuration() -> YummyConfig {
         integration_key: get_env_var("INTEGRATION_KEY", DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()),
         database_path: get_env_var("DATABASE_PATH", DEFAULT_DATABASE_PATH.to_string()),
         lua_files_path: get_env_var("LUA_FILES_PATH", DEFAULT_LUA_FILES_PATH.to_string()),
+        python_files_path: get_env_var("PYTHON_FILES_PATH", DEFAULT_PYTHON_FILES_PATH.to_string()),
         max_user_meta: get_env_var("MAX_USER_META", DEFAULT_MAX_USER_META),
         max_room_meta: get_env_var("MAX_ROOM_META", DEFAULT_MAX_ROOM_META),
         room_password_charset: get_env_var("ROOM_PASSWORD_CHARSET", DEFAULT_ROOM_PASSWORD_CHARSET.to_string()).as_bytes().to_vec(),
