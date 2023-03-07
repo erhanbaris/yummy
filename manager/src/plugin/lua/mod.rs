@@ -1,9 +1,15 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
 mod bind;
 mod model;
 
 #[cfg(test)]
 mod test;
 
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use std::fmt::Debug;
 use std::path::Path;
 use std::{rc::Rc, cell::RefCell, sync::Arc};
@@ -25,6 +31,13 @@ use crate::plugin::EmailAuthRequest;
 
 use super::YummyPluginInstaller;
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* **************************************************************************************************************** */
 macro_rules! create_func {
     ($pre: ident, $post: ident, $model: path) => {
         fn $pre <'a>(&self, model: Rc<RefCell<$model>>) -> anyhow::Result<()> { self.execute(model, stringify!($pre)) }
@@ -32,44 +45,23 @@ macro_rules! create_func {
     }
 }
 
+/* **************************************************************************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
 #[derive(Default)]
 pub struct LuaPluginInstaller;
 
-impl YummyPluginInstaller for LuaPluginInstaller {
-    fn install(&self, executer: &mut super::PluginExecuter, config: Arc<YummyConfig>) {
-        log::info!("Lua plugin installing");
-        let mut plugin = LuaPlugin::new();
-
-        let path = Path::new(&config.lua_files_path).join("*.lua").to_string_lossy().to_string();
-        log::info!("Searhing lua files at {}", path);
-
-        let options = MatchOptions {
-            case_sensitive: false,
-            require_literal_separator: false,
-            require_literal_leading_dot: false,
-        };
-
-        if let Ok(paths) = glob_with(&path, options) {
-            for path in paths {
-                let path = path.unwrap().to_string_lossy().to_string();
-                let content = fs::read_to_string(&path).unwrap();
-                plugin.set_content(&content).unwrap();
-                log::info!("Lua file imported: {}", path);
-            }
-
-            // Bind all in-build functions
-            plugin.bind_buildin_functions().unwrap();
-
-            // Bind all context related functions
-            plugin.bind_context(executer).unwrap();
-            
-            executer.add_plugin("lua".to_string(), Box::new(plugin));
-        }
-
-        log::info!("Lua plugin installed");
-    }
+pub struct LuaPlugin {
+    lua: Lua
 }
 
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* **************************************************************************************************************** */
 fn lua_to_metawrapper<T: Default + Debug + PartialEq + Clone + From<i32>>(_lua: &'_ Lua, (value, access): (LuaValue, T)) -> LuaResult<MetaTypeWrapper<T>> {
     match value {
         LuaValue::Nil => Ok(MetaTypeWrapper(MetaType::Null)),
@@ -132,9 +124,14 @@ fn new_room_meta<'a>(lua: &'a Lua, (value, access): (LuaValue, RoomMetaAccessWra
     Ok(LuaValue::UserData(value))
 }
 
-pub struct LuaPlugin {
-    lua: Lua
-}
+/* **************************************************************************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* **************************************************************************************************************** */
+
+/* **************************************************************************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
+
 #[allow(clippy::new_without_default)]
 impl LuaPlugin {
     pub fn new() -> Self {
@@ -175,6 +172,42 @@ impl LuaPlugin {
     }
 }
 
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+impl YummyPluginInstaller for LuaPluginInstaller {
+    fn install(&self, executer: &mut super::PluginExecuter, config: Arc<YummyConfig>) {
+        log::info!("Lua plugin installing");
+        let mut plugin = LuaPlugin::new();
+
+        let path = Path::new(&config.lua_files_path).join("*.lua").to_string_lossy().to_string();
+        log::info!("Searhing lua files at {}", path);
+
+        let options = MatchOptions {
+            case_sensitive: false,
+            require_literal_separator: false,
+            require_literal_leading_dot: false,
+        };
+
+        if let Ok(paths) = glob_with(&path, options) {
+            for path in paths {
+                let path = path.unwrap().to_string_lossy().to_string();
+                let content = fs::read_to_string(&path).unwrap();
+                plugin.set_content(&content).unwrap();
+                log::info!("Lua file imported: {}", path);
+            }
+
+            // Bind all in-build functions
+            plugin.bind_buildin_functions().unwrap();
+
+            // Bind all context related functions
+            plugin.bind_context(executer).unwrap();
+            
+            executer.add_plugin("lua".to_string(), Box::new(plugin));
+        }
+
+        log::info!("Lua plugin installed");
+    }
+}
+
 impl YummyPlugin for LuaPlugin {
 
     // Auth manager
@@ -205,3 +238,8 @@ impl YummyPlugin for LuaPlugin {
     create_func!(pre_waiting_room_joins, post_waiting_room_joins, WaitingRoomJoins);
     create_func!(pre_get_room_request, post_get_room_request, GetRoomRequest);
 }
+
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */
