@@ -70,6 +70,11 @@ actix-codec.workspace = true
 futures.workspace = true
 futures-util.workspace = true
 
+
+rustpython-vm = {git = "http://github.com/rustpython/rustpython.git", features = ["freeze-stdlib"]}
+rustpython-pylib = {git = "http://github.com/rustpython/rustpython.git", features = ["freeze-stdlib"]}
+
+
 [dev-dependencies]
 
 [features]
