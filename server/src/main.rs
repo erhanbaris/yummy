@@ -9,7 +9,7 @@ use model::config::{get_configuration, configure_environment};
 use general::tls::load_rustls_config;
 use model::web::json_error_handler;
 
-use manager::plugin::lua::*;
+//use manager::plugin::lua::*;
 use manager::conn::ConnectionManager;
 use manager::user::UserManager;
 use manager::auth::AuthManager;
@@ -54,7 +54,7 @@ async fn main() -> std::io::Result<()> {
     let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] redis_client.clone());
 
     let mut builder = PluginBuilder::default();
-    builder.add_installer(Box::new(LuaPluginInstaller::default()));
+    //builder.add_installer(Box::new(LuaPluginInstaller::default()));
     builder.add_installer(Box::new(PythonPluginInstaller::default()));
 
     let executer = Arc::new(builder.build(config.clone(), states.clone(), database.clone()));
