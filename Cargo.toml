@@ -104,5 +104,6 @@ async-trait = "0.1.64"
 mlua = { version = "0.8.7", features = ["lua54", "vendored"] }
 rustpython-vm = {git = "http://github.com/rustpython/rustpython.git", features = ["freeze-stdlib"]}
 rustpython-pylib = {git = "http://github.com/rustpython/rustpython.git", features = ["freeze-stdlib"]}
+rustpython-derive = {git = "http://github.com/rustpython/rustpython.git"}
 
 moka = { version = "0.10", features = ["future"] }

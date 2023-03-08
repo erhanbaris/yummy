@@ -27,7 +27,7 @@ use crate::plugin::PluginExecuter;
 use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest};
 use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use crate::{plugin::{EmailAuthRequest, PluginBuilder}, auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}};
-use super::model::rust_py_module::DeviceIdAuthRequestWrapper;
+use super::model::DeviceIdAuthRequestWrapper;
 use super::{PythonPlugin, PythonPluginInstaller, FunctionType};
 
 /* **************************************************************************************************************** */

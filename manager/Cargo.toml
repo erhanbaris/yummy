@@ -51,6 +51,7 @@ mlua.workspace = true
 
 rustpython-vm.workspace = true
 rustpython-pylib.workspace = true
+rustpython-derive.workspace = true
 
 moka.workspace = true
 

@@ -107,7 +107,7 @@ fn init_vm(vm: &mut VirtualMachine) {
 impl PythonPlugin {
     pub fn execute<T: ToPyObject + 'static>(&self, model: T, name: &str, func_type: FunctionType) -> anyhow::Result<()> {
         self.interpreter.enter(|vm| {
-            let mut model = vm.new_pyobj(model);
+            let mut model = model.to_pyobject(vm);
         
             for scope in self.scopes.iter() {
                 let test_fn = scope.globals.get_item(name, vm).unwrap();
