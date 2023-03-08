@@ -41,12 +41,12 @@ use super::{YummyPlugin, YummyPluginInstaller};
 /* **************************************************************************************************************** */
 macro_rules! create_func {
     ($pre: ident, $post: ident, $target: path, $model: path) => {
-        fn $pre<'a>(&self, model: Rc<RefCell<$model>>) -> anyhow::Result<()> {
-            let tmp_model = model.as_ref().clone();
+        fn $pre<'a>(&self, _: Rc<RefCell<$model>>) -> anyhow::Result<()> {
+            //let tmp_model = model.as_ref().clone();
             //self.execute(tmp_model, stringify!($pre), $target)
             Ok(())
         }
-        fn $post<'a>(&self, model: Rc<RefCell<$model>>, successed: bool) -> anyhow::Result<()> {
+        fn $post<'a>(&self, _: Rc<RefCell<$model>>, _: bool) -> anyhow::Result<()> {
             //self.execute(model, stringify!($post), $target)
             Ok(())
         }
@@ -111,10 +111,18 @@ impl PythonPlugin {
         
             for scope in self.scopes.iter() {
                 let test_fn = scope.globals.get_item(name, vm).unwrap();
-                model = vm.invoke(&test_fn, (model,)).unwrap();
+                model = match vm.invoke(&test_fn, (model,)) {
+                    Ok(model) => model,
+                    Err(error) => {
+                        let mut error_message = String::new();
+                        vm.write_exception(&mut error_message, &error).unwrap();
+                        return Err(anyhow::anyhow!(error_message))
+                    }
+                };
             }
-        });
-        Ok(())
+
+            Ok(())
+        })
     }
 }
 

@@ -27,7 +27,7 @@ use crate::plugin::PluginExecuter;
 use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest};
 use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use crate::{plugin::{EmailAuthRequest, PluginBuilder}, auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}};
-use super::model::DeviceIdAuthRequestWrapper;
+use super::model::rust_py_module::DeviceIdAuthRequestWrapper;
 use super::{PythonPlugin, PythonPluginInstaller, FunctionType};
 
 /* **************************************************************************************************************** */
@@ -76,7 +76,7 @@ fn create_python_environtment(file_name: &str, content: &str) -> (Arc<PluginExec
 
 #[test]
 fn get_user_meta_test() {
-    let (executer, state) = create_python_environtment("get_user_meta_test.py", r#"
+    create_python_environtment("get_user_meta_test.py", r#"
 def test(model: dict):
     print("Merhaba dünya")
     return 123
@@ -88,7 +88,7 @@ fn test_1() {
     let mut config = YummyConfig::default();
     create_python_file("get_user_meta_test.py", &mut config, r#"
 def pre_deviceid_auth(model):
-    print("Merhaba {}" % model)
+    print("Merhaba %s" % type(model.device_id()))
     return model
 "#);
 
