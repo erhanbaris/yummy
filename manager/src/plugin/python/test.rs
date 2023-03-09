@@ -2,6 +2,8 @@
 /* **************************************************** MODS ****************************************************** */
 /* **************************************************************************************************************** */
 
+use std::cell::RefCell;
+use std::rc::Rc;
 /* **************************************************************************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
 /* **************************************************************************************************************** */
@@ -86,21 +88,21 @@ def pre_deviceid_auth(model):
     assert(model.get_device_id() == "abc")
     model.set_device_id("erhan")
     assert(model.get_device_id() == "erhan")
+
+    assert(model.get_request_id() == 123)
+    model.set_request_id(None)
+    assert(model.get_request_id() is None)
 "#);
 
     let config = Arc::new(config);
 
     let plugin = PythonPluginInstaller::build_plugin(config);
     let model = DeviceIdAuthRequest {
-        request_id: None,
+        request_id: Some(123),
         auth: Arc::new(None),
         id: "abc".to_string(),
         socket: Arc::new(DummyClient::default())
     };
 
-    let model = Arc::new(PyRwLock::new(model));
-    plugin.execute(DeviceIdAuthRequestWrapper::new(model), "pre_deviceid_auth", FunctionType::DeviceidAuth).unwrap();
-    //let model: DeviceIdAuthRequest = model.into();
-
-    println!("<<<<");
+    plugin.execute::<_, DeviceIdAuthRequestWrapper>(Rc::new(RefCell::new(model)), "pre_deviceid_auth", FunctionType::DeviceidAuth).unwrap();
 }

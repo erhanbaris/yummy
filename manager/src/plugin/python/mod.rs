@@ -20,7 +20,7 @@ use rustpython_vm as vm;
 use vm::class::PyClassImpl;
 use vm::convert::ToPyObject;
 use vm::scope::Scope;
-use vm::{VirtualMachine, TryFromBorrowedObject};
+use vm::VirtualMachine;
 
 use crate::plugin::python::model::DeviceIdAuthRequestWrapper;
 use crate::{
@@ -31,6 +31,8 @@ use crate::{
     },
     user::model::{GetUserInformation, UpdateUser},
 };
+
+use self::model::ModelWrapper;
 
 use super::{YummyPlugin, YummyPluginInstaller};
 
@@ -108,9 +110,9 @@ fn init_vm(vm: &mut VirtualMachine) {
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
 impl PythonPlugin {
-    pub fn execute<T: ToPyObject + rustpython_vm::PyPayload + rustpython_vm::TryFromBorrowedObject + 'static>(&self, model: T, name: &str, _: FunctionType) -> anyhow::Result<()> {
+    pub fn execute<T, W: ToPyObject + rustpython_vm::PyPayload + ModelWrapper<Entity = T> + 'static>(&self, model: Rc<RefCell<T>>, name: &str, _: FunctionType) -> anyhow::Result<()> {
         self.interpreter.enter(|vm| {
-            let mut model = model.to_pyobject(vm);
+            let model = W::wrap(model).to_pyobject(vm);
         
             for scope in self.scopes.iter() {
                 let test_fn = scope.globals.get_item(name, vm).unwrap();
@@ -123,10 +125,6 @@ impl PythonPlugin {
                     }
                 };
             }
-            
-            //let data: Option<&T> = model.payload::<T>();
-
-            
 
             Ok(())
         })
@@ -168,16 +166,6 @@ impl PythonPluginInstaller {
                     }
 
                     scopes.push(scope);
-                    
-                    /*let test_fn = scope.globals.get_item("test", vm).unwrap();
-
-                    let arg = vm.new_pyobj(123);
-
-                    if let Err(error) = vm.invoke(&test_fn, (arg, )) {
-                        let mut error_message = String::new();
-                        vm.write_exception(&mut error_message, &error).unwrap();
-                        log::error!("'{}' failed to compile. Error message: {}", path, error_message);
-                    }*/
                 }
                 Ok(())
             })

@@ -1,73 +1,64 @@
-use std::borrow::Borrow;
-use std::ops::DerefMut;
-use std::sync::Arc;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use rustpython_derive::{pyclass, PyPayload};
+use rustpython_vm::builtins::{PyIntRef};
 /* **************************************************************************************************************** */
 /* **************************************************** MODS ****************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
-use rustpython_vm::builtins::{PyStrRef, PyStr};
-use rustpython_vm::common::lock::PyRwLock;
-use rustpython_vm::{convert::ToPyObject};
-use rustpython_vm::{PyObjectRef, TryFromBorrowedObject};
-use rustpython_vm::{PyResult, VirtualMachine, PyRef, py_class, extend_class,
-};
-
-/*
-pub struct DeviceIdAuthRequestWrapper(pub DeviceIdAuthRequest);
-impl ToPyObject for DeviceIdAuthRequestWrapper {
-    fn to_pyobject(self, vm: &VirtualMachine) -> PyObjectRef {
-        let mut class = vm.ctx.new_class(
-            None,
-            "DeviceIdAuth",
-            vm.ctx.types.weakref_type.to_owned(),
-            PyWeak::make_slots(),
-        );
-
-        //class.set_attr(vm.ctx.new_str("device_id"), vm.ctx.new_method("flush", cls, |_self: PyObjectRef| {}));
-
-        class.into()
-    }
-}
-*/
+use rustpython_vm::PyObjectRef;
+use rustpython_vm::{PyResult, VirtualMachine};
 
 use crate::auth::model::DeviceIdAuthRequest;
 
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
 /* **************************************************** MACROS **************************************************** */
+macro_rules! wrapper {
+    ($model: ident, $wrapper: ident) => {
+        impl ModelWrapper for $wrapper {
+            type Entity = $model;
+            fn wrap(entity: Rc<RefCell<Self::Entity>>) -> Self {
+                $wrapper::new(entity)
+            }
+        }
+    };
+}
+
 /* *************************************************** STRUCTS **************************************************** */
 #[pyclass(module = false, name = "DeviceIdAuth")]
 #[derive(Debug, PyPayload)]
 pub struct DeviceIdAuthRequestWrapper {
-    data: Arc<PyRwLock<DeviceIdAuthRequest>>
-}
-
-impl Drop for DeviceIdAuthRequestWrapper {
-    fn drop(&mut self) {
-        println!("Drop DeviceIdAuthRequestWrapper");
-    }
-}
-
-impl TryFromBorrowedObject for DeviceIdAuthRequestWrapper {
-    fn try_from_borrowed_object(vm: &VirtualMachine, obj: &rustpython_vm::PyObject) -> PyResult<Self> {
-        obj.try_to_value(vm)
-    }
+    data: Rc<RefCell<DeviceIdAuthRequest>>
 }
 
 #[pyclass(flags(BASETYPE))]
 impl DeviceIdAuthRequestWrapper {
-    pub fn new(data: Arc<PyRwLock<DeviceIdAuthRequest>>) -> Self {
+    pub fn new(data: Rc<RefCell<DeviceIdAuthRequest>>) -> Self {
         Self { data }
     }
 
     #[pymethod]
+    pub fn get_request_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+        match self.data.borrow().request_id {
+            Some(request_id) => Ok(vm.ctx.new_float(request_id as f64).into()),
+            None => Ok(vm.ctx.none().into())
+        }
+    }
+
+    #[pymethod]
+    pub fn set_request_id(&self, device_id: Option<PyIntRef>, _: &VirtualMachine) -> PyResult<()> {
+        self.data.borrow_mut().request_id = device_id.map(|item| item.as_u32_mask() as usize);
+        Ok(())
+    }
+
+    #[pymethod]
     pub fn get_device_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-        Ok(vm.ctx.new_str(&self.data.read().id[..]).into())
+        Ok(vm.ctx.new_str(&self.data.borrow_mut().id[..]).into())
     }
 
     #[pymethod]
     pub fn set_device_id(&self, device_id: String, _: &VirtualMachine) -> PyResult<()> {
-        self.data.write().id = device_id;
+        self.data.borrow_mut().id = device_id;
         Ok(())
     }
 }
@@ -75,10 +66,16 @@ impl DeviceIdAuthRequestWrapper {
 /* **************************************************** ENUMS ***************************************************** */
 /* ************************************************** FUNCTIONS *************************************************** */
 /* *************************************************** TRAITS ***************************************************** */
+pub trait ModelWrapper {
+    type Entity;
+
+    fn wrap(entity: Rc<RefCell<Self::Entity>>) -> Self;
+}
+
 /* ************************************************* IMPLEMENTS *************************************************** */
-
-
 /* ********************************************** TRAIT IMPLEMENTS ************************************************ */
 /* ************************************************* MACROS CALL ************************************************** */
+wrapper!(DeviceIdAuthRequest, DeviceIdAuthRequestWrapper);
+
 /* ************************************************** UNIT TESTS ************************************************** */
 /* **************************************************************************************************************** */
