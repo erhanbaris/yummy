@@ -1,17 +1,17 @@
+use std::borrow::Borrow;
+use std::ops::DerefMut;
 use std::sync::Arc;
 
-use rustpython_vm::builtins::PyTypeRef;
-use rustpython_vm::common::static_cell;
-use rustpython_vm::types::Constructor;
+use rustpython_derive::{pyclass, PyPayload};
 /* **************************************************************************************************************** */
 /* **************************************************** MODS ****************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
-use rustpython_vm::{convert::ToPyObject, object::PyWeak, class::PyClassImpl};
-use rustpython_vm::{builtins::PyList, PyObjectRef};
-use rustpython_vm::{
-    pyclass, pymodule, PyObject, PyPayload, PyResult, TryFromBorrowedObject, VirtualMachine,
+use rustpython_vm::builtins::{PyStrRef, PyStr};
+use rustpython_vm::common::lock::PyRwLock;
+use rustpython_vm::{convert::ToPyObject};
+use rustpython_vm::{PyObjectRef, TryFromBorrowedObject};
+use rustpython_vm::{PyResult, VirtualMachine, PyRef, py_class, extend_class,
 };
-use testing::client::DummyClient;
 
 /*
 pub struct DeviceIdAuthRequestWrapper(pub DeviceIdAuthRequest);
@@ -38,16 +38,37 @@ use crate::auth::model::DeviceIdAuthRequest;
 /* *************************************************** STRUCTS **************************************************** */
 #[pyclass(module = false, name = "DeviceIdAuth")]
 #[derive(Debug, PyPayload)]
-pub struct DeviceIdAuthRequestWrapper(pub DeviceIdAuthRequest);
+pub struct DeviceIdAuthRequestWrapper {
+    data: Arc<PyRwLock<DeviceIdAuthRequest>>
+}
 
+impl Drop for DeviceIdAuthRequestWrapper {
+    fn drop(&mut self) {
+        println!("Drop DeviceIdAuthRequestWrapper");
+    }
+}
+
+impl TryFromBorrowedObject for DeviceIdAuthRequestWrapper {
+    fn try_from_borrowed_object(vm: &VirtualMachine, obj: &rustpython_vm::PyObject) -> PyResult<Self> {
+        obj.try_to_value(vm)
+    }
+}
 
 #[pyclass(flags(BASETYPE))]
 impl DeviceIdAuthRequestWrapper {
-    
+    pub fn new(data: Arc<PyRwLock<DeviceIdAuthRequest>>) -> Self {
+        Self { data }
+    }
 
-    #[pymethod(magic)]
-    pub fn device_id(&self) -> PyResult<String> {
-        Ok(self.0.id.clone())
+    #[pymethod]
+    pub fn get_device_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+        Ok(vm.ctx.new_str(&self.data.read().id[..]).into())
+    }
+
+    #[pymethod]
+    pub fn set_device_id(&self, device_id: String, _: &VirtualMachine) -> PyResult<()> {
+        self.data.write().id = device_id;
+        Ok(())
     }
 }
 

@@ -5,30 +5,25 @@
 /* **************************************************************************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
 /* **************************************************************************************************************** */
-use std::{rc::Rc, cell::RefCell, sync::Arc, env::temp_dir};
+use std::{sync::Arc, env::temp_dir};
 use std::io::Write;
 
-use ::model::auth::UserAuth;
-use cache::state::{RoomInfoTypeVariant, YummyState};
-use model::config::YummyConfig;
-use model::meta::collection::UserMetaCollection;
-use tempdir::TempDir;
 
-use model::meta::{MetaType, UserMetaAccess, MetaAction, RoomMetaAccess};
+use cache::state::{YummyState};
+use model::config::YummyConfig;
+
+
 use model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType, SessionId, UserInformationModel};
 use general::password::Password;
+use rustpython_vm::common::lock::PyRwLock;
 use testing::cache::DummyResourceFactory;
 use testing::client::DummyClient;
 use testing::database::get_database_pool;
 
-use crate::auth::model::ConnUserDisconnect;
-use crate::conn::model::UserConnected;
 use crate::plugin::PluginExecuter;
-use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest};
-use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
-use crate::{plugin::{EmailAuthRequest, PluginBuilder}, auth::model::{DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}};
+use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
 use super::model::DeviceIdAuthRequestWrapper;
-use super::{PythonPlugin, PythonPluginInstaller, FunctionType};
+use super::{PythonPluginInstaller, FunctionType};
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
@@ -88,8 +83,9 @@ fn test_1() {
     let mut config = YummyConfig::default();
     create_python_file("get_user_meta_test.py", &mut config, r#"
 def pre_deviceid_auth(model):
-    print("Merhaba %s" % type(model.device_id()))
-    return model
+    assert(model.get_device_id() == "abc")
+    model.set_device_id("erhan")
+    assert(model.get_device_id() == "erhan")
 "#);
 
     let config = Arc::new(config);
@@ -102,5 +98,9 @@ def pre_deviceid_auth(model):
         socket: Arc::new(DummyClient::default())
     };
 
-    plugin.execute(DeviceIdAuthRequestWrapper(model), "pre_deviceid_auth", FunctionType::DEVICEID_AUTH).unwrap();
+    let model = Arc::new(PyRwLock::new(model));
+    plugin.execute(DeviceIdAuthRequestWrapper::new(model), "pre_deviceid_auth", FunctionType::DeviceidAuth).unwrap();
+    //let model: DeviceIdAuthRequest = model.into();
+
+    println!("<<<<");
 }

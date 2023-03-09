@@ -17,10 +17,12 @@ use std::fs;
 use glob::{MatchOptions, glob_with};
 use ::model::config::YummyConfig;
 use rustpython_vm as vm;
+use vm::class::PyClassImpl;
 use vm::convert::ToPyObject;
 use vm::scope::Scope;
-use vm::VirtualMachine;
+use vm::{VirtualMachine, TryFromBorrowedObject};
 
+use crate::plugin::python::model::DeviceIdAuthRequestWrapper;
 use crate::{
     auth::model::{ConnUserDisconnect, CustomIdAuthRequest, DeviceIdAuthRequest, EmailAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest},
     conn::model::UserConnected,
@@ -68,26 +70,26 @@ pub struct PythonPlugin {
 /* **************************************************** ENUMS ***************************************************** */
 /* **************************************************************************************************************** */
 pub enum FunctionType {
-    EMAIL_AUTH,
-    DEVICEID_AUTH,
-    CUSTOMID_AUTH,
-    LOGOUT,
-    REFRESH_TOKEN,
-    RESTORE_TOKEN,
-    USER_CONNECTED,
-    USER_DISCONNECTED,
-    GET_USER_INFORMATION,
-    UPDATE_USER,
-    CREATE_ROOM,
-    UPDATE_ROOM,
-    JOIN_TO_ROOM,
-    PROCESS_WAITING_USER,
-    KICK_USER_FROM_ROOM,
-    DISCONNECT_FROM_ROOM_REQUEST,
-    MESSAGE_TO_ROOM_REQUEST,
-    ROOM_LIST_REQUEST,
-    WAITING_ROOM_JOINS,
-    GET_ROOM_REQUEST
+    EmailAuth,
+    DeviceidAuth,
+    CustomidAuth,
+    Logout,
+    RefreshToken,
+    RestoreToken,
+    UserConnected,
+    UserDisconnected,
+    GetUserInformation,
+    UpdateUser,
+    CreateRoom,
+    UpdateRoom,
+    JoinToRoom,
+    ProcessWaitingUser,
+    KickUserFromRoom,
+    DisconnectFromRoomRequest,
+    MessageToRoomRequest,
+    RoomListRequest,
+    WaitingRoomJoins,
+    GetRoomRequest
 }
 
 /* **************************************************************************************************************** */
@@ -95,6 +97,7 @@ pub enum FunctionType {
 /* **************************************************************************************************************** */
 fn init_vm(vm: &mut VirtualMachine) {
     vm.add_frozen(rustpython_pylib::frozen_stdlib());
+    
 }
 
 /* **************************************************************************************************************** */
@@ -105,13 +108,13 @@ fn init_vm(vm: &mut VirtualMachine) {
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
 impl PythonPlugin {
-    pub fn execute<T: ToPyObject + 'static>(&self, model: T, name: &str, func_type: FunctionType) -> anyhow::Result<()> {
+    pub fn execute<T: ToPyObject + rustpython_vm::PyPayload + rustpython_vm::TryFromBorrowedObject + 'static>(&self, model: T, name: &str, _: FunctionType) -> anyhow::Result<()> {
         self.interpreter.enter(|vm| {
             let mut model = model.to_pyobject(vm);
         
             for scope in self.scopes.iter() {
                 let test_fn = scope.globals.get_item(name, vm).unwrap();
-                model = match vm.invoke(&test_fn, (model,)) {
+                match vm.invoke(&test_fn, (model.as_ref(),)) {
                     Ok(model) => model,
                     Err(error) => {
                         let mut error_message = String::new();
@@ -120,6 +123,10 @@ impl PythonPlugin {
                     }
                 };
             }
+            
+            //let data: Option<&T> = model.payload::<T>();
+
+            
 
             Ok(())
         })
@@ -133,6 +140,7 @@ impl PythonPluginInstaller {
         let interpreter = vm::Interpreter::with_init(Default::default(), init_vm);
         interpreter
             .enter(|vm| -> vm::PyResult<()> {
+                DeviceIdAuthRequestWrapper::make_class(&vm.ctx);
 
                 let path = Path::new(&config.python_files_path).join("*.py").to_string_lossy().to_string();
                 log::info!("Searhing lua files at {}", path);
