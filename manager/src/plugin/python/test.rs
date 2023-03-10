@@ -91,11 +91,11 @@ def pre_deviceid_auth(model):
 
 def post_deviceid_auth(model, success):
     assert(success)
-    assert(model.get_device_id() == "abc")
-    model.set_device_id("erhan")
     assert(model.get_device_id() == "erhan")
+    model.set_device_id("abc")
+    assert(model.get_device_id() == "abc")
 
-    assert(model.get_request_id() == 123)
+    assert(model.get_request_id() is None)
     model.set_request_id(None)
     assert(model.get_request_id() is None)
 "#);

@@ -34,7 +34,7 @@ macro_rules! wrapper {
 }
 
 macro_rules! get_string {
-    ($self: expr, $vm: ident, $item: ident) => {
+    ($self: expr, $item: ident, $vm: ident) => {
         Ok($vm.ctx.new_str(&$self.data.borrow_mut().$item[..]).into())
     };
 }
@@ -75,6 +75,17 @@ impl DeviceIdAuthRequestWrapper {
     }
 
     #[pymethod]
+    pub fn get_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+        get_string!(self, id, vm)
+    }
+
+    #[pymethod]
+    pub fn set_id(&self, id: String) -> PyResult<()> {
+        set_string!(self, id, id);
+        Ok(())
+    }
+
+    #[pymethod]
     pub fn get_request_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
         get_nullable_f64!(self, request_id, vm)
     }
@@ -87,11 +98,11 @@ impl DeviceIdAuthRequestWrapper {
 
     #[pymethod]
     pub fn get_device_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-        get_string!(self, vm, id)
+        get_string!(self, id, vm)
     }
 
     #[pymethod]
-    pub fn set_device_id(&self, device_id: String, _: &VirtualMachine) -> PyResult<()> {
+    pub fn set_device_id(&self, device_id: String) -> PyResult<()> {
         set_string!(self, id, device_id);
         Ok(())
     }

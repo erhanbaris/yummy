@@ -121,25 +121,21 @@ fn init_vm(vm: &mut VirtualMachine) {
 /* *************************************************** TRAITS ***************************************************** */
 /* **************************************************************************************************************** */
 
-/* **************************************************************************************************************** */
+/* ***************************************************************************************.clone()************************* */
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
 impl PythonPlugin {
     pub fn execute_pre_functions<T, W: ToPyObject + rustpython_vm::PyPayload + ModelWrapper<Entity = T> + 'static>(&self, model: Rc<RefCell<T>>, function: FunctionType) -> anyhow::Result<()> {
-        println!("Entering execute_pre_functions");
         self.interpreter.enter(|vm| {
-            println!("Entered execute_pre_functions");
             let model = W::wrap(model).to_pyobject(vm);
-            self.inner_execute(vm, &self.post_function_refs, (model, ), function)
+            self.inner_execute(vm, &self.pre_function_refs, (model, ), function)
         })
     }
 
     pub fn execute_post_functions<T, W: ToPyObject + rustpython_vm::PyPayload + ModelWrapper<Entity = T> + 'static>(&self, model: Rc<RefCell<T>>, success: bool, function: FunctionType) -> anyhow::Result<()> {
-        println!("Entering execute_post_functions");
         self.interpreter.enter(|vm| {
-            println!("Entered execute_post_functions");
             let model = W::wrap(model).to_pyobject(vm);
-            self.inner_execute(vm, &self.pre_function_refs, (model, success), function)
+            self.inner_execute(vm, &self.post_function_refs, (model, success), function)
         })
     }
 

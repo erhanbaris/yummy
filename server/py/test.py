@@ -1,6 +1,9 @@
 def pre_deviceid_auth(model):
-    print("pre_deviceid_auth")
+    if model.id == "erhanbaris":
+        raise Exception("erhanbaris kullanilamaz")
+    print(model)
 
 def post_deviceid_auth(model, successed):
-    print("post_deviceid_auth")
+    print(model.__dict__)
+    print(successed)
 
