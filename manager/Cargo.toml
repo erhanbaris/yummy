@@ -27,6 +27,8 @@ actix-broker.workspace = true
 glob.workspace = true
 
 thiserror.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
 anyhow.workspace = true
 
 log.workspace = true

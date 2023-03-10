@@ -14,15 +14,11 @@ use std::io::Write;
 use cache::state::{YummyState};
 use model::config::YummyConfig;
 
-
-use model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType, SessionId, UserInformationModel};
-use general::password::Password;
-use rustpython_vm::common::lock::PyRwLock;
 use testing::cache::DummyResourceFactory;
 use testing::client::DummyClient;
 use testing::database::get_database_pool;
 
-use crate::plugin::PluginExecuter;
+use crate::plugin::{PluginExecuter, YummyPlugin};
 use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
 use super::model::DeviceIdAuthRequestWrapper;
 use super::{PythonPluginInstaller, FunctionType};
@@ -92,6 +88,16 @@ def pre_deviceid_auth(model):
     assert(model.get_request_id() == 123)
     model.set_request_id(None)
     assert(model.get_request_id() is None)
+
+def post_deviceid_auth(model, success):
+    assert(success)
+    assert(model.get_device_id() == "abc")
+    model.set_device_id("erhan")
+    assert(model.get_device_id() == "erhan")
+
+    assert(model.get_request_id() == 123)
+    model.set_request_id(None)
+    assert(model.get_request_id() is None)
 "#);
 
     let config = Arc::new(config);
@@ -104,5 +110,7 @@ def pre_deviceid_auth(model):
         socket: Arc::new(DummyClient::default())
     };
 
-    plugin.execute::<_, DeviceIdAuthRequestWrapper>(Rc::new(RefCell::new(model)), "pre_deviceid_auth", FunctionType::DeviceidAuth).unwrap();
+    let model = Rc::new(RefCell::new(model));
+    plugin.pre_deviceid_auth(model.clone()).unwrap();
+    plugin.post_deviceid_auth(model, true).unwrap();
 }

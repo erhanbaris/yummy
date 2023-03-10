@@ -4,4 +4,3 @@ def pre_deviceid_auth(model):
 def post_deviceid_auth(model, successed):
     print("post_deviceid_auth")
 
-print("test file loaded")
