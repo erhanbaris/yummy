@@ -14,14 +14,15 @@ use std::io::Write;
 use cache::state::{YummyState};
 use model::config::YummyConfig;
 
+use rand::{thread_rng, Rng};
+use rand::distributions::Alphanumeric;
 use testing::cache::DummyResourceFactory;
 use testing::client::DummyClient;
 use testing::database::get_database_pool;
 
 use crate::plugin::{PluginExecuter, YummyPlugin};
 use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
-use super::model::DeviceIdAuthRequestWrapper;
-use super::{PythonPluginInstaller, FunctionType};
+use super::PythonPluginInstaller;
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
@@ -34,7 +35,17 @@ use super::{PythonPluginInstaller, FunctionType};
 /* ************************************************** FUNCTIONS *************************************************** */
 /* **************************************************************************************************************** */
 fn create_python_file(file_name: &str, config: &mut YummyConfig, content: &str) {
-    config.python_files_path = temp_dir().to_str().unwrap().to_string();
+
+    // Generate random folder name
+    let folder_name: String = thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(30)
+        .map(char::from)
+        .collect();
+
+    config.python_files_path = temp_dir().join(folder_name).to_str().expect("Could not get temporary folder path").to_string();
+
+    std::fs::create_dir(&config.python_files_path).expect("Could not create temporary folder for python test"); // Create temp folder
 
     let path = std::path::Path::new(&config.python_files_path[..]).join(file_name).to_string_lossy().to_string();
 
@@ -68,8 +79,8 @@ fn create_python_environtment(file_name: &str, content: &str) -> (Arc<PluginExec
 /* **************************************************************************************************************** */
 
 #[test]
-fn get_user_meta_test() {
-    create_python_environtment("get_user_meta_test.py", r#"
+fn simple_python_api_call() {
+    create_python_environtment("simple_python_api_call.py", r#"
 def test(model: dict):
     print("Merhaba dünya")
     return 123
@@ -77,9 +88,9 @@ def test(model: dict):
 }
 
 #[test]
-fn test_1() {
+fn deviceid_auth_test() {
     let mut config = YummyConfig::default();
-    create_python_file("get_user_meta_test.py", &mut config, r#"
+    create_python_file("deviceid_auth_test.py", &mut config, r#"
 def pre_deviceid_auth(model):
     assert(model.get_device_id() == "abc")
     model.set_device_id("erhan")
@@ -111,6 +122,35 @@ def post_deviceid_auth(model, success):
     };
 
     let model = Rc::new(RefCell::new(model));
-    plugin.pre_deviceid_auth(model.clone()).unwrap();
-    plugin.post_deviceid_auth(model, true).unwrap();
+    plugin.pre_deviceid_auth(model.clone()).expect("pre_deviceid_auth returned Err");
+    plugin.post_deviceid_auth(model, true).expect("post_deviceid_auth returned Err");
+}
+
+#[test]
+fn validation_exception_test() {
+    let mut config = YummyConfig::default();
+    create_python_file("validation_exception_test.py", &mut config, r#"
+import yummy
+def pre_deviceid_auth(model):
+    yummy.fail("fail")
+"#);
+
+    let config = Arc::new(config);
+
+    let plugin = PythonPluginInstaller::build_plugin(config);
+    let model = DeviceIdAuthRequest {
+        request_id: Some(123),
+        auth: Arc::new(None),
+        id: "abc".to_string(),
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = Rc::new(RefCell::new(model));
+    let result = plugin.pre_deviceid_auth(model.clone());
+    if let Err(error) = result {
+        println!("{}", error.to_string());
+        assert!(error.to_string() == "fail".to_string());
+    } else {
+        assert!(false, "No python raise received")
+    }
 }

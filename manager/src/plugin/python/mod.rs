@@ -6,6 +6,7 @@ mod test;
 mod model;
 
 use std::collections::HashMap;
+use std::ops::Deref;
 /* **************************************************************************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
 /* **************************************************************************************************************** */
@@ -23,8 +24,10 @@ use vm::class::PyClassImpl;
 use vm::convert::ToPyObject;
 use vm::function::IntoFuncArgs;
 use vm::scope::Scope;
-use vm::{VirtualMachine, PyObjectRef};
+use vm::{VirtualMachine, PyObjectRef, AsObject};
 use strum_macros::EnumIter;
+
+use rustpython_vm::pymodule;
 
 use crate::plugin::python::model::DeviceIdAuthRequestWrapper;
 use crate::{
@@ -38,7 +41,7 @@ use crate::{
 
 use self::model::ModelWrapper;
 
-use super::{YummyPlugin, YummyPluginInstaller};
+use super::{YummyPlugin, YummyPluginInstaller, YummyPluginError};
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
@@ -49,10 +52,10 @@ use super::{YummyPlugin, YummyPluginInstaller};
 /* **************************************************************************************************************** */
 macro_rules! create_dummy_func {
     ($pre: ident, $post: ident, $target: path, $model: path) => {
-        fn $pre<'a>(&self, _: Rc<RefCell<$model>>) -> anyhow::Result<()> {
+        fn $pre<'a>(&self, _: Rc<RefCell<$model>>) -> Result<(), YummyPluginError> {
             Ok(())
         }
-        fn $post<'a>(&self, _: Rc<RefCell<$model>>, _: bool) -> anyhow::Result<()> {
+        fn $post<'a>(&self, _: Rc<RefCell<$model>>, _: bool) -> Result<(), YummyPluginError> {
             Ok(())
         }
     };
@@ -60,11 +63,11 @@ macro_rules! create_dummy_func {
 
 macro_rules! create_func {
     ($pre: ident, $post: ident, $function: path, $model: path, $wrapper: tt) => {
-        fn $pre<'a>(&self, model: Rc<RefCell<$model>>) -> anyhow::Result<()> {
+        fn $pre<'a>(&self, model: Rc<RefCell<$model>>) -> Result<(), YummyPluginError> {
             self.execute_pre_functions::<_, $wrapper>(model, $function)
         }
 
-        fn $post<'a>(&self, model: Rc<RefCell<$model>>, success: bool) -> anyhow::Result<()> {
+        fn $post<'a>(&self, model: Rc<RefCell<$model>>, success: bool) -> Result<(), YummyPluginError> {
             self.execute_post_functions::<_, $wrapper>(model, success, $function)
         }
     };
@@ -115,6 +118,7 @@ pub enum FunctionType {
 /* **************************************************************************************************************** */
 fn init_vm(vm: &mut VirtualMachine) {
     vm.add_frozen(rustpython_pylib::frozen_stdlib());
+    vm.add_native_module("yummy".to_owned(), Box::new(yummy::make_module));
 }
 
 /* **************************************************************************************************************** */
@@ -125,21 +129,21 @@ fn init_vm(vm: &mut VirtualMachine) {
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
 impl PythonPlugin {
-    pub fn execute_pre_functions<T, W: ToPyObject + rustpython_vm::PyPayload + ModelWrapper<Entity = T> + 'static>(&self, model: Rc<RefCell<T>>, function: FunctionType) -> anyhow::Result<()> {
+    pub fn execute_pre_functions<T, W: ToPyObject + rustpython_vm::PyPayload + ModelWrapper<Entity = T> + 'static>(&self, model: Rc<RefCell<T>>, function: FunctionType) -> Result<(), YummyPluginError> {
         self.interpreter.enter(|vm| {
             let model = W::wrap(model).to_pyobject(vm);
             self.inner_execute(vm, &self.pre_function_refs, (model, ), function)
         })
     }
 
-    pub fn execute_post_functions<T, W: ToPyObject + rustpython_vm::PyPayload + ModelWrapper<Entity = T> + 'static>(&self, model: Rc<RefCell<T>>, success: bool, function: FunctionType) -> anyhow::Result<()> {
+    pub fn execute_post_functions<T, W: ToPyObject + rustpython_vm::PyPayload + ModelWrapper<Entity = T> + 'static>(&self, model: Rc<RefCell<T>>, success: bool, function: FunctionType) -> Result<(), YummyPluginError> {
         self.interpreter.enter(|vm| {
             let model = W::wrap(model).to_pyobject(vm);
             self.inner_execute(vm, &self.post_function_refs, (model, success), function)
         })
     }
 
-    fn inner_execute(&self, vm: &VirtualMachine, functions: &HashMap<FunctionType, Vec<PyObjectRef>>, args: impl IntoFuncArgs + Clone, function: FunctionType) -> anyhow::Result<()> {
+    fn inner_execute(&self, vm: &VirtualMachine, functions: &HashMap<FunctionType, Vec<PyObjectRef>>, args: impl IntoFuncArgs + Clone, function: FunctionType) -> Result<(), YummyPluginError> {
 
         // Get all parsed functions references to invoke
         if let Some(functions) = functions.get(&function) {
@@ -154,9 +158,21 @@ impl PythonPlugin {
                     We should return an error message instead of the exception object.
                     Our error message requires post-processing
                     */
+                    
+                    if error.class().name().deref() == "YummyValidationError" {
+                        let message = match error.get_arg(0) {
+                            Some(arg) => match arg.str(vm) {
+                                Ok(arg) => arg.as_str().to_string(),
+                                Err(_) => "Python validation error".to_string()
+                            },
+                            None => "Python validation error".to_string()
+                        };
+                        return Err(YummyPluginError::Validation(message));
+                    }
+                    
                     let mut error_message = String::new();
                     vm.write_exception(&mut error_message, &error).unwrap();
-                    return Err(anyhow::anyhow!(error_message))
+                    return Err(YummyPluginError::Internal(error_message));
                 }
             }
         }
@@ -175,6 +191,7 @@ impl PythonPluginInstaller {
         interpreter
             .enter(|vm| -> vm::PyResult<()> {
                 DeviceIdAuthRequestWrapper::make_class(&vm.ctx);
+                yummy::YummyValidationError::make_class(&vm.ctx);
 
                 let path = Path::new(&config.python_files_path).join("*.py").to_string_lossy().to_string();
                 log::info!("Searhing python files at {}", path);
@@ -337,3 +354,31 @@ impl YummyPluginInstaller for PythonPluginInstaller {
 /* ************************************************* MACROS CALL ************************************************** */
 /* ************************************************** UNIT TESTS ************************************************** */
 /* **************************************************************************************************************** */
+
+
+
+#[pymodule]
+mod yummy {
+    use rustpython_derive::{pyclass, PyPayload};
+    use rustpython_vm::class::PyClassImpl;
+    use rustpython_vm::{builtins::PyBaseExceptionRef, VirtualMachine, PyResult};
+    
+    #[pyfunction]
+    fn fail(message: String, _vm: &VirtualMachine) -> PyResult<PyBaseExceptionRef> {        
+        Err(_vm.new_exception_msg(YummyValidationError::make_class(&_vm.ctx), message))
+    }
+
+    #[pyattr]
+    #[pyclass(module = "yummy", name = "YummyValidationError")]
+    #[derive(PyPayload, Debug)]
+    pub struct YummyValidationError {
+        pub message: String
+    }
+
+    #[pyclass]
+    impl YummyValidationError {
+        pub fn new(message: String) -> Self {
+            Self { message }
+        }
+    }
+}

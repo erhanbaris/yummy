@@ -35,16 +35,25 @@ pub fn plugin_api(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let ItemFn { block, ..} = fn_item;
 
-    let (clone_socket, send_result) = match !args.no_socket && !args.no_return {
+    let has_message_sent_capability = !args.no_socket && !args.no_return;
+
+    let (clone_socket, send_result, finish_with_error) = match has_message_sent_capability {
         true => {
-            (quote! { let __socket__ = model.socket.clone(); },
-             quote! {
-                if let Err(result) = response.as_ref() {
-                    __socket__.send(::model::WebsocketMessage::fail(model.request_id.clone(), result.to_string()).0)
-                }
-            })
+            (quote! {
+                let __socket__ = model.socket.clone();
+                let __request_id__ = model.request_id.clone();
+            },
+            quote! {
+               if let Err(result) = response.as_ref() {
+                   __socket__.send(::model::WebsocketMessage::fail(__request_id__, result.to_string()).0)
+               }
+           },
+           quote! {
+                __socket__.send(::model::WebsocketMessage::fail(__request_id__, error.to_string()).0);
+                return Err(error.into());
+          })
         },
-        false => (quote! { }, quote! { }),
+        false => (quote! { }, quote! { }, quote! { return; }),
     };
 
     let pre_api_path= proc_macro2::Ident::new(&format!("pre_{}", args.name), proc_macro2::Span::call_site());
@@ -53,31 +62,40 @@ pub fn plugin_api(args: TokenStream, input: TokenStream) -> TokenStream {
     // If the return is '()' than we should not return Ok or Err.
     let (response_block, execution_result_block) = match args.no_return {
         true => (quote! (), quote!{ true }),
-        false => (quote! { response? }, quote! { response.is_ok() }),
+        false => (quote! { response }, quote! { response.is_ok() }),
     };
     
     let body_block = quote! {
         {
             #clone_socket
-            let response = match self.executer.#pre_api_path(model) {
-                std::result::Result::Ok(model) => {
-                    let mut execute_api = || -> Self::Result {
-                        #block
-                    };
-            
-                    let response = execute_api();
-        
-                    #send_result
-        
-                    if let Err(error) = self.executer.#post_api_path(model, #execution_result_block) {
-                        log::error!("Manager Api call failed: {:?}", error);
-                    }
 
-                    std::result::Result::Ok(response)
+            /* Execute pre_xxx api calls. If the call failed send error message to client */
+            let model = match self.executer.#pre_api_path(model) {
+                std::result::Result::Ok(model) => model,
+                std::result::Result::Err(error) => {
+                    log::error!("Pre error message: {:?}", error);
+                    #finish_with_error
                 }
-                std::result::Result::Err(error) => Err(error)
             };
 
+            /* Move all api codes into lambda. We want to get execution result and pass into the post_xxx api call. */
+            let mut execute_api = || -> Self::Result {
+                #block
+            };
+
+            /* Execute original api codes and get result */
+            let response = execute_api();
+
+            /* Send error message if the result is err */
+            #send_result
+
+            /* Call post_xxx api calls. If the post_xxx failed DO NOT send any additional error message to client */
+            if let std::result::Result::Err(error) = self.executer.#post_api_path(model, #execution_result_block) {
+                // Print only error message to console
+                log::error!("Pre error message: {:?}", error);
+            }
+
+            // Api call finished and response back Result information
             #response_block
         }
     };

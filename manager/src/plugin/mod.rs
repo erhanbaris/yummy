@@ -8,6 +8,7 @@ pub mod python;
 /* *************************************************** IMPORTS **************************************************** */
 /* **************************************************************************************************************** */
 use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, rc::Rc, cell::RefCell, marker::PhantomData};
+use thiserror::Error;
 
 use cache::state::YummyState;
 use database::{DatabaseTrait, DefaultDatabaseStore};
@@ -25,14 +26,14 @@ use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthReq
 /* **************************************************************************************************************** */
 macro_rules! create_plugin_func {
     ($pre: ident, $post: ident, $model: path) => {
-        fn $pre <'a>(&self, _model: Rc<RefCell<$model>>) -> anyhow::Result<()> { Ok(()) }
-        fn $post <'a>(&self, _model: Rc<RefCell<$model>>, _successed: bool) -> anyhow::Result<()> { Ok(()) }
+        fn $pre <'a>(&self, _model: Rc<RefCell<$model>>) -> Result<(), YummyPluginError> { Ok(()) }
+        fn $post <'a>(&self, _model: Rc<RefCell<$model>>, _successed: bool) -> Result<(), YummyPluginError> { Ok(()) }
     }
 }
 
 macro_rules! create_executer_func {
     ($pre_func_name: ident, $post_func_name: ident, $model: path) => {
-        pub fn $pre_func_name(&self, model: $model) -> anyhow::Result<$model> {
+        pub fn $pre_func_name(&self, model: $model) -> Result<$model, YummyPluginError> {
             let model = Rc::new(RefCell::new(model));
             for plugin in self.plugins.iter() {
                 if plugin.active.load(Ordering::Relaxed) {
@@ -44,12 +45,12 @@ macro_rules! create_executer_func {
                 Ok(refcell) => {
                     Ok(refcell.into_inner())
                 },
-                Err(_) => Err(anyhow::anyhow!("'#func_name' function failed. 'model' object saved in lua and that is cause a memory leak."))
+                Err(_) => Err(YummyPluginError::Internal("'#func_name' function failed. 'model' object saved in lua and that is cause a memory leak.".to_string()))
             }
         }
 
 
-        pub fn $post_func_name(&self, model: $model, successed: bool) -> anyhow::Result<$model> {
+        pub fn $post_func_name(&self, model: $model, successed: bool) -> Result<$model, YummyPluginError> {
             let model = Rc::new(RefCell::new(model));
             for plugin in self.plugins.iter() {
                 if plugin.active.load(Ordering::Relaxed) {
@@ -61,7 +62,7 @@ macro_rules! create_executer_func {
                 Ok(refcell) => {
                     Ok(refcell.into_inner())
                 },
-                Err(_) => Err(anyhow::anyhow!("'$post_func_name' function failed. 'model' object saved in lua and that is cause a memory leak."))
+                Err(_) => Err(YummyPluginError::Internal("'$post_func_name' function failed. 'model' object saved in lua and that is cause a memory leak.".to_string()))
             }
         }
     }
@@ -95,9 +96,13 @@ pub struct PluginExecuter {
 /* **************************************************************************************************************** */
 /* **************************************************** ENUMS ***************************************************** */
 /* **************************************************************************************************************** */
-pub enum YummyAuthError {
-    AuthFailed(String),
-    Other(String)
+#[derive(Debug, Error)]
+pub enum YummyPluginError {
+    #[error("Internal error: {0})")]
+    Internal(String),
+
+    #[error("{0}")]
+    Validation(String)
 }
 
 /* **************************************************************************************************************** */
@@ -193,8 +198,10 @@ impl PluginExecuter {
 }
 
 impl<DB: database::DatabaseTrait> YummyPluginContext<DB> {
-    pub fn get_user_meta(&self, user_id: UserId, key: String) -> anyhow::Result<Option<MetaType<UserMetaAccess>>> {
-        self.user_logic.get_user_meta(user_id, key)
+    pub fn get_user_meta(&self, user_id: UserId, key: String) -> Result<Option<MetaType<UserMetaAccess>>, YummyPluginError> {
+        self.user_logic
+            .get_user_meta(user_id, key)
+            .map_err(|error| YummyPluginError::Internal(error.to_string()))
     }
 }
 
