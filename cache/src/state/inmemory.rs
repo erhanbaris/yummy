@@ -11,7 +11,7 @@ use std::sync::atomic::AtomicUsize;
 use model::*;
 use model::meta::*;
 use model::config::YummyConfig;
-use model::meta::collection::UserMetaCollection;
+use model::meta::collection::{UserMetaCollection, UserMetaCollectionInformation};
 
 use crate::cache::{YummyCache, YummyCacheResource};
 
@@ -75,9 +75,6 @@ pub struct YummyState {
 /* **************************************************** ENUMS ***************************************************** */
 /* ************************************************** FUNCTIONS *************************************************** */
 /* *************************************************** TRAITS ***************************************************** */
-/* **************************************************************************************************************** */
-
-/* **************************************************************************************************************** */
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
 impl YummyState {
@@ -139,6 +136,40 @@ impl YummyState {
                 Ok(metas)
             },
             None => Ok(UserMetaCollection::new())
+        }
+    }
+
+    pub fn get_user_metas(&self, user_id: &UserId) -> Result<Vec<UserMetaCollectionInformation>, YummyStateError> {
+        Ok(self.user_metas.get(user_id)?
+            .map(|metas| metas.get_data())
+            .unwrap_or_default())
+    }
+
+    pub fn set_user_meta(&self, user_id: &UserId, key: String, value: UserMetaType) -> Result<(), YummyStateError> {
+        let mut metas = match self.user_metas.get(user_id)? {
+            Some(metas) => metas,
+            None => UserMetaCollection::new()
+        };
+
+        metas.add(key, value);
+        self.user_metas.set(user_id, metas)?;
+
+        Ok(())
+    }
+
+    pub fn remove_all_user_metas(&self, user_id: &UserId) -> Result<(), YummyStateError> {
+        self.user_metas.remove(user_id);
+        Ok(())
+    }
+
+    pub fn remove_user_meta(&self, user_id: &UserId, key: String) -> Result<(), YummyStateError> {
+        match self.user_metas.get(user_id)? {
+            Some(mut metas) => {
+                metas.remove_with_name(&key);
+                self.user_metas.set(user_id, metas)?;
+                Ok(())
+            },
+            None => Ok(())
         }
     }
     

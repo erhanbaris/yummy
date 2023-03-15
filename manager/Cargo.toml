@@ -17,7 +17,6 @@ general.workspace = true
 database.workspace = true
 macros.workspace = true
 cache.workspace = true
-lua.workspace = true
 testing.workspace = true
 
 actix.workspace = true
@@ -56,6 +55,8 @@ rustpython-pylib.workspace = true
 rustpython-derive.workspace = true
 
 moka.workspace = true
+num-bigint.workspace = true
+num-traits.workspace = true
 
 [dev-dependencies]
 testing.workspace = true

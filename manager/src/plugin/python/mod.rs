@@ -4,9 +4,9 @@
 #[cfg(test)]
 mod test;
 mod model;
+mod modules;
+mod util;
 
-use std::collections::HashMap;
-use std::ops::Deref;
 /* **************************************************************************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
 /* **************************************************************************************************************** */
@@ -27,9 +27,11 @@ use vm::scope::Scope;
 use vm::{VirtualMachine, PyObjectRef, AsObject};
 use strum_macros::EnumIter;
 
-use rustpython_vm::pymodule;
+use std::collections::HashMap;
+use std::ops::Deref;
 
-use crate::plugin::python::model::DeviceIdAuthRequestWrapper;
+use crate::plugin::python::model::YummyPluginContextWrapper;
+use crate::plugin::python::yummy::PyYummyValidationError;
 use crate::{
     auth::model::{ConnUserDisconnect, CustomIdAuthRequest, DeviceIdAuthRequest, EmailAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest},
     conn::model::UserConnected,
@@ -38,16 +40,15 @@ use crate::{
     },
     user::model::{GetUserInformation, UpdateUser},
 };
-
 use self::model::ModelWrapper;
+use self::modules::yummy;
+use self::modules::yummy::EmailAuthRequestWrapper;
+use self::modules::yummy::DeviceIdAuthRequestWrapper;
 
-use super::{YummyPlugin, YummyPluginInstaller, YummyPluginError};
+use super::{YummyPlugin, YummyPluginInstaller, YummyPluginError, PluginExecuter};
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
-/* **************************************************************************************************************** */
-
-/* **************************************************************************************************************** */
 /* **************************************************** MACROS **************************************************** */
 /* **************************************************************************************************************** */
 macro_rules! create_dummy_func {
@@ -123,9 +124,6 @@ fn init_vm(vm: &mut VirtualMachine) {
 
 /* **************************************************************************************************************** */
 /* *************************************************** TRAITS ***************************************************** */
-/* **************************************************************************************************************** */
-
-/* ***************************************************************************************.clone()************************* */
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
 impl PythonPlugin {
@@ -171,6 +169,7 @@ impl PythonPlugin {
                     }
                     
                     let mut error_message = String::new();
+                    log::error!("Python scripting error: {}", error_message);
                     vm.write_exception(&mut error_message, &error).unwrap();
                     return Err(YummyPluginError::Internal(error_message));
                 }
@@ -182,7 +181,7 @@ impl PythonPlugin {
 }
 
 impl PythonPluginInstaller {
-    pub fn build_plugin(config: Arc<YummyConfig>) -> PythonPlugin {
+    pub fn build_plugin(executer: &PluginExecuter, config: Arc<YummyConfig>) -> PythonPlugin {
         let mut scopes = Vec::new();
         let mut pre_function_refs: HashMap<FunctionType, Vec<PyObjectRef>> = HashMap::new();
         let mut post_function_refs: HashMap<FunctionType, Vec<PyObjectRef>> = HashMap::new();
@@ -191,7 +190,11 @@ impl PythonPluginInstaller {
         interpreter
             .enter(|vm| -> vm::PyResult<()> {
                 DeviceIdAuthRequestWrapper::make_class(&vm.ctx);
-                yummy::YummyValidationError::make_class(&vm.ctx);
+                EmailAuthRequestWrapper::make_class(&vm.ctx);
+                YummyPluginContextWrapper::make_class(&vm.ctx);
+                //PyYummyValidationError::make_class(&vm.ctx);
+
+                PyYummyValidationError::extend_class(&vm.ctx, &vm.ctx.exceptions.base_exception_type);
 
                 let path = Path::new(&config.python_files_path).join("*.py").to_string_lossy().to_string();
                 log::info!("Searhing python files at {}", path);
@@ -222,7 +225,9 @@ impl PythonPluginInstaller {
                         return Err(error);
                     }
 
-                    /* 
+                    scope.globals.set_item("__CONTEXT__", YummyPluginContextWrapper::new(executer.context.clone()).to_pyobject(vm), vm).unwrap();
+
+                    /*
                     Build python method informations to call it later.
                     That approach will increase function invoke performance
                     */
@@ -258,7 +263,7 @@ impl PythonPluginInstaller {
 impl FunctionType {
     pub fn get_pre_function_name(&self) -> &'static str {
         match self {
-            FunctionType::EmailAuth => "NOT_IMPLEMENTED_YET",
+            FunctionType::EmailAuth => "pre_email_auth",
             FunctionType::DeviceidAuth => "pre_deviceid_auth",
             FunctionType::CustomidAuth => "NOT_IMPLEMENTED_YET",
             FunctionType::Logout => "NOT_IMPLEMENTED_YET",
@@ -283,7 +288,7 @@ impl FunctionType {
 
     pub fn get_post_function_name(&self) -> &'static str {
         match self {
-            FunctionType::EmailAuth => "NOT_IMPLEMENTED_YET",
+            FunctionType::EmailAuth => "post_email_auth",
             FunctionType::DeviceidAuth => "post_deviceid_auth",
             FunctionType::CustomidAuth => "NOT_IMPLEMENTED_YET",
             FunctionType::Logout => "NOT_IMPLEMENTED_YET",
@@ -312,7 +317,7 @@ impl FunctionType {
 /* **************************************************************************************************************** */
 impl YummyPlugin for PythonPlugin {
     // Auth manager
-    create_dummy_func!(pre_email_auth, post_email_auth, FunctionType::EMAIL_AUTH, EmailAuthRequest);
+    create_func!(pre_email_auth, post_email_auth, FunctionType::EmailAuth, EmailAuthRequest, EmailAuthRequestWrapper);
     create_func!(pre_deviceid_auth, post_deviceid_auth, FunctionType::DeviceidAuth, DeviceIdAuthRequest, DeviceIdAuthRequestWrapper);
     create_dummy_func!(pre_customid_auth, post_customid_auth, FunctionType::CUSTOMID_AUTH, CustomIdAuthRequest);
     create_dummy_func!(pre_logout, post_logout, FunctionType::LOGOUT, LogoutRequest);
@@ -341,10 +346,10 @@ impl YummyPlugin for PythonPlugin {
 }
 
 impl YummyPluginInstaller for PythonPluginInstaller {
-    fn install(&self, executer: &mut super::PluginExecuter, config: Arc<YummyConfig>) {
+    fn install(&self, executer: &mut PluginExecuter, config: Arc<YummyConfig>) {
         log::info!("Python plugin installing");
 
-        let plugin = PythonPluginInstaller::build_plugin(config);
+        let plugin = PythonPluginInstaller::build_plugin(executer, config);
         executer.add_plugin("python".to_string(), Box::new(plugin));
         log::info!("Python plugin installed");
     }
@@ -354,31 +359,3 @@ impl YummyPluginInstaller for PythonPluginInstaller {
 /* ************************************************* MACROS CALL ************************************************** */
 /* ************************************************** UNIT TESTS ************************************************** */
 /* **************************************************************************************************************** */
-
-
-
-#[pymodule]
-mod yummy {
-    use rustpython_derive::{pyclass, PyPayload};
-    use rustpython_vm::class::PyClassImpl;
-    use rustpython_vm::{builtins::PyBaseExceptionRef, VirtualMachine, PyResult};
-    
-    #[pyfunction]
-    fn fail(message: String, _vm: &VirtualMachine) -> PyResult<PyBaseExceptionRef> {        
-        Err(_vm.new_exception_msg(YummyValidationError::make_class(&_vm.ctx), message))
-    }
-
-    #[pyattr]
-    #[pyclass(module = "yummy", name = "YummyValidationError")]
-    #[derive(PyPayload, Debug)]
-    pub struct YummyValidationError {
-        pub message: String
-    }
-
-    #[pyclass]
-    impl YummyValidationError {
-        pub fn new(message: String) -> Self {
-            Self { message }
-        }
-    }
-}

@@ -19,9 +19,6 @@ use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthReq
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
-/* **************************************************************************************************************** */
-
-/* **************************************************************************************************************** */
 /* **************************************************** MACROS **************************************************** */
 /* **************************************************************************************************************** */
 macro_rules! create_plugin_func {
@@ -45,7 +42,7 @@ macro_rules! create_executer_func {
                 Ok(refcell) => {
                     Ok(refcell.into_inner())
                 },
-                Err(_) => Err(YummyPluginError::Internal("'#func_name' function failed. 'model' object saved in lua and that is cause a memory leak.".to_string()))
+                Err(_) => Err(YummyPluginError::Internal(format!("'{}' function failed. 'model' object saved in script and that is cause a memory leak.", stringify!($pre_func_name))))
             }
         }
 
@@ -62,7 +59,7 @@ macro_rules! create_executer_func {
                 Ok(refcell) => {
                     Ok(refcell.into_inner())
                 },
-                Err(_) => Err(YummyPluginError::Internal("'$post_func_name' function failed. 'model' object saved in lua and that is cause a memory leak.".to_string()))
+                Err(_) => Err(YummyPluginError::Internal(format!("'{}' function failed. 'model' object saved in script and that is cause a memory leak.", stringify!($post_func_name))))
             }
         }
     }
@@ -107,9 +104,6 @@ pub enum YummyPluginError {
 
 /* **************************************************************************************************************** */
 /* ************************************************** FUNCTIONS *************************************************** */
-/* **************************************************************************************************************** */
-
-/* **************************************************************************************************************** */
 /* *************************************************** TRAITS ***************************************************** */
 /* **************************************************************************************************************** */
 pub trait YummyPluginInstaller {

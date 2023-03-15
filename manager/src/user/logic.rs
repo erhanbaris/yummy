@@ -1,15 +1,12 @@
 /* **************************************************************************************************************** */
 /* **************************************************** MODS ****************************************************** */
-/* **************************************************************************************************************** */
-
-/* **************************************************************************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
 /* **************************************************************************************************************** */
 use std::{marker::PhantomData, sync::Arc, ops::Deref};
 
 use cache::state::YummyState;
 use database::DatabaseTrait;
-use model::meta::collection::UserMetaCollection;
+use model::meta::collection::{UserMetaCollection, UserMetaCollectionInformation};
 use model::user::UserUpdate;
 use model::{UserId, UserType, UserInformationModel, UserMetaId};
 use model::config::YummyConfig;
@@ -53,9 +50,6 @@ pub struct UserLogic<DB: DatabaseTrait + ?Sized> {
 /* **************************************************** ENUMS ***************************************************** */
 /* ************************************************** FUNCTIONS *************************************************** */
 /* *************************************************** TRAITS ***************************************************** */
-/* **************************************************************************************************************** */
-
-/* **************************************************************************************************************** */
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
 impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
@@ -86,6 +80,22 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
             .get_with_name(&key)
             .cloned()
             .map(|item| item.meta))
+    }
+
+    pub fn get_user_metas(&self, user_id: UserId) -> anyhow::Result<Vec<UserMetaCollectionInformation>> {
+        Ok(self.states.get_user_metas(&user_id)?)
+    }
+
+    pub fn set_user_meta(&self, user_id: UserId, key: String, value: UserMetaType) -> anyhow::Result<()> {
+        Ok(self.states.set_user_meta(&user_id, key, value)?)
+    }
+
+    pub fn remove_all_metas(&self, user_id: UserId) -> anyhow::Result<()> {
+        Ok(self.states.remove_all_user_metas(&user_id)?)
+    }
+
+    pub fn remove_user_meta(&self, user_id: UserId, key: String) -> anyhow::Result<()> {
+        Ok(self.states.remove_user_meta(&user_id, key)?)
     }
 
     pub fn get_user_information(&mut self, model: &GetUserInformation) -> anyhow::Result<UserInformationModel> {

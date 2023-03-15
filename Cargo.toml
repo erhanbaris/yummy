@@ -6,7 +6,6 @@ members = [
     "database",
     "general",
     "cache",
-    "lua",
     "testing",
     "model"
 ]
@@ -25,7 +24,6 @@ server = { path = "./server", features = [] }
 database = { path = "./database" }
 macros = { path = "./macros" }
 cache = { path = "./cache" }
-lua = { path = "./lua" }
 testing = { path = "./testing" }
 model = { path = "./model" }
 
@@ -56,6 +54,7 @@ jsonwebtoken = "8.2.0"
 
 num-derive = "0.3.3"
 num-traits = "0.2.15"
+num-bigint = "0.4.3"
 
 strum = "0.24"
 strum_macros = "0.24"
