@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 use database::DefaultDatabaseStore;
-use rustpython_derive::{pyclass, PyPayload};
+use rustpython::vm::{PyPayload, pyclass};
 use crate::plugin::YummyPluginContext;
 
 /* **************************************************************************************************************** */
@@ -50,6 +50,9 @@ impl Debug for YummyPluginContextWrapper {
         f.debug_struct("YummyPluginContextWrapper").finish()
     }
 }
+
+unsafe impl Send for YummyPluginContextWrapper {}
+unsafe impl Sync for YummyPluginContextWrapper {}
 
 /* **************************************************************************************************************** */
 /* ************************************************* MACROS CALL ************************************************** */

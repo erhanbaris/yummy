@@ -18,7 +18,7 @@ use std::fs;
 
 use glob::{MatchOptions, glob_with};
 use ::model::config::YummyConfig;
-use rustpython_vm as vm;
+use rustpython::{vm as vm, InterpreterConfig};
 use strum::IntoEnumIterator;
 use vm::class::PyClassImpl;
 use vm::convert::ToPyObject;
@@ -41,7 +41,7 @@ use crate::{
     user::model::{GetUserInformation, UpdateUser},
 };
 use self::model::ModelWrapper;
-use self::modules::yummy;
+use self::modules::yummy::{self, CustomIdAuthRequestWrapper};
 use self::modules::yummy::EmailAuthRequestWrapper;
 use self::modules::yummy::DeviceIdAuthRequestWrapper;
 
@@ -116,25 +116,18 @@ pub enum FunctionType {
 
 /* **************************************************************************************************************** */
 /* ************************************************** FUNCTIONS *************************************************** */
-/* **************************************************************************************************************** */
-fn init_vm(vm: &mut VirtualMachine) {
-    vm.add_frozen(rustpython_pylib::frozen_stdlib());
-    vm.add_native_module("yummy".to_owned(), Box::new(yummy::make_module));
-}
-
-/* **************************************************************************************************************** */
 /* *************************************************** TRAITS ***************************************************** */
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
 impl PythonPlugin {
-    pub fn execute_pre_functions<T, W: ToPyObject + rustpython_vm::PyPayload + ModelWrapper<Entity = T> + 'static>(&self, model: Rc<RefCell<T>>, function: FunctionType) -> Result<(), YummyPluginError> {
+    pub fn execute_pre_functions<T, W: ToPyObject + rustpython::vm::PyPayload + ModelWrapper<Entity = T> + 'static>(&self, model: Rc<RefCell<T>>, function: FunctionType) -> Result<(), YummyPluginError> {
         self.interpreter.enter(|vm| {
             let model = W::wrap(model).to_pyobject(vm);
             self.inner_execute(vm, &self.pre_function_refs, (model, ), function)
         })
     }
 
-    pub fn execute_post_functions<T, W: ToPyObject + rustpython_vm::PyPayload + ModelWrapper<Entity = T> + 'static>(&self, model: Rc<RefCell<T>>, success: bool, function: FunctionType) -> Result<(), YummyPluginError> {
+    pub fn execute_post_functions<T, W: ToPyObject + rustpython::vm::PyPayload + ModelWrapper<Entity = T> + 'static>(&self, model: Rc<RefCell<T>>, success: bool, function: FunctionType) -> Result<(), YummyPluginError> {
         self.interpreter.enter(|vm| {
             let model = W::wrap(model).to_pyobject(vm);
             self.inner_execute(vm, &self.post_function_refs, (model, success), function)
@@ -150,7 +143,7 @@ impl PythonPlugin {
             for function in functions.iter() {
 
                 // Call the function with our model and check everyting went well
-                if let Err(error) = vm.invoke(function, args.clone()) {
+                if let Err(error) = function.call(args.clone(), vm) {
 
                     /*
                     We should return an error message instead of the exception object.
@@ -186,11 +179,18 @@ impl PythonPluginInstaller {
         let mut pre_function_refs: HashMap<FunctionType, Vec<PyObjectRef>> = HashMap::new();
         let mut post_function_refs: HashMap<FunctionType, Vec<PyObjectRef>> = HashMap::new();
 
-        let interpreter = vm::Interpreter::with_init(Default::default(), init_vm);
+        let interpreter = InterpreterConfig::new()
+            .init_stdlib()
+            .init_hook(Box::new(|vm| {
+                vm.add_native_module("yummy".to_owned(), Box::new(yummy::make_module));
+            }))
+            .interpreter();
+
         interpreter
             .enter(|vm| -> vm::PyResult<()> {
                 DeviceIdAuthRequestWrapper::make_class(&vm.ctx);
                 EmailAuthRequestWrapper::make_class(&vm.ctx);
+                CustomIdAuthRequestWrapper::make_class(&vm.ctx);
                 YummyPluginContextWrapper::make_class(&vm.ctx);
                 //PyYummyValidationError::make_class(&vm.ctx);
 
@@ -265,7 +265,7 @@ impl FunctionType {
         match self {
             FunctionType::EmailAuth => "pre_email_auth",
             FunctionType::DeviceidAuth => "pre_deviceid_auth",
-            FunctionType::CustomidAuth => "NOT_IMPLEMENTED_YET",
+            FunctionType::CustomidAuth => "pre_customid_auth",
             FunctionType::Logout => "NOT_IMPLEMENTED_YET",
             FunctionType::RefreshToken => "NOT_IMPLEMENTED_YET",
             FunctionType::RestoreToken => "NOT_IMPLEMENTED_YET",
@@ -290,7 +290,7 @@ impl FunctionType {
         match self {
             FunctionType::EmailAuth => "post_email_auth",
             FunctionType::DeviceidAuth => "post_deviceid_auth",
-            FunctionType::CustomidAuth => "NOT_IMPLEMENTED_YET",
+            FunctionType::CustomidAuth => "post_customid_auth",
             FunctionType::Logout => "NOT_IMPLEMENTED_YET",
             FunctionType::RefreshToken => "NOT_IMPLEMENTED_YET",
             FunctionType::RestoreToken => "NOT_IMPLEMENTED_YET",
@@ -319,7 +319,7 @@ impl YummyPlugin for PythonPlugin {
     // Auth manager
     create_func!(pre_email_auth, post_email_auth, FunctionType::EmailAuth, EmailAuthRequest, EmailAuthRequestWrapper);
     create_func!(pre_deviceid_auth, post_deviceid_auth, FunctionType::DeviceidAuth, DeviceIdAuthRequest, DeviceIdAuthRequestWrapper);
-    create_dummy_func!(pre_customid_auth, post_customid_auth, FunctionType::CUSTOMID_AUTH, CustomIdAuthRequest);
+    create_func!(pre_customid_auth, post_customid_auth, FunctionType::CustomidAuth, CustomIdAuthRequest, CustomIdAuthRequestWrapper);
     create_dummy_func!(pre_logout, post_logout, FunctionType::LOGOUT, LogoutRequest);
     create_dummy_func!(pre_refresh_token, post_refresh_token, FunctionType::REFRESH_TOKEN, RefreshTokenRequest);
     create_dummy_func!(pre_restore_token, post_restore_token, FunctionType::RESTORE_TOKEN, RestoreTokenRequest);

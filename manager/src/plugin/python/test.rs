@@ -17,7 +17,7 @@ use testing::cache::DummyResourceFactory;
 use testing::client::DummyClient;
 use testing::database::get_database_pool;
 
-use crate::auth::model::EmailAuthRequest;
+use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest};
 use crate::plugin::PluginExecuter;
 use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
 use super::PythonPluginInstaller;
@@ -258,5 +258,15 @@ model_tester!(email_auth_tester, "email_auth_tester.py", pre_email_auth, post_em
     email: "abc@gmail.com".to_string(),
     password: Password::from("password123".to_string()),
     if_not_exist_create: true,
+    socket: Arc::new(DummyClient::default())
+});
+
+model_tester!(custom_id_auth_tester, "custom_id_auth_tester.py", pre_customid_auth, post_customid_auth, CustomIdAuthRequest {
+    request_id: Some(123),
+    auth: Arc::new(Some(UserAuth {
+        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+    })),
+    id: "1234567890".to_string(),
     socket: Arc::new(DummyClient::default())
 });

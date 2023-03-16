@@ -50,9 +50,8 @@ redis = { workspace = true, optional = true }
 
 mlua.workspace = true
 
+rustpython.workspace = true
 rustpython-vm.workspace = true
-rustpython-pylib.workspace = true
-rustpython-derive.workspace = true
 
 moka.workspace = true
 num-bigint.workspace = true

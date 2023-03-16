@@ -1,4 +1,4 @@
-#[rustpython_derive::pymodule]
+#[rustpython::vm::pymodule]
 pub mod yummy {
     /* **************************************************************************************************************** */
     /* **************************************************** MODS ****************************************************** */
@@ -10,12 +10,13 @@ pub mod yummy {
 
     use model::UserId;
     use model::meta::{UserMetaType, UserMetaAccess};
-    use rustpython_derive::{pyclass, PyPayload};
-    use rustpython_vm::function::OptionalArg;
-    use rustpython_vm::{TryFromBorrowedObject, PyRef, PyObject};
-    use rustpython_vm::builtins::{PyBaseException, PyInt};
-    use rustpython_vm::{builtins::{PyBaseExceptionRef, PyIntRef}, VirtualMachine, PyResult, PyObjectRef};
+    use rustpython::vm::{pyclass, PyPayload};
+    use rustpython::vm::function::OptionalArg;
+    use rustpython::vm::{TryFromBorrowedObject, PyRef, PyObject};
+    use rustpython::vm::builtins::{PyBaseException, PyInt};
+    use rustpython::vm::{builtins::{PyBaseExceptionRef, PyIntRef}, VirtualMachine, PyResult, PyObjectRef};
 
+    use crate::auth::model::CustomIdAuthRequest;
     use crate::plugin::python::util::MetaTypeUtil;
     use crate::{plugin::python::model::YummyPluginContextWrapper, auth::model::{DeviceIdAuthRequest, EmailAuthRequest}};
     use crate::plugin::python::ModelWrapper;
@@ -34,6 +35,9 @@ pub mod yummy {
                     $wrapper::new(entity)
                 }
             }
+
+            unsafe impl Send for $wrapper {}
+            unsafe impl Sync for $wrapper {}
         };
     }
 
@@ -106,6 +110,13 @@ pub mod yummy {
     }
 
     #[pyattr]
+    #[pyclass(module = "yummy", name = "CustomIdAuth")]
+    #[derive(Debug, PyPayload)]
+    pub struct CustomIdAuthRequestWrapper {
+        pub data: Rc<RefCell<CustomIdAuthRequest>>
+    }
+
+    #[pyattr]
     #[pyclass(module = false, name = "UserMetaType")]
     #[derive(Debug, PyPayload)]
     pub struct UserMetaTypeWrapper {
@@ -126,7 +137,7 @@ pub mod yummy {
 
     #[pyfunction]
     pub fn fail(message: String, vm: &VirtualMachine) -> PyResult<PyBaseExceptionRef> {
-        use rustpython_vm::class::PyClassImpl;
+        use rustpython::vm::class::PyClassImpl;
         Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), message))
     }
     
@@ -430,6 +441,47 @@ pub mod yummy {
         }
     }
 
+
+    /* ################################################ CustomIdAuth ################################################## */
+    #[pyclass(flags(BASETYPE))]
+    impl CustomIdAuthRequestWrapper {
+        pub fn new(data: Rc<RefCell<CustomIdAuthRequest>>) -> Self {
+            Self { data }
+        }
+
+        #[pymethod]
+        pub fn get_request_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_nullable_f64!(self, request_id, vm)
+        }
+
+        #[pymethod]
+        pub fn set_request_id(&self, request_id: Option<PyIntRef>, _: &VirtualMachine) -> PyResult<()> {
+            set_nullable_usize!(self, request_id, request_id);
+            Ok(())
+        }
+
+        #[pymethod]
+        pub fn get_user_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_user_id!(self, vm)
+        }
+
+        #[pymethod]
+        pub fn get_session_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_session_id!(self, vm)
+        }
+
+        #[pymethod]
+        pub fn get_custom_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_string!(self, id, vm)
+        }
+
+        #[pymethod]
+        pub fn set_custom_id(&self, device_id: String) -> PyResult<()> {
+            set_string!(self, id, device_id);
+            Ok(())
+        }
+    }
+
     /* ########################################### UserMetaTypeWrapper ################################################# */
     #[pyclass(flags(BASETYPE))]
     impl UserMetaTypeWrapper {
@@ -464,6 +516,7 @@ pub mod yummy {
     /* **************************************************************************************************************** */
     model_wrapper!(DeviceIdAuthRequest, DeviceIdAuthRequestWrapper);
     model_wrapper!(EmailAuthRequest, EmailAuthRequestWrapper);
+    model_wrapper!(CustomIdAuthRequest, CustomIdAuthRequestWrapper);
 
     /* **************************************************************************************************************** */
     /* ************************************************** UNIT TESTS ************************************************** */
