@@ -294,6 +294,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<StartUse
         let user = model.auth.clone();
         
         let timer = ctx.run_later(self.config.connection_restore_wait_timeout, move |manager, _ctx| {            
+
+            println!("StartUserTimeout");
             manager.issue_system_async(ConnUserDisconnect {
                 request_id: None,
                 auth: model.auth.clone(),
@@ -316,7 +318,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<AuthUser
 
     #[tracing::instrument(name="AuthUserDisconnect", skip(self, _ctx))]
     fn handle(&mut self, model: AuthUserDisconnect, _ctx: &mut Context<Self>) -> Self::Result {
-
+        println!("AuthUserDisconnect");
         if let Some(user) = model.auth.deref() {
             self.states.close_session(&user.user, &user.session);
         }

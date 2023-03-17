@@ -17,7 +17,7 @@ use testing::cache::DummyResourceFactory;
 use testing::client::DummyClient;
 use testing::database::get_database_pool;
 
-use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest};
+use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest, LogoutRequest};
 use crate::plugin::PluginExecuter;
 use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
 use super::PythonPluginInstaller;
@@ -140,6 +140,8 @@ def post_deviceid_auth(model, success):
     model.set_device_id("abc")
     assert(model.get_device_id() == "abc")
 
+    model.set_device_id("erhan")
+
     assert(model.get_request_id() is None)
     model.set_request_id(None)
     assert(model.get_request_id() is None)
@@ -153,7 +155,47 @@ def post_deviceid_auth(model, success):
     };
 
     let model = executer.pre_deviceid_auth(model).expect("pre_deviceid_auth returned Err");
-    executer.post_deviceid_auth(model, true).expect("post_deviceid_auth returned Err");
+    let model = executer.post_deviceid_auth(model, true).expect("post_deviceid_auth returned Err");
+    
+    assert_eq!(&model.id, "erhan");
+}
+
+#[test]
+fn customid_auth_test() {
+    let (executer, _) = create_python_environtment("customid_auth_test.py", r#"
+def pre_customid_auth(model):
+    assert(model.get_custom_id() == "abc")
+    model.set_custom_id("erhan")
+    assert(model.get_custom_id() == "erhan")
+
+    assert(model.get_request_id() == 123)
+    model.set_request_id(None)
+    assert(model.get_request_id() is None)
+
+def post_customid_auth(model, success):
+    assert(success)
+    assert(model.get_custom_id() == "erhan")
+    model.set_custom_id("abc")
+    assert(model.get_custom_id() == "abc")
+
+    model.set_custom_id("erhan")
+
+    assert(model.get_request_id() is None)
+    model.set_request_id(None)
+    assert(model.get_request_id() is None)
+"#);
+
+    let model = CustomIdAuthRequest {
+        request_id: Some(123),
+        auth: Arc::new(None),
+        id: "abc".to_string(),
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_customid_auth(model).expect("pre_customid_auth returned Err");
+    let model = executer.post_customid_auth(model, true).expect("post_customid_auth returned Err");
+
+    assert_eq!(&model.id, "erhan");
 }
 
 #[test]
@@ -268,5 +310,14 @@ model_tester!(custom_id_auth_tester, "custom_id_auth_tester.py", pre_customid_au
         session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
     })),
     id: "1234567890".to_string(),
+    socket: Arc::new(DummyClient::default())
+});
+
+model_tester!(logout_tester, "logout_tester.py", pre_logout, post_logout, LogoutRequest {
+    request_id: Some(123),
+    auth: Arc::new(Some(UserAuth {
+        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+    })),
     socket: Arc::new(DummyClient::default())
 });
