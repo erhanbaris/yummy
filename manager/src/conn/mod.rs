@@ -64,7 +64,7 @@ impl ConnectionManager {
 #[cfg(feature = "stateless")]
 mod stateless {
     use actix::{Message, Handler};
-    use general::state::SendMessage;
+    use model::SendMessage;
     use actix::AsyncContext;
 
     use super::ConnectionManager;

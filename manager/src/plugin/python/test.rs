@@ -18,6 +18,7 @@ use testing::client::DummyClient;
 use testing::database::get_database_pool;
 
 use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest, LogoutRequest};
+use crate::conn::model::UserConnected;
 use crate::plugin::PluginExecuter;
 use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
 use super::PythonPluginInstaller;
@@ -319,5 +320,10 @@ model_tester!(logout_tester, "logout_tester.py", pre_logout, post_logout, Logout
         user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
         session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
     })),
+    socket: Arc::new(DummyClient::default())
+});
+
+model_tester!(user_connected, "user_connected.py", pre_user_connected, post_user_connected, UserConnected {
+    user_id: Arc::new(UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string())),
     socket: Arc::new(DummyClient::default())
 });

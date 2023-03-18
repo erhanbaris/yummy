@@ -41,7 +41,7 @@ use crate::{
     user::model::{GetUserInformation, UpdateUser},
 };
 use self::model::ModelWrapper;
-use self::modules::yummy::{self, CustomIdAuthRequestWrapper, LogoutRequestWrapper};
+use self::modules::yummy::{self, CustomIdAuthRequestWrapper, LogoutRequestWrapper, UserConnectedWrapper, ConnUserDisconnectWrapper};
 use self::modules::yummy::EmailAuthRequestWrapper;
 use self::modules::yummy::DeviceIdAuthRequestWrapper;
 
@@ -321,15 +321,15 @@ impl FunctionType {
 impl YummyPlugin for PythonPlugin {
     // Auth manager
     create_func!(pre_email_auth, post_email_auth, FunctionType::EmailAuth, EmailAuthRequest, EmailAuthRequestWrapper);
-        create_func!(pre_deviceid_auth, post_deviceid_auth, FunctionType::DeviceidAuth, DeviceIdAuthRequest, DeviceIdAuthRequestWrapper);
+    create_func!(pre_deviceid_auth, post_deviceid_auth, FunctionType::DeviceidAuth, DeviceIdAuthRequest, DeviceIdAuthRequestWrapper);
     create_func!(pre_customid_auth, post_customid_auth, FunctionType::CustomidAuth, CustomIdAuthRequest, CustomIdAuthRequestWrapper);
     create_func!(pre_logout, post_logout, FunctionType::Logout, LogoutRequest, LogoutRequestWrapper);
     create_dummy_func!(pre_refresh_token, post_refresh_token, FunctionType::REFRESH_TOKEN, RefreshTokenRequest);
     create_dummy_func!(pre_restore_token, post_restore_token, FunctionType::RESTORE_TOKEN, RestoreTokenRequest);
 
     // Connection manager
-    create_dummy_func!(pre_user_connected, post_user_connected, FunctionType::UserConnected, UserConnected);
-    create_dummy_func!(pre_user_disconnected, post_user_disconnected, FunctionType::USER_DISCONNECTED, ConnUserDisconnect);
+    create_func!(pre_user_connected, post_user_connected, FunctionType::UserConnected, UserConnected, UserConnectedWrapper);
+    create_func!(pre_user_disconnected, post_user_disconnected, FunctionType::UserDisconnected, ConnUserDisconnect, ConnUserDisconnectWrapper);
 
     // User manager
     create_dummy_func!(pre_get_user_information, post_get_user_information, FunctionType::GET_USER_INFORMATION, GetUserInformation);

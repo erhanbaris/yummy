@@ -8,6 +8,7 @@ pub mod yummy {
     use std::{rc::Rc, cell::RefCell};
     use std::fmt::Debug;
 
+    use macros::yummy_model;
     use model::UserId;
     use model::meta::{UserMetaType, UserMetaAccess};
     use rustpython::vm::{pyclass, PyPayload};
@@ -16,7 +17,7 @@ pub mod yummy {
     use rustpython::vm::builtins::{PyBaseException, PyInt};
     use rustpython::vm::{builtins::{PyBaseExceptionRef, PyIntRef}, VirtualMachine, PyResult, PyObjectRef};
 
-    use crate::auth::model::{CustomIdAuthRequest, LogoutRequest};
+    use crate::auth::model::{CustomIdAuthRequest, LogoutRequest, ConnUserDisconnect};
     use crate::conn::model::UserConnected;
     use crate::plugin::python::util::MetaTypeUtil;
     use crate::{plugin::python::model::YummyPluginContextWrapper, auth::model::{DeviceIdAuthRequest, EmailAuthRequest}};
@@ -29,64 +30,6 @@ pub mod yummy {
     /* **************************************************** MACROS **************************************************** */
     /* **************************************************************************************************************** */
 
-    macro_rules! function_item_matcher {
-        (
-    
-            $( #[$meta:meta] )*
-        //  ^~~~attributes~~~~^
-            $vis:vis fn $name:ident ( $( $arg_name:ident : $arg_ty:ty ),* $(,)? )
-        //                          ^~~~~~~~~~~~~~~~argument list!~~~~~~~~~~~~~~^
-                $( -> $ret_ty:ty )?
-        //      ^~~~return type~~~^
-                { $($tt:tt)* }
-        //      ^~~~~body~~~~^
-        ) => {
-            $( #[$meta] )*
-            $vis fn $name ( $( $arg_name : $arg_ty ),* ) $( -> $ret_ty )? { $($tt)* }
-        }
-    }
-
-
-    macro_rules! create_wrapper {
-        ($model: ident, $wrapper: ident, $class_name: expr, { $body: item }) => {
-            #[pyclass(module = "yummy", name = $class_name)]
-            #[derive(Debug, PyPayload)]
-            pub struct $wrapper {
-                pub data: Rc<RefCell< $model >>
-            }
-
-            #[pyclass(flags(BASETYPE))]
-            impl $wrapper {
-                pub fn new(data: Rc<RefCell< $model >>) -> Self {
-                    Self { data }
-                }
-
-                #[pymethod]
-                pub fn get_request_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-                    get_nullable_f64!(self, request_id, vm)
-                }
-
-                #[pymethod]
-                pub fn set_request_id(&self, request_id: Option<PyIntRef>, _: &VirtualMachine) -> PyResult<()> {
-                    set_nullable_usize!(self, request_id, request_id);
-                    Ok(())
-                }
-
-                #[pymethod]
-                pub fn get_user_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-                    get_user_id!(self, vm)
-                }
-
-                #[pymethod]
-                pub fn get_session_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-                    get_session_id!(self, vm)
-                }
-
-                $body
-            }
-        };
-    }
-
     macro_rules! wrapper_struct {
         ($model: ident, $wrapper: ident, $class_name: expr) => {
             #[pyclass(module = "yummy", name = $class_name)]
@@ -95,38 +38,6 @@ pub mod yummy {
                 pub data: Rc<RefCell< $model >>
             }
 
-            #[pyclass(flags(BASETYPE))]
-            impl $wrapper {
-                pub fn new(data: Rc<RefCell< $model >>) -> Self {
-                    Self { data }
-                }
-
-                #[pymethod]
-                pub fn get_request_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-                    get_nullable_f64!(self, request_id, vm)
-                }
-
-                #[pymethod]
-                pub fn set_request_id(&self, request_id: Option<PyIntRef>, _: &VirtualMachine) -> PyResult<()> {
-                    set_nullable_usize!(self, request_id, request_id);
-                    Ok(())
-                }
-
-                #[pymethod]
-                pub fn get_user_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-                    get_user_id!(self, vm)
-                }
-
-                #[pymethod]
-                pub fn get_session_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-                    get_session_id!(self, vm)
-                }
-            }
-        };
-    }
-
-    macro_rules! model_wrapper {
-        ($model: ident, $wrapper: ident) => {
             impl ModelWrapper for $wrapper {
                 type Entity = $model;
                 fn wrap(entity: Rc<RefCell<Self::Entity>>) -> Self {
@@ -136,7 +47,7 @@ pub mod yummy {
 
             unsafe impl Send for $wrapper {}
             unsafe impl Sync for $wrapper {}
-        };
+        }
     }
 
     macro_rules! get_string {
@@ -194,20 +105,10 @@ pub mod yummy {
     pub struct PyYummyValidationError {}
 
     wrapper_struct!(DeviceIdAuthRequest, DeviceIdAuthRequestWrapper, "DeviceIdAuth");
-    //wrapper_struct!(UserConnected, UserConnectedWrapper, "UserConnected");
     wrapper_struct!(EmailAuthRequest, EmailAuthRequestWrapper, "EmailAuth");
-    /*create_wrapper!(CustomIdAuthRequest, CustomIdAuthRequestWrapper, "CustomIdAuth", {
-        #[pymethod]
-        pub fn get_custom_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            get_string!(self, id, vm)
-        }
-
-        #[pymethod]
-        pub fn set_custom_id(&self, device_id: String) -> PyResult<()> {
-            set_string!(self, id, device_id);
-            Ok(())
-        }
-    });*/
+    wrapper_struct!(CustomIdAuthRequest, CustomIdAuthRequestWrapper, "CustomIdAuth");
+    wrapper_struct!(UserConnected, UserConnectedWrapper, "UserConnected");
+    wrapper_struct!(ConnUserDisconnect, ConnUserDisconnectWrapper, "ConnUserDisconnect");
     wrapper_struct!(LogoutRequest, LogoutRequestWrapper, "Logout");
 
     #[pyattr]
@@ -237,7 +138,7 @@ pub mod yummy {
     
     #[pyfunction]
     pub fn get_user_meta(user_id: Option<String>, key: Option<String>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-        
+
         /* Validate arguments */
         let (user_id, key) = match (user_id, key) {
 
@@ -444,6 +345,75 @@ pub mod yummy {
     #[pyclass]
     impl PyYummyValidationError { }
 
+    #[yummy_model(class_name="UserConnected", no_request_id=true, no_auth=true)]
+    #[pyclass(flags(BASETYPE))]
+    impl UserConnectedWrapper {}
+
+    #[yummy_model(class_name="ConnUserDisconnect", no_request_id=true, no_auth=true)]
+    #[pyclass(flags(BASETYPE))]
+    impl ConnUserDisconnectWrapper {}
+
+    #[yummy_model(class_name="LogoutRequest")]
+    #[pyclass(flags(BASETYPE))]
+    impl LogoutRequestWrapper {}
+
+    #[yummy_model(class_name="DeviceIdAuthRequest")]
+    #[pyclass(flags(BASETYPE))]
+    impl DeviceIdAuthRequestWrapper {
+        #[pymethod]
+        pub fn get_device_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_string!(self, id, vm)
+        }
+
+        #[pymethod]
+        pub fn set_device_id(&self, device_id: String) -> PyResult<()> {
+            set_string!(self, id, device_id);
+            Ok(())
+        }
+    }
+
+    #[yummy_model(class_name="EmailAuthRequest")]
+    #[pyclass(flags(BASETYPE))]
+    impl EmailAuthRequestWrapper {
+
+        #[pymethod]
+        pub fn get_email(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_string!(self, email, vm)
+        }
+
+        #[pymethod]
+        pub fn set_email(&self, email: String) -> PyResult<()> {
+            set_string!(self, email, email);
+            Ok(())
+        }
+
+        #[pymethod]
+        pub fn get_password(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_str(&self.data.borrow_mut().password.get()[..]).into())
+        }
+
+        #[pymethod]
+        pub fn set_password(&self, password: String) -> PyResult<()> {
+            self.data.borrow_mut().password = Password::from(password);
+            Ok(())
+        }
+    }
+
+    #[yummy_model(class_name="CustomIdAuthRequest")]
+    #[pyclass(flags(BASETYPE))]
+    impl CustomIdAuthRequestWrapper {
+        #[pymethod]
+        pub fn get_custom_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_string!(self, id, vm)
+        }
+
+        #[pymethod]
+        pub fn set_custom_id(&self, device_id: String) -> PyResult<()> {
+            set_string!(self, id, device_id);
+            Ok(())
+        }
+    }
+
     /* ################################################# DeviceIdAuth ################################################# */
 
     /* ################################################## EmailAuth ################################################### */
@@ -483,14 +453,6 @@ pub mod yummy {
 
     /* **************************************************************************************************************** */
     /* ************************************************* MACROS CALL ************************************************** */
-    /* **************************************************************************************************************** */
-    model_wrapper!(DeviceIdAuthRequest, DeviceIdAuthRequestWrapper);
-    model_wrapper!(EmailAuthRequest, EmailAuthRequestWrapper);
-    model_wrapper!(CustomIdAuthRequest, CustomIdAuthRequestWrapper);
-    model_wrapper!(LogoutRequest, LogoutRequestWrapper);
-    //model_wrapper!(UserConnected, UserConnectedWrapper);
-
-    /* **************************************************************************************************************** */
     /* ************************************************** UNIT TESTS ************************************************** */
     /* **************************************************************************************************************** */
 }

@@ -28,3 +28,12 @@ num-derive.workspace = true
 jsonwebtoken.workspace = true
 
 dotenv.workspace = true
+
+# stateless dependencies
+redis = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
+
+[features]
+stateless = ["dep:redis", "dep:tokio", "dep:bytes"]
+default = []
