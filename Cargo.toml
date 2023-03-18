@@ -32,7 +32,7 @@ actix-tls = { version = "3", features = ["rustls"] }
 tokio = { version = "1.26.0", features = ["full"] }
 bytes = "1.4.0"
 serde = { version = "1.0.157", features = ["derive", "rc"] }
-serde_json = "1.0.93"
+serde_json = "1.0.94"
 rustls = "0.20.8"
 rustls-pemfile = "1.0.2"
 serde_repr = "0.1"
