@@ -1,6 +1,6 @@
 use anyhow::Ok;
-use general::meta::{MetaType, RoomMetaAccess};
-use general::model::*;
+use model::meta::{MetaType, RoomMetaAccess};
+use model::*;
 use crate::room::RoomStoreTrait;
 use crate::{create_database, create_connection, PooledConnection};
 

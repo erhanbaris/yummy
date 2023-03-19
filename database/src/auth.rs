@@ -1,12 +1,14 @@
 use diesel::*;
-use general::model::{UserType, UserId};
 use general::password::Password;
+use model::{UserId, UserType};
+use model::user::UserInsert;
+use model::user::LoginInfo;
+use model::schema::user as user_schema;
 use std::borrow::Borrow;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::SqliteStore;
-use crate::model::LoginInfo;
-use crate::{PooledConnection, schema::user, model::UserInsert};
+use crate::PooledConnection;
 
 pub trait AuthStoreTrait: Sized {
     fn user_login_via_email(connection: &mut PooledConnection, email: &str) -> anyhow::Result<Option<LoginInfo>>;
@@ -23,9 +25,9 @@ pub trait AuthStoreTrait: Sized {
 impl AuthStoreTrait for SqliteStore {
     #[tracing::instrument(name="User login via email", skip(connection))]
     fn user_login_via_email(connection: &mut PooledConnection, email: &str) -> anyhow::Result<Option<LoginInfo>> {
-        let result = user::table
-            .filter(user::email.eq(email))
-            .select((user::id, user::name, user::password, user::user_type))
+        let result = user_schema::table
+            .filter(user_schema::email.eq(email))
+            .select((user_schema::id, user_schema::name, user_schema::password, user_schema::user_type))
             .first::<(UserId, Option<String>, Option<String>, i32)>(connection)
             .optional()?
             .map(|(id, name, password, user_type)| (id, name, password.unwrap_or_default(), user_type.into()));
@@ -44,9 +46,9 @@ impl AuthStoreTrait for SqliteStore {
 
     #[tracing::instrument(name="User login via device id", skip(connection))]
     fn user_login_via_device_id(connection: &mut PooledConnection, device_id: &str) -> anyhow::Result<Option<LoginInfo>> {
-        let result = user::table
-            .filter(user::device_id.eq(device_id))
-            .select((user::id, user::name, user::email, user::user_type))
+        let result = user_schema::table
+            .filter(user_schema::device_id.eq(device_id))
+            .select((user_schema::id, user_schema::name, user_schema::email, user_schema::user_type))
             .first::<(UserId, Option<String>, Option<String>, i32)>(connection)
             .optional()?;
 
@@ -67,9 +69,9 @@ impl AuthStoreTrait for SqliteStore {
 
     #[tracing::instrument(name="User login via custom id", skip(connection))]
     fn user_login_via_custom_id(connection: &mut PooledConnection, custom_id: &str) -> anyhow::Result<Option<LoginInfo>> {
-        let result = user::table
-            .filter(user::custom_id.eq(custom_id))
-            .select((user::id, user::name, user::email, user::user_type))
+        let result = user_schema::table
+            .filter(user_schema::custom_id.eq(custom_id))
+            .select((user_schema::id, user_schema::name, user_schema::email, user_schema::user_type))
             .first::<(UserId, Option<String>, Option<String>, i32)>(connection)
             .optional()?;
 
@@ -90,8 +92,8 @@ impl AuthStoreTrait for SqliteStore {
 
     #[tracing::instrument(name="Update last login", skip(connection))]
     fn update_last_login(connection: &mut PooledConnection, user_id: &UserId) -> anyhow::Result<()> {
-        diesel::update(user::table.filter(user::id.eq(user_id.borrow())))
-            .set(user::last_login_date.eq(SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default())).execute(connection)?;
+        diesel::update(user_schema::table.filter(user_schema::id.eq(user_id.borrow())))
+            .set(user_schema::last_login_date.eq(SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default())).execute(connection)?;
         Ok(())
     }
 
@@ -111,7 +113,7 @@ impl AuthStoreTrait for SqliteStore {
             device_id: None,
             name: None
         };
-        diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
+        diesel::insert_into(user_schema::table).values(&vec![model]).execute(connection)?;
 
         Ok(user_id)
     }
@@ -133,7 +135,7 @@ impl AuthStoreTrait for SqliteStore {
             password: None
         };
         
-        diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
+        diesel::insert_into(user_schema::table).values(&vec![model]).execute(connection)?;
 
         Ok(user_id)
     }
@@ -155,7 +157,7 @@ impl AuthStoreTrait for SqliteStore {
             password: None
         };
         
-        diesel::insert_into(user::table).values(&vec![model]).execute(connection)?;
+        diesel::insert_into(user_schema::table).values(&vec![model]).execute(connection)?;
 
         Ok(user_id)
     }

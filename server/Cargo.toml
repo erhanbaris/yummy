@@ -12,9 +12,12 @@ homepage.workspace = true
 doctest = false
 
 [dependencies]
+model.workspace = true
 general.workspace = true
 database.workspace = true
 manager.workspace = true
+cache.workspace = true
+testing.workspace = true
 
 actix.workspace = true
 actix-cors.workspace = true
@@ -66,6 +69,7 @@ awc.workspace = true
 actix-codec.workspace = true
 futures.workspace = true
 futures-util.workspace = true
+
 
 [dev-dependencies]
 

@@ -12,6 +12,8 @@ homepage.workspace = true
 doctest = false
 
 [dependencies]
+model.workspace = true
+
 actix.workspace = true
 actix-web.workspace = true
 diesel.workspace = true
@@ -47,10 +49,9 @@ strum_macros.workspace = true
 num-traits.workspace = true
 num-derive.workspace = true
 
-mlua.workspace = true
+r2d2.workspace = true
 
 # stateless dependencies
-r2d2 =  { workspace = true, optional = true }
 redis = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 bytes = { workspace = true, optional = true }
@@ -62,7 +63,8 @@ rcgen.workspace = true
 
 awc.workspace = true
 actix-codec.workspace = true
+moka.workspace = true
 
 [features]
-stateless = ["dep:redis", "dep:r2d2", "dep:tokio", "dep:bytes"]
+stateless = ["dep:redis", "dep:tokio", "dep:bytes"]
 default = []

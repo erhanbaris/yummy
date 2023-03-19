@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use general::{model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType}, meta::{MetaType, RoomMetaAccess, UserMetaAccess, MetaAction}, password::Password};
+use general::password::Password;
+use model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType, meta::{MetaType, RoomMetaAccess, UserMetaAccess, MetaAction}};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -161,16 +162,25 @@ pub enum RequestRoomType {
 #[serde(untagged)]
 pub enum Request {
     Auth {
+        #[serde(default)]
+        request_id: Option<usize>,
+
         #[serde(flatten)]
         auth_type: RequestAuthType
     },
     
     User {
+        #[serde(default)]
+        request_id: Option<usize>,
+
         #[serde(flatten)]
         user_type: RequestUserType
     },
     
     Room {
+        #[serde(default)]
+        request_id: Option<usize>,
+
         #[serde(flatten)]
         room_type: RequestRoomType
     }

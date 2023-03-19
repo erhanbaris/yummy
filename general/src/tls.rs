@@ -1,11 +1,10 @@
 use std::sync::Arc;
 
+use model::config::YummyConfig;
 use rustls::{Certificate, PrivateKey, ServerConfig};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 
 use std::{fs::File, io::BufReader};
-
-use crate::config::YummyConfig;
 
 pub fn load_rustls_config(config: Arc<YummyConfig>) -> Option<rustls::ServerConfig> {
     let (cert_file_path, key_file_path) = match (config.tls_cert_path.as_ref(), config.tls_key_path.as_ref()) {

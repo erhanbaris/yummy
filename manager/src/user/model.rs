@@ -1,31 +1,30 @@
 use std::{fmt::Debug, sync::Arc, collections::HashMap};
-use database::model::UserInformationModel;
+use general::client::ClientTrait;
+use model::{auth::UserAuth, UserId, UserType, meta::{UserMetaAccess, MetaType, MetaAction}, UserInformationModel};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use general::{client::ClientTrait, meta::MetaAction};
-
 use actix::prelude::Message;
 use validator::Validate;
-
-use general::{model::{UserId, UserType}, auth::UserAuth, meta::{MetaType, UserMetaAccess}};
 
 #[derive(Message, Validate, Clone, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct GetUserInformation {
+    pub request_id: Option<usize>,
     pub query: GetUserInformationEnum,
-
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
 impl GetUserInformation {
-    pub fn me(me: Arc<Option<UserAuth>>, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
+    pub fn me(request_id: Option<usize>, me: Arc<Option<UserAuth>>, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
         Self {
+            request_id,
             query: GetUserInformationEnum::Me(me),
             socket
         }
     }
-    pub fn user(user: UserId, requester: Arc<Option<UserAuth>>, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
+    pub fn user(request_id: Option<usize>, user: UserId, requester: Arc<Option<UserAuth>>, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
         Self {
+            request_id,
             query: GetUserInformationEnum::User {
                 user,
                 requester
@@ -33,8 +32,9 @@ impl GetUserInformation {
             socket
         }
     }
-    pub fn user_via_system(user: UserId, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
+    pub fn user_via_system(request_id: Option<usize>, user: UserId, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
         Self {
+            request_id,
             query: GetUserInformationEnum::UserViaSystem(user),
             socket
         }
@@ -49,9 +49,10 @@ pub enum GetUserInformationEnum {
     User { user: UserId, requester: Arc<Option<UserAuth>> }
 }
 
-#[derive(Message, Validate, Debug)]
+#[derive(Clone, Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct UpdateUser {
+    pub request_id: Option<usize>,
     pub auth: Arc<Option<UserAuth>>,
     pub target_user_id: Option<UserId>,
     pub name: Option<String>,
@@ -72,10 +73,11 @@ impl Default for UpdateUser
 {
     fn default() -> Self {
         Self {
+            request_id: None,
             auth: Arc::new(None),
             target_user_id: None,
             name: None,
-            socket: Arc::new(general::test::DummyClient::default()),
+            socket: Arc::new(testing::client::DummyClient::default()),
             email: None,
             password: None,
             device_id: None,

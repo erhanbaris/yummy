@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::config::get_configuration;
+use model::config::get_configuration;
 use crate::tls::{load_temporary_rustls_config, load_rustls_config};
 
 #[test]

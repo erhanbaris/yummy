@@ -3,17 +3,18 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Answer {
+    pub request_id: Option<usize>,
     pub status: bool,
 }
 
 
 impl Answer {
-    pub fn success() -> Self {
-        Self { status: true }
+    pub fn success(request_id: Option<usize>) -> Self {
+        Self { request_id, status: true }
     }
     
-    pub fn fail() -> Self {
-        Self { status: false }
+    pub fn fail(request_id: Option<usize>) -> Self {
+        Self { request_id, status: false }
     }
 }
 
@@ -31,6 +32,7 @@ impl From<String> for Answer {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GenericAnswer<T> {
+    pub request_id: Option<usize>,
     pub status: bool,
 
     #[serde(flatten)]
@@ -39,15 +41,17 @@ pub struct GenericAnswer<T> {
 
 impl<T> GenericAnswer<T>
 where T: Serialize {
-    pub fn success(result: T) -> Self {
+    pub fn success(request_id: Option<usize>, result: T) -> Self {
         Self {
+            request_id,
             status: true,
             result
         }
     }
     
-    pub fn fail(result: T) -> GenericAnswer<ErrorResponse<T>> {
+    pub fn fail(request_id: Option<usize>, result: T) -> GenericAnswer<ErrorResponse<T>> {
         GenericAnswer {
+            request_id,
             status: false,
             result: ErrorResponse { error: result}
         }

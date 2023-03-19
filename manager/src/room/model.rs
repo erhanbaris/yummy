@@ -1,16 +1,18 @@
 use std::{fmt::Debug, sync::Arc, collections::HashMap, borrow::Cow};
 
 use actix::prelude::Message;
+use cache::state::{RoomInfoTypeVariant, RoomUserInformation, RoomInfoTypeCollection};
+use general::client::ClientTrait;
+use model::{auth::UserAuth, CreateRoomAccessType, meta::{RoomMetaAccess, MetaType, MetaAction}, RoomId, RoomUserType, UserId};
 use serde::Serialize;
 use thiserror::Error;
 use validator::Validate;
-
-use general::{auth::UserAuth, model::{CreateRoomAccessType, RoomId, RoomUserType, UserId}, client::ClientTrait, state::{RoomUserInformation, RoomInfoTypeVariant, RoomInfoTypeCollection}, meta::{MetaType, RoomMetaAccess, MetaAction}};
 
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct CreateRoomRequest {
+    pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
     pub name: Option<String>,
     pub description: Option<String>,
@@ -25,6 +27,7 @@ pub struct CreateRoomRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct JoinToRoomRequest {
+    pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
     pub room: RoomId,
     pub room_user_type: RoomUserType,
@@ -34,6 +37,7 @@ pub struct JoinToRoomRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct WaitingRoomJoins {
+    pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
     pub room: RoomId,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
@@ -42,6 +46,7 @@ pub struct WaitingRoomJoins {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct KickUserFromRoom {
+    pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
     pub room: RoomId,
     pub user: UserId,
@@ -52,6 +57,7 @@ pub struct KickUserFromRoom {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct ProcessWaitingUser {
+    pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
     pub room: RoomId,
     pub user: UserId,
@@ -62,6 +68,7 @@ pub struct ProcessWaitingUser {
 #[derive(Message, Validate, Debug, Clone)]
 #[rtype(result = "()")]
 pub struct DisconnectFromRoomRequest {
+    pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
     pub room: RoomId,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
@@ -70,6 +77,7 @@ pub struct DisconnectFromRoomRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct MessageToRoomRequest {
+    pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
     pub room: RoomId,
     pub message: String,
@@ -79,6 +87,7 @@ pub struct MessageToRoomRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct RoomListRequest {
+    pub request_id: Option<usize>, 
     pub tag: Option<String>,
     pub members: Vec<RoomInfoTypeVariant>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
@@ -87,6 +96,7 @@ pub struct RoomListRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct GetRoomRequest {
+    pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
     pub room: RoomId,
     pub members: Vec<RoomInfoTypeVariant>,
@@ -96,6 +106,7 @@ pub struct GetRoomRequest {
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
 pub struct UpdateRoom {
+    pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
     pub room_id: RoomId,
     pub name: Option<String>,

@@ -4,7 +4,7 @@ use actix::Addr;
 use actix_web::{HttpResponse, HttpRequest};
 use actix_web::{web::{Data, Json}};
 use database::DatabaseTrait;
-use general::web::{GenericAnswer, Answer};
+use model::web::{GenericAnswer, Answer};
 use general::{auth::{UserAuth, ApiIntegration}, error::YummyError};
 use manager::room::RoomManager;
 use manager::{auth::AuthManager, user::UserManager};
@@ -49,8 +49,8 @@ pub mod tests {
     use database::model::UserInformationModel;
     use database::{create_database, create_connection};
     use general::state::YummyState;
-    use general::web::Answer;
-    use general::web::GenericAnswer;
+    use model::web::Answer;
+    use model::web::GenericAnswer;
     use manager::auth::AuthManager;
     use manager::room::RoomManager;
     use manager::user::UserManager;
@@ -69,8 +69,8 @@ pub mod tests {
         let mut db_location = temp_dir();
         db_location.push(format!("{}.db", Uuid::new_v4()));
 
-        ::general::config::configure_environment();
-        let config = ::general::config::get_configuration();
+        ::model::config::configure_environment();
+        let config = ::model::config::get_configuration();
         let connection = create_connection(db_location.to_str().unwrap()).unwrap();
         create_database(&mut connection.clone().get().unwrap()).unwrap();
 
@@ -104,7 +104,7 @@ pub mod tests {
         let app = test::init_service(App::new().configure(config)).await;
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({}))
             .to_request();
 
@@ -117,7 +117,7 @@ pub mod tests {
         let app = test::init_service(App::new().configure(config)).await;
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Email",
@@ -136,7 +136,7 @@ pub mod tests {
     async fn auth_email_2() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Email",
@@ -155,7 +155,7 @@ pub mod tests {
     async fn auth_device_id() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "DeviceId",
@@ -172,7 +172,7 @@ pub mod tests {
     async fn fail_auth_device_id() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "DeviceId",
@@ -189,7 +189,7 @@ pub mod tests {
         let app = test::init_service(App::new().configure(config)).await;
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Email",
@@ -202,7 +202,7 @@ pub mod tests {
         let response: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Refresh",
@@ -220,7 +220,7 @@ pub mod tests {
         let app = test::init_service(App::new().configure(config)).await;
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "DeviceId",
@@ -231,7 +231,7 @@ pub mod tests {
         let response: GenericAnswer<String> = test::call_and_read_body_json(&app, req).await;
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Refresh",
@@ -248,7 +248,7 @@ pub mod tests {
     async fn fail_auth_refresh_token_1() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Refresh"
@@ -264,7 +264,7 @@ pub mod tests {
     async fn fail_auth_refresh_token_2() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Refresh",
@@ -281,7 +281,7 @@ pub mod tests {
     async fn me() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "DeviceId",
@@ -296,8 +296,8 @@ pub mod tests {
         assert!(!token.is_empty());
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
-            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
             .set_json(json!({
                 "type": "User",
                 "user_type": "Me"
@@ -313,7 +313,7 @@ pub mod tests {
         let app = test::init_service(App::new().configure(config)).await;
         
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "User",
                 "user_type": "Me"
@@ -328,7 +328,7 @@ pub mod tests {
     async fn get_private_user() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "DeviceId",
@@ -343,8 +343,8 @@ pub mod tests {
         assert!(!token.is_empty());
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
-            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
             .set_json(json!({
                 "type": "User",
                 "user_type": "Me"
@@ -356,8 +356,8 @@ pub mod tests {
         let original_user_model = res.result;
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
-            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
             .set_json(json!({
                 "type": "User",
                 "user_type": "Get",
@@ -378,7 +378,7 @@ pub mod tests {
         let app = test::init_service(App::new().configure(config)).await;
         
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "User",
                 "user_type": "Me"
@@ -393,7 +393,7 @@ pub mod tests {
     async fn fail_update_user_1() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "DeviceId",
@@ -408,8 +408,8 @@ pub mod tests {
         assert!(!token.is_empty());
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
-            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
             .set_json(json!({
                 "type": "User",
                 "user_type": "Update",
@@ -425,7 +425,7 @@ pub mod tests {
     async fn fail_update_user_2() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "DeviceId",
@@ -440,8 +440,8 @@ pub mod tests {
         assert!(!token.is_empty());
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
-            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
             .set_json(json!({
                 "type": "User",
                 "user_type": "Update",
@@ -458,7 +458,7 @@ pub mod tests {
     async fn update_user_1() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Email",
@@ -475,8 +475,8 @@ pub mod tests {
         assert!(!token.is_empty());
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
-            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
             .set_json(json!({
                 "type": "User",
                 "user_type": "Update",
@@ -488,8 +488,8 @@ pub mod tests {
         assert_eq!(res.status, true);
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
-            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Logout"
@@ -499,7 +499,7 @@ pub mod tests {
         assert_eq!(res.status, true);
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Email",
@@ -518,7 +518,7 @@ pub mod tests {
     async fn update_user_2() {
         let app = test::init_service(App::new().configure(config)).await;
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
             .set_json(json!({
                 "type": "Auth",
                 "auth_type": "Email",
@@ -535,8 +535,8 @@ pub mod tests {
         assert!(!token.is_empty());
 
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
-            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
             .set_json(json!({
                 "type": "User",
                 "user_type": "Update",
@@ -550,8 +550,8 @@ pub mod tests {
         assert_eq!(res.status, true);
 
         let req = test::TestRequest::post().uri("/v1/query")
-        .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
-        .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+        .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+        .append_header((model::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
         .set_json(json!({
             "type": "User",
             "user_type": "Me"
@@ -569,8 +569,8 @@ pub mod tests {
         
         /* Cleanup fields */        
         let req = test::TestRequest::post().uri("/v1/query")
-            .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
-            .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+            .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+            .append_header((model::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
             .set_json(json!({
                 "type": "User",
                 "user_type": "Update",
@@ -583,8 +583,8 @@ pub mod tests {
         assert_eq!(res.status, true);
 
         let req = test::TestRequest::post().uri("/v1/query")
-        .append_header((general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
-        .append_header((general::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
+        .append_header((model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()))
+        .append_header((model::config::DEFAULT_USER_AUTH_KEY_NAME.to_string(), token.to_string()))
         .set_json(json!({
             "type": "User",
             "user_type": "Me"

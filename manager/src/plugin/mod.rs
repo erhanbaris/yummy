@@ -1,23 +1,38 @@
-use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, rc::Rc, cell::RefCell};
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
+// pub mod lua;
+pub mod python;
 
-use general::config::YummyConfig;
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
+use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, rc::Rc, cell::RefCell, marker::PhantomData};
+use thiserror::Error;
 
-use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::model::{GetUserInformation, UpdateUser}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest}};
+use cache::state::YummyState;
+use database::{DatabaseTrait, DefaultDatabaseStore};
+use general::database::Pool;
+use model::{config::YummyConfig, UserId, meta::{UserMetaAccess, MetaType}};
 
-pub mod lua;
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::{model::{GetUserInformation, UpdateUser}, UserLogic}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest}};
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* **************************************************************************************************************** */
 macro_rules! create_plugin_func {
     ($pre: ident, $post: ident, $model: path) => {
-        fn $pre <'a>(&self, _model: Rc<RefCell<$model>>) -> anyhow::Result<()> { Ok(()) }
-        fn $post <'a>(&self, _model: Rc<RefCell<$model>>, _successed: bool) -> anyhow::Result<()> { Ok(()) }
+        fn $pre <'a>(&self, _model: Rc<RefCell<$model>>) -> Result<(), YummyPluginError> { Ok(()) }
+        fn $post <'a>(&self, _model: Rc<RefCell<$model>>, _successed: bool) -> Result<(), YummyPluginError> { Ok(()) }
     }
 }
 
 macro_rules! create_executer_func {
     ($pre_func_name: ident, $post_func_name: ident, $model: path) => {
-        pub fn $pre_func_name(&self, model: $model) -> anyhow::Result<$model> {
+        pub fn $pre_func_name(&self, model: $model) -> Result<$model, YummyPluginError> {
             let model = Rc::new(RefCell::new(model));
-            for plugin in self.auth_interfaces.iter() {
+            for plugin in self.plugins.iter() {
                 if plugin.active.load(Ordering::Relaxed) {
                     plugin.plugin.$pre_func_name(model.clone())?;
                 }
@@ -27,14 +42,14 @@ macro_rules! create_executer_func {
                 Ok(refcell) => {
                     Ok(refcell.into_inner())
                 },
-                Err(_) => Err(anyhow::anyhow!("'#func_name' function failed. 'model' object saved in lua and that is cause a memory leak."))
+                Err(_) => Err(YummyPluginError::Internal(format!("'{}' function failed. 'model' object saved in script and that is cause a memory leak.", stringify!($pre_func_name))))
             }
         }
 
 
-        pub fn $post_func_name(&self, model: $model, successed: bool) -> anyhow::Result<$model> {
+        pub fn $post_func_name(&self, model: $model, successed: bool) -> Result<$model, YummyPluginError> {
             let model = Rc::new(RefCell::new(model));
-            for plugin in self.auth_interfaces.iter() {
+            for plugin in self.plugins.iter() {
                 if plugin.active.load(Ordering::Relaxed) {
                     plugin.plugin.$post_func_name(model.clone(), successed)?;
                 }
@@ -44,10 +59,55 @@ macro_rules! create_executer_func {
                 Ok(refcell) => {
                     Ok(refcell.into_inner())
                 },
-                Err(_) => Err(anyhow::anyhow!("'$post_func_name' function failed. 'model' object saved in lua and that is cause a memory leak."))
+                Err(_) => Err(YummyPluginError::Internal(format!("'{}' function failed. 'model' object saved in script and that is cause a memory leak.", stringify!($post_func_name))))
             }
         }
     }
+}
+
+/* **************************************************************************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
+#[derive(Default)]
+pub struct PluginBuilder {
+    installers: Vec<Box<dyn YummyPluginInstaller>>
+}
+
+#[derive(Clone)]
+pub struct YummyPluginContext<DB: DatabaseTrait + ?Sized + 'static> {
+    user_logic: UserLogic<DB>,
+    _marker: PhantomData<DB>
+}
+
+pub struct PluginInfo {
+    pub plugin: Box<dyn YummyPlugin>,
+    pub name: String,
+    pub active: AtomicBool
+}
+
+pub struct PluginExecuter {
+    plugins: Vec<PluginInfo>,
+    pub context: YummyPluginContext<DefaultDatabaseStore>
+}
+
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* **************************************************************************************************************** */
+#[derive(Debug, Error)]
+pub enum YummyPluginError {
+    #[error("Internal error: {0})")]
+    Internal(String),
+
+    #[error("{0}")]
+    Validation(String)
+}
+
+/* **************************************************************************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* **************************************************************************************************************** */
+pub trait YummyPluginInstaller {
+    fn install(&self, executer: &mut PluginExecuter, config: Arc<YummyConfig>);
 }
 
 pub trait YummyPlugin {
@@ -80,37 +140,22 @@ pub trait YummyPlugin {
     create_plugin_func!(pre_get_room_request, post_get_room_request, GetRoomRequest);
 }
 
-pub trait YummyPluginInstaller {
-    fn install(&self, executer: &mut PluginExecuter, config: Arc<YummyConfig>);
-}
-
-/*pub trait UserProxy {
-    fn get_user(&self, user: UserId) -> Option<UserInformationModel>;
-    fn get_user_meta(&self, user: UserId, key: String) -> Option<MetaType<UserMetaAccess>>;
-    fn set_user_meta(&self, user: UserId, key: String, meta: MetaType<UserMetaAccess>) -> Option<MetaType<UserMetaAccess>>;
-    fn remove_user_meta(&self, user: UserId, key: String);
-}*/
-
-pub enum YummyAuthError {
-    AuthFailed(String),
-    Other(String)
-}
-
-pub struct PluginInfo {
-    pub plugin: Box<dyn YummyPlugin>,
-    pub name: String,
-    pub active: AtomicBool
-}
-
-#[derive(Default)]
-pub struct PluginExecuter {
-    auth_interfaces: Vec<PluginInfo>
-}
-
+/* **************************************************************************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
 impl PluginExecuter {
+    pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>) -> Self {
+        Self {
+            plugins: Vec::new(),
+            context: YummyPluginContext {
+                user_logic: UserLogic::new(config, states, database),
+                _marker: PhantomData
+            }
+        }
+    }
 
     pub fn add_plugin(&mut self, name: String, plugin: Box<dyn YummyPlugin>) {
-        self.auth_interfaces.push(PluginInfo {
+        self.plugins.push(PluginInfo {
             plugin,
             name,
             active: AtomicBool::new(true)
@@ -146,9 +191,12 @@ impl PluginExecuter {
     create_executer_func!(pre_get_room_request, post_get_room_request, GetRoomRequest);
 }
 
-#[derive(Default)]
-pub struct PluginBuilder {
-    installers: Vec<Box<dyn YummyPluginInstaller>>
+impl<DB: database::DatabaseTrait> YummyPluginContext<DB> {
+    pub fn get_user_meta(&self, user_id: UserId, key: String) -> Result<Option<MetaType<UserMetaAccess>>, YummyPluginError> {
+        self.user_logic
+            .get_user_meta(user_id, key)
+            .map_err(|error| YummyPluginError::Internal(error.to_string()))
+    }
 }
 
 impl PluginBuilder {
@@ -156,8 +204,8 @@ impl PluginBuilder {
         self.installers.push(installer);
     }
 
-    pub fn build(&self, config: Arc<YummyConfig>) -> PluginExecuter {
-        let mut executer = PluginExecuter::default(); 
+    pub fn build(&self, config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>) -> PluginExecuter {
+        let mut executer = PluginExecuter::new(config.clone(), states, database); 
         for installer in self.installers.iter() {
             installer.install(&mut executer, config.clone());
         }
@@ -165,3 +213,9 @@ impl PluginBuilder {
         executer
     }
 }
+
+/* **************************************************************************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */

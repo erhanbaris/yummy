@@ -3,16 +3,21 @@ mod api;
 
 use std::sync::Arc;
 
-use general::config::{get_configuration, configure_environment};
+use database::DefaultDatabaseStore;
+use manager::plugin::python::PythonPluginInstaller;
+use model::config::{get_configuration, configure_environment};
 use general::tls::load_rustls_config;
-use general::web::json_error_handler;
+use model::web::json_error_handler;
 
-use manager::plugin::lua::*;
+//use manager::plugin::lua::*;
 use manager::conn::ConnectionManager;
 use manager::user::UserManager;
 use manager::auth::AuthManager;
 
 use manager::plugin::PluginBuilder;
+
+use cache::state::YummyState;
+use cache::state_resource::ResourceFactory;
 
 use actix::Actor;
 use actix_web::error::InternalError;
@@ -25,7 +30,6 @@ use crate::api::websocket::websocket_endpoint;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
 
-    use general::state::YummyState;
     use manager::room::RoomManager;
 
     configure_environment();
@@ -45,18 +49,20 @@ async fn main() -> std::io::Result<()> {
 
     #[cfg(feature = "stateless")]
     let redis_client = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
+    let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(database.clone());
 
-    let states = YummyState::new(config.clone(), #[cfg(feature = "stateless")] redis_client.clone());
+    let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] redis_client.clone());
 
     let mut builder = PluginBuilder::default();
-    builder.add_installer(Box::new(LuaPluginInstaller::default()));
+    //builder.add_installer(Box::new(LuaPluginInstaller::default()));
+    builder.add_installer(Box::new(PythonPluginInstaller::default()));
 
-    let executer = Arc::new(builder.build(config.clone()));
+    let executer = Arc::new(builder.build(config.clone(), states.clone(), database.clone()));
 
-    let user_manager = Data::new(UserManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone(), executer.clone()).start());
-    let room_manager = Data::new(RoomManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone(), executer.clone()).start());
+    let user_manager = Data::new(UserManager::<DefaultDatabaseStore>::new(config.clone(), states.clone(), database.clone(), executer.clone()).start());
+    let room_manager = Data::new(RoomManager::<DefaultDatabaseStore>::new(config.clone(), states.clone(), database.clone(), executer.clone()).start());
     let conn_manager = Data::new(ConnectionManager::new(config.clone(), states.clone(), executer.clone(), #[cfg(feature = "stateless")] redis_client).start());
-    let auth_manager = Data::new(AuthManager::<database::SqliteStore>::new(config.clone(), states.clone(), database.clone(), executer.clone()).start());
+    let auth_manager = Data::new(AuthManager::<DefaultDatabaseStore>::new(config.clone(), states.clone(), database.clone(), executer.clone()).start());
     
     let data_config = Data::new(config.clone());
 
@@ -77,7 +83,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(conn_manager.clone())
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
-            .route("/v1/socket", web::get().to(websocket_endpoint::<database::SqliteStore>))
+            .route("/v1/socket", web::get().to(websocket_endpoint::<DefaultDatabaseStore>))
     });
 
     match load_rustls_config(config.clone()) {

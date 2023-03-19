@@ -1,3 +1,7 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -5,6 +9,9 @@ use std::env;
 
 use rand::{distributions::Alphanumeric, Rng};
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************************************************************************** */
 pub const DEFAULT_BIND_IP: &str = "0.0.0.0";
 pub const DEFAULT_BIND_PORT: usize = 9090;
 pub const DEFAULT_RUST_LOG: &str = "debug,backend,actix_web=debug";
@@ -19,9 +26,11 @@ pub const DEFAULT_API_KEY_NAME: &str = "x-yummy-api";
 pub const DEFAULT_SALT_KEY: &str = "YUMMY-SALT";
 pub const DEFAULT_DATABASE_PATH: &str = "yummy.db";
 pub const DEFAULT_LUA_FILES_PATH: &str = "./server/lua/";
+pub const DEFAULT_PYTHON_FILES_PATH: &str = "./server/py/";
 pub const DEFAULT_DEFAULT_INTEGRATION_KEY: &str = "YummyYummy";
 pub const DEFAULT_ROOM_PASSWORD_CHARSET: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 pub const DEFAULT_ROOM_PASSWORD_LENGTH: usize = 4;
+pub const DEFAULT_CACHE_DURATION: u64 = 5 * 60; // in seconds
 
 #[cfg(feature = "stateless")]
 pub const DEFAULT_REDIS_URL: &str = "redis://127.0.0.1/";
@@ -29,8 +38,11 @@ pub const DEFAULT_REDIS_URL: &str = "redis://127.0.0.1/";
 #[cfg(feature = "stateless")]
 pub const DEFAULT_REDIS_PREFIX: &str = "";
 
-
-#[derive(Debug, Default, Clone)]
+/* **************************************************************************************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
+#[derive(Debug, Clone)]
 pub struct YummyConfig {
     pub server_name: String,
     pub bind_ip: String,
@@ -44,6 +56,7 @@ pub struct YummyConfig {
     pub token_lifetime: Duration,
     pub heartbeat_interval: Duration,
     pub heartbeat_timeout: Duration,
+    pub cache_duration: Duration,
     pub connection_restore_wait_timeout: Duration,
 
     pub max_user_meta: usize,
@@ -56,6 +69,7 @@ pub struct YummyConfig {
     pub salt_key: String,
     pub database_path: String,
     pub lua_files_path: String,
+    pub python_files_path: String,
 
     #[cfg(feature = "stateless")]
     pub redis_url: String,
@@ -64,6 +78,10 @@ pub struct YummyConfig {
     pub redis_prefix: String
 }
 
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* **************************************************************************************************************** */
 pub fn get_env_var<R: Clone + FromStr>(key: &str, default: R) -> R {
     env::var(key)
         .map(|value| value.parse::<R>().unwrap_or_else(|_| default.clone()))
@@ -87,13 +105,17 @@ pub fn get_profile() -> &'static str {
 }
 
 pub fn get_configuration() -> Arc<YummyConfig> {
+    Arc::new(get_raw_configuration())
+}
+
+pub fn get_raw_configuration() -> YummyConfig {
     let server_name: String = format!("YUMMY-{}", rand::thread_rng()
         .sample_iter(&Alphanumeric)
         .take(7)
         .map(char::from)
         .collect::<String>());
 
-    Arc::new(YummyConfig {
+    YummyConfig {
         server_name: get_env_var("SERVER_NAME", server_name),
         bind_ip: get_env_var("BIND_IP", DEFAULT_BIND_IP.to_string()),
         bind_port: get_env_var("BIND_PORT", DEFAULT_BIND_PORT.to_string()),
@@ -103,6 +125,7 @@ pub fn get_configuration() -> Arc<YummyConfig> {
         
         rust_log: get_env_var("RUST_LOG", DEFAULT_RUST_LOG.to_string()),
         heartbeat_timeout: Duration::from_secs(get_env_var("HEARTBEAT_TIMEOUT", DEFAULT_HEARTBEAT_TIMEOUT)),
+        cache_duration: Duration::from_secs(get_env_var("CACHE_DURATION", DEFAULT_CACHE_DURATION)),
         connection_restore_wait_timeout: Duration::from_secs(get_env_var("CONNECTION_RESTORE_WAIT_TIMEOUT", DEFAULT_CONNECTION_RESTORE_WAIT_TIMEOUT)),
         heartbeat_interval: Duration::from_secs(get_env_var("HEARTBEAT_INTERVAL", DEFAULT_HEARTBEAT_INTERVAL)),
         token_lifetime: Duration::from_secs(get_env_var("TOKEN_LIFETIME", DEFAULT_TOKEN_LIFETIME)),
@@ -111,6 +134,7 @@ pub fn get_configuration() -> Arc<YummyConfig> {
         integration_key: get_env_var("INTEGRATION_KEY", DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()),
         database_path: get_env_var("DATABASE_PATH", DEFAULT_DATABASE_PATH.to_string()),
         lua_files_path: get_env_var("LUA_FILES_PATH", DEFAULT_LUA_FILES_PATH.to_string()),
+        python_files_path: get_env_var("PYTHON_FILES_PATH", DEFAULT_PYTHON_FILES_PATH.to_string()),
         max_user_meta: get_env_var("MAX_USER_META", DEFAULT_MAX_USER_META),
         max_room_meta: get_env_var("MAX_ROOM_META", DEFAULT_MAX_ROOM_META),
         room_password_charset: get_env_var("ROOM_PASSWORD_CHARSET", DEFAULT_ROOM_PASSWORD_CHARSET.to_string()).as_bytes().to_vec(),
@@ -118,5 +142,21 @@ pub fn get_configuration() -> Arc<YummyConfig> {
 
         #[cfg(feature = "stateless")] redis_url: get_env_var("REDIS_URL", DEFAULT_REDIS_URL.to_string()),
         #[cfg(feature = "stateless")] redis_prefix: get_env_var("REDIS_PREFIX", DEFAULT_REDIS_PREFIX.to_string()),
-    })
+    }
 }
+
+/* **************************************************************************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* **************************************************************************************************************** */
+impl Default for YummyConfig {
+    fn default() -> Self {
+        get_raw_configuration()
+    }
+}
+
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */

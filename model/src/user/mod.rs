@@ -1,13 +1,19 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
 
+use crate::RoomId;
+use crate::RoomMetaId;
+use crate::RoomTagId;
+use crate::RoomUserBanId;
+use crate::RoomUserId;
+use crate::RoomUserRequestId;
+use crate::UserId;
+use crate::UserMetaId;
+use crate::UserType;
 use crate::schema::*;
 use diesel::*;
-use general::meta::MetaType;
-use general::meta::UserMetaAccess;
-use general::model::*;
 use serde::Serialize;
 use serde::Deserialize;
+
 
 #[derive(Debug, Insertable)]
 #[diesel(table_name = user)]
@@ -128,21 +134,6 @@ pub struct UserUpdate {
     pub user_type: Option<i32>,
     pub device_id: Option<Option<String>>,
     pub custom_id: Option<Option<String>>,
-}
-
-#[derive(Default, Clone, Debug, Queryable, Serialize, Deserialize, PartialEq)]
-#[diesel(table_name = user)]
-pub struct UserInformationModel {
-    pub id: UserId,
-    pub name: Option<String>,
-    pub email: Option<String>,
-    pub device_id: Option<String>,
-    pub custom_id: Option<String>,
-    pub metas: Option<HashMap<String, MetaType<UserMetaAccess>>>,
-    pub user_type: UserType,
-    pub online: bool,
-    pub insert_date: i32,
-    pub last_login_date: i32,
 }
 
 #[derive(Default, Clone, Debug, Queryable, Serialize, Deserialize, PartialEq, Eq)]

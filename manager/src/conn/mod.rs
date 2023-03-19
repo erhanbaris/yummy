@@ -14,15 +14,15 @@ use actix::Actor;
 use actix::Context;
 use actix_broker::BrokerSubscribe;
 
+use cache::state::YummyState;
 use general::client::ClientTrait;
-use general::config::YummyConfig;
-use general::model::UserId;
-use general::state::SendMessage;
-use general::state::YummyState;
+use ::model::config::YummyConfig;
+use ::model::SendMessage;
+use ::model::UserId;
 
 use actix_broker::*;
 
-use general::web::Answer;
+use ::model::web::Answer;
 #[cfg(feature = "stateless")]
 use redis::Commands;
 
@@ -64,7 +64,7 @@ impl ConnectionManager {
 #[cfg(feature = "stateless")]
 mod stateless {
     use actix::{Message, Handler};
-    use general::state::SendMessage;
+    use model::SendMessage;
     use actix::AsyncContext;
 
     use super::ConnectionManager;
@@ -130,7 +130,7 @@ impl Handler<ConnUserDisconnect> for ConnectionManager {
             Some(user) => &user.user,
             None => {
                 if model.send_message {
-                    model.socket.send(Answer::fail().into());
+                    model.socket.send(Answer::fail(model.request_id).into());
                 }
                 return
             }
@@ -140,21 +140,23 @@ impl Handler<ConnUserDisconnect> for ConnectionManager {
 
         if user_removed.is_none() {
             if model.send_message {
-                model.socket.send(Answer::fail().into());
+                model.socket.send(Answer::fail(model.request_id).into());
             }
             return;
         }
         
         if model.send_message {
-            model.socket.send(Answer::success().into());
+            model.socket.send(Answer::success(model.request_id).into());
         }
         
         self.issue_system_async(RoomUserDisconnect {
+            request_id: model.request_id,
             auth: model.auth.clone(),
             socket: model.socket.clone()
         });
 
         self.issue_system_async(AuthUserDisconnect {
+            request_id: model.request_id,
             auth: model.auth.clone(),
             socket: model.socket.clone()
         });

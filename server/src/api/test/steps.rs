@@ -71,7 +71,7 @@ async fn user_receive_message<'a, T: DeserializeOwned>(world: &'a mut YummyWorld
 /* Givens */
 #[given(expr = "{word} connected")]
 async fn user_connect(world: &mut YummyWorld, user: String) {
-    let ws_client = WebsocketTestClient::<String, String>::new(world.ws_server.url("/v1/socket") , general::config::DEFAULT_API_KEY_NAME.to_string(), general::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
+    let ws_client = WebsocketTestClient::<String, String>::new(world.ws_server.url("/v1/socket") , model::config::DEFAULT_API_KEY_NAME.to_string(), model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
     world.ws_clients.insert(
         user,
         ClientInfo {

@@ -12,8 +12,8 @@ use actix_web::dev::Payload;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::*;
 
-use crate::model::UserType;
-use crate::{model::{UserId, SessionId}, config::YummyConfig};
+use crate::*;
+use crate::config::YummyConfig;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UserJwt {

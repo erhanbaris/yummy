@@ -5,21 +5,19 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use diesel::RunQueryDsl;
 use diesel::QueryDsl;
 use diesel::ExpressionMethods;
-use general::meta::RoomMetaAccess;
-use general::meta::MetaType;
-use general::model::{RoomId, RoomUserRequestId, RoomUserBanId};
-use general::model::RoomMetaId;
-use general::model::RoomTagId;
-use general::model::RoomUserId;
-use general::model::UserId;
-use general::model::UserMetaId;
-use general::model::{CreateRoomAccessType, RoomUserType};
+use model::meta::RoomMetaAccess;
+use model::meta::MetaType;
+use model::user::{RoomUpdate, RoomInsert, RoomTagInsert, RoomUserInsert, RoomUserRequestInsert, RoomUserBanInsert, RoomMetaInsert, RoomMetaModel};
+use model::{RoomId, RoomUserRequestId, RoomUserBanId};
+use model::RoomMetaId;
+use model::RoomTagId;
+use model::RoomUserId;
+use model::UserId;
+use model::UserMetaId;
+use model::{CreateRoomAccessType, RoomUserType};
 
-use crate::model::{RoomMetaInsert, RoomUserRequestInsert, RoomUserBanInsert};
-use crate::model::RoomMetaModel;
-use crate::model::RoomUpdate;
-use crate::schema::{room_meta, room_user_request};
-use crate::{SqliteStore, PooledConnection, model::{RoomInsert, RoomTagInsert, RoomUserInsert}, schema::{room::{self}, room_tag, room_user, room_user_ban}};
+use model::schema::{room, room_tag, room_meta, room_user, room_user_ban, room_user_request};
+use crate::{SqliteStore, PooledConnection};
 
 pub trait RoomStoreTrait: Sized {
     fn create_room(connection: &mut PooledConnection, name: Option<String>, access_type: CreateRoomAccessType, max_user: usize, join_request: bool, tags: &[String]) -> anyhow::Result<RoomId>;

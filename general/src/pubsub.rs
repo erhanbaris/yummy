@@ -6,7 +6,7 @@ use actix::AsyncContext;
 use actix::Context;
 use actix::WrapFuture;
 use redis::{FromRedisValue, RedisError};
-use crate::config::YummyConfig;
+use model::config::YummyConfig;
 
 pub trait PubSubMessage: Message + Send + 'static {
     fn new(message: String) -> Self;

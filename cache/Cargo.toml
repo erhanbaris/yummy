@@ -1,0 +1,41 @@
+[package]
+name = "cache"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+model.workspace = true
+general.workspace = true
+database.workspace = true
+
+strum.workspace = true
+strum_macros.workspace = true
+
+thiserror.workspace = true
+anyhow.workspace = true
+moka.workspace = true
+parking_lot.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+serde_repr.workspace = true
+
+actix.workspace = true
+actix-web-actors.workspace = true
+actix-web.workspace = true
+actix-broker.workspace = true
+
+log.workspace = true
+uuid.workspace = true
+
+r2d2 =  { workspace = true, optional = true }
+redis = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
+
+tracing = "0.1"
+
+[features]
+stateless = ["dep:redis", "dep:r2d2", "dep:bytes"]
+default = []

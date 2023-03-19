@@ -40,6 +40,10 @@ Rust Programming Language's and Actix Framework's logging configuration. <br/>
 Heartbeat message sent interval. This parameter is in **seconds**. <br/>
 :octicons-milestone-24: **Default**: `10` <br/>
 
+### `CACHE_DURATION <br/>
+Idle time of cache entry. The timer will be refreshed on every access the entry. This parameter is in **seconds**. <br/>
+:octicons-milestone-24: **Default**: `300` <br/>
+
 ### `HEARTBEAT_TIMEOUT` <br/>
 Maximum wait time after receiving the last heartbeat message. The connection termination procedure will be started if the system cannot receive a heartbeat message in time. This parameter is in **seconds**. <br/>
 :octicons-milestone-24: **Default**: `20` <br/>

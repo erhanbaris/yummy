@@ -6,13 +6,13 @@ use actix_web::HttpRequest;
 use actix_web::web::Data;
 use actix_web::web::Payload;
 use database::DatabaseTrait;
-use general::auth::ApiIntegration;
-use general::auth::UserAuth;
+use model::WebsocketMessage;
+use model::auth::ApiIntegration;
+use model::auth::UserAuth;
 use general::client::ClientTrait;
 use general::error::YummyError;
-use general::model::UserAuthenticated;
-use general::model::WebsocketMessage;
-use general::web::GenericAnswer;
+use model::UserAuthenticated;
+use model::web::GenericAnswer;
 use manager::auth::model::StartUserTimeout;
 use manager::room::RoomManager;
 use manager::user::UserManager;
@@ -29,11 +29,12 @@ use actix_web::Result;
 use actix_web_actors::ws;
 use manager::auth::AuthManager;
 
-use general::config::YummyConfig;
+use model::config::YummyConfig;
 use crate::api::process_auth;
 use crate::api::process_user;
 use crate::api::request::*;
 
+use super::ProcessResult;
 use super::process_room;
 
 pub async fn websocket_endpoint<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, stream: Payload, config: Data<Arc<YummyConfig>>, auth_manager: Data<Addr<AuthManager<DB>>>, user_manager: Data<Addr<UserManager<DB>>>, room_manager: Data<Addr<RoomManager<DB>>>, _: ApiIntegration) -> Result<actix_web::HttpResponse, YummyError> {
@@ -76,30 +77,27 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
     }
 
     #[tracing::instrument(name="execute_message", skip(self, ctx))]
-    fn execute_message(&mut self, message: String, ctx: &mut ws::WebsocketContext<Self>) -> anyhow::Result<()> {
+    fn execute_message(&mut self, message: String, ctx: &mut ws::WebsocketContext<Self>) -> ProcessResult {
         let message = match serde_json::from_str::<Request>(&message) {
             Ok(message) => message,
             Err(error) => {
                 println!("{}", error);
-                ctx.text(serde_json::to_string(&GenericAnswer::fail("Wrong message format")).unwrap());
+                ctx.text(serde_json::to_string(&GenericAnswer::fail(None, "Wrong message format")).unwrap());
                 return Ok(());
             }
         };
 
-        let auth_manager = self.auth_manager.clone();
-        let user_manager = self.user_manager.clone();
-        let room_manager = self.room_manager.clone();
         let user_info = self.user_auth.clone();
         let socket = self.client.clone();
 
         let validation = match message {
-            Request::Auth { auth_type } => process_auth(auth_type, auth_manager, user_info, socket),
-            Request::User { user_type } => process_user(user_type, user_manager, user_info, socket),
-            Request::Room { room_type } => process_room(room_type, room_manager, user_info, socket),
+            Request::Auth { request_id, auth_type } => process_auth(request_id, auth_type, self.auth_manager.clone(), user_info, socket),
+            Request::User { request_id, user_type } => process_user(request_id, user_type, self.user_manager.clone(), user_info, socket),
+            Request::Room { request_id, room_type } => process_room(request_id, room_type, self.room_manager.clone(), user_info, socket),
         };
 
-        if let Err(error) = validation {
-            ctx.text(serde_json::to_string(&GenericAnswer::fail(error.to_string())).unwrap())
+        if let Err((request_id, error)) = validation {
+            ctx.text(serde_json::to_string(&GenericAnswer::fail(request_id, error.to_string())).unwrap())
         }
 
         Ok(())
@@ -163,8 +161,8 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> StreamHandler<Result<ws::Mess
             _ => Ok(()),
         };
 
-        if let Err(error) = result {
-            ctx.text(String::from(GenericAnswer::fail(error.to_string())));
+        if let Err((request_id, error)) = result {
+            ctx.text(String::from(GenericAnswer::fail(request_id, error.to_string())));
         }
     }
 }
@@ -211,7 +209,7 @@ impl ClientTrait for GameWebsocketClient {
         self.sender.do_send(WebsocketMessage(message));
     }
 
-    fn authenticated(&self, user: general::auth::UserJwt) {
+    fn authenticated(&self, user: model::auth::UserJwt) {
         self.auth.do_send(UserAuthenticated(user));
     }
 }

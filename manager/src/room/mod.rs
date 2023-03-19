@@ -1,5 +1,11 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
 pub mod model;
 
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 #[cfg(test)]
 mod test;
 use std::collections::HashMap;
@@ -9,15 +15,17 @@ use std::sync::Arc;
 use actix::{Context, Actor, Handler};
 use actix_broker::{BrokerSubscribe, BrokerIssue};
 use anyhow::anyhow;
-use database::model::RoomUpdate;
-use database::{Pool, DatabaseTrait, PooledConnection};
+use cache::state::{RoomInfoTypeVariant, YummyState, RoomInfoType};
+use database::DatabaseTrait;
 
-use general::config::YummyConfig;
-use general::meta::{MetaType, MetaAction};
-use general::meta::RoomMetaAccess;
-use general::model::{RoomId, UserId, RoomUserType, UserType, SessionId};
-use general::state::{YummyState, SendMessage, RoomInfoTypeVariant, RoomInfoType};
-use general::web::{GenericAnswer, Answer};
+use ::model::config::YummyConfig;
+use ::model::meta::{MetaType, MetaAction};
+use ::model::meta::RoomMetaAccess;
+use ::model::user::RoomUpdate;
+use ::model::{RoomId, UserId, RoomUserType, UserType, SessionId, SendMessage};
+use ::model::web::{GenericAnswer, Answer};
+use general::database::Pool;
+use general::database::PooledConnection;
 
 use crate::auth::model::{AuthError, RoomUserDisconnect};
 use crate::plugin::PluginExecuter;
@@ -26,10 +34,18 @@ use crate::user::model::UserError;
 
 use self::model::*;
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************************************************************************** */
 const ALL_ROOM_INFO_TYPE_VARIANTS: [RoomInfoTypeVariant; 10] = [RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::BannedUsers, RoomInfoTypeVariant::JoinRequest, RoomInfoTypeVariant::Metas];
 
 type ConfigureMetasResult = anyhow::Result<(Option<HashMap<String, MetaType<RoomMetaAccess>>>, HashMap<String, MetaType<RoomMetaAccess>>)>;
 
+
+/* **************************************************************************************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
 pub struct RoomManager<DB: DatabaseTrait + ?Sized> {
     config: Arc<YummyConfig>,
     database: Arc<Pool>,
@@ -38,6 +54,12 @@ pub struct RoomManager<DB: DatabaseTrait + ?Sized> {
     _marker: PhantomData<DB>
 }
 
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
 impl<DB: DatabaseTrait + ?Sized> RoomManager<DB> {
     pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>, executer: Arc<PluginExecuter>) -> Self {
         Self {
@@ -50,17 +72,8 @@ impl<DB: DatabaseTrait + ?Sized> RoomManager<DB> {
     }
 }
 
-impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for RoomManager<DB> {
-    type Context = Context<Self>;
-    
-    fn started(&mut self, ctx: &mut Self::Context) {
-        self.subscribe_system_async::<RoomUserDisconnect>(ctx);
-        self.subscribe_system_async::<DisconnectFromRoomRequest>(ctx);
-    }
-}
-
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> {
-    fn join_to_room(&mut self, connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, room_user_type: RoomUserType) -> anyhow::Result<()> {
+    fn join_to_room(&mut self, connection: &mut PooledConnection, request_id: Option<usize>, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, room_user_type: RoomUserType) -> anyhow::Result<()> {
         /* Room does not require approvement */
         let users = self.states.get_users_from_room(room_id)?;
         self.states.join_to_room(room_id, user_id, session_id, room_user_type.clone())?;
@@ -88,7 +101,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         
         self.issue_system_async(SendMessage {
             user_id: Arc::new(user_id.clone()),
-            message: GenericAnswer::success(RoomResponse::Joined { room_name, users, metas, room: room_id }).into()
+            message: GenericAnswer::success(request_id, RoomResponse::Joined { room_name, users, metas, room: room_id }).into()
         });
         Ok(())
     }
@@ -123,7 +136,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         let (to_be_inserted_metas, to_be_removed_metas, total_metas, remaining) = match meta_action {
 
             // Dont remove old metas
-            general::meta::MetaAction::OnlyAddOrUpdate => {
+            ::model::meta::MetaAction::OnlyAddOrUpdate => {
 
                 // Check for metas
                 if let Some(ref metas) = metas {
@@ -166,7 +179,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
             },
 
             // Add new metas than remove all old meta informations
-            general::meta::MetaAction::RemoveUnusedMetas => {
+            ::model::meta::MetaAction::RemoveUnusedMetas => {
 
                 // Check for metas
                 if let Some(ref metas) = metas {
@@ -196,7 +209,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
                     (None, None, 0, HashMap::default())
                 }
             },
-            general::meta::MetaAction::RemoveAllMetas => {
+            ::model::meta::MetaAction::RemoveAllMetas => {
                 // Discard all new meta insertion list and remove all old meta that based on user access level.
                 let remove_list = DB::get_room_meta(connection, room_id, access_level)?.into_iter().map(|meta| meta.0).collect::<Vec<_>>();
                 metas = Some(HashMap::default());
@@ -236,8 +249,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
     }
 
     fn get_access_level_for_room(&mut self, user_id: &UserId, session_id: &SessionId, room_id: &RoomId) -> anyhow::Result<RoomMetaAccess> {
-        match self.states.get_user_type(user_id) {
-            Some(UserType::User) => match self.states.get_users_room_type(session_id, room_id) {
+        match self.states.get_user_type(user_id)? {
+            Some(UserType::User) => match self.states.get_users_room_type(session_id, room_id)? {
                 Some(RoomUserType::User) => Ok(RoomMetaAccess::User),
                 Some(RoomUserType::Moderator) => Ok(RoomMetaAccess::Moderator),
                 Some(RoomUserType::Owner) => Ok(RoomMetaAccess::Owner),
@@ -247,6 +260,18 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
             Some(UserType::Admin) => Ok(RoomMetaAccess::Admin),
             None => Err(anyhow::anyhow!(UserError::UserNotFound))
         }
+    }
+}
+
+/* **************************************************************************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* **************************************************************************************************************** */
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Actor for RoomManager<DB> {
+    type Context = Context<Self>;
+    
+    fn started(&mut self, ctx: &mut Self::Context) {
+        self.subscribe_system_async::<RoomUserDisconnect>(ctx);
+        self.subscribe_system_async::<DisconnectFromRoomRequest>(ctx);
     }
 }
 
@@ -286,7 +311,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
 
             DB::join_to_room(connection, &room_id, user_id, RoomUserType::Owner)?;
 
-            let access_level = match self.states.get_user_type(user_id) {
+            let access_level = match self.states.get_user_type(user_id)? {
                 Some(UserType::User) => RoomMetaAccess::Owner,
                 Some(UserType::Mod) => RoomMetaAccess::Owner,
                 Some(UserType::Admin) => RoomMetaAccess::Admin,
@@ -303,7 +328,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
         })?;
         
 
-        model.socket.send(GenericAnswer::success(RoomResponse::RoomCreated { room: room_id }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::RoomCreated { room: room_id }).into());
         Ok(())
     }
 }
@@ -359,9 +384,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
             match has_room_update {
                 true => match DB::update_room(connection, &model.room_id, &updates)? {
                     0 => return Err(anyhow::anyhow!(UserError::UserNotFound)),
-                    _ => model.socket.send(Answer::success().into())
+                    _ => model.socket.send(Answer::success(model.request_id).into())
                 },
-                false => model.socket.send(Answer::success().into())
+                false => model.socket.send(Answer::success(model.request_id).into())
             };
 
             // Update all caches
@@ -403,7 +428,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<WaitingR
         // Check user information
         let session_id = get_session_id_from_auth!(model);
 
-        let user_type = match self.states.get_users_room_type(session_id, &model.room) {
+        let user_type = match self.states.get_users_room_type(session_id, &model.room)? {
             Some(room_user_type) => room_user_type,
             None => return Err(anyhow::anyhow!(RoomError::UserNotInTheRoom))
         };
@@ -413,7 +438,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<WaitingR
         }
 
         let users = self.states.get_join_requests(&model.room)?;
-        model.socket.send(GenericAnswer::success(RoomResponse::WaitingRoomJoins { room: &model.room, users }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::WaitingRoomJoins { room: &model.room, users }).into());
         Ok(())
     }
 }
@@ -458,10 +483,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
             }
 
             // Send message to user about waiting for approvement
-            model.socket.send(GenericAnswer::success(RoomResponse::JoinRequested { room: &model.room }).into());
+            model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::JoinRequested { room: &model.room }).into());
         } else {
             // User can directly try to join room
-            self.join_to_room(&mut connection, &model.room, user_id, session_id, model.room_user_type.clone())?;
+            self.join_to_room(&mut connection,  model.request_id, &model.room, user_id, session_id, model.room_user_type.clone())?;
         }
         Ok(())
     }
@@ -485,18 +510,18 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<ProcessW
             if model.status {
 
                 // Moderator or room owner approve join request
-                self.join_to_room(connection, &model.room, &model.user, &session_id, room_user_type)?;
+                self.join_to_room(connection, model.request_id, &model.room, &model.user, &session_id, room_user_type)?;
             } else {
                 
                 // Room join request declined
                 self.issue_system_async(SendMessage {
                     user_id: Arc::new(model.user.clone()),
-                    message: GenericAnswer::success(RoomResponse::JoinRequestDeclined { room: &model.room }).into()
+                    message: GenericAnswer::success(model.request_id, RoomResponse::JoinRequestDeclined { room: &model.room }).into()
                 });
             }
 
             // Send operation successfully executed message to operator
-            model.socket.send(Answer::success().into());
+            model.socket.send(Answer::success(model.request_id).into());
             anyhow::Ok(())
         })?;
         
@@ -513,7 +538,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<KickUser
     fn handle(&mut self, model: KickUserFromRoom, _ctx: &mut Context<Self>) -> Self::Result {        
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
 
-        let requester_user_type = self.states.get_users_room_type(session_id, &model.room).ok_or(RoomError::UserDoesNotHaveEnoughPermission)?;
+        let requester_user_type = self.states.get_users_room_type(session_id, &model.room)?.ok_or(RoomError::UserDoesNotHaveEnoughPermission)?;
 
         // User must be room owner or moderator
         if requester_user_type == RoomUserType::User {
@@ -545,7 +570,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<KickUser
             })
         }
 
-        model.socket.send(Answer::success().into());
+        model.socket.send(Answer::success(model.request_id).into());
         Ok(())
     }
 }
@@ -561,7 +586,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<Disconne
         let (user_id, session_id) = get_user_session_id_from_auth!(model, ());
 
         self.disconnect_from_room(&model.room, user_id, session_id).unwrap_or_default();
-        model.socket.send(Answer::success().into());
+        model.socket.send(Answer::success(model.request_id).into());
     }
 }
 
@@ -589,7 +614,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
                     }
                 }
 
-                model.socket.send(Answer::success().into());
+                model.socket.send(Answer::success(model.request_id).into());
                 Ok(())
             }
             Err(error) => Err(anyhow!(error))
@@ -610,7 +635,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomList
         };
 
         let rooms = self.states.get_rooms(&model.tag, members)?;
-        model.socket.send(GenericAnswer::success(RoomResponse::RoomList { rooms }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::RoomList { rooms }).into());
         Ok(())
     }
 }
@@ -633,7 +658,13 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetRoomR
 
         let access_level = self.get_access_level_for_room(user_id, session_id, &model.room)?;
         let room = self.states.get_room_info(&model.room, access_level, members)?;
-        model.socket.send(GenericAnswer::success(RoomResponse::RoomInfo { room }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::RoomInfo { room }).into());
         Ok(())
     }
 }
+
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */
+/* **************************************************************************************************************** */

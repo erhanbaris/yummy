@@ -1,8 +1,18 @@
-
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use std::ops::Deref;
 
-use crate::config::configure_environment;
-use crate::{model::*, config::get_configuration};
+use model::config::configure_environment;
+use model::config::get_configuration;
+use model::SendMessage;
+use model::SessionId;
+use model::UserInformationModel;
+use model::UserType;
+use model::meta::collection::UserMetaCollection;
+
+use crate::cache::YummyCacheResource;
 
 use actix::Actor;
 use actix::Context;
@@ -10,8 +20,26 @@ use actix::Handler;
 use anyhow::Ok;
 
 use super::*;
+use super::resource::YummyCacheResourceFactory;
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
 struct DummyActor;
+pub struct DummyResourceFactory;
+pub struct DummyUserInformationResource;
+pub struct DummyUserMetaResource;
+pub struct DummyUserTypeResource;
+
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* **************************************************************************************************************** */
 impl Actor for DummyActor {
     type Context = Context<Self>;
 }
@@ -23,6 +51,45 @@ impl Handler<SendMessage> for DummyActor {
     }
 }
 
+impl YummyCacheResourceFactory for DummyResourceFactory {
+    fn user_information(&self) -> Box<dyn YummyCacheResource<K=UserId, V=UserInformationModel>> {
+        Box::new(DummyUserInformationResource {})
+    }
+
+    fn user_metas(&self) -> Box<dyn YummyCacheResource<K=UserId, V=UserMetaCollection>> {
+        Box::new(DummyUserMetaResource {})
+    }
+
+    fn user_type(&self) -> Box<dyn YummyCacheResource<K=UserId, V=UserType>> {
+        Box::new(DummyUserTypeResource {})
+    }
+}
+
+impl YummyCacheResource for DummyUserInformationResource {
+    type K=UserId;
+    type V=UserInformationModel;
+
+    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
+}
+
+impl YummyCacheResource for DummyUserMetaResource {
+    type K=UserId;
+    type V=UserMetaCollection;
+
+    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
+}
+
+impl YummyCacheResource for DummyUserTypeResource {
+    type K=UserId;
+    type V=UserType;
+
+    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
+}
+
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */
 #[actix::test]
 async fn state_1() -> anyhow::Result<()> {
     configure_environment();
@@ -33,10 +100,10 @@ async fn state_1() -> anyhow::Result<()> {
 
 
     DummyActor{}.start().recipient::<SendMessage>();
-    let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
+    let mut state = YummyState::new(config, Box::new(DummyResourceFactory{}), #[cfg(feature = "stateless")] conn);
     let user_id = UserId::new();
     let session_id = state.new_session(&user_id, None, UserType::Mod);
-    assert_eq!(state.get_user_type(&user_id), Some(UserType::Mod));
+    assert_eq!(state.get_user_type(&user_id)?, Some(UserType::Mod));
 
     assert!(state.is_session_online(&session_id));
     assert!(state.is_user_online(&user_id));
@@ -61,7 +128,7 @@ async fn state_2() -> anyhow::Result<()> {
     DummyActor{}.start().recipient::<SendMessage>();
 
     #[allow(unused_mut)]
-    let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
+    let mut state = YummyState::new(config, Box::new(DummyResourceFactory{}), #[cfg(feature = "stateless")] conn);
     
     state.close_session(&UserId::new(), &SessionId::new());
 
@@ -89,7 +156,7 @@ async fn room_tests() -> anyhow::Result<()> {
 
 
     DummyActor{}.start().recipient::<SendMessage>();
-    let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
+    let mut state = YummyState::new(config, Box::new(DummyResourceFactory{}), #[cfg(feature = "stateless")] conn);
     
     let room_1 = RoomId::new();
     state.create_room(&room_1, 1234, Some("room".to_string()), None, CreateRoomAccessType::Friend, 2, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()], Some(HashMap::from([
@@ -109,17 +176,23 @@ async fn room_tests() -> anyhow::Result<()> {
     let user_3_session = state.new_session(&user_3, None, UserType::User);
     
     state.join_to_room(&room_1, &user_1, &user_1_session, RoomUserType::Owner)?;
-    assert_eq!(state.get_users_room_type(&user_1_session, &room_1).unwrap(), RoomUserType::Owner);
+    assert_eq!(state.get_users_room_type(&user_1_session, &room_1)?.unwrap(), RoomUserType::Owner);
 
-    assert_eq!(state.join_to_room(&room_1, &user_1, &user_1_session, RoomUserType::Owner).err().unwrap(), YummyStateError::UserAlreadInRoom);
+    let result = state.join_to_room(&room_1, &user_1, &user_1_session, RoomUserType::Owner).err().unwrap();
+    if let YummyStateError::UserAlreadInRoom = result {} else { assert!(false, "expected UserAlreadInRoom")};
 
     state.join_to_room(&room_1, &user_2, &user_2_session, RoomUserType::User)?;
-    assert_eq!(state.get_users_room_type(&user_2_session, &room_1).unwrap(), RoomUserType::User);
+    assert_eq!(state.get_users_room_type(&user_2_session, &room_1)?.unwrap(), RoomUserType::User);
 
-    assert_eq!(state.join_to_room(&room_1, &user_3, &user_3_session, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
-    assert_eq!(state.join_to_room(&room_1, &user_2, &user_2_session, RoomUserType::Owner).err().unwrap(), YummyStateError::RoomHasMaxUsers);
+    let result = state.join_to_room(&room_1, &user_3, &user_3_session, RoomUserType::Owner).err().unwrap();
+    if let YummyStateError::RoomHasMaxUsers = result {} else { assert!(false, "expected RoomHasMaxUsers")};
 
-    assert_eq!(state.join_to_room(&RoomId::new(), &UserId::new(), &SessionId::new(), RoomUserType::Owner).err().unwrap(), YummyStateError::RoomNotFound);
+    let result = state.join_to_room(&room_1, &user_2, &user_2_session, RoomUserType::Owner).err().unwrap();
+    if let YummyStateError::RoomHasMaxUsers = result {} else { assert!(false, "expected RoomHasMaxUsers")};
+
+    let result = state.join_to_room(&RoomId::new(), &UserId::new(), &SessionId::new(), RoomUserType::Owner).err().unwrap();
+    if let YummyStateError::RoomNotFound = result {} else { assert!(false, "expected RoomNotFound")};
+
     assert_eq!(state.get_users_from_room(&room_1)?.len(), 2);
 
     assert_eq!(state.disconnect_from_room(&room_1, &user_1, &user_1_session)?, false);
@@ -149,7 +222,7 @@ async fn room_unlimited_users_tests() -> anyhow::Result<()> {
 
 
     DummyActor{}.start().recipient::<SendMessage>();
-    let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
+    let mut state = YummyState::new(config, Box::new(DummyResourceFactory{}), #[cfg(feature = "stateless")] conn);
 
     let room = RoomId::new();
     state.create_room(&room, 1234, None, None, CreateRoomAccessType::Public, 0, Vec::new(), None, false);
@@ -174,7 +247,7 @@ async fn get_room() -> anyhow::Result<()> {
 
 
     DummyActor{}.start().recipient::<SendMessage>();
-    let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
+    let mut state = YummyState::new(config, Box::new(DummyResourceFactory{}), #[cfg(feature = "stateless")] conn);
 
     let room = RoomId::new();
     state.create_room(&room, 1234, Some("Room 1".to_string()), None, CreateRoomAccessType::Private, 10, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()], None, false);
@@ -228,9 +301,9 @@ async fn get_room() -> anyhow::Result<()> {
     let user_2_session = state.new_session(&user_2, Some("user2".to_string()), UserType::Mod);
     let user_3_session = state.new_session(&user_3, Some("user3".to_string()), UserType::Admin);
 
-    assert_eq!(state.get_user_type(&user_1), Some(UserType::User));
-    assert_eq!(state.get_user_type(&user_2), Some(UserType::Mod));
-    assert_eq!(state.get_user_type(&user_3), Some(UserType::Admin));
+    assert_eq!(state.get_user_type(&user_1)?, Some(UserType::User));
+    assert_eq!(state.get_user_type(&user_2)?, Some(UserType::Mod));
+    assert_eq!(state.get_user_type(&user_3)?, Some(UserType::Admin));
 
     state.join_to_room(&room, &user_1, &user_1_session, RoomUserType::Owner)?;
     state.join_to_room(&room, &user_2, &user_2_session, RoomUserType::Owner)?;
@@ -277,7 +350,7 @@ async fn room_meta_read_test() -> anyhow::Result<()> {
 
     DummyActor{}.start().recipient::<SendMessage>();
     #[allow(unused_mut)]
-    let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
+    let mut state = YummyState::new(config, Box::new(DummyResourceFactory{}), #[cfg(feature = "stateless")] conn);
     
     let room_id = RoomId::new();
     state.create_room(&room_id, 1234, Some("room".to_string()), None, CreateRoomAccessType::Friend, 2, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()], Some(HashMap::from([
@@ -326,7 +399,7 @@ async fn room_meta_update_test() -> anyhow::Result<()> {
 
     DummyActor{}.start().recipient::<SendMessage>();
     #[allow(unused_mut)]
-    let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
+    let mut state = YummyState::new(config, Box::new(DummyResourceFactory{}), #[cfg(feature = "stateless")] conn);
     
     let room_id = RoomId::new();
     state.create_room(&room_id, 1234, Some("room".to_string()), None, CreateRoomAccessType::Friend, 2, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()], Some(HashMap::from([
@@ -421,7 +494,7 @@ async fn join_request_test() -> anyhow::Result<()> {
 
 
     DummyActor{}.start().recipient::<SendMessage>();
-    let mut state = YummyState::new(config, #[cfg(feature = "stateless")] conn);
+    let mut state = YummyState::new(config, Box::new(DummyResourceFactory{}), #[cfg(feature = "stateless")] conn);
     
     let room_id = RoomId::new();
     state.create_room(&room_id, 1234, Some("room".to_string()), None, CreateRoomAccessType::Friend, 2, vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()], Some(HashMap::from([
