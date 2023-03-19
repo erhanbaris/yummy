@@ -26,8 +26,15 @@ def pre_logout(model: yummy.Logout):
 def post_logout(model: yummy.Logout, success: bool):
     pass
 
-def pre_user_connected(model: yummy.Logout):
-    print("pre_user_connected")
+def pre_user_connected(model: yummy.UserConnected):
+    pass
 
-def post_user_connected(model: yummy.Logout, success: bool):
-    print("post_user_connected")
+def post_user_connected(model: yummy.UserConnected, success: bool):
+    pass
+
+def pre_refresh_token(model: yummy.RefreshToken):
+    pass
+
+def post_refresh_token(model: yummy.RefreshToken, success: bool):
+    pass
+

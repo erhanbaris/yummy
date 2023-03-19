@@ -17,7 +17,7 @@ use yummy_testing::cache::DummyResourceFactory;
 use yummy_testing::client::DummyClient;
 use yummy_testing::database::get_database_pool;
 
-use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest, LogoutRequest};
+use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest};
 use crate::conn::model::UserConnected;
 use crate::plugin::PluginExecuter;
 use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
@@ -302,6 +302,32 @@ def post_user_connected(model, success):
     executer.post_user_connected(model, true).expect("post_user_connected returned Err");
 }
 
+#[test]
+fn refresh_token_test() {
+    let (executer, _) = create_python_environtment("refresh_token_test.py", r#"
+import yummy
+
+def pre_refresh_token(model):
+    assert(model.get_token() == "TOKEN")
+
+def post_refresh_token(model, success):
+    assert(model.get_token() == "TOKEN")
+"#);
+
+    let model = RefreshTokenRequest {
+        request_id: Some(123),
+        auth: Arc::new(Some(UserAuth {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+        })),
+        token: "TOKEN".to_string(),
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_refresh_token(model).expect("pre_user_connected returned Err");
+    executer.post_refresh_token(model, true).expect("post_user_connected returned Err");
+}
+
 /* Basic model checks */
 model_tester!(device_id_auth_tester, "device_id_auth_tester.py", pre_deviceid_auth, post_deviceid_auth, DeviceIdAuthRequest {
     request_id: Some(123),
@@ -341,5 +367,16 @@ model_tester!(logout_tester, "logout_tester.py", pre_logout, post_logout, Logout
         user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
         session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
     })),
+    socket: Arc::new(DummyClient::default())
+});
+
+
+model_tester!(refresh_token, "refresh_token.py", pre_refresh_token, post_refresh_token, RefreshTokenRequest {
+    request_id: Some(123),
+    auth: Arc::new(Some(UserAuth {
+        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+    })),
+    token: "TOKEN".to_string(),
     socket: Arc::new(DummyClient::default())
 });

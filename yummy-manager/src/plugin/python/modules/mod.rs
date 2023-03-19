@@ -17,7 +17,7 @@ pub mod yummy {
     use rustpython::vm::builtins::{PyBaseException, PyInt};
     use rustpython::vm::{builtins::{PyBaseExceptionRef, PyIntRef}, VirtualMachine, PyResult, PyObjectRef};
 
-    use crate::auth::model::{CustomIdAuthRequest, LogoutRequest, ConnUserDisconnect};
+    use crate::auth::model::{CustomIdAuthRequest, LogoutRequest, ConnUserDisconnect, RefreshTokenRequest};
     use crate::conn::model::UserConnected;
     use crate::plugin::python::util::MetaTypeUtil;
     use crate::{plugin::python::model::YummyPluginContextWrapper, auth::model::{DeviceIdAuthRequest, EmailAuthRequest}};
@@ -110,6 +110,7 @@ pub mod yummy {
     wrapper_struct!(UserConnected, UserConnectedWrapper, "UserConnected");
     wrapper_struct!(ConnUserDisconnect, ConnUserDisconnectWrapper, "ConnUserDisconnect");
     wrapper_struct!(LogoutRequest, LogoutRequestWrapper, "Logout");
+    wrapper_struct!(RefreshTokenRequest, RefreshTokenRequestWrapper, "RefreshToken");
 
     #[pyattr]
     #[pyclass(module = false, name = "UserMetaType")]
@@ -351,6 +352,15 @@ pub mod yummy {
         #[pymethod]
         pub fn get_user_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
             Ok(vm.ctx.new_str(&self.data.borrow_mut().user_id.to_string()[..]).into())
+        }
+    }
+
+    #[yummy_model(class_name="RefreshTokenRequest")]
+    #[pyclass(flags(BASETYPE))]
+    impl RefreshTokenRequestWrapper {
+        #[pymethod]
+        pub fn get_token(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_str(&self.data.borrow_mut().token.to_string()[..]).into())
         }
     }
 
