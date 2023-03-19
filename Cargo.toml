@@ -1,13 +1,13 @@
 [workspace]
 members = [
-    "macros",
-    "server",
-    "manager",
-    "database",
-    "general",
-    "cache",
-    "testing",
-    "model"
+    "yummy-macros",
+    "yummy-server",
+    "yummy-manager",
+    "yummy-database",
+    "yummy-general",
+    "yummy-cache",
+    "yummy-testing",
+    "yummy-model"
 ]
 
 [workspace.package]
@@ -18,14 +18,14 @@ repository = "https://github.com/erhanbaris/yummy"
 homepage = "https://github.com/erhanbaris/yummy"
 
 [workspace.dependencies]
-general = { path = "./general", features = [] }
-manager = { path = "./manager", features = [] }
-server = { path = "./server", features = [] }
-database = { path = "./database" }
-macros = { path = "./macros" }
-cache = { path = "./cache" }
-testing = { path = "./testing" }
-model = { path = "./model", features = [] }
+yummy-general = { path = "./yummy-general", features = [] }
+yummy-manager = { path = "./yummy-manager", features = [] }
+yummy-server = { path = "./yummy-server", features = [] }
+yummy-database = { path = "./yummy-database" }
+yummy-macros = { path = "./yummy-macros" }
+yummy-cache = { path = "./yummy-cache" }
+yummy-testing = { path = "./yummy-testing" }
+yummy-model = { path = "./yummy-model", features = [] }
 
 redis = { version = "0.22.3", features = ["r2d2", "tokio-comp"] }
 r2d2 =  { version = "0.8.10" }
