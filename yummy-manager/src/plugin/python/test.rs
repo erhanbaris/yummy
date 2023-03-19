@@ -281,6 +281,27 @@ def pre_deviceid_auth(model):
     executer.post_deviceid_auth(model, true).expect("post_deviceid_auth returned Err");
 }
 
+#[test]
+fn user_connected() {
+    let (executer, _) = create_python_environtment("user_connected.py", r#"
+import yummy
+
+def pre_user_connected(model):
+    assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
+
+def post_user_connected(model, success):
+    assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
+"#);
+
+    let model = UserConnected {
+        user_id: Arc::new(UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string())),
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_user_connected(model).expect("pre_user_connected returned Err");
+    executer.post_user_connected(model, true).expect("post_user_connected returned Err");
+}
+
 /* Basic model checks */
 model_tester!(device_id_auth_tester, "device_id_auth_tester.py", pre_deviceid_auth, post_deviceid_auth, DeviceIdAuthRequest {
     request_id: Some(123),

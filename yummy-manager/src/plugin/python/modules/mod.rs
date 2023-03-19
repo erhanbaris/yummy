@@ -347,7 +347,12 @@ pub mod yummy {
 
     #[yummy_model(class_name="UserConnected", no_request_id=true, no_auth=true)]
     #[pyclass(flags(BASETYPE))]
-    impl UserConnectedWrapper {}
+    impl UserConnectedWrapper {
+        #[pymethod]
+        pub fn get_user_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_str(&self.data.borrow_mut().user_id.to_string()[..]).into())
+        }
+    }
 
     #[yummy_model(class_name="ConnUserDisconnect", no_request_id=true, no_auth=true)]
     #[pyclass(flags(BASETYPE))]
