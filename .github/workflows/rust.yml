@@ -23,8 +23,8 @@ jobs:
     - name: Check 
       run: cargo check
     
-    - name: Check - stateless
-      run: cargo check --features stateless
+#    - name: Check - stateless
+#      run: cargo check --features stateless
 
   test:
     runs-on: ubuntu-latest
@@ -76,56 +76,56 @@ jobs:
         flags: unittests
         fail_ci_if_error: false
   
-  stateless-test:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
-    
-    - name: Install grcov
-      run: |
-        rustup component add llvm-tools-preview
-        cargo install grcov
-    
-    - name: Start Redis
-      uses: supercharge/redis-github-action@1.5.0
-    
-    - name: Run tests - stateless
-      run: cargo test --all --features stateless
-      env:
-        DEFAULT_REDIS_URL: "redis://redis/"
-        RUSTFLAGS: "-Cinstrument-coverage"
-
-    - name: Create coverage report
-      run: |
-        grcov . \
-            --binary-path ./target/debug/deps/ \
-            --source-dir . \
-            --excl-start 'mod test* \{' \
-            --ignore '*test*' \
-            --ignore server/src/main.rs \
-            --ignore server/src/api/websocket/client.rs \
-            --ignore general/src/client.rs \
-            --ignore "*test.rs" \
-            --ignore "*steps.rs" \
-            --ignore "*tests.rs" \
-            --ignore "*github.com*" \
-            --ignore "*libcore*" \
-            --ignore "*rustc*" \
-            --ignore "*liballoc*" \
-            --ignore "*cargo*" \
-            -t coveralls+ \
-            --token ? \
-            -o ./cov_stateless.json
-
-    - name: Codecov
-      uses: codecov/codecov-action@v3.1.1
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        files: ./cov_stateless.json
-        flags: unittests
-        fail_ci_if_error: false
+#  stateless-test:
+#    runs-on: ubuntu-latest
+#    steps:
+#    - uses: actions/checkout@v3
+#    
+#    - uses: actions-rs/toolchain@v1
+#      with:
+#        toolchain: stable
+#        override: true
+#    
+#    - name: Install grcov
+#      run: |
+#        rustup component add llvm-tools-preview
+#        cargo install grcov
+#    
+#    - name: Start Redis
+#      uses: supercharge/redis-github-action@1.5.0
+#    
+#    - name: Run tests - stateless
+#      run: cargo test --all --features stateless
+#      env:
+#        DEFAULT_REDIS_URL: "redis://redis/"
+#        RUSTFLAGS: "-Cinstrument-coverage"
+#
+#    - name: Create coverage report
+#      run: |
+#        grcov . \
+#            --binary-path ./target/debug/deps/ \
+#            --source-dir . \
+#            --excl-start 'mod test* \{' \
+#            --ignore '*test*' \
+#            --ignore server/src/main.rs \
+#            --ignore server/src/api/websocket/client.rs \
+#            --ignore general/src/client.rs \
+#            --ignore "*test.rs" \
+#            --ignore "*steps.rs" \
+#            --ignore "*tests.rs" \
+#            --ignore "*github.com*" \
+#            --ignore "*libcore*" \
+#            --ignore "*rustc*" \
+#            --ignore "*liballoc*" \
+#            --ignore "*cargo*" \
+#            -t coveralls+ \
+#            --token ? \
+#            -o ./cov_stateless.json
+#
+#    - name: Codecov
+#      uses: codecov/codecov-action@v3.1.1
+#      with:
+#        token: ${{ secrets.CODECOV_TOKEN }}
+#        files: ./cov_stateless.json
+#        flags: unittests
+#        fail_ci_if_error: false

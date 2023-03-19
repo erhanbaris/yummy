@@ -194,7 +194,7 @@ impl PythonPluginInstaller {
                 YummyPluginContextWrapper::make_class(&vm.ctx);
                 CustomIdAuthRequestWrapper::make_class(&vm.ctx);
                 LogoutRequestWrapper::make_class(&vm.ctx);
-                //UserConnectedWrapper::make_class(&vm.ctx);
+                UserConnectedWrapper::make_class(&vm.ctx);
                 //PyYummyValidationError::make_class(&vm.ctx);
 
                 PyYummyValidationError::extend_class(&vm.ctx, &vm.ctx.exceptions.base_exception_type);

@@ -48,8 +48,6 @@ rand.workspace = true
 r2d2 =  { workspace = true, optional = true }
 redis = { workspace = true, optional = true }
 
-mlua.workspace = true
-
 rustpython.workspace = true
 rustpython-vm.workspace = true
 

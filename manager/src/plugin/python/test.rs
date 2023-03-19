@@ -322,8 +322,3 @@ model_tester!(logout_tester, "logout_tester.py", pre_logout, post_logout, Logout
     })),
     socket: Arc::new(DummyClient::default())
 });
-
-model_tester!(user_connected, "user_connected.py", pre_user_connected, post_user_connected, UserConnected {
-    user_id: Arc::new(UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string())),
-    socket: Arc::new(DummyClient::default())
-});

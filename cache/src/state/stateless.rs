@@ -6,12 +6,12 @@ use std::borrow::Borrow;
 use redis::Commands;
 use super::*;
 
-use crate::config::YummyConfig;
-use crate::meta::{RoomMetaAccess, MetaType};
-use crate::model::{UserId, RoomId, SessionId};
-use crate::CreateRoomAccessType;
-use crate::model::RoomUserType;
-use crate::model::UserType;
+use model::config::YummyConfig;
+use model::meta::{RoomMetaAccess, MetaType};
+use model::{UserId, RoomId, SessionId};
+use model::CreateRoomAccessType;
+use model::RoomUserType;
+use model::UserType;
 
 #[allow(unused_macros)]
 macro_rules! redis_result {
@@ -73,16 +73,12 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="get_user_type", skip(self))]
-    pub fn get_user_type(&mut self, user_id: &UserId) -> Option<UserType> {
-
-        match self.redis.get() {
-            Ok(mut redis) => match redis_result!(redis.hget(format!("{}users:{}", self.config.redis_prefix, user_id.to_string()), "type")) {
-                Some(1) => Some(UserType::User),
-                Some(2) => Some(UserType::Mod),
-                Some(3) => Some(UserType::Admin),
-                _ => None
-            },
-            Err(_) => None
+    pub fn get_user_type(&mut self, user_id: &UserId) -> anyhow::Result<Option<UserType>> {
+        match redis_result!(self.redis.get()?.hget(format!("{}users:{}", self.config.redis_prefix, user_id.to_string()), "type")) {
+            Some(1) => Ok(Some(UserType::User)),
+            Some(2) => Ok(Some(UserType::Mod)),
+            Some(3) => Ok(Some(UserType::Admin)),
+            _ => Ok(None)
         }
     }
 
@@ -279,7 +275,7 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="join_to_room_request", skip(self))]
-    pub fn join_to_room_request(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
+    pub fn join_to_room_request(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, user_type: model::RoomUserType) -> Result<(), YummyStateError> {
 
         let room_id = room_id.to_string();
         let room_info_key = format!("{}room:{}", self.config.redis_prefix, &room_id);
@@ -324,7 +320,7 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="join_to_room", skip(self))]
-    pub fn join_to_room(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, user_type: crate::model::RoomUserType) -> Result<(), YummyStateError> {
+    pub fn join_to_room(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId, user_type: model::RoomUserType) -> Result<(), YummyStateError> {
 
         let room_info_key = format!("{}room:{}", self.config.redis_prefix, room_id.get());
         match self.redis.get() {

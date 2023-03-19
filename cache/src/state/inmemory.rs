@@ -506,7 +506,7 @@ impl YummyState {
     }
 
     #[tracing::instrument(name="get_user_location", skip(self))]
-    pub fn get_user_location(&self, user_id: &UserId) -> Option<String> {
+    pub fn get_user_location(&self, user_id: Arc<UserId>) -> Option<String> {
         None
     }
 

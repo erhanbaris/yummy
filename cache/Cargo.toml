@@ -27,4 +27,15 @@ actix-web-actors.workspace = true
 actix-web.workspace = true
 actix-broker.workspace = true
 
+log.workspace = true
+uuid.workspace = true
+
+r2d2 =  { workspace = true, optional = true }
+redis = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
+
 tracing = "0.1"
+
+[features]
+stateless = ["dep:redis", "dep:r2d2", "dep:bytes"]
+default = []
