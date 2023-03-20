@@ -41,7 +41,7 @@ use crate::{
     user::model::{GetUserInformation, UpdateUser},
 };
 use self::model::ModelWrapper;
-use self::modules::yummy::{self, CustomIdAuthRequestWrapper, LogoutRequestWrapper, UserConnectedWrapper, ConnUserDisconnectWrapper, RefreshTokenRequestWrapper};
+use self::modules::yummy::{self, CustomIdAuthRequestWrapper, LogoutRequestWrapper, UserConnectedWrapper, ConnUserDisconnectWrapper, RefreshTokenRequestWrapper, RestoreTokenRequestWrapper};
 use self::modules::yummy::EmailAuthRequestWrapper;
 use self::modules::yummy::DeviceIdAuthRequestWrapper;
 
@@ -196,6 +196,7 @@ impl PythonPluginInstaller {
                 LogoutRequestWrapper::make_class(&vm.ctx);
                 UserConnectedWrapper::make_class(&vm.ctx);
                 RefreshTokenRequestWrapper::make_class(&vm.ctx);
+                RestoreTokenRequestWrapper::make_class(&vm.ctx);
                 //PyYummyValidationError::make_class(&vm.ctx);
 
                 PyYummyValidationError::extend_class(&vm.ctx, &vm.ctx.exceptions.base_exception_type);
@@ -272,7 +273,7 @@ impl FunctionType {
             FunctionType::CustomidAuth => "pre_customid_auth",
             FunctionType::Logout => "pre_logout",
             FunctionType::RefreshToken => "pre_refresh_token",
-            FunctionType::RestoreToken => "NOT_IMPLEMENTED_YET",
+            FunctionType::RestoreToken => "pre_restore_token",
             FunctionType::UserConnected => "pre_user_connected",
             FunctionType::UserDisconnected => "NOT_IMPLEMENTED_YET",
             FunctionType::GetUserInformation => "NOT_IMPLEMENTED_YET",
@@ -297,7 +298,7 @@ impl FunctionType {
             FunctionType::CustomidAuth => "post_customid_auth",
             FunctionType::Logout => "post_logout",
             FunctionType::RefreshToken => "post_refresh_token",
-            FunctionType::RestoreToken => "NOT_IMPLEMENTED_YET",
+            FunctionType::RestoreToken => "post_restore_token",
             FunctionType::UserConnected => "post_user_connected",
             FunctionType::UserDisconnected => "NOT_IMPLEMENTED_YET",
             FunctionType::GetUserInformation => "NOT_IMPLEMENTED_YET",
@@ -326,7 +327,7 @@ impl YummyPlugin for PythonPlugin {
     create_func!(pre_customid_auth, post_customid_auth, FunctionType::CustomidAuth, CustomIdAuthRequest, CustomIdAuthRequestWrapper);
     create_func!(pre_logout, post_logout, FunctionType::Logout, LogoutRequest, LogoutRequestWrapper);
     create_func!(pre_refresh_token, post_refresh_token, FunctionType::RefreshToken, RefreshTokenRequest, RefreshTokenRequestWrapper);
-    create_dummy_func!(pre_restore_token, post_restore_token, FunctionType::RESTORE_TOKEN, RestoreTokenRequest);
+    create_func!(pre_restore_token, post_restore_token, FunctionType::RestoreToken, RestoreTokenRequest, RestoreTokenRequestWrapper);
 
     // Connection manager
     create_func!(pre_user_connected, post_user_connected, FunctionType::UserConnected, UserConnected, UserConnectedWrapper);
