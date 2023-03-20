@@ -20,6 +20,7 @@ pub mod yummy {
     use crate::auth::model::{CustomIdAuthRequest, LogoutRequest, ConnUserDisconnect, RefreshTokenRequest, RestoreTokenRequest};
     use crate::conn::model::UserConnected;
     use crate::plugin::python::util::MetaTypeUtil;
+    use crate::user::model::{GetUserInformation, GetUserInformationEnum};
     use crate::{plugin::python::model::YummyPluginContextWrapper, auth::model::{DeviceIdAuthRequest, EmailAuthRequest}};
     use crate::plugin::python::ModelWrapper;
 
@@ -112,6 +113,7 @@ pub mod yummy {
     wrapper_struct!(LogoutRequest, LogoutRequestWrapper, "Logout");
     wrapper_struct!(RefreshTokenRequest, RefreshTokenRequestWrapper, "RefreshToken");
     wrapper_struct!(RestoreTokenRequest, RestoreTokenRequestWrapper, "RestoreToken");
+    wrapper_struct!(GetUserInformation, GetUserInformationWrapper, "GetUserInformation");
 
     #[pyattr]
     #[pyclass(module = false, name = "UserMetaType")]
@@ -371,6 +373,66 @@ pub mod yummy {
         #[pymethod]
         pub fn get_token(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
             Ok(vm.ctx.new_str(&self.data.borrow_mut().token.to_string()[..]).into())
+        }
+    }
+
+    #[yummy_model(class_name="GetUserInformation", no_auth=true)]
+    #[pyclass(flags(BASETYPE))]
+    impl GetUserInformationWrapper {
+        #[pymethod]
+        pub fn get_query_type(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            match self.data.borrow().query {
+                GetUserInformationEnum::Me(_) => Ok(vm.ctx.new_str("Me").into()),
+                GetUserInformationEnum::UserViaSystem(_) => Ok(vm.ctx.new_str("UserViaSystem").into()),
+                GetUserInformationEnum::User { user: _, requester: _ } => Ok(vm.ctx.new_str("User").into()),
+            }
+        }
+
+        #[pymethod]
+        pub fn get_user_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            match &self.data.borrow().query {
+                GetUserInformationEnum::Me(user) => {
+                    match user.as_ref() {
+                        Some(auth) => Ok(vm.ctx.new_str(&auth.user.to_string()[..]).into()),
+                        None => Ok(vm.ctx.none())
+                    }
+                },
+                GetUserInformationEnum::UserViaSystem(user) => Ok(vm.ctx.new_str(&user.to_string()[..]).into()),
+                GetUserInformationEnum::User { user, requester: _ } => Ok(vm.ctx.new_str(&user.to_string()[..]).into())
+            }
+        }
+
+        #[pymethod]
+        pub fn get_requester_user_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            match &self.data.borrow().query {
+                GetUserInformationEnum::Me(_) => Ok(vm.ctx.none()),
+                GetUserInformationEnum::UserViaSystem(_) => Ok(vm.ctx.none()),
+                GetUserInformationEnum::User { user: _, requester } => {
+                    match requester.as_ref() {
+                        Some(auth) => Ok(vm.ctx.new_str(&auth.user.to_string()[..]).into()),
+                        None => Ok(vm.ctx.none())
+                    }
+                }
+            }
+        }
+
+        #[pymethod]
+        pub fn get_value(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            match &self.data.borrow().query {
+                GetUserInformationEnum::Me(user) => {
+                    match user.as_ref() {
+                        Some(auth) => Ok(vm.ctx.new_tuple(vec![vm.ctx.new_str(&auth.user.to_string()[..]).into(), vm.ctx.none()]).into()),
+                        None => Ok(vm.ctx.new_tuple(vec![vm.ctx.none(), vm.ctx.none()]).into())
+                    }
+                },
+                GetUserInformationEnum::UserViaSystem(user) => Ok(vm.ctx.new_tuple(vec![vm.ctx.new_str(&user.to_string()[..]).into(), vm.ctx.none()]).into()),
+                GetUserInformationEnum::User { user, requester } => {
+                    match requester.as_ref() {
+                        Some(auth) => Ok(vm.ctx.new_tuple(vec![vm.ctx.new_str(&user.to_string()[..]).into(), vm.ctx.new_str(&auth.user.to_string()[..]).into()]).into()),
+                        None => Ok(vm.ctx.new_tuple(vec![vm.ctx.new_str(&user.to_string()[..]).into(), vm.ctx.none()]).into())
+                    }
+                }
+            }
         }
     }
 

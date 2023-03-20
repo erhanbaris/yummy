@@ -20,6 +20,7 @@ use yummy_testing::database::get_database_pool;
 use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest};
 use crate::conn::model::UserConnected;
 use crate::plugin::PluginExecuter;
+use crate::user::model::{GetUserInformation, GetUserInformationEnum};
 use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
 use super::PythonPluginInstaller;
 
@@ -352,6 +353,156 @@ def post_restore_token(model, success):
 
     let model = executer.pre_restore_token(model).expect("pre_restore_token returned Err");
     executer.post_restore_token(model, true).expect("post_restore_token returned Err");
+}
+
+#[test]
+fn get_user_information_test() {
+
+    /* Me test 1 */
+    let (executer, _) = create_python_environtment("restore_token_test.py", r#"
+import yummy
+
+def pre_restore_token(model):
+    assert(model.get_request_id() == 123)
+    assert(model.get_query_type() == "me")
+    assert(model.get_user_id() is None)
+    assert(model.get_val() == (None, None))
+
+def post_restore_token(model, success):
+    assert(model.get_request_id() == 123)
+    assert(model.get_query_type() == "me")
+    assert(model.get_user_id() is None)
+    assert(model.get_val() == (None, None))
+"#);
+
+    let model = GetUserInformation {
+        request_id: Some(123),
+        query: GetUserInformationEnum::Me(Arc::new(None)),
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_get_user_information(model).expect("pre_get_user_information returned Err");
+    executer.post_get_user_information(model, true).expect("post_get_user_information returned Err");
+
+
+    /* Me test 2 */
+    let (executer, _) = create_python_environtment("restore_token_test.py", r#"
+import yummy
+
+def pre_restore_token(model):
+    assert(model.get_request_id() == 123)
+    assert(model.get_query_type() == "me")
+    assert(model.get_user_id() is None)
+    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+
+def post_restore_token(model, success):
+    assert(model.get_request_id() == 123)
+    assert(model.get_query_type() == "me")
+    assert(model.get_user_id() is None)
+    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+"#);
+
+    let model = GetUserInformation {
+        request_id: Some(123),
+        query: GetUserInformationEnum::Me(Arc::new(Some(UserAuth {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+        }))),
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_get_user_information(model).expect("pre_get_user_information returned Err");
+    executer.post_get_user_information(model, true).expect("post_get_user_information returned Err");
+
+
+    /* UserViaSystem test */
+    let (executer, _) = create_python_environtment("restore_token_test.py", r#"
+import yummy
+
+def pre_restore_token(model):
+    assert(model.get_request_id() == 123)
+    assert(model.get_query_type() == "UserViaSystem")
+    assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
+    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+
+def post_restore_token(model, success):
+    assert(model.get_request_id() == 123)
+    assert(model.get_query_type() == "UserViaSystem")
+    assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
+    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+"#);
+
+    let model = GetUserInformation {
+        request_id: Some(123),
+        query: GetUserInformationEnum::UserViaSystem(UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string())),
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_get_user_information(model).expect("pre_get_user_information returned Err");
+    executer.post_get_user_information(model, true).expect("post_get_user_information returned Err");
+
+
+    /* User test 1 */
+    let (executer, _) = create_python_environtment("restore_token_test.py", r#"
+import yummy
+
+def pre_restore_token(model):
+    assert(model.get_request_id() == 123)
+    assert(model.get_query_type() == "User")
+    assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
+    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+
+def post_restore_token(model, success):
+    assert(model.get_request_id() == 123)
+    assert(model.get_query_type() == "User")
+    assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
+    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+"#);
+
+    let model = GetUserInformation {
+        request_id: Some(123),
+        query: GetUserInformationEnum::User {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            requester: Arc::new(None)
+        },
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_get_user_information(model).expect("pre_get_user_information returned Err");
+    executer.post_get_user_information(model, true).expect("post_get_user_information returned Err");
+
+
+    /* User test 2 */
+    let (executer, _) = create_python_environtment("restore_token_test.py", r#"
+import yummy
+
+def pre_restore_token(model):
+    assert(model.get_request_id() == 123)
+    assert(model.get_query_type() == "User")
+    assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
+    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", "edbe3335-3545-4d38-a2f6-3856e63bfd6f"))
+
+def post_restore_token(model, success):
+    assert(model.get_request_id() == 123)
+    assert(model.get_query_type() == "User")
+    assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
+    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", "edbe3335-3545-4d38-a2f6-3856e63bfd6f"))
+"#);
+
+    let model = GetUserInformation {
+        request_id: Some(123),
+        query: GetUserInformationEnum::User {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            requester: Arc::new(Some(UserAuth {
+                user: UserId::from("edbe3335-3545-4d38-a2f6-3856e63bfd6f".to_string()),
+                session: SessionId::from("69531fc4-bb09-41a7-aeb0-364876f1ff79".to_string())
+            }))
+        },
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_get_user_information(model).expect("pre_get_user_information returned Err");
+    executer.post_get_user_information(model, true).expect("post_get_user_information returned Err");
 }
 
 /* Basic model checks */

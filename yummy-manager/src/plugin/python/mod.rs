@@ -31,6 +31,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use crate::plugin::python::model::YummyPluginContextWrapper;
+use crate::plugin::python::modules::yummy::GetUserInformationWrapper;
 use crate::plugin::python::yummy::PyYummyValidationError;
 use crate::{
     auth::model::{ConnUserDisconnect, CustomIdAuthRequest, DeviceIdAuthRequest, EmailAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest},
@@ -197,6 +198,7 @@ impl PythonPluginInstaller {
                 UserConnectedWrapper::make_class(&vm.ctx);
                 RefreshTokenRequestWrapper::make_class(&vm.ctx);
                 RestoreTokenRequestWrapper::make_class(&vm.ctx);
+                GetUserInformationWrapper::make_class(&vm.ctx);
                 //PyYummyValidationError::make_class(&vm.ctx);
 
                 PyYummyValidationError::extend_class(&vm.ctx, &vm.ctx.exceptions.base_exception_type);
@@ -276,7 +278,7 @@ impl FunctionType {
             FunctionType::RestoreToken => "pre_restore_token",
             FunctionType::UserConnected => "pre_user_connected",
             FunctionType::UserDisconnected => "NOT_IMPLEMENTED_YET",
-            FunctionType::GetUserInformation => "NOT_IMPLEMENTED_YET",
+            FunctionType::GetUserInformation => "pre_get_user_information",
             FunctionType::UpdateUser => "NOT_IMPLEMENTED_YET",
             FunctionType::CreateRoom => "NOT_IMPLEMENTED_YET",
             FunctionType::UpdateRoom => "NOT_IMPLEMENTED_YET",
@@ -301,7 +303,7 @@ impl FunctionType {
             FunctionType::RestoreToken => "post_restore_token",
             FunctionType::UserConnected => "post_user_connected",
             FunctionType::UserDisconnected => "NOT_IMPLEMENTED_YET",
-            FunctionType::GetUserInformation => "NOT_IMPLEMENTED_YET",
+            FunctionType::GetUserInformation => "post_get_user_information",
             FunctionType::UpdateUser => "NOT_IMPLEMENTED_YET",
             FunctionType::CreateRoom => "NOT_IMPLEMENTED_YET",
             FunctionType::UpdateRoom => "NOT_IMPLEMENTED_YET",
@@ -334,7 +336,7 @@ impl YummyPlugin for PythonPlugin {
     create_func!(pre_user_disconnected, post_user_disconnected, FunctionType::UserDisconnected, ConnUserDisconnect, ConnUserDisconnectWrapper);
 
     // User manager
-    create_dummy_func!(pre_get_user_information, post_get_user_information, FunctionType::GET_USER_INFORMATION, GetUserInformation);
+    create_func!(pre_get_user_information, post_get_user_information, FunctionType::GetUserInformation, GetUserInformation, GetUserInformationWrapper);
     create_dummy_func!(pre_update_user, post_update_user, FunctionType::UPDATE_USER, UpdateUser);
 
     // Room Manager
