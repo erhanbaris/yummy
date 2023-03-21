@@ -80,14 +80,14 @@ pub enum MetaType<T: Default + Debug + PartialEq + Clone + From<i32>> {
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* ********************************************** TRAIT IMPLEMENTS ************************************************ */
 /* **************************************************************************************************************** */
-impl TryFrom<i32> for MetaAction {
-    type Error = &'static str;
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
+
+impl From<i32> for MetaAction {
+    fn from(value: i32) -> Self {
         match value {
-            0 => Ok(MetaAction::OnlyAddOrUpdate),
-            1 => Ok(MetaAction::RemoveUnusedMetas),
-            2 => Ok(MetaAction::RemoveAllMetas),
-            _ => Err("MetaAction value is not valid")
+            0 => MetaAction::OnlyAddOrUpdate,
+            1 => MetaAction::RemoveUnusedMetas,
+            2 => MetaAction::RemoveAllMetas,
+            _ => MetaAction::default()
         }
     }
 }

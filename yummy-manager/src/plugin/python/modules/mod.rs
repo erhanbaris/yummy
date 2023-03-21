@@ -1,5 +1,6 @@
 #[rustpython::vm::pymodule]
 pub mod yummy {
+    use std::collections::HashMap;
     /* **************************************************************************************************************** */
     /* **************************************************** MODS ****************************************************** */
     /* *************************************************** IMPORTS **************************************************** */
@@ -8,26 +9,67 @@ pub mod yummy {
     use std::{rc::Rc, cell::RefCell};
     use std::fmt::Debug;
 
+    use rustpython_vm::builtins::{PyDict, PyStr};
     use yummy_macros::yummy_model;
-    use yummy_model::UserId;
-    use yummy_model::meta::{UserMetaType, UserMetaAccess};
+    use yummy_model::{UserId, UserType};
+    use yummy_model::meta::{UserMetaType, UserMetaAccess, MetaAction};
     use rustpython::vm::{pyclass, PyPayload};
     use rustpython::vm::function::OptionalArg;
     use rustpython::vm::{TryFromBorrowedObject, PyRef, PyObject};
     use rustpython::vm::builtins::{PyBaseException, PyInt};
     use rustpython::vm::{builtins::{PyBaseExceptionRef, PyIntRef}, VirtualMachine, PyResult, PyObjectRef};
-
+    use rustpython_vm::class::PyClassImpl;
+    
     use crate::auth::model::{CustomIdAuthRequest, LogoutRequest, ConnUserDisconnect, RefreshTokenRequest, RestoreTokenRequest};
     use crate::conn::model::UserConnected;
     use crate::plugin::python::util::MetaTypeUtil;
-    use crate::user::model::{GetUserInformation, GetUserInformationEnum};
+    use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
     use crate::{plugin::python::model::YummyPluginContextWrapper, auth::model::{DeviceIdAuthRequest, EmailAuthRequest}};
     use crate::plugin::python::ModelWrapper;
+
+    use num_bigint::ToBigInt;
 
     use yummy_general::password::Password;
 
     /* **************************************************************************************************************** */
     /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+    /* **************************************************************************************************************** */
+
+    /* UserType */
+    #[pyattr]
+    const USER_TYPE_USER: u32 = UserType::User as u32;
+    #[pyattr]
+    const USER_TYPE_MOD: u32 = UserType::Mod as u32;
+    #[pyattr]
+    const USER_TYPE_ADMIN: u32 = UserType::Admin as u32;
+
+
+    /* UserMetaAccess */
+    #[pyattr]
+    const USER_META_ACCESS_ANONYMOUS: u32 = UserMetaAccess::Anonymous as u32;
+    #[pyattr]
+    const USER_META_ACCESS_USER: u32 = UserMetaAccess::User as u32;
+    #[pyattr]
+    const USER_META_ACCESS_FRIEND: u32 = UserMetaAccess::Friend as u32;
+    #[pyattr]
+    const USER_META_ACCESS_ME: u32 = UserMetaAccess::Me as u32;
+    #[pyattr]
+    const USER_META_ACCESS_MOD: u32 = UserMetaAccess::Mod as u32;
+    #[pyattr]
+    const USER_META_ACCESS_ADMIN: u32 = UserMetaAccess::Admin as u32;
+    #[pyattr]
+    const USER_META_ACCESS_SYSTEM: u32 = UserMetaAccess::System as u32;
+
+
+    /* MetaAction */
+    #[pyattr]
+    const META_ACTION_ONLY_ADD_OR_UPDATE: u32 = MetaAction::OnlyAddOrUpdate as u32;
+    #[pyattr]
+    const META_ACTION_REMOVE_UNUSED_METAS: u32 = MetaAction::RemoveUnusedMetas as u32;
+    #[pyattr]
+    const META_ACTION_REMOVE_ALL_METAS: u32 = MetaAction::RemoveAllMetas as u32;
+
+    /* **************************************************************************************************************** */
     /* **************************************************** MACROS **************************************************** */
     /* **************************************************************************************************************** */
 
@@ -57,7 +99,13 @@ pub mod yummy {
         };
     }
 
-    macro_rules! set_string {
+    macro_rules! get_bool {
+        ($self: expr, $item: ident, $vm: ident) => {
+            Ok($vm.ctx.new_bool($self.data.borrow_mut().$item).into())
+        };
+    }
+
+    macro_rules! set_value {
         ($self: expr,  $target: ident, $source: ident) => {
             $self.data.borrow_mut().$target = $source;
         };
@@ -73,6 +121,15 @@ pub mod yummy {
         ($self: expr, $target: ident, $vm: ident) => {
             match $self.data.borrow().$target {
                 Some(data) => Ok($vm.ctx.new_float(data as f64).into()),
+                None => Ok($vm.ctx.none().into())
+            }
+        };
+    }
+
+    macro_rules! get_nullable_string {
+        ($self: expr, $target: ident, $vm: ident) => {
+            match &$self.data.borrow().$target {
+                Some(data) => Ok($vm.ctx.new_str(&data.to_string()[..]).into()),
                 None => Ok($vm.ctx.none().into())
             }
         };
@@ -101,7 +158,6 @@ pub mod yummy {
     /* **************************************************************************************************************** */
     #[pyattr]
     #[pyclass(module = "yummy", name = "YummyValidationError")]
-    //#[pyexception(PyYummyValidationError, PyBaseException)]
     #[derive(PyPayload, Debug)]
     pub struct PyYummyValidationError {}
 
@@ -110,6 +166,7 @@ pub mod yummy {
     wrapper_struct!(CustomIdAuthRequest, CustomIdAuthRequestWrapper, "CustomIdAuth");
     wrapper_struct!(UserConnected, UserConnectedWrapper, "UserConnected");
     wrapper_struct!(ConnUserDisconnect, ConnUserDisconnectWrapper, "ConnUserDisconnect");
+    wrapper_struct!(UpdateUser, UpdateUserWrapper, "UpdateUser");
     wrapper_struct!(LogoutRequest, LogoutRequestWrapper, "Logout");
     wrapper_struct!(RefreshTokenRequest, RefreshTokenRequestWrapper, "RefreshToken");
     wrapper_struct!(RestoreTokenRequest, RestoreTokenRequestWrapper, "RestoreToken");
@@ -308,7 +365,6 @@ pub mod yummy {
 
     #[pyfunction]
     pub fn remove_user_meta(user_id: Option<String>, key: Option<String>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-        
         /* Validate arguments */
         let (user_id, key) = match (user_id, key) {
 
@@ -436,13 +492,170 @@ pub mod yummy {
         }
     }
 
-    #[yummy_model(class_name="ConnUserDisconnect", no_request_id=true, no_auth=true)]
+    #[yummy_model(class_name="ConnUserDisconnect")]
     #[pyclass(flags(BASETYPE))]
-    impl ConnUserDisconnectWrapper {}
+    impl ConnUserDisconnectWrapper {
+        #[pymethod]
+        pub fn get_send_message(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_bool!(self, send_message, vm)
+        }
+
+        #[pymethod]
+        pub fn set_send_message(&self, send_message: bool) -> PyResult<()> {
+            set_value!(self, send_message, send_message);
+            Ok(())
+        }
+    }
 
     #[yummy_model(class_name="LogoutRequest")]
     #[pyclass(flags(BASETYPE))]
     impl LogoutRequestWrapper {}
+
+    #[yummy_model(class_name="UpdateUser")]
+    #[pyclass(flags(BASETYPE))]
+    impl UpdateUserWrapper {
+        /* Name functions */
+        #[pymethod]
+        pub fn get_name(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_nullable_string!(self, name, vm)
+        }
+
+        #[pymethod]
+        pub fn set_name(&self, name: Option<String>) -> PyResult<()> {
+            set_value!(self, name, name);
+            Ok(())
+        }
+
+        /* TargetUserId functions */
+        #[pymethod]
+        pub fn get_target_user_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_nullable_string!(self, target_user_id, vm)
+        }
+
+        /* Email functions */
+        #[pymethod]
+        pub fn get_email(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_nullable_string!(self, email, vm)
+        }
+
+        #[pymethod]
+        pub fn set_email(&self, email: Option<String>) -> PyResult<()> {
+            set_value!(self, email, email);
+            Ok(())
+        }
+
+        /* Password functions */
+        #[pymethod]
+        pub fn get_password(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_nullable_string!(self, password, vm)
+        }
+
+        #[pymethod]
+        pub fn set_password(&self, password: Option<String>) -> PyResult<()> {
+            set_value!(self, password, password);
+            Ok(())
+        }
+
+        /* DeviceID functions */
+        #[pymethod]
+        pub fn get_device_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_nullable_string!(self, device_id, vm)
+        }
+
+        #[pymethod]
+        pub fn set_device_id(&self, device_id: Option<String>) -> PyResult<()> {
+            set_value!(self, device_id, device_id);
+            Ok(())
+        }
+
+        /* CustomID functions */
+        #[pymethod]
+        pub fn get_custom_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_nullable_string!(self, custom_id, vm)
+        }
+
+        #[pymethod]
+        pub fn set_custom_id(&self, custom_id: Option<String>) -> PyResult<()> {
+            set_value!(self, custom_id, custom_id);
+            Ok(())
+        }
+
+        /* UserType functions */
+        #[pymethod]
+        pub fn get_user_type(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            match self.data.borrow().user_type {
+                Some(data) => Ok(vm.ctx.new_bigint(&(data as u32).to_bigint().unwrap()).into()),
+                None => Ok(vm.ctx.none().into())
+            }
+        }
+
+        #[pymethod]
+        pub fn set_user_type(&self, user_type: Option<i32>) -> PyResult<()> {
+            self.data.borrow_mut().user_type = user_type.map(|item| UserType::from(item));
+            Ok(())
+        }
+
+        /* MetaAction functions */
+        #[pymethod]
+        pub fn get_meta_action(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            match self.data.borrow().meta_action.clone() {
+                Some(data) => Ok(vm.ctx.new_bigint(&(data as u32).to_bigint().unwrap()).into()),
+                None => Ok(vm.ctx.none().into())
+            }
+        }
+
+        #[pymethod]
+        pub fn set_meta_action(&self, meta_action: Option<i32>) -> PyResult<()> {
+            self.data.borrow_mut().meta_action = meta_action.map(|item| MetaAction::from(item));
+            Ok(())
+        }
+
+        /* Metas functions */
+        #[pymethod]
+        pub fn get_metas(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            match self.data.borrow().metas.clone() {
+                Some(data) => {
+                    let dict = vm.ctx.new_dict();
+                    
+                    for (key, value) in data.iter() {
+                        dict.set_item(key, MetaTypeUtil::as_python_value(value, vm)?, vm)?;
+                    }
+
+                    Ok(dict.into())
+                },
+                None => Ok(vm.ctx.none().into())
+            }
+        }
+
+        #[pymethod]
+        pub fn set_metas(&self, metas: Option<PyObjectRef>, vm: &VirtualMachine) -> PyResult<()> {
+            self.data.borrow_mut().metas = match metas {
+                Some(metas) => {
+                    
+                    let mut new_metas = HashMap::new();
+
+                    if metas.class().fast_issubclass(vm.ctx.types.dict_type) {
+                        let dict = metas.downcast_ref::<PyDict>().unwrap();
+
+                        for (key, value) in dict {
+                            let key = match key.downcast_ref::<PyStr>() {
+                                Some(str) => str.as_str().to_string(),
+                                None => return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), "Only str type allowed for the key.".to_string()))
+                            };
+                            
+                            new_metas.insert(key, MetaTypeUtil::parse(vm, &value, UserMetaAccess::User)?.data);
+                        }
+                    } else {
+                        return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), "Only dict type allowed. .".to_string()))
+                    }
+
+                    Some(new_metas)
+                },
+                None => None
+            };
+            Ok(())
+        }
+    }
 
     #[yummy_model(class_name="DeviceIdAuthRequest")]
     #[pyclass(flags(BASETYPE))]
@@ -454,7 +667,7 @@ pub mod yummy {
 
         #[pymethod]
         pub fn set_device_id(&self, device_id: String) -> PyResult<()> {
-            set_string!(self, id, device_id);
+            set_value!(self, id, device_id);
             Ok(())
         }
     }
@@ -470,7 +683,7 @@ pub mod yummy {
 
         #[pymethod]
         pub fn set_email(&self, email: String) -> PyResult<()> {
-            set_string!(self, email, email);
+            set_value!(self, email, email);
             Ok(())
         }
 
@@ -496,7 +709,7 @@ pub mod yummy {
 
         #[pymethod]
         pub fn set_custom_id(&self, device_id: String) -> PyResult<()> {
-            set_string!(self, id, device_id);
+            set_value!(self, id, device_id);
             Ok(())
         }
     }

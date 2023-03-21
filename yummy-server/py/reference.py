@@ -2,7 +2,6 @@ import yummy
 
 requests = []
 
-
 def pre_deviceid_auth(model: yummy.DeviceIdAuth):
     pass
 
@@ -40,6 +39,14 @@ def pre_user_connected(model: yummy.UserConnected):
 
 
 def post_user_connected(model: yummy.UserConnected, success: bool):
+    pass
+
+
+def pre_user_disconnected(model: yummy.UserDisconnected):
+    pass
+
+
+def post_user_disconnected(model: yummy.UserDisconnected, success: bool):
     pass
 
 

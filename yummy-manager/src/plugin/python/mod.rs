@@ -31,7 +31,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use crate::plugin::python::model::YummyPluginContextWrapper;
-use crate::plugin::python::modules::yummy::GetUserInformationWrapper;
+use crate::plugin::python::modules::yummy::{GetUserInformationWrapper};
 use crate::plugin::python::yummy::PyYummyValidationError;
 use crate::{
     auth::model::{ConnUserDisconnect, CustomIdAuthRequest, DeviceIdAuthRequest, EmailAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest},
@@ -42,7 +42,7 @@ use crate::{
     user::model::{GetUserInformation, UpdateUser},
 };
 use self::model::ModelWrapper;
-use self::modules::yummy::{self, CustomIdAuthRequestWrapper, LogoutRequestWrapper, UserConnectedWrapper, ConnUserDisconnectWrapper, RefreshTokenRequestWrapper, RestoreTokenRequestWrapper};
+use self::modules::yummy::{self, CustomIdAuthRequestWrapper, LogoutRequestWrapper, UserConnectedWrapper, ConnUserDisconnectWrapper, RefreshTokenRequestWrapper, RestoreTokenRequestWrapper, UpdateUserWrapper};
 use self::modules::yummy::EmailAuthRequestWrapper;
 use self::modules::yummy::DeviceIdAuthRequestWrapper;
 
@@ -196,6 +196,7 @@ impl PythonPluginInstaller {
                 CustomIdAuthRequestWrapper::make_class(&vm.ctx);
                 LogoutRequestWrapper::make_class(&vm.ctx);
                 UserConnectedWrapper::make_class(&vm.ctx);
+                ConnUserDisconnectWrapper::make_class(&vm.ctx);
                 RefreshTokenRequestWrapper::make_class(&vm.ctx);
                 RestoreTokenRequestWrapper::make_class(&vm.ctx);
                 GetUserInformationWrapper::make_class(&vm.ctx);
@@ -277,7 +278,7 @@ impl FunctionType {
             FunctionType::RefreshToken => "pre_refresh_token",
             FunctionType::RestoreToken => "pre_restore_token",
             FunctionType::UserConnected => "pre_user_connected",
-            FunctionType::UserDisconnected => "NOT_IMPLEMENTED_YET",
+            FunctionType::UserDisconnected => "pre_user_disconnected",
             FunctionType::GetUserInformation => "pre_get_user_information",
             FunctionType::UpdateUser => "NOT_IMPLEMENTED_YET",
             FunctionType::CreateRoom => "NOT_IMPLEMENTED_YET",
@@ -302,7 +303,7 @@ impl FunctionType {
             FunctionType::RefreshToken => "post_refresh_token",
             FunctionType::RestoreToken => "post_restore_token",
             FunctionType::UserConnected => "post_user_connected",
-            FunctionType::UserDisconnected => "NOT_IMPLEMENTED_YET",
+            FunctionType::UserDisconnected => "post_user_disconnected",
             FunctionType::GetUserInformation => "post_get_user_information",
             FunctionType::UpdateUser => "NOT_IMPLEMENTED_YET",
             FunctionType::CreateRoom => "NOT_IMPLEMENTED_YET",
@@ -337,7 +338,7 @@ impl YummyPlugin for PythonPlugin {
 
     // User manager
     create_func!(pre_get_user_information, post_get_user_information, FunctionType::GetUserInformation, GetUserInformation, GetUserInformationWrapper);
-    create_dummy_func!(pre_update_user, post_update_user, FunctionType::UPDATE_USER, UpdateUser);
+    create_func!(pre_update_user, post_update_user, FunctionType::UpdateUser, UpdateUser, UpdateUserWrapper);
 
     // Room Manager
     create_dummy_func!(pre_create_room, post_create_room, FunctionType::CREATE_ROOM, CreateRoomRequest);

@@ -3,6 +3,26 @@ from typing import NoReturn, Optional, Tuple
 MetaType = int | str | bool | list['MetaType']
 
 
+# UserType's
+USER_TYPE_USER: int
+USER_TYPE_MOD: int
+USER_TYPE_ADMIN: int
+
+# UserMetaAccess's
+USER_META_ACCESS_ANONYMOUS: int
+USER_META_ACCESS_USER: int
+USER_META_ACCESS_FRIEND: int
+USER_META_ACCESS_ME: int
+USER_META_ACCESS_MOD: int
+USER_META_ACCESS_ADMIN: int
+USER_META_ACCESS_SYSTEM: int
+
+# MetaAction
+META_ACTION_ONLY_ADD_OR_UPDATE: int
+META_ACTION_REMOVE_UNUSED_METAS: int
+META_ACTION_REMOVE_ALL_METAS: int
+
+
 def fail(message: str) -> NoReturn:
     """ Throw exception with error message. Message will be sent to client. """
     ...
@@ -81,6 +101,11 @@ class Logout(BaseModel):
 
 class UserConnected:
     def get_user_id(self) -> Optional[str]: ...
+
+
+class UserDisconnected(BaseModel):
+    def get_send_message(self) -> bool: ...
+    def set_send_message(self, send_message: bool): ...
 
 
 class RefreshToken(BaseModel):

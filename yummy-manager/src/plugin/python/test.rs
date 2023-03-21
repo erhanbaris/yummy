@@ -17,7 +17,7 @@ use yummy_testing::cache::DummyResourceFactory;
 use yummy_testing::client::DummyClient;
 use yummy_testing::database::get_database_pool;
 
-use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest};
+use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect};
 use crate::conn::model::UserConnected;
 use crate::plugin::PluginExecuter;
 use crate::user::model::{GetUserInformation, GetUserInformationEnum};
@@ -121,6 +121,33 @@ fn simple_python_api_call() {
 def test(model: dict):
     print("Merhaba dünya")
     return 123
+"#);
+}
+
+#[test]
+fn enum_types() {
+    create_python_environtment("simple_python_api_call.py", r#"
+import yummy
+
+# UserType's
+yummy.USER_TYPE_USER
+yummy.USER_TYPE_USER
+yummy.USER_TYPE_MOD
+yummy.USER_TYPE_ADMIN
+
+# UserMetaAccess's
+yummy.USER_META_ACCESS_ANONYMOUS
+yummy.USER_META_ACCESS_USER
+yummy.USER_META_ACCESS_FRIEND
+yummy.USER_META_ACCESS_ME
+yummy.USER_META_ACCESS_MOD
+yummy.USER_META_ACCESS_ADMIN
+yummy.USER_META_ACCESS_SYSTEM
+
+# MetaAction
+yummy.META_ACTION_ONLY_ADD_OR_UPDATE
+yummy.META_ACTION_REMOVE_UNUSED_METAS
+yummy.META_ACTION_REMOVE_ALL_METAS
 "#);
 }
 
@@ -283,8 +310,8 @@ def pre_deviceid_auth(model):
 }
 
 #[test]
-fn user_connected() {
-    let (executer, _) = create_python_environtment("user_connected.py", r#"
+fn user_connected_test() {
+    let (executer, _) = create_python_environtment("user_connected_test.py", r#"
 import yummy
 
 def pre_user_connected(model):
@@ -301,6 +328,33 @@ def post_user_connected(model, success):
 
     let model = executer.pre_user_connected(model).expect("pre_user_connected returned Err");
     executer.post_user_connected(model, true).expect("post_user_connected returned Err");
+}
+
+
+#[test]
+fn user_disconnected_test() {
+    let (executer, _) = create_python_environtment("user_disconnected_test.py", r#"
+import yummy
+
+def pre_user_disconnected(model):
+    assert(model.get_send_message() is False)
+    model.set_send_message(True)
+
+def post_user_disconnected(model, success):
+    assert(model.get_send_message())
+"#);
+
+    let model = ConnUserDisconnect {
+        request_id: Some(123),
+        auth: Arc::new(None),
+        send_message: false,
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_user_disconnected(model).expect("pre_user_disconnected returned Err");
+    let model = executer.post_user_disconnected(model, true).expect("post_user_disconnected returned Err");
+    
+    assert_eq!(model.send_message, true);
 }
 
 #[test]
@@ -513,6 +567,16 @@ model_tester!(device_id_auth_tester, "device_id_auth_tester.py", pre_deviceid_au
         session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
     })),
     id: "abc".to_string(),
+    socket: Arc::new(DummyClient::default())
+});
+
+model_tester!(connection_user_disconnect, "connection_user_disconnect_tester.py", pre_user_disconnected, post_user_disconnected, ConnUserDisconnect {
+    request_id: Some(123),
+    auth: Arc::new(Some(UserAuth {
+        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+    })),
+    send_message: true,
     socket: Arc::new(DummyClient::default())
 });
 
