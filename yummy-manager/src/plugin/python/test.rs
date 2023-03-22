@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 /* **************************************************************************************************************** */
 /* **************************************************** MODS ****************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
@@ -7,7 +8,8 @@ use std::io::Write;
 
 use yummy_cache::state::{YummyState};
 use yummy_general::password::Password;
-use yummy_model::{UserId, SessionId};
+use yummy_model::meta::MetaAction;
+use yummy_model::{UserId, SessionId, UserType};
 use yummy_model::auth::UserAuth;
 use yummy_model::config::YummyConfig;
 
@@ -20,7 +22,7 @@ use yummy_testing::database::get_database_pool;
 use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect};
 use crate::conn::model::UserConnected;
 use crate::plugin::PluginExecuter;
-use crate::user::model::{GetUserInformation, GetUserInformationEnum};
+use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
 use super::PythonPluginInstaller;
 
@@ -559,6 +561,95 @@ def post_restore_token(model, success):
     executer.post_get_user_information(model, true).expect("post_get_user_information returned Err");
 }
 
+#[test]
+fn user_update_test() {
+
+    /* Get all update fields */
+    let (executer, _) = create_python_environtment("user_update_test1.py", r#"
+import yummy
+
+def pre_update_user(model):
+    assert(model.get_request_id() == 123)
+    assert(model.get_target_user_id() == "1ea7b016-fdd2-4d07-b71c-f877049265da")
+    assert(model.get_name() == "erhan")
+    assert(model.get_password() == "abc")
+    assert(model.get_device_id() == "device_id")
+    assert(model.get_custom_id() == "custom_id")
+    assert(model.get_user_type() == yummy.USER_TYPE_ADMIN)
+    assert(model.get_meta_action() == yummy.META_ACTION_REMOVE_ALL_METAS)
+    assert(model.get_metas() == {})
+
+def post_update_user(model, success):
+    assert(model.get_request_id() == 123)
+    assert(model.get_target_user_id() == "1ea7b016-fdd2-4d07-b71c-f877049265da")
+    assert(model.get_name() == "erhan")
+    assert(model.get_password() == "abc")
+    assert(model.get_device_id() == "device_id")
+    assert(model.get_custom_id() == "custom_id")
+    assert(model.get_user_type() == yummy.USER_TYPE_ADMIN)
+    assert(model.get_meta_action() == yummy.META_ACTION_REMOVE_ALL_METAS)
+    assert(model.get_metas() == {})
+"#);
+
+    let model = UpdateUser {
+        request_id: Some(123),
+        auth: Arc::new(Some(UserAuth {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+        })),
+        target_user_id: Some(UserId::from("1ea7b016-fdd2-4d07-b71c-f877049265da".to_string())),
+        name: Some("erhan".to_string()),
+        email: Some("erhan@abc.com".to_string()),
+        password: Some("abc".to_string()),
+        device_id: Some("device_id".to_string()),
+        custom_id: Some("custom_id".to_string()),
+        user_type: Some(UserType::Admin),
+        metas: Some(HashMap::new()),
+        meta_action: Some(MetaAction::RemoveAllMetas),
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_update_user(model).expect("pre_update_user returned Err");
+    let model = executer.post_update_user(model, true).expect("post_update_user returned Err");
+
+    
+    /* Update user fields */
+    let (executer, _) = create_python_environtment("user_update_test2.py", r#"
+import yummy
+
+def pre_update_user(model):
+    assert(model.get_request_id() == 123)
+    assert(model.get_target_user_id() == "1ea7b016-fdd2-4d07-b71c-f877049265da")
+    model.set_name("baris")
+    model.set_password("password")
+    model.set_device_id("new_device_id")
+    model.set_custom_id("new_custom_id")
+    model.set_user_type(yummy.USER_TYPE_MOD)
+    model.set_meta_action(yummy.META_ACTION_REMOVE_UNUSED_METAS)
+    model.set_metas(None)
+
+def post_update_user(model, success):
+    assert(model.get_name() == "baris")
+    assert(model.get_password() == "password")
+    assert(model.get_device_id() == "new_device_id")
+    assert(model.get_custom_id() == "new_custom_id")
+    assert(model.get_user_type() == yummy.USER_TYPE_MOD)
+    assert(model.get_meta_action() == yummy.META_ACTION_REMOVE_UNUSED_METAS)
+    assert(model.get_metas() is None)
+"#);
+
+    let model = executer.pre_update_user(model).expect("pre_update_user returned Err");
+    let model = executer.post_update_user(model, true).expect("post_update_user returned Err");
+
+    assert_eq!(model.custom_id, Some("new_custom_id".to_string()));
+    assert_eq!(model.device_id, Some("new_device_id".to_string()));
+    assert_eq!(model.password, Some("password".to_string()));
+    assert_eq!(model.name, Some("baris".to_string()));
+    assert_eq!(model.user_type, Some(UserType::Mod));
+    assert_eq!(model.meta_action, Some(MetaAction::RemoveUnusedMetas));
+    assert_eq!(model.metas, None);
+}
+
 /* Basic model checks */
 model_tester!(device_id_auth_tester, "device_id_auth_tester.py", pre_deviceid_auth, post_deviceid_auth, DeviceIdAuthRequest {
     request_id: Some(123),
@@ -628,5 +719,23 @@ model_tester!(restore_token, "restore_token.py", pre_restore_token, post_restore
         session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
     })),
     token: "TOKEN".to_string(),
+    socket: Arc::new(DummyClient::default())
+});
+
+model_tester!(update_user, "update_user.py", pre_update_user, post_update_user, UpdateUser {
+    request_id: Some(123),
+    auth: Arc::new(Some(UserAuth {
+        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+    })),
+    target_user_id: None,
+    name: None,
+    email: None,
+    password: None,
+    device_id: None,
+    custom_id: None,
+    user_type: None,
+    metas: None,
+    meta_action: None,
     socket: Arc::new(DummyClient::default())
 });

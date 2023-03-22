@@ -193,13 +193,13 @@ impl PythonPluginInstaller {
                 EmailAuthRequestWrapper::make_class(&vm.ctx);
                 CustomIdAuthRequestWrapper::make_class(&vm.ctx);
                 YummyPluginContextWrapper::make_class(&vm.ctx);
-                CustomIdAuthRequestWrapper::make_class(&vm.ctx);
                 LogoutRequestWrapper::make_class(&vm.ctx);
                 UserConnectedWrapper::make_class(&vm.ctx);
                 ConnUserDisconnectWrapper::make_class(&vm.ctx);
                 RefreshTokenRequestWrapper::make_class(&vm.ctx);
                 RestoreTokenRequestWrapper::make_class(&vm.ctx);
                 GetUserInformationWrapper::make_class(&vm.ctx);
+                UpdateUserWrapper::make_class(&vm.ctx);
                 //PyYummyValidationError::make_class(&vm.ctx);
 
                 PyYummyValidationError::extend_class(&vm.ctx, &vm.ctx.exceptions.base_exception_type);
@@ -280,7 +280,7 @@ impl FunctionType {
             FunctionType::UserConnected => "pre_user_connected",
             FunctionType::UserDisconnected => "pre_user_disconnected",
             FunctionType::GetUserInformation => "pre_get_user_information",
-            FunctionType::UpdateUser => "NOT_IMPLEMENTED_YET",
+            FunctionType::UpdateUser => "pre_update_user",
             FunctionType::CreateRoom => "NOT_IMPLEMENTED_YET",
             FunctionType::UpdateRoom => "NOT_IMPLEMENTED_YET",
             FunctionType::JoinToRoom => "NOT_IMPLEMENTED_YET",
@@ -305,7 +305,7 @@ impl FunctionType {
             FunctionType::UserConnected => "post_user_connected",
             FunctionType::UserDisconnected => "post_user_disconnected",
             FunctionType::GetUserInformation => "post_get_user_information",
-            FunctionType::UpdateUser => "NOT_IMPLEMENTED_YET",
+            FunctionType::UpdateUser => "post_update_user",
             FunctionType::CreateRoom => "NOT_IMPLEMENTED_YET",
             FunctionType::UpdateRoom => "NOT_IMPLEMENTED_YET",
             FunctionType::JoinToRoom => "NOT_IMPLEMENTED_YET",
