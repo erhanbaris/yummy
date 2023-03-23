@@ -42,7 +42,8 @@ use crate::{
     user::model::{GetUserInformation, UpdateUser},
 };
 use self::model::ModelWrapper;
-use self::modules::yummy::{self, CustomIdAuthRequestWrapper, LogoutRequestWrapper, UserConnectedWrapper, ConnUserDisconnectWrapper, RefreshTokenRequestWrapper, RestoreTokenRequestWrapper, UpdateUserWrapper};
+use self::modules::configure_modules;
+use self::modules::yummy::{self, CustomIdAuthRequestWrapper, LogoutRequestWrapper, UserConnectedWrapper, ConnUserDisconnectWrapper, RefreshTokenRequestWrapper, RestoreTokenRequestWrapper, UpdateUserWrapper, CreateRoomRequestWrapper};
 use self::modules::yummy::EmailAuthRequestWrapper;
 use self::modules::yummy::DeviceIdAuthRequestWrapper;
 
@@ -183,7 +184,7 @@ impl PythonPluginInstaller {
         let interpreter = InterpreterConfig::new()
             .init_stdlib()
             .init_hook(Box::new(|vm| {
-                vm.add_native_module("yummy".to_owned(), Box::new(yummy::make_module));
+                vm.add_native_module("yummy".to_owned(), Box::new(configure_modules));
             }))
             .interpreter();
 
@@ -200,6 +201,7 @@ impl PythonPluginInstaller {
                 RestoreTokenRequestWrapper::make_class(&vm.ctx);
                 GetUserInformationWrapper::make_class(&vm.ctx);
                 UpdateUserWrapper::make_class(&vm.ctx);
+                CreateRoomRequestWrapper::make_class(&vm.ctx);
                 //PyYummyValidationError::make_class(&vm.ctx);
 
                 PyYummyValidationError::extend_class(&vm.ctx, &vm.ctx.exceptions.base_exception_type);
@@ -341,7 +343,7 @@ impl YummyPlugin for PythonPlugin {
     create_func!(pre_update_user, post_update_user, FunctionType::UpdateUser, UpdateUser, UpdateUserWrapper);
 
     // Room Manager
-    create_dummy_func!(pre_create_room, post_create_room, FunctionType::CREATE_ROOM, CreateRoomRequest);
+    create_func!(pre_create_room, post_create_room, FunctionType::CreateRoom, CreateRoomRequest, CreateRoomRequestWrapper);
     create_dummy_func!(pre_update_room, post_update_room, FunctionType::UPDATE_ROOM, UpdateRoom);
     create_dummy_func!(pre_join_to_room, post_join_to_room, FunctionType::JOIN_TO_ROOM, JoinToRoomRequest);
     create_dummy_func!(pre_process_waiting_user, post_process_waiting_user, FunctionType::PROCESS_WAITING_USER, ProcessWaitingUser);

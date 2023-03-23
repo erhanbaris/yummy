@@ -1,3 +1,17 @@
+use rustpython_vm::{VirtualMachine, PyObjectRef, extend_module};
+
+mod constants;
+
+pub fn configure_modules(vm: &VirtualMachine) -> PyObjectRef {
+    let module = yummy::make_module(vm);
+
+    extend_module!(vm, module, {
+         "constants" => constants::_constants::make_module(vm)
+    });
+
+    module
+}
+
 #[rustpython::vm::pymodule]
 pub mod yummy {
     use std::collections::HashMap;
@@ -23,6 +37,7 @@ pub mod yummy {
     use crate::auth::model::{CustomIdAuthRequest, LogoutRequest, ConnUserDisconnect, RefreshTokenRequest, RestoreTokenRequest};
     use crate::conn::model::UserConnected;
     use crate::plugin::python::util::MetaTypeUtil;
+    use crate::room::model::CreateRoomRequest;
     use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
     use crate::{plugin::python::model::YummyPluginContextWrapper, auth::model::{DeviceIdAuthRequest, EmailAuthRequest}};
     use crate::plugin::python::ModelWrapper;
@@ -33,43 +48,6 @@ pub mod yummy {
 
     /* **************************************************************************************************************** */
     /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
-    /* **************************************************************************************************************** */
-
-    /* UserType */
-    #[pyattr]
-    const USER_TYPE_USER: u32 = UserType::User as u32;
-    #[pyattr]
-    const USER_TYPE_MOD: u32 = UserType::Mod as u32;
-    #[pyattr]
-    const USER_TYPE_ADMIN: u32 = UserType::Admin as u32;
-
-
-    /* UserMetaAccess */
-    #[pyattr]
-    const USER_META_ACCESS_ANONYMOUS: u32 = UserMetaAccess::Anonymous as u32;
-    #[pyattr]
-    const USER_META_ACCESS_USER: u32 = UserMetaAccess::User as u32;
-    #[pyattr]
-    const USER_META_ACCESS_FRIEND: u32 = UserMetaAccess::Friend as u32;
-    #[pyattr]
-    const USER_META_ACCESS_ME: u32 = UserMetaAccess::Me as u32;
-    #[pyattr]
-    const USER_META_ACCESS_MOD: u32 = UserMetaAccess::Mod as u32;
-    #[pyattr]
-    const USER_META_ACCESS_ADMIN: u32 = UserMetaAccess::Admin as u32;
-    #[pyattr]
-    const USER_META_ACCESS_SYSTEM: u32 = UserMetaAccess::System as u32;
-
-
-    /* MetaAction */
-    #[pyattr]
-    const META_ACTION_ONLY_ADD_OR_UPDATE: u32 = MetaAction::OnlyAddOrUpdate as u32;
-    #[pyattr]
-    const META_ACTION_REMOVE_UNUSED_METAS: u32 = MetaAction::RemoveUnusedMetas as u32;
-    #[pyattr]
-    const META_ACTION_REMOVE_ALL_METAS: u32 = MetaAction::RemoveAllMetas as u32;
-
-    /* **************************************************************************************************************** */
     /* **************************************************** MACROS **************************************************** */
     /* **************************************************************************************************************** */
 
@@ -171,6 +149,7 @@ pub mod yummy {
     wrapper_struct!(RefreshTokenRequest, RefreshTokenRequestWrapper, "RefreshToken");
     wrapper_struct!(RestoreTokenRequest, RestoreTokenRequestWrapper, "RestoreToken");
     wrapper_struct!(GetUserInformation, GetUserInformationWrapper, "GetUserInformation");
+    wrapper_struct!(CreateRoomRequest, CreateRoomRequestWrapper, "CreateRoom");
 
     #[pyattr]
     #[pyclass(module = false, name = "UserMetaType")]
@@ -190,7 +169,6 @@ pub mod yummy {
     /* **************************************************** ENUMS ***************************************************** */
     /* ************************************************** FUNCTIONS *************************************************** */
     /* **************************************************************************************************************** */
-
     #[pyfunction]
     pub fn fail(message: String, vm: &VirtualMachine) -> PyResult<PyBaseExceptionRef> {
         use rustpython::vm::class::PyClassImpl;
@@ -714,13 +692,9 @@ pub mod yummy {
         }
     }
 
-    /* ################################################# DeviceIdAuth ################################################# */
-
-    /* ################################################## EmailAuth ################################################### */
-
-    /* ################################################ CustomIdAuth ################################################## */
-
-    /* ################################################# Logout ################################################### */
+    #[yummy_model(class_name="CreateRoomRequest")]
+    #[pyclass(flags(BASETYPE))]
+    impl CreateRoomRequestWrapper { }
 
     /* ########################################### UserMetaTypeWrapper ################################################# */
     #[pyclass(flags(BASETYPE))]

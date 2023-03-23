@@ -8,7 +8,7 @@ use std::io::Write;
 
 use yummy_cache::state::{YummyState};
 use yummy_general::password::Password;
-use yummy_model::meta::MetaAction;
+use yummy_model::meta::{MetaAction, UserMetaType, UserMetaAccess};
 use yummy_model::{UserId, SessionId, UserType};
 use yummy_model::auth::UserAuth;
 use yummy_model::config::YummyConfig;
@@ -129,27 +129,26 @@ def test(model: dict):
 #[test]
 fn enum_types() {
     create_python_environtment("simple_python_api_call.py", r#"
-import yummy
+from yummy import constants
 
 # UserType's
-yummy.USER_TYPE_USER
-yummy.USER_TYPE_USER
-yummy.USER_TYPE_MOD
-yummy.USER_TYPE_ADMIN
+constants.USER_TYPE_USER
+constants.USER_TYPE_MOD
+constants.USER_TYPE_ADMIN
 
 # UserMetaAccess's
-yummy.USER_META_ACCESS_ANONYMOUS
-yummy.USER_META_ACCESS_USER
-yummy.USER_META_ACCESS_FRIEND
-yummy.USER_META_ACCESS_ME
-yummy.USER_META_ACCESS_MOD
-yummy.USER_META_ACCESS_ADMIN
-yummy.USER_META_ACCESS_SYSTEM
+constants.USER_META_ACCESS_ANONYMOUS
+constants.USER_META_ACCESS_USER
+constants.USER_META_ACCESS_FRIEND
+constants.USER_META_ACCESS_ME
+constants.USER_META_ACCESS_MOD
+constants.USER_META_ACCESS_ADMIN
+constants.USER_META_ACCESS_SYSTEM
 
 # MetaAction
-yummy.META_ACTION_ONLY_ADD_OR_UPDATE
-yummy.META_ACTION_REMOVE_UNUSED_METAS
-yummy.META_ACTION_REMOVE_ALL_METAS
+constants.META_ACTION_ONLY_ADD_OR_UPDATE
+constants.META_ACTION_REMOVE_UNUSED_METAS
+constants.META_ACTION_REMOVE_ALL_METAS
 "#);
 }
 
@@ -648,6 +647,53 @@ def post_update_user(model, success):
     assert_eq!(model.user_type, Some(UserType::Mod));
     assert_eq!(model.meta_action, Some(MetaAction::RemoveUnusedMetas));
     assert_eq!(model.metas, None);
+
+    
+    /* Update metas */
+    let (executer, _) = create_python_environtment("user_update_test3.py", r#"
+import yummy
+
+def pre_update_user(model):
+    model.set_metas({
+        'meta 1': 1,
+        'meta 2': True,
+        'meta 3': 2.3,
+        'meta 4': 'test',
+        'meta 5': []
+    })
+"#);
+
+    let model = executer.pre_update_user(model).expect("pre_update_user returned Err");
+    let model = executer.post_update_user(model, true).expect("post_update_user returned Err");
+
+    if let Some(metas) = model.metas.as_ref() {
+        assert_eq!(metas.len(), 5);
+        assert_eq!(metas.get("meta 1"), Some(&UserMetaType::Number(1.0, UserMetaAccess::User)));
+        assert_eq!(metas.get("meta 2"), Some(&UserMetaType::Bool(true, UserMetaAccess::User)));
+        assert_eq!(metas.get("meta 3"), Some(&UserMetaType::Number(2.3, UserMetaAccess::User)));
+        assert_eq!(metas.get("meta 4"), Some(&UserMetaType::String("test".to_string(), UserMetaAccess::User)));
+        assert_eq!(metas.get("meta 5"), Some(&UserMetaType::List(Box::new(Vec::new()), UserMetaAccess::User)));
+    } else {
+        assert!(false, "Metas information is None")
+    }
+    
+    
+    /* Get metas */
+    let (executer, _) = create_python_environtment("user_update_test4.py", r#"
+import yummy
+
+def pre_update_user(model):
+    assert(model.get_metas() == {
+        'meta 1': 1,
+        'meta 2': True,
+        'meta 3': 2.3,
+        'meta 4': 'test',
+        'meta 5': []
+    })
+"#);
+
+    let model = executer.pre_update_user(model).expect("pre_update_user returned Err");
+    executer.post_update_user(model, true).expect("post_update_user returned Err");
 }
 
 /* Basic model checks */
