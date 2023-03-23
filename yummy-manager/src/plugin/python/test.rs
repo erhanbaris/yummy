@@ -574,8 +574,8 @@ def pre_update_user(model):
     assert(model.get_password() == "abc")
     assert(model.get_device_id() == "device_id")
     assert(model.get_custom_id() == "custom_id")
-    assert(model.get_user_type() == yummy.USER_TYPE_ADMIN)
-    assert(model.get_meta_action() == yummy.META_ACTION_REMOVE_ALL_METAS)
+    assert(model.get_user_type() == yummy.constants.USER_TYPE_ADMIN)
+    assert(model.get_meta_action() == yummy.constants.META_ACTION_REMOVE_ALL_METAS)
     assert(model.get_metas() == {})
 
 def post_update_user(model, success):
@@ -585,8 +585,8 @@ def post_update_user(model, success):
     assert(model.get_password() == "abc")
     assert(model.get_device_id() == "device_id")
     assert(model.get_custom_id() == "custom_id")
-    assert(model.get_user_type() == yummy.USER_TYPE_ADMIN)
-    assert(model.get_meta_action() == yummy.META_ACTION_REMOVE_ALL_METAS)
+    assert(model.get_user_type() == yummy.constants.USER_TYPE_ADMIN)
+    assert(model.get_meta_action() == yummy.constants.META_ACTION_REMOVE_ALL_METAS)
     assert(model.get_metas() == {})
 "#);
 
