@@ -1,66 +1,65 @@
 import yummy
 
-requests = []
 
-def pre_deviceid_auth(model: yummy.DeviceIdAuth):
+def pre_deviceid_auth(model: yummy.model.DeviceIdAuth):
     pass
 
 
-def post_deviceid_auth(model: yummy.DeviceIdAuth, success: bool):
+def post_deviceid_auth(model: yummy.model.DeviceIdAuth, success: bool):
     pass
 
 
-def pre_email_auth(model: yummy.EmailAuth):
+def pre_email_auth(model: yummy.model.EmailAuth):
     pass
 
 
-def post_email_auth(model: yummy.EmailAuth, success: bool):
+def post_email_auth(model: yummy.model.EmailAuth, success: bool):
     pass
 
 
-def pre_customid_auth(model: yummy.CustomIdAuth):
+def pre_customid_auth(model: yummy.model.CustomIdAuth):
     pass
 
 
-def post_customid_auth(model: yummy.CustomIdAuth, success: bool):
+def post_customid_auth(model: yummy.model.CustomIdAuth, success: bool):
     pass
 
 
-def pre_logout(model: yummy.Logout):
-    print(model.get_user_id() + " logout")
-
-
-def post_logout(model: yummy.Logout, success: bool):
+def pre_logout(model: yummy.model.Logout):
     pass
 
 
-def pre_user_connected(model: yummy.UserConnected):
+def post_logout(model: yummy.model.Logout, success: bool):
     pass
 
 
-def post_user_connected(model: yummy.UserConnected, success: bool):
+def pre_user_connected(model: yummy.model.UserConnected):
     pass
 
 
-def pre_user_disconnected(model: yummy.UserDisconnected):
+def post_user_connected(model: yummy.model.UserConnected, success: bool):
     pass
 
 
-def post_user_disconnected(model: yummy.UserDisconnected, success: bool):
+def pre_user_disconnected(model: yummy.model.UserDisconnected):
     pass
 
 
-def pre_refresh_token(model: yummy.RefreshToken):
+def post_user_disconnected(model: yummy.model.UserDisconnected, success: bool):
     pass
 
 
-def post_refresh_token(model: yummy.RefreshToken, success: bool):
+def pre_refresh_token(model: yummy.model.RefreshToken):
     pass
 
 
-def pre_get_user_information(model: yummy.GetUserInformation):
+def post_refresh_token(model: yummy.model.RefreshToken, success: bool):
     pass
 
 
-def post_get_user_information(model: yummy.GetUserInformation, success: bool):
+def pre_get_user_information(model: yummy.model.GetUserInformation):
+    pass
+
+
+def post_get_user_information(model: yummy.model.GetUserInformation, success: bool):
     pass

@@ -258,42 +258,42 @@ fn user_meta_test() {
 import yummy
 
 def pre_deviceid_auth(model):
-    assert(yummy.get_user_meta(model.get_user_id(), "key") is None)
+    assert(yummy.user.get_user_meta(model.get_user_id(), "key") is None)
     
-    assert(yummy.set_user_meta(model.get_user_id(), "key", "motorola"))
-    assert(yummy.get_user_meta(model.get_user_id(), "key") == "motorola")
+    assert(yummy.user.set_user_meta(model.get_user_id(), "key", "motorola"))
+    assert(yummy.user.get_user_meta(model.get_user_id(), "key") == "motorola")
 
-    assert(yummy.set_user_meta(model.get_user_id(), "key", 2023))
-    assert(yummy.get_user_meta(model.get_user_id(), "key") == 2023)
+    assert(yummy.user.set_user_meta(model.get_user_id(), "key", 2023))
+    assert(yummy.user.get_user_meta(model.get_user_id(), "key") == 2023)
     
-    assert(yummy.set_user_meta(model.get_user_id(), "key", "motorola", 3))
-    assert(yummy.get_user_meta(model.get_user_id(), "key") == "motorola")
+    assert(yummy.user.set_user_meta(model.get_user_id(), "key", "motorola", 3))
+    assert(yummy.user.get_user_meta(model.get_user_id(), "key") == "motorola")
 
-    assert(yummy.set_user_meta(model.get_user_id(), "key", 2023, 1))
-    assert(yummy.get_user_meta(model.get_user_id(), "key") == 2023)
+    assert(yummy.user.set_user_meta(model.get_user_id(), "key", 2023, 1))
+    assert(yummy.user.get_user_meta(model.get_user_id(), "key") == 2023)
 
-    assert(yummy.set_user_meta(model.get_user_id(), "key", [123, True, 321.123, "test"]))
-    assert(yummy.get_user_meta(model.get_user_id(), "key") == [123, True, 321.123, "test"])
+    assert(yummy.user.set_user_meta(model.get_user_id(), "key", [123, True, 321.123, "test"]))
+    assert(yummy.user.get_user_meta(model.get_user_id(), "key") == [123, True, 321.123, "test"])
 
-    assert(yummy.set_user_meta(model.get_user_id(), "key", None))
-    assert(yummy.get_user_meta(model.get_user_id(), "key") is None)
+    assert(yummy.user.set_user_meta(model.get_user_id(), "key", None))
+    assert(yummy.user.get_user_meta(model.get_user_id(), "key") is None)
 
-    yummy.set_user_meta(model.get_user_id(), "key1", "motorola")
-    yummy.set_user_meta(model.get_user_id(), "key2", True)
-    yummy.set_user_meta(model.get_user_id(), "key3", 123)
-    yummy.set_user_meta(model.get_user_id(), "key4", 321.123)
-    yummy.set_user_meta(model.get_user_id(), "key5", [123, True, 321.123, "test"])
+    yummy.user.set_user_meta(model.get_user_id(), "key1", "motorola")
+    yummy.user.set_user_meta(model.get_user_id(), "key2", True)
+    yummy.user.set_user_meta(model.get_user_id(), "key3", 123)
+    yummy.user.set_user_meta(model.get_user_id(), "key4", 321.123)
+    yummy.user.set_user_meta(model.get_user_id(), "key5", [123, True, 321.123, "test"])
 
-    assert(yummy.get_user_metas(model.get_user_id()) == {'key': None, 'key1': 'motorola', 'key2': True, 'key3': 123.0, 'key4': 321.123, 'key5': [123.0, True, 321.123, 'test']})
+    assert(yummy.user.get_user_metas(model.get_user_id()) == {'key': None, 'key1': 'motorola', 'key2': True, 'key3': 123.0, 'key4': 321.123, 'key5': [123.0, True, 321.123, 'test']})
 
-    yummy.remove_user_meta(model.get_user_id(), "key1")
-    assert(yummy.get_user_metas(model.get_user_id()) == {'key': None, 'key2': True, 'key3': 123.0, 'key4': 321.123, 'key5': [123.0, True, 321.123, 'test']})
+    yummy.user.remove_user_meta(model.get_user_id(), "key1")
+    assert(yummy.user.get_user_metas(model.get_user_id()) == {'key': None, 'key2': True, 'key3': 123.0, 'key4': 321.123, 'key5': [123.0, True, 321.123, 'test']})
 
-    yummy.remove_user_meta(model.get_user_id(), "dummy")
-    assert(yummy.get_user_metas(model.get_user_id()) == {'key': None, 'key2': True, 'key3': 123.0, 'key4': 321.123, 'key5': [123.0, True, 321.123, 'test']})
+    yummy.user.remove_user_meta(model.get_user_id(), "dummy")
+    assert(yummy.user.get_user_metas(model.get_user_id()) == {'key': None, 'key2': True, 'key3': 123.0, 'key4': 321.123, 'key5': [123.0, True, 321.123, 'test']})
 
-    assert(yummy.remove_user_metas(model.get_user_id()))
-    assert(yummy.get_user_metas(model.get_user_id()) == {})
+    assert(yummy.user.remove_user_metas(model.get_user_id()))
+    assert(yummy.user.get_user_metas(model.get_user_id()) == {})
 "#);
 
     let model = DeviceIdAuthRequest {
@@ -623,8 +623,8 @@ def pre_update_user(model):
     model.set_password("password")
     model.set_device_id("new_device_id")
     model.set_custom_id("new_custom_id")
-    model.set_user_type(yummy.USER_TYPE_MOD)
-    model.set_meta_action(yummy.META_ACTION_REMOVE_UNUSED_METAS)
+    model.set_user_type(yummy.constants.USER_TYPE_MOD)
+    model.set_meta_action(yummy.constants.META_ACTION_REMOVE_UNUSED_METAS)
     model.set_metas(None)
 
 def post_update_user(model, success):
@@ -632,8 +632,8 @@ def post_update_user(model, success):
     assert(model.get_password() == "password")
     assert(model.get_device_id() == "new_device_id")
     assert(model.get_custom_id() == "new_custom_id")
-    assert(model.get_user_type() == yummy.USER_TYPE_MOD)
-    assert(model.get_meta_action() == yummy.META_ACTION_REMOVE_UNUSED_METAS)
+    assert(model.get_user_type() == yummy.constants.USER_TYPE_MOD)
+    assert(model.get_meta_action() == yummy.constants.META_ACTION_REMOVE_UNUSED_METAS)
     assert(model.get_metas() is None)
 "#);
 

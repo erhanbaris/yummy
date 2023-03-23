@@ -7,7 +7,7 @@ use num_bigint::ToBigInt;
 use num_traits::Zero;
 use rustpython::vm::{VirtualMachine, PyObjectRef, PyRef, builtins::{PyBaseException, PyFloat, PyInt, PyStr, PyList}, PyResult};
 
-use super::modules::yummy::UserMetaTypeWrapper;
+use super::modules::model::_model::UserMetaTypeWrapper;
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */

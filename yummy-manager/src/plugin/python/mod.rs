@@ -31,8 +31,8 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use crate::plugin::python::model::YummyPluginContextWrapper;
-use crate::plugin::python::modules::yummy::{GetUserInformationWrapper};
-use crate::plugin::python::yummy::PyYummyValidationError;
+use crate::plugin::python::modules::model::_model::{DeviceIdAuthRequestWrapper, EmailAuthRequestWrapper, CustomIdAuthRequestWrapper, LogoutRequestWrapper, UserConnectedWrapper, ConnUserDisconnectWrapper, RefreshTokenRequestWrapper, RestoreTokenRequestWrapper, GetUserInformationWrapper, UpdateUserWrapper, CreateRoomRequestWrapper};
+use crate::plugin::python::modules::base::_base::PyYummyValidationError;
 use crate::{
     auth::model::{ConnUserDisconnect, CustomIdAuthRequest, DeviceIdAuthRequest, EmailAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest},
     conn::model::UserConnected,
@@ -43,9 +43,6 @@ use crate::{
 };
 use self::model::ModelWrapper;
 use self::modules::configure_modules;
-use self::modules::yummy::{self, CustomIdAuthRequestWrapper, LogoutRequestWrapper, UserConnectedWrapper, ConnUserDisconnectWrapper, RefreshTokenRequestWrapper, RestoreTokenRequestWrapper, UpdateUserWrapper, CreateRoomRequestWrapper};
-use self::modules::yummy::EmailAuthRequestWrapper;
-use self::modules::yummy::DeviceIdAuthRequestWrapper;
 
 use super::{YummyPlugin, YummyPluginInstaller, YummyPluginError, PluginExecuter};
 
@@ -193,7 +190,6 @@ impl PythonPluginInstaller {
                 DeviceIdAuthRequestWrapper::make_class(&vm.ctx);
                 EmailAuthRequestWrapper::make_class(&vm.ctx);
                 CustomIdAuthRequestWrapper::make_class(&vm.ctx);
-                YummyPluginContextWrapper::make_class(&vm.ctx);
                 LogoutRequestWrapper::make_class(&vm.ctx);
                 UserConnectedWrapper::make_class(&vm.ctx);
                 ConnUserDisconnectWrapper::make_class(&vm.ctx);
@@ -202,8 +198,8 @@ impl PythonPluginInstaller {
                 GetUserInformationWrapper::make_class(&vm.ctx);
                 UpdateUserWrapper::make_class(&vm.ctx);
                 CreateRoomRequestWrapper::make_class(&vm.ctx);
-                //PyYummyValidationError::make_class(&vm.ctx);
 
+                YummyPluginContextWrapper::make_class(&vm.ctx);
                 PyYummyValidationError::extend_class(&vm.ctx, &vm.ctx.exceptions.base_exception_type);
 
                 let path = Path::new(&config.python_files_path).join("*.py").to_string_lossy().to_string();
