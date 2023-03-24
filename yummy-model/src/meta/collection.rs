@@ -1,4 +1,3 @@
-
 /* **************************************************************************************************************** */
 /* **************************************************** MODS ****************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
@@ -216,3 +215,62 @@ impl<T: Default + Debug + PartialEq + Clone + From<i32>, I: Default + ToString +
 /* ************************************************* MACROS CALL ************************************************** */
 /* ************************************************** UNIT TESTS ************************************************** */
 /* **************************************************************************************************************** */
+#[cfg(test)]
+mod test {
+    use crate::{meta::{UserMetaType, UserMetaAccess}, UserMetaId};
+
+    use super::{UserMetaCollection, UserMetaCollectionInformation};
+
+    #[test]
+    fn user_meta_collection_test() {
+        let mut collection = UserMetaCollection::new();
+        /* Key add */
+        collection.add("key1".to_string(), UserMetaType::Bool(true, UserMetaAccess::Admin));
+        collection.add("key1".to_string(), UserMetaType::Bool(true, UserMetaAccess::Me)); // Dublicated key
+
+        collection.add_with_id(UserMetaId::new(), "key2".to_string(), UserMetaType::Null);
+        collection.add_item(UserMetaCollectionInformation {
+            id: Some(UserMetaId::new()),
+            meta: UserMetaType::Number(1.1, UserMetaAccess::Me),
+            name: "key3".to_string()
+        });
+
+        assert_eq!(collection.is_empty(), false);
+        assert_eq!(collection.len(), 3);
+        for item in collection.iter() {
+            println!("{:?}", item);
+        }
+
+        /* Find keys */
+        let key2 = collection.get_with_name("key2").cloned().unwrap();
+        let key2_copy = collection.get_with_id(&key2.id.as_ref().unwrap()).unwrap();
+
+        assert!(key2.id == key2_copy.id);
+        assert!(key2.meta == key2_copy.meta);
+        assert!(key2.name == key2_copy.name);
+
+        assert_eq!(collection.get_with_name("NO KEY"), None);
+
+        let key1 = collection.get_with_name("key1").cloned().unwrap();
+        assert!(key1.meta == UserMetaType::Bool(true, UserMetaAccess::Me));
+
+        /* Remove operations */
+        collection.remove_with_id(&key2.id.as_ref().unwrap());
+        assert_eq!(collection.is_empty(), false);
+        assert_eq!(collection.len(), 2);
+
+        collection.remove_with_name("key3");
+        assert_eq!(collection.is_empty(), false);
+        assert_eq!(collection.len(), 1);
+
+        collection.remove_with_name("NO KEY");
+        assert_eq!(collection.is_empty(), false);
+        assert_eq!(collection.len(), 1);
+
+        serde_json::from_str::<UserMetaCollection>("{}").unwrap();
+        serde_json::from_str::<UserMetaCollection>("[]").unwrap_err();
+        serde_json::from_str::<UserMetaCollection>("").unwrap_err();
+        serde_json::from_str::<UserMetaCollection>("1024").unwrap_err();
+        
+    }
+}
