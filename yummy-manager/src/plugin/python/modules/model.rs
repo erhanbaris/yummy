@@ -438,6 +438,17 @@ pub mod _model {
             self.data.borrow_mut().password = Password::from(password);
             Ok(())
         }
+
+        #[pymethod]
+        pub fn get_if_not_exist_create(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_bool(self.data.borrow_mut().if_not_exist_create).into())
+        }
+
+        #[pymethod]
+        pub fn set_if_not_exist_create(&self, if_not_exist_create: bool) -> PyResult<()> {
+            self.data.borrow_mut().if_not_exist_create = if_not_exist_create;
+            Ok(())
+        }
     }
 
     #[yummy_model(class_name="CustomIdAuthRequest")]

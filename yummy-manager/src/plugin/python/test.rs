@@ -152,6 +152,51 @@ constants.META_ACTION_REMOVE_ALL_METAS
 "#);
 }
 
+
+#[test]
+fn email_auth_test() {
+    let (executer, _) = create_python_environtment("email_auth_test.py", r#"
+def pre_email_auth(model):
+    assert(model.get_email() == "abc@gmail.com")
+    model.set_email("abc@abc.com")
+    assert(model.get_email() == "abc@abc.com")
+
+    assert(model.get_password() == "password123")
+    model.set_password("password")
+    assert(model.get_password() == "password")
+
+    assert(model.get_if_not_exist_create() is True)
+    model.set_if_not_exist_create(False)
+    assert(model.get_if_not_exist_create() is False)
+
+def post_email_auth(model, success):
+    assert(success)
+    assert(model.get_email() == "abc@abc.com")
+    assert(model.get_password() == "password")
+    assert(model.get_if_not_exist_create() is False)
+
+"#);
+
+    let model = EmailAuthRequest {
+        request_id: Some(123),
+        auth: Arc::new(Some(UserAuth {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+        })),
+        email: "abc@gmail.com".to_string(),
+        password: Password::from("password123".to_string()),
+        if_not_exist_create: true,
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_email_auth(model).expect("pre_email_auth returned Err");
+    let model = executer.post_email_auth(model, true).expect("post_email_auth returned Err");
+    
+    assert_eq!(&model.email[..], "abc@abc.com");
+    assert_eq!(&model.password.get()[..], "password");
+    assert_eq!(model.if_not_exist_create, false);
+}
+
 #[test]
 fn deviceid_auth_test() {
     let (executer, _) = create_python_environtment("deviceid_auth_test.py", r#"
@@ -414,20 +459,20 @@ def post_restore_token(model, success):
 fn get_user_information_test() {
 
     /* Me test 1 */
-    let (executer, _) = create_python_environtment("restore_token_test.py", r#"
+    let (executer, _) = create_python_environtment("get_user_information_test.py", r#"
 import yummy
 
-def pre_restore_token(model):
+def pre_get_user_information(model):
     assert(model.get_request_id() == 123)
-    assert(model.get_query_type() == "me")
+    assert(model.get_query_type() == "Me")
     assert(model.get_user_id() is None)
-    assert(model.get_val() == (None, None))
+    assert(model.get_value() == (None, None))
 
-def post_restore_token(model, success):
+def post_get_user_information(model, success):
     assert(model.get_request_id() == 123)
-    assert(model.get_query_type() == "me")
+    assert(model.get_query_type() == "Me")
     assert(model.get_user_id() is None)
-    assert(model.get_val() == (None, None))
+    assert(model.get_value() == (None, None))
 "#);
 
     let model = GetUserInformation {
@@ -441,20 +486,21 @@ def post_restore_token(model, success):
 
 
     /* Me test 2 */
-    let (executer, _) = create_python_environtment("restore_token_test.py", r#"
+    let (executer, _) = create_python_environtment("get_user_information_test.py", r#"
 import yummy
 
-def pre_restore_token(model):
+def pre_get_user_information(model):
     assert(model.get_request_id() == 123)
-    assert(model.get_query_type() == "me")
-    assert(model.get_user_id() is None)
-    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+    assert(model.get_query_type() == "Me")
+    print(model.get_user_id())
+    assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
+    assert(model.get_value() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
 
-def post_restore_token(model, success):
+def post_get_user_information(model, success):
     assert(model.get_request_id() == 123)
-    assert(model.get_query_type() == "me")
-    assert(model.get_user_id() is None)
-    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+    assert(model.get_query_type() == "Me")
+    assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
+    assert(model.get_value() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
 "#);
 
     let model = GetUserInformation {
@@ -471,20 +517,20 @@ def post_restore_token(model, success):
 
 
     /* UserViaSystem test */
-    let (executer, _) = create_python_environtment("restore_token_test.py", r#"
+    let (executer, _) = create_python_environtment("get_user_information_test.py", r#"
 import yummy
 
-def pre_restore_token(model):
+def pre_get_user_information(model):
     assert(model.get_request_id() == 123)
     assert(model.get_query_type() == "UserViaSystem")
     assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
-    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+    assert(model.get_value() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
 
-def post_restore_token(model, success):
+def post_get_user_information(model, success):
     assert(model.get_request_id() == 123)
     assert(model.get_query_type() == "UserViaSystem")
     assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
-    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+    assert(model.get_value() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
 "#);
 
     let model = GetUserInformation {
@@ -498,20 +544,20 @@ def post_restore_token(model, success):
 
 
     /* User test 1 */
-    let (executer, _) = create_python_environtment("restore_token_test.py", r#"
+    let (executer, _) = create_python_environtment("get_user_information_test.py", r#"
 import yummy
 
-def pre_restore_token(model):
+def pre_get_user_information(model):
     assert(model.get_request_id() == 123)
     assert(model.get_query_type() == "User")
     assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
-    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+    assert(model.get_value() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
 
-def post_restore_token(model, success):
+def post_get_user_information(model, success):
     assert(model.get_request_id() == 123)
     assert(model.get_query_type() == "User")
     assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
-    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+    assert(model.get_value() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
 "#);
 
     let model = GetUserInformation {
@@ -528,20 +574,20 @@ def post_restore_token(model, success):
 
 
     /* User test 2 */
-    let (executer, _) = create_python_environtment("restore_token_test.py", r#"
+    let (executer, _) = create_python_environtment("get_user_information_test.py", r#"
 import yummy
 
-def pre_restore_token(model):
+def pre_get_user_information(model):
     assert(model.get_request_id() == 123)
     assert(model.get_query_type() == "User")
     assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
-    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", "edbe3335-3545-4d38-a2f6-3856e63bfd6f"))
+    assert(model.get_value() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", "edbe3335-3545-4d38-a2f6-3856e63bfd6f"))
 
-def post_restore_token(model, success):
+def post_get_user_information(model, success):
     assert(model.get_request_id() == 123)
     assert(model.get_query_type() == "User")
     assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
-    assert(model.get_val() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", "edbe3335-3545-4d38-a2f6-3856e63bfd6f"))
+    assert(model.get_value() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", "edbe3335-3545-4d38-a2f6-3856e63bfd6f"))
 "#);
 
     let model = GetUserInformation {
@@ -572,6 +618,7 @@ def pre_update_user(model):
     assert(model.get_target_user_id() == "1ea7b016-fdd2-4d07-b71c-f877049265da")
     assert(model.get_name() == "erhan")
     assert(model.get_password() == "abc")
+    assert(model.get_email() == "erhan@abc.com")
     assert(model.get_device_id() == "device_id")
     assert(model.get_custom_id() == "custom_id")
     assert(model.get_user_type() == yummy.constants.USER_TYPE_ADMIN)
@@ -583,6 +630,7 @@ def post_update_user(model, success):
     assert(model.get_target_user_id() == "1ea7b016-fdd2-4d07-b71c-f877049265da")
     assert(model.get_name() == "erhan")
     assert(model.get_password() == "abc")
+    assert(model.get_email() == "erhan@abc.com")
     assert(model.get_device_id() == "device_id")
     assert(model.get_custom_id() == "custom_id")
     assert(model.get_user_type() == yummy.constants.USER_TYPE_ADMIN)
@@ -622,6 +670,7 @@ def pre_update_user(model):
     model.set_name("baris")
     model.set_password("password")
     model.set_device_id("new_device_id")
+    model.set_email("abc@abc.com")
     model.set_custom_id("new_custom_id")
     model.set_user_type(yummy.constants.USER_TYPE_MOD)
     model.set_meta_action(yummy.constants.META_ACTION_REMOVE_UNUSED_METAS)
@@ -631,6 +680,7 @@ def post_update_user(model, success):
     assert(model.get_name() == "baris")
     assert(model.get_password() == "password")
     assert(model.get_device_id() == "new_device_id")
+    assert(model.get_email() == "abc@abc.com")
     assert(model.get_custom_id() == "new_custom_id")
     assert(model.get_user_type() == yummy.constants.USER_TYPE_MOD)
     assert(model.get_meta_action() == yummy.constants.META_ACTION_REMOVE_UNUSED_METAS)
@@ -642,6 +692,7 @@ def post_update_user(model, success):
 
     assert_eq!(model.custom_id, Some("new_custom_id".to_string()));
     assert_eq!(model.device_id, Some("new_device_id".to_string()));
+    assert_eq!(model.email, Some("abc@abc.com".to_string()));
     assert_eq!(model.password, Some("password".to_string()));
     assert_eq!(model.name, Some("baris".to_string()));
     assert_eq!(model.user_type, Some(UserType::Mod));
