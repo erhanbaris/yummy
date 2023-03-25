@@ -70,11 +70,6 @@ macro_rules! generate_type {
             pub fn get(&self) -> &Uuid {
                 &self.0
             }
-
-            #[allow(dead_code)]
-            fn try_from(data: String) -> Result<Self, uuid::Error> {
-                uuid::Uuid::parse_str(&data).map(|item| $name(item))
-            }
         }
 
         impl Default for $name {
@@ -86,12 +81,6 @@ macro_rules! generate_type {
         impl From<String> for $name {
             fn from(data: String) -> Self {
                 $name(uuid::Uuid::parse_str(&data).unwrap_or_default())
-            }
-        }
-
-        impl From<Uuid> for $name {
-            fn from(data: Uuid) -> Self {
-                $name(data)
             }
         }
 
@@ -317,3 +306,49 @@ generate_redis_convert!(RoomUserType);
 /* **************************************************************************************************************** */
 /* ************************************************** UNIT TESTS ************************************************** */
 /* **************************************************************************************************************** */
+#[cfg(test)]
+mod test {
+    use crate::{CreateRoomAccessType, RoomUserType, UserType};
+
+    #[test]
+    fn create_room_access_type() {
+        assert_eq!(i32::from(CreateRoomAccessType::Public), 0);
+        assert_eq!(i32::from(CreateRoomAccessType::Private), 1);
+        assert_eq!(i32::from(CreateRoomAccessType::Friend), 2);
+
+        assert_eq!(CreateRoomAccessType::from(0), CreateRoomAccessType::Public);
+        assert_eq!(CreateRoomAccessType::from(1), CreateRoomAccessType::Private);
+        assert_eq!(CreateRoomAccessType::from(2), CreateRoomAccessType::Friend);
+
+        assert_eq!(CreateRoomAccessType::from(-1), CreateRoomAccessType::Public);
+        assert_eq!(CreateRoomAccessType::from(100), CreateRoomAccessType::Public);
+    }
+
+    #[test]
+    fn room_user_type() {
+        assert_eq!(i32::from(RoomUserType::User), 1);
+        assert_eq!(i32::from(RoomUserType::Moderator), 2);
+        assert_eq!(i32::from(RoomUserType::Owner), 3);
+
+        assert_eq!(RoomUserType::from(1), RoomUserType::User);
+        assert_eq!(RoomUserType::from(2), RoomUserType::Moderator);
+        assert_eq!(RoomUserType::from(3), RoomUserType::Owner);
+
+        assert_eq!(RoomUserType::from(-1), RoomUserType::User);
+        assert_eq!(RoomUserType::from(100), RoomUserType::User);
+    }
+
+    #[test]
+    fn user_type() {
+        assert_eq!(i32::from(UserType::User), 1);
+        assert_eq!(i32::from(UserType::Mod), 2);
+        assert_eq!(i32::from(UserType::Admin), 3);
+
+        assert_eq!(UserType::from(1), UserType::User);
+        assert_eq!(UserType::from(2), UserType::Mod);
+        assert_eq!(UserType::from(3), UserType::Admin);
+
+        assert_eq!(UserType::from(-1), UserType::User);
+        assert_eq!(UserType::from(100), UserType::User);
+    }
+}

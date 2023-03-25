@@ -277,3 +277,51 @@ impl<'de, T: Default + Debug + PartialEq + Clone + From<i32> + Into<i32>> Visito
 /* ************************************************* MACROS CALL ************************************************** */
 /* ************************************************** UNIT TESTS ************************************************** */
 /* **************************************************************************************************************** */
+#[cfg(test)]
+mod test {
+    use crate::meta::{MetaAction, UserMetaAccess, RoomMetaAccess};
+
+    #[test]
+    fn meta_action() {
+        assert_eq!(MetaAction::from(0), MetaAction::OnlyAddOrUpdate);
+        assert_eq!(MetaAction::from(1), MetaAction::RemoveUnusedMetas);
+        assert_eq!(MetaAction::from(2), MetaAction::RemoveAllMetas);
+
+        assert_eq!(MetaAction::from(-1), MetaAction::OnlyAddOrUpdate);
+        assert_eq!(MetaAction::from(100), MetaAction::OnlyAddOrUpdate);
+    }
+
+    #[test]
+    fn user_meta_access() {
+        assert_eq!(UserMetaAccess::from(0), UserMetaAccess::Anonymous);
+        assert_eq!(UserMetaAccess::from(1), UserMetaAccess::User);
+        assert_eq!(UserMetaAccess::from(2), UserMetaAccess::Friend);
+        assert_eq!(UserMetaAccess::from(3), UserMetaAccess::Me);
+        assert_eq!(UserMetaAccess::from(4), UserMetaAccess::Mod);
+        assert_eq!(UserMetaAccess::from(5), UserMetaAccess::Admin);
+        assert_eq!(UserMetaAccess::from(6), UserMetaAccess::System);
+
+        assert_eq!(UserMetaAccess::from(-1), UserMetaAccess::Anonymous);
+        assert_eq!(UserMetaAccess::from(100), UserMetaAccess::Anonymous);
+    }
+
+    #[test]
+    fn room_meta_access() {
+        assert_eq!(RoomMetaAccess::from(0), RoomMetaAccess::Anonymous);
+        assert_eq!(RoomMetaAccess::from(1), RoomMetaAccess::User);
+        assert_eq!(RoomMetaAccess::from(2), RoomMetaAccess::Moderator);
+        assert_eq!(RoomMetaAccess::from(3), RoomMetaAccess::Owner);
+        assert_eq!(RoomMetaAccess::from(4), RoomMetaAccess::Admin);
+        assert_eq!(RoomMetaAccess::from(5), RoomMetaAccess::System);
+
+        assert_eq!(i32::from(RoomMetaAccess::Anonymous), 0);
+        assert_eq!(i32::from(RoomMetaAccess::User), 1);
+        assert_eq!(i32::from(RoomMetaAccess::Moderator), 2);
+        assert_eq!(i32::from(RoomMetaAccess::Owner), 3);
+        assert_eq!(i32::from(RoomMetaAccess::Admin), 4);
+        assert_eq!(i32::from(RoomMetaAccess::System), 5);
+
+        assert_eq!(RoomMetaAccess::from(-1), RoomMetaAccess::Anonymous);
+        assert_eq!(RoomMetaAccess::from(100), RoomMetaAccess::Anonymous);
+    }
+}

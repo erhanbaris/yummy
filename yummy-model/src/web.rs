@@ -1,13 +1,51 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use actix_web::{error::{JsonPayloadError, InternalError}, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Answer {
     pub request_id: Option<usize>,
     pub status: bool,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GenericAnswer<T> {
+    pub request_id: Option<usize>,
+    pub status: bool,
 
+    #[serde(flatten)]
+    pub result: T,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ErrorResponse<T: Serialize> {
+    pub error: T
+}
+
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* **************************************************************************************************************** */
+pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::Error {
+    let detail = err.to_string();
+    let res = HttpResponse::BadRequest().body("error");
+    log::error!("Json parse issue: {}", detail);
+    
+    InternalError::from_response("Json format is not valid. Please check request definition.", res).into()
+}
+
+/* **************************************************************************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
 impl Answer {
     pub fn success(request_id: Option<usize>) -> Self {
         Self { request_id, status: true }
@@ -18,25 +56,13 @@ impl Answer {
     }
 }
 
+/* **************************************************************************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* **************************************************************************************************************** */
 impl From<Answer> for String {
     fn from(source: Answer) -> Self {
         serde_json::to_string(&source).unwrap()
     }
-}
-
-impl From<String> for Answer {
-    fn from(source: String) -> Self {
-        serde_json::from_str(&source).unwrap()
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct GenericAnswer<T> {
-    pub request_id: Option<usize>,
-    pub status: bool,
-
-    #[serde(flatten)]
-    pub result: T,
 }
 
 impl<T> GenericAnswer<T>
@@ -76,16 +102,7 @@ impl<T: DeserializeOwned> From<String> for GenericAnswer<T> {
     }
 }
 
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ErrorResponse<T: Serialize> {
-    pub error: T
-}
-
-pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::Error {
-    let detail = err.to_string();
-    let res = HttpResponse::BadRequest().body("error");
-    log::error!("Json parse issue: {}", detail);
-    
-    InternalError::from_response("Json format is not valid. Please check request definition.", res).into()
-}
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */

@@ -57,6 +57,7 @@ jobs:
             --ignore server/src/api/websocket/client.rs \
             --ignore general/src/client.rs \
             --ignore "*test.rs" \
+            --ignore "*main.rs" \
             --ignore "*steps.rs" \
             --ignore "*tests.rs" \
             --ignore "*github.com*" \
