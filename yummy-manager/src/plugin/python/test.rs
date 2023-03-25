@@ -467,12 +467,14 @@ def pre_get_user_information(model):
     assert(model.get_query_type() == "Me")
     assert(model.get_user_id() is None)
     assert(model.get_value() == (None, None))
+    assert(model.get_requester_user_id() is None)
 
 def post_get_user_information(model, success):
     assert(model.get_request_id() == 123)
     assert(model.get_query_type() == "Me")
     assert(model.get_user_id() is None)
     assert(model.get_value() == (None, None))
+    assert(model.get_requester_user_id() is None)
 "#);
 
     let model = GetUserInformation {
@@ -492,15 +494,14 @@ import yummy
 def pre_get_user_information(model):
     assert(model.get_request_id() == 123)
     assert(model.get_query_type() == "Me")
-    print(model.get_user_id())
     assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
-    assert(model.get_value() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+    assert(model.get_value() == ('294a6097-b8ea-4daa-b699-9f0c0c119c6d', None))
 
 def post_get_user_information(model, success):
     assert(model.get_request_id() == 123)
     assert(model.get_query_type() == "Me")
     assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
-    assert(model.get_value() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+    assert(model.get_value() == ('294a6097-b8ea-4daa-b699-9f0c0c119c6d', None))
 "#);
 
     let model = GetUserInformation {
@@ -544,27 +545,32 @@ def post_get_user_information(model, success):
 
 
     /* User test 1 */
-    let (executer, _) = create_python_environtment("get_user_information_test.py", r#"
+    let (executer, _) = create_python_environtment("get_user_information_tes2.py", r#"
 import yummy
 
 def pre_get_user_information(model):
     assert(model.get_request_id() == 123)
     assert(model.get_query_type() == "User")
     assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
-    assert(model.get_value() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+    assert(model.get_value() == ('294a6097-b8ea-4daa-b699-9f0c0c119c6d', '2fc4cc71-b43f-4246-b072-710ad1d2095c'))
+    assert(model.get_requester_user_id() == "2fc4cc71-b43f-4246-b072-710ad1d2095c")
 
 def post_get_user_information(model, success):
     assert(model.get_request_id() == 123)
     assert(model.get_query_type() == "User")
     assert(model.get_user_id() == "294a6097-b8ea-4daa-b699-9f0c0c119c6d")
-    assert(model.get_value() == ("294a6097-b8ea-4daa-b699-9f0c0c119c6d", None))
+    assert(model.get_value() == ('294a6097-b8ea-4daa-b699-9f0c0c119c6d', '2fc4cc71-b43f-4246-b072-710ad1d2095c'))
+    assert(model.get_requester_user_id() == "2fc4cc71-b43f-4246-b072-710ad1d2095c")
 "#);
 
     let model = GetUserInformation {
         request_id: Some(123),
         query: GetUserInformationEnum::User {
             user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
-            requester: Arc::new(None)
+            requester: Arc::new(Some(UserAuth {
+                user: UserId::from("2fc4cc71-b43f-4246-b072-710ad1d2095c".to_string()),
+                session: SessionId::from("6b8022d8-8eec-48e1-90f8-edb8fa637761".to_string())
+            }))
         },
         socket: Arc::new(DummyClient::default())
     };
