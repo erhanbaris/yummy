@@ -99,7 +99,7 @@ darling = "0.14.4"
 libsqlite3-sys = { version = "^0.25.2", features = ["bundled"] }
 
 cucumber = "0.19.1"
-async-trait = "0.1.67"
+async-trait = "0.1.68"
 rustpython = {git = "http://github.com/rustpython/rustpython.git", rev = "fd028253fefa851ae22d482a86425cce0db8623b", features = ["stdlib", "freeze-stdlib"]}
 rustpython-vm = {git = "http://github.com/rustpython/rustpython.git", rev = "fd028253fefa851ae22d482a86425cce0db8623b", features = ["freeze-stdlib"]}
 
