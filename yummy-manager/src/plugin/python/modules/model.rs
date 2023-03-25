@@ -13,8 +13,8 @@ pub mod _model {
     use rustpython_vm::builtins::{PyBaseException, PyInt, PyDict, PyStr};
     use rustpython_vm::{VirtualMachine, PyResult, PyObjectRef, TryFromBorrowedObject, PyRef, PyObject};
     use yummy_general::password::Password;
-    use yummy_model::UserType;
-    use yummy_model::meta::MetaAction;
+    use yummy_model::{UserType, CreateRoomAccessType};
+    use yummy_model::meta::{MetaAction, RoomMetaType, RoomMetaAccess};
     use yummy_model::{meta::{UserMetaAccess, UserMetaType}};
     use yummy_macros::yummy_model;
     use rustpython::vm::{pyclass, PyPayload};
@@ -63,8 +63,14 @@ pub mod _model {
         };
     }
 
+    macro_rules! get_usize {
+        ($self: expr, $item: ident, $vm: ident) => {
+            Ok($vm.ctx.new_bigint(&($self.data.borrow_mut().$item as u32).to_bigint().unwrap()).into())
+        };
+    }
+
     macro_rules! set_value {
-        ($self: expr,  $target: ident, $source: ident) => {
+        ($self: expr,  $target: ident, $source: expr) => {
             $self.data.borrow_mut().$target = $source;
         };
     }
@@ -134,10 +140,24 @@ pub mod _model {
     }
 
     #[pyattr]
+    #[pyclass(module = false, name = "RoomMetaType")]
+    #[derive(Debug, PyPayload)]
+    pub struct RoomMetaTypeWrapper {
+        pub data: RoomMetaType
+    }
+
+    #[pyattr]
     #[pyclass(module = false, name = "UserMetaAccess")]
     #[derive(Debug, PyPayload)]
     pub struct UserMetaAccessWrapper {
         pub data: UserMetaAccess
+    }
+
+    #[pyattr]
+    #[pyclass(module = false, name = "RoomMetaAccess")]
+    #[derive(Debug, PyPayload)]
+    pub struct RoomMetaAccessWrapper {
+        pub data: RoomMetaAccess
     }
 
     /* **************************************************************************************************************** */
@@ -384,7 +404,7 @@ pub mod _model {
                                 None => return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), "Only str type allowed for the key.".to_string()))
                             };
                             
-                            new_metas.insert(key, MetaTypeUtil::parse(vm, &value, UserMetaAccess::User)?.data);
+                            new_metas.insert(key, MetaTypeUtil::parse_user_meta(vm, &value, UserMetaAccess::User)?.data);
                         }
                     } else {
                         return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), "Only dict type allowed. .".to_string()))
@@ -468,7 +488,142 @@ pub mod _model {
 
     #[yummy_model(class_name="CreateRoomRequest")]
     #[pyclass(flags(BASETYPE))]
-    impl CreateRoomRequestWrapper { }
+    impl CreateRoomRequestWrapper {
+        /* Name functions */
+        #[pymethod]
+        pub fn get_name(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_nullable_string!(self, name, vm)
+        }
+
+        #[pymethod]
+        pub fn set_name(&self, name: Option<String>) -> PyResult<()> {
+            set_value!(self, name, name);
+            Ok(())
+        }
+
+        /* Description functions */
+        #[pymethod]
+        pub fn get_description(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_nullable_string!(self, description, vm)
+        }
+
+        #[pymethod]
+        pub fn set_description(&self, description: Option<String>) -> PyResult<()> {
+            set_value!(self, description, description);
+            Ok(())
+        }
+
+        /* Join request functions */
+        #[pymethod]
+        pub fn get_join_request(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_bool!(self, join_request, vm)
+        }
+
+        #[pymethod]
+        pub fn set_join_request(&self, join_request: bool) -> PyResult<()> {
+            set_value!(self, join_request, join_request);
+            Ok(())
+        }
+
+        /* Access type functions */
+        #[pymethod]
+        pub fn get_access_type(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_bigint(&i32::from(self.data.borrow_mut().access_type).to_bigint().unwrap()).into())
+        }
+
+        #[pymethod]
+        pub fn set_access_type(&self, access_type: i32) -> PyResult<()> {
+            let access_type = CreateRoomAccessType::from(access_type);
+            set_value!(self, access_type, access_type);
+            Ok(())
+        }
+
+        /* Max user functions */
+        #[pymethod]
+        pub fn get_max_user(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_usize!(self, max_user, vm)
+        }
+
+        #[pymethod]
+        pub fn set_max_user(&self, max_user: usize) -> PyResult<()> {
+            set_value!(self, max_user, max_user);
+            Ok(())
+        }
+
+        /* Metas functions */
+        #[pymethod]
+        pub fn get_metas(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            match self.data.borrow().metas.clone() {
+                Some(data) => {
+                    let dict = vm.ctx.new_dict();
+                    
+                    for (key, value) in data.iter() {
+                        dict.set_item(key, MetaTypeUtil::as_python_value(value, vm)?, vm)?;
+                    }
+
+                    Ok(dict.into())
+                },
+                None => Ok(vm.ctx.none().into())
+            }
+        }
+
+        #[pymethod]
+        pub fn set_metas(&self, metas: Option<PyObjectRef>, vm: &VirtualMachine) -> PyResult<()> {
+            self.data.borrow_mut().metas = match metas {
+                Some(metas) => {
+                    
+                    let mut new_metas = HashMap::new();
+
+                    if metas.class().fast_issubclass(vm.ctx.types.dict_type) {
+                        let dict = metas.downcast_ref::<PyDict>().unwrap();
+
+                        for (key, value) in dict {
+                            let key = match key.downcast_ref::<PyStr>() {
+                                Some(str) => str.as_str().to_string(),
+                                None => return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), "Only str type allowed for the key.".to_string()))
+                            };
+                            
+                            new_metas.insert(key, MetaTypeUtil::parse_room_meta(vm, &value, RoomMetaAccess::default())?.data);
+                        }
+                    } else {
+                        return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), "Only dict type allowed. .".to_string()))
+                    }
+
+                    Some(new_metas)
+                },
+                None => None
+            };
+            Ok(())
+        }
+
+        /* Tags functions */
+        #[pymethod]
+        pub fn get_tags(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            let mut list = Vec::new();
+            
+            for value in self.data.borrow().tags.clone().into_iter() {
+                list.push(vm.ctx.new_str(&value[..]).into());
+            }
+
+            Ok(vm.ctx.new_list(list).into())
+        }
+
+        #[pymethod]
+        pub fn set_tags(&self, tags: Vec<PyObjectRef>, vm: &VirtualMachine) -> PyResult<()> {
+            let mut new_tags = Vec::new();
+
+            for tag in tags {
+                if tag.class().fast_issubclass(vm.ctx.types.str_type) {
+                    new_tags.push(tag.payload::<PyStr>().unwrap().as_str().to_string());
+                } else {
+                    return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), "Only string type allowed. .".to_string()))
+                }
+            }
+            
+            self.data.borrow_mut().tags = new_tags;
+            Ok(())
+        }
+    }
 
     /* ########################################### UserMetaTypeWrapper ################################################# */
     #[pyclass(flags(BASETYPE))]
@@ -485,6 +640,20 @@ pub mod _model {
         }
     }
 
+    #[pyclass(flags(BASETYPE))]
+    impl RoomMetaTypeWrapper {
+        pub fn new(data: RoomMetaType) -> Self {
+            Self { data }
+        }
+    }
+
+    #[pyclass(flags(BASETYPE))]
+    impl RoomMetaAccessWrapper {
+        pub fn new(data: RoomMetaAccess) -> Self {
+            Self { data }
+        }
+    }
+
     /* **************************************************************************************************************** */
     /* ********************************************** TRAIT IMPLEMENTS ************************************************ */
     /* **************************************************************************************************************** */
@@ -496,6 +665,16 @@ pub mod _model {
             }
 
             Ok(UserMetaAccessWrapper { data: UserMetaAccess::System })
+        }
+    }
+
+    impl TryFromBorrowedObject for RoomMetaAccessWrapper {
+        fn try_from_borrowed_object(vm: &VirtualMachine, obj: &PyObject) -> Result<Self, PyRef<PyBaseException>> {
+            if obj.class().fast_issubclass(vm.ctx.types.int_type) {
+                return Ok(RoomMetaAccessWrapper::new(RoomMetaAccess::from(obj.payload::<PyInt>().unwrap().as_u32_mask() as i32)));
+            }
+
+            Ok(RoomMetaAccessWrapper { data: RoomMetaAccess::System })
         }
     }
 

@@ -184,7 +184,7 @@ pub enum UserType {
     Admin = 3
 }
 
-#[derive(Default, Clone, Debug, Serialize_repr, Deserialize_repr, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[derive(Default, Copy, Clone, Debug, Serialize_repr, Deserialize_repr, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum CreateRoomAccessType {
     #[default]

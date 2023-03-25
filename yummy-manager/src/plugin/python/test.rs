@@ -8,8 +8,8 @@ use std::io::Write;
 
 use yummy_cache::state::{YummyState};
 use yummy_general::password::Password;
-use yummy_model::meta::{MetaAction, UserMetaType, UserMetaAccess};
-use yummy_model::{UserId, SessionId, UserType};
+use yummy_model::meta::{MetaAction, UserMetaType, UserMetaAccess, RoomMetaAccess, RoomMetaType};
+use yummy_model::{UserId, SessionId, UserType, CreateRoomAccessType};
 use yummy_model::auth::UserAuth;
 use yummy_model::config::YummyConfig;
 
@@ -22,6 +22,7 @@ use yummy_testing::database::get_database_pool;
 use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect};
 use crate::conn::model::UserConnected;
 use crate::plugin::PluginExecuter;
+use crate::room::model::CreateRoomRequest;
 use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
 use super::PythonPluginInstaller;
@@ -149,6 +150,11 @@ constants.USER_META_ACCESS_SYSTEM
 constants.META_ACTION_ONLY_ADD_OR_UPDATE
 constants.META_ACTION_REMOVE_UNUSED_METAS
 constants.META_ACTION_REMOVE_ALL_METAS
+
+# CreateRoomAccessType
+constants.ROOM_ACCESS_TYPE_PUBLIC
+constants.ROOM_ACCESS_TYPE_PRIVATE
+constants.ROOM_ACCESS_TYPE_FRIEND
 "#);
 }
 
@@ -753,6 +759,96 @@ def pre_update_user(model):
     executer.post_update_user(model, true).expect("post_update_user returned Err");
 }
 
+#[test]
+fn create_room_test() {
+
+    let (executer, _) = create_python_environtment("create_room_test1.py", r#"
+import yummy
+
+def pre_create_room(model):
+    assert(model.get_name() == "my room")
+    assert(model.get_description() == "description")
+    assert(model.get_max_user() == 1024)
+    assert(model.get_join_request())
+    assert(model.get_tags() == ["tag1", "tag2", "tag3"])
+    assert(model.get_metas() == {"meta1": None, "meta2": 10.1, "meta3": None, "meta4": None})
+    assert(model.get_access_type() == yummy.constants.ROOM_ACCESS_TYPE_PUBLIC)
+
+def post_create_room(model, success):
+    assert(model.get_name() == "my room")
+    assert(model.get_description() == "description")
+    assert(model.get_max_user() == 1024)
+    assert(model.get_join_request())
+    assert(model.get_tags() == ["tag1", "tag2", "tag3"])
+    assert(model.get_metas() == {"meta1": None, "meta2": 10.1, "meta3": None, "meta4": None})
+    assert(model.get_access_type() == yummy.constants.ROOM_ACCESS_TYPE_PUBLIC)
+"#);
+
+    let model = CreateRoomRequest {
+        request_id: Some(123),
+        auth: Arc::new(Some(UserAuth {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+        })),
+        name: Some("my room".to_string()),
+        description: Some("description".to_string()),
+        access_type: CreateRoomAccessType::Public,
+        join_request: true,
+        max_user: 1024,
+        metas: Some(HashMap::from([
+            ("meta1".to_string(), RoomMetaType::Null),
+            ("meta2".to_string(), RoomMetaType::Number(10.1, RoomMetaAccess::User)),
+            ("meta3".to_string(), RoomMetaType::Null),
+            ("meta4".to_string(), RoomMetaType::Null),
+        ])),
+        tags: vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()],
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_create_room(model).expect("pre_create_room returned Err");
+    let model = executer.post_create_room(model, true).expect("post_create_room returned Err");
+
+
+    let (executer, _) = create_python_environtment("create_room_test2.py", r#"
+import yummy
+
+def pre_create_room(model):
+    model.set_name("names")
+    model.set_description("descriptions")
+    model.set_max_user(0)
+    model.set_join_request(False)
+    model.set_tags(["y", "u", "m", "m", "y"])
+    model.set_metas({"1": 1024})
+    model.set_access_type(yummy.constants.ROOM_ACCESS_TYPE_FRIEND)
+
+def post_create_room(model, success):
+    assert(model.get_name() == "names")
+    assert(model.get_description() == "descriptions")
+    assert(model.get_max_user() == 0)
+    assert(model.get_join_request() is False)
+    assert(model.get_tags() == ["y", "u", "m", "m", "y"])
+    assert(model.get_metas() == {"1": 1024})
+    assert(model.get_access_type() == yummy.constants.ROOM_ACCESS_TYPE_FRIEND)
+"#);
+
+    let model = executer.pre_create_room(model).expect("pre_create_room returned Err");
+    let model = executer.post_create_room(model, true).expect("post_create_room returned Err");
+    
+    assert_eq!(model.access_type, CreateRoomAccessType::Friend);
+    assert_eq!(model.name, Some("names".to_string()));
+    assert_eq!(model.description, Some("descriptions".to_string()));
+    assert_eq!(model.join_request, false);
+    assert_eq!(model.max_user, 0);
+    assert_eq!(model.tags, vec!["y".to_string(), "u".to_string(), "m".to_string(), "m".to_string(), "y".to_string()]);
+
+    if let Some(metas) = model.metas.as_ref() {
+        assert_eq!(metas.len(), 1);
+        assert_eq!(metas.get("1"), Some(&RoomMetaType::Number(1024.0, RoomMetaAccess::Anonymous)));
+    } else {
+        assert!(false, "Metas information is None")
+    }
+}
+
 /* Basic model checks */
 model_tester!(device_id_auth_tester, "device_id_auth_tester.py", pre_deviceid_auth, post_deviceid_auth, DeviceIdAuthRequest {
     request_id: Some(123),
@@ -840,5 +936,21 @@ model_tester!(update_user, "update_user.py", pre_update_user, post_update_user, 
     user_type: None,
     metas: None,
     meta_action: None,
+    socket: Arc::new(DummyClient::default())
+});
+
+model_tester!(create_room, "create_room.py", pre_create_room, post_create_room, CreateRoomRequest {
+    request_id: Some(123),
+    auth: Arc::new(Some(UserAuth {
+        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+    })),
+    description: None,
+    name: None,
+    access_type: CreateRoomAccessType::Public,
+    join_request: true,
+    max_user: 1024,
+    tags: Vec::new(),
+    metas: None,
     socket: Arc::new(DummyClient::default())
 });

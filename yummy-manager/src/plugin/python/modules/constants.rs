@@ -4,7 +4,7 @@ pub mod _constants {
     /* **************************************************** MODS ****************************************************** */
     /* *************************************************** IMPORTS **************************************************** */
     /* **************************************************************************************************************** */
-    use yummy_model::{meta::{UserMetaAccess, MetaAction}, UserType};
+    use yummy_model::{meta::{UserMetaAccess, MetaAction}, UserType, CreateRoomAccessType};
 
     /* **************************************************************************************************************** */
     /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
@@ -42,6 +42,16 @@ pub mod _constants {
     const META_ACTION_REMOVE_UNUSED_METAS: u32 = MetaAction::RemoveUnusedMetas as u32;
     #[pyattr]
     const META_ACTION_REMOVE_ALL_METAS: u32 = MetaAction::RemoveAllMetas as u32;
+
+
+    /* CreateRoomAccessType */
+    #[pyattr]
+    const ROOM_ACCESS_TYPE_PUBLIC: u32 = CreateRoomAccessType::Public as u32;
+    #[pyattr]
+    const ROOM_ACCESS_TYPE_PRIVATE: u32 = CreateRoomAccessType::Private as u32;
+    #[pyattr]
+    const ROOM_ACCESS_TYPE_FRIEND: u32 = CreateRoomAccessType::Friend as u32;
+
 
     /* **************************************************************************************************************** */
     /* **************************************************** MACROS **************************************************** */

@@ -132,7 +132,7 @@ pub mod _user {
         };
 
         /* Build meta information */
-        let value = MetaTypeUtil::parse(vm, &value, access_level)?;
+        let value = MetaTypeUtil::parse_user_meta(vm, &value, access_level)?;
 
         match context.data.user_logic.set_user_meta(UserId::from(user_id), key, value.data) {
 
