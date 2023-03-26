@@ -87,3 +87,11 @@ def pre_update_room(model: model.UpdateRoom):
 
 def post_update_room(model: model.UpdateRoom, success: bool):
     pass
+
+
+def pre_join_to_room(model: model.UpdateRoom):
+    pass
+
+
+def post_join_to_room(model: model.JoinToRoom, success: bool):
+    pass
