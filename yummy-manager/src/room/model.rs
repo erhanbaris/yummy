@@ -114,7 +114,7 @@ pub struct UpdateRoom {
     pub join_request: Option<bool>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>,
     pub metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>,
-    pub meta_action: Option<MetaAction>,
+    pub meta_action: MetaAction,
     pub access_type: Option<CreateRoomAccessType>,
     pub max_user: Option<usize>,
     pub tags: Option<Vec<String>>,

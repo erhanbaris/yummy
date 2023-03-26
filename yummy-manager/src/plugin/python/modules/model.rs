@@ -23,6 +23,7 @@ pub mod _model {
 
     use crate::plugin::python::modules::base::_base::PyYummyValidationError;
     use crate::plugin::python::util::MetaTypeUtil;
+    use crate::room::model::UpdateRoom;
     use crate::{auth::model::{DeviceIdAuthRequest, EmailAuthRequest, CustomIdAuthRequest, ConnUserDisconnect, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}, conn::model::UserConnected, user::model::{UpdateUser, GetUserInformation, GetUserInformationEnum}, room::model::CreateRoomRequest};
     use crate::plugin::python::ModelWrapper;
 
@@ -31,7 +32,7 @@ pub mod _model {
     /* **************************************************** MACROS **************************************************** */
     /* **************************************************************************************************************** */
 
-    macro_rules! wrapper_struct {
+    macro_rules! model_wrapper_struct {
         ($model: ident, $wrapper: ident, $class_name: expr) => {
             #[pyclass(module = "yummy", name = $class_name)]
             #[derive(Debug, PyPayload)]
@@ -51,21 +52,40 @@ pub mod _model {
         }
     }
 
+    macro_rules! wrapper_struct {
+        ($model: ident, $wrapper: ident, $class_name: expr) => {
+            #[pyclass(module = "yummy", name = $class_name)]
+            #[derive(Debug, PyPayload)]
+            pub struct $wrapper {
+                pub data: $model
+            }
+
+            impl $wrapper {
+                pub fn new(data: $model) -> Self {
+                    Self { data }
+                }
+            }
+
+            unsafe impl Send for $wrapper {}
+            unsafe impl Sync for $wrapper {}
+        }
+    }
+
     macro_rules! get_string {
         ($self: expr, $item: ident, $vm: ident) => {
-            Ok($vm.ctx.new_str(&$self.data.borrow_mut().$item[..]).into())
+            Ok($vm.ctx.new_str(&$self.data.borrow().$item[..]).into())
         };
     }
 
     macro_rules! get_bool {
         ($self: expr, $item: ident, $vm: ident) => {
-            Ok($vm.ctx.new_bool($self.data.borrow_mut().$item).into())
+            Ok($vm.ctx.new_bool($self.data.borrow().$item).into())
         };
     }
 
     macro_rules! get_usize {
         ($self: expr, $item: ident, $vm: ident) => {
-            Ok($vm.ctx.new_bigint(&($self.data.borrow_mut().$item as u32).to_bigint().unwrap()).into())
+            Ok($vm.ctx.new_bigint(&($self.data.borrow().$item as u32).to_bigint().unwrap()).into())
         };
     }
 
@@ -85,6 +105,24 @@ pub mod _model {
         ($self: expr, $target: ident, $vm: ident) => {
             match $self.data.borrow().$target {
                 Some(data) => Ok($vm.ctx.new_float(data as f64).into()),
+                None => Ok($vm.ctx.none().into())
+            }
+        };
+    }
+
+    macro_rules! get_nullable_bool {
+        ($self: expr, $target: ident, $vm: ident) => {
+            match $self.data.borrow().$target {
+                Some(data) => Ok($vm.ctx.new_bool(data).into()),
+                None => Ok($vm.ctx.none().into())
+            }
+        };
+    }
+
+    macro_rules! get_nullable_usize {
+        ($self: expr, $target: ident, $vm: ident) => {
+            match $self.data.borrow().$target {
+                Some(data) => Ok($vm.ctx.new_bigint(&data.to_bigint().unwrap()).into()),
                 None => Ok($vm.ctx.none().into())
             }
         };
@@ -120,17 +158,22 @@ pub mod _model {
     /* **************************************************************************************************************** */
     /* *************************************************** STRUCTS **************************************************** */
     /* **************************************************************************************************************** */
-    wrapper_struct!(DeviceIdAuthRequest, DeviceIdAuthRequestWrapper, "DeviceIdAuth");
-    wrapper_struct!(EmailAuthRequest, EmailAuthRequestWrapper, "EmailAuth");
-    wrapper_struct!(CustomIdAuthRequest, CustomIdAuthRequestWrapper, "CustomIdAuth");
-    wrapper_struct!(UserConnected, UserConnectedWrapper, "UserConnected");
-    wrapper_struct!(ConnUserDisconnect, ConnUserDisconnectWrapper, "ConnUserDisconnect");
-    wrapper_struct!(UpdateUser, UpdateUserWrapper, "UpdateUser");
-    wrapper_struct!(LogoutRequest, LogoutRequestWrapper, "Logout");
-    wrapper_struct!(RefreshTokenRequest, RefreshTokenRequestWrapper, "RefreshToken");
-    wrapper_struct!(RestoreTokenRequest, RestoreTokenRequestWrapper, "RestoreToken");
-    wrapper_struct!(GetUserInformation, GetUserInformationWrapper, "GetUserInformation");
-    wrapper_struct!(CreateRoomRequest, CreateRoomRequestWrapper, "CreateRoom");
+    model_wrapper_struct!(DeviceIdAuthRequest, DeviceIdAuthRequestWrapper, "DeviceIdAuth");
+    model_wrapper_struct!(EmailAuthRequest, EmailAuthRequestWrapper, "EmailAuth");
+    model_wrapper_struct!(CustomIdAuthRequest, CustomIdAuthRequestWrapper, "CustomIdAuth");
+    model_wrapper_struct!(UserConnected, UserConnectedWrapper, "UserConnected");
+    model_wrapper_struct!(ConnUserDisconnect, ConnUserDisconnectWrapper, "ConnUserDisconnect");
+    model_wrapper_struct!(UpdateUser, UpdateUserWrapper, "UpdateUser");
+    model_wrapper_struct!(LogoutRequest, LogoutRequestWrapper, "Logout");
+    model_wrapper_struct!(RefreshTokenRequest, RefreshTokenRequestWrapper, "RefreshToken");
+    model_wrapper_struct!(RestoreTokenRequest, RestoreTokenRequestWrapper, "RestoreToken");
+    model_wrapper_struct!(GetUserInformation, GetUserInformationWrapper, "GetUserInformation");
+    model_wrapper_struct!(CreateRoomRequest, CreateRoomRequestWrapper, "CreateRoom");
+    model_wrapper_struct!(UpdateRoom, UpdateRoomWrapper, "UpdateRoom");
+
+    wrapper_struct!(CreateRoomAccessType, CreateRoomAccessTypeWrapper, "CreateRoomAccessType");
+
+    
 
     #[pyattr]
     #[pyclass(module = false, name = "UserMetaType")]
@@ -171,7 +214,7 @@ pub mod _model {
     impl UserConnectedWrapper {
         #[pymethod]
         pub fn get_user_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            Ok(vm.ctx.new_str(&self.data.borrow_mut().user_id.to_string()[..]).into())
+            Ok(vm.ctx.new_str(&self.data.borrow().user_id.to_string()[..]).into())
         }
     }
 
@@ -180,7 +223,7 @@ pub mod _model {
     impl RefreshTokenRequestWrapper {
         #[pymethod]
         pub fn get_token(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            Ok(vm.ctx.new_str(&self.data.borrow_mut().token.to_string()[..]).into())
+            Ok(vm.ctx.new_str(&self.data.borrow().token.to_string()[..]).into())
         }
     }
 
@@ -189,7 +232,7 @@ pub mod _model {
     impl RestoreTokenRequestWrapper {
         #[pymethod]
         pub fn get_token(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            Ok(vm.ctx.new_str(&self.data.borrow_mut().token.to_string()[..]).into())
+            Ok(vm.ctx.new_str(&self.data.borrow().token.to_string()[..]).into())
         }
     }
 
@@ -359,15 +402,12 @@ pub mod _model {
         /* MetaAction functions */
         #[pymethod]
         pub fn get_meta_action(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            match self.data.borrow().meta_action.clone() {
-                Some(data) => Ok(vm.ctx.new_bigint(&(data as u32).to_bigint().unwrap()).into()),
-                None => Ok(vm.ctx.none().into())
-            }
+            Ok(vm.ctx.new_bigint(&(self.data.borrow().meta_action.clone() as u32).to_bigint().unwrap()).into())
         }
 
         #[pymethod]
-        pub fn set_meta_action(&self, meta_action: Option<i32>) -> PyResult<()> {
-            self.data.borrow_mut().meta_action = meta_action.map(|item| MetaAction::from(item));
+        pub fn set_meta_action(&self, meta_action: i32) -> PyResult<()> {
+            self.data.borrow_mut().meta_action = MetaAction::from(meta_action);
             Ok(())
         }
 
@@ -450,7 +490,7 @@ pub mod _model {
 
         #[pymethod]
         pub fn get_password(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            Ok(vm.ctx.new_str(&self.data.borrow_mut().password.get()[..]).into())
+            Ok(vm.ctx.new_str(&self.data.borrow().password.get()[..]).into())
         }
 
         #[pymethod]
@@ -461,7 +501,7 @@ pub mod _model {
 
         #[pymethod]
         pub fn get_if_not_exist_create(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            Ok(vm.ctx.new_bool(self.data.borrow_mut().if_not_exist_create).into())
+            Ok(vm.ctx.new_bool(self.data.borrow().if_not_exist_create).into())
         }
 
         #[pymethod]
@@ -528,13 +568,12 @@ pub mod _model {
         /* Access type functions */
         #[pymethod]
         pub fn get_access_type(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            Ok(vm.ctx.new_bigint(&i32::from(self.data.borrow_mut().access_type).to_bigint().unwrap()).into())
+            Ok(vm.ctx.new_bigint(&i32::from(self.data.borrow().access_type).to_bigint().unwrap()).into())
         }
 
         #[pymethod]
-        pub fn set_access_type(&self, access_type: i32) -> PyResult<()> {
-            let access_type = CreateRoomAccessType::from(access_type);
-            set_value!(self, access_type, access_type);
+        pub fn set_access_type(&self, access_type: CreateRoomAccessTypeWrapper) -> PyResult<()> {
+            set_value!(self, access_type, access_type.data);
             Ok(())
         }
 
@@ -625,6 +664,159 @@ pub mod _model {
         }
     }
 
+    #[yummy_model(class_name="UpdateRoom")]
+    #[pyclass(flags(BASETYPE))]
+    impl UpdateRoomWrapper {
+        /* RoomId functions */
+        #[pymethod]
+        pub fn get_room_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_str(&self.data.borrow().room_id.to_string()[..]).into())
+        }
+
+        /* Name functions */
+        #[pymethod]
+        pub fn get_name(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_nullable_string!(self, name, vm)
+        }
+
+        #[pymethod]
+        pub fn set_name(&self, name: Option<String>) -> PyResult<()> {
+            set_value!(self, name, name);
+            Ok(())
+        }
+
+        /* Description functions */
+        #[pymethod]
+        pub fn get_description(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_nullable_string!(self, description, vm)
+        }
+
+        #[pymethod]
+        pub fn set_description(&self, description: Option<String>) -> PyResult<()> {
+            set_value!(self, description, description);
+            Ok(())
+        }
+
+        /* Join request functions */
+        #[pymethod]
+        pub fn get_join_request(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_nullable_bool!(self, join_request, vm)
+        }
+
+        #[pymethod]
+        pub fn set_join_request(&self, join_request: Option<bool>) -> PyResult<()> {
+            self.data.borrow_mut().join_request = join_request;
+            Ok(())
+        }
+
+        /* Access type functions */
+        #[pymethod]
+        pub fn get_access_type(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            match self.data.borrow().access_type {
+                Some(access_type) => Ok(vm.ctx.new_bigint(&i32::from(access_type).to_bigint().unwrap()).into()),
+                None => Ok(vm.ctx.none())
+            }
+        }
+
+        #[pymethod]
+        pub fn set_access_type(&self, access_type: Option<CreateRoomAccessTypeWrapper>) -> PyResult<()> {
+            set_value!(self, access_type, access_type.map(|item| item.data));
+            Ok(())
+        }
+
+        /* Max user functions */
+        #[pymethod]
+        pub fn get_max_user(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_nullable_usize!(self, max_user, vm)
+        }
+
+        #[pymethod]
+        pub fn set_max_user(&self, max_user: Option<usize>) -> PyResult<()> {
+            set_value!(self, max_user, max_user);
+            Ok(())
+        }
+
+        /* Metas functions */
+        #[pymethod]
+        pub fn get_metas(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            match self.data.borrow().metas.clone() {
+                Some(data) => {
+                    let dict = vm.ctx.new_dict();
+                    
+                    for (key, value) in data.iter() {
+                        dict.set_item(key, MetaTypeUtil::as_python_value(value, vm)?, vm)?;
+                    }
+
+                    Ok(dict.into())
+                },
+                None => Ok(vm.ctx.none().into())
+            }
+        }
+
+        #[pymethod]
+        pub fn set_metas(&self, metas: Option<PyObjectRef>, vm: &VirtualMachine) -> PyResult<()> {
+            self.data.borrow_mut().metas = match metas {
+                Some(metas) => {
+                    
+                    let mut new_metas = HashMap::new();
+
+                    if metas.class().fast_issubclass(vm.ctx.types.dict_type) {
+                        let dict = metas.downcast_ref::<PyDict>().unwrap();
+
+                        for (key, value) in dict {
+                            let key = match key.downcast_ref::<PyStr>() {
+                                Some(str) => str.as_str().to_string(),
+                                None => return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), "Only str type allowed for the key.".to_string()))
+                            };
+                            
+                            new_metas.insert(key, MetaTypeUtil::parse_room_meta(vm, &value, RoomMetaAccess::default())?.data);
+                        }
+                    } else {
+                        return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), "Only dict type allowed. .".to_string()))
+                    }
+
+                    Some(new_metas)
+                },
+                None => None
+            };
+            Ok(())
+        }
+
+        /* Tags functions */
+        #[pymethod]
+        pub fn get_tags(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            let mut list = Vec::new();
+            match self.data.borrow().tags.as_ref() {
+                Some(tags) => {
+                    for value in tags.clone().into_iter() {
+                        list.push(vm.ctx.new_str(&value[..]).into());
+                    }
+        
+                    Ok(vm.ctx.new_list(list).into())
+                },
+                None => Ok(vm.ctx.none().into())
+            }
+        }
+
+        #[pymethod]
+        pub fn set_tags(&self, tags: Option<Vec<String>>) -> PyResult<()> {
+            self.data.borrow_mut().tags = tags;            
+            Ok(())
+        }
+
+        /* MetaAction functions */
+        #[pymethod]
+        pub fn get_meta_action(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_bigint(&(self.data.borrow().meta_action.clone() as u32).to_bigint().unwrap()).into())
+        }
+
+        #[pymethod]
+        pub fn set_meta_action(&self, meta_action: i32) -> PyResult<()> {
+            self.data.borrow_mut().meta_action = MetaAction::from(meta_action);
+            Ok(())
+        }
+    }
+
     /* ########################################### UserMetaTypeWrapper ################################################# */
     #[pyclass(flags(BASETYPE))]
     impl UserMetaTypeWrapper {
@@ -675,6 +867,16 @@ pub mod _model {
             }
 
             Ok(RoomMetaAccessWrapper { data: RoomMetaAccess::System })
+        }
+    }
+
+    impl TryFromBorrowedObject for CreateRoomAccessTypeWrapper {
+        fn try_from_borrowed_object(vm: &VirtualMachine, obj: &PyObject) -> Result<Self, PyRef<PyBaseException>> {
+            if obj.class().fast_issubclass(vm.ctx.types.int_type) {
+                return Ok(CreateRoomAccessTypeWrapper::new(CreateRoomAccessType::from(obj.payload::<PyInt>().unwrap().as_u32_mask() as i32)));
+            }
+
+            Ok(CreateRoomAccessTypeWrapper { data: CreateRoomAccessType::default() })
         }
     }
 

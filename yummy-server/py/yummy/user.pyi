@@ -1,7 +1,6 @@
 from typing import Optional
 
-
-MetaType = int | str | bool | list['MetaType']
+from yummy import MetaType
 
 
 def get_user_meta(user_id: str, key: str) -> Optional[MetaType]:

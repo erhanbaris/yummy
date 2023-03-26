@@ -9,7 +9,7 @@ use std::io::Write;
 use yummy_cache::state::{YummyState};
 use yummy_general::password::Password;
 use yummy_model::meta::{MetaAction, UserMetaType, UserMetaAccess, RoomMetaAccess, RoomMetaType};
-use yummy_model::{UserId, SessionId, UserType, CreateRoomAccessType};
+use yummy_model::{UserId, SessionId, UserType, CreateRoomAccessType, RoomId};
 use yummy_model::auth::UserAuth;
 use yummy_model::config::YummyConfig;
 
@@ -22,7 +22,7 @@ use yummy_testing::database::get_database_pool;
 use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect};
 use crate::conn::model::UserConnected;
 use crate::plugin::PluginExecuter;
-use crate::room::model::CreateRoomRequest;
+use crate::room::model::{CreateRoomRequest, UpdateRoom};
 use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
 use super::PythonPluginInstaller;
@@ -664,7 +664,7 @@ def post_update_user(model, success):
         custom_id: Some("custom_id".to_string()),
         user_type: Some(UserType::Admin),
         metas: Some(HashMap::new()),
-        meta_action: Some(MetaAction::RemoveAllMetas),
+        meta_action: MetaAction::RemoveAllMetas,
         socket: Arc::new(DummyClient::default())
     };
 
@@ -708,7 +708,7 @@ def post_update_user(model, success):
     assert_eq!(model.password, Some("password".to_string()));
     assert_eq!(model.name, Some("baris".to_string()));
     assert_eq!(model.user_type, Some(UserType::Mod));
-    assert_eq!(model.meta_action, Some(MetaAction::RemoveUnusedMetas));
+    assert_eq!(model.meta_action, MetaAction::RemoveUnusedMetas);
     assert_eq!(model.metas, None);
 
     
@@ -849,6 +849,82 @@ def post_create_room(model, success):
     }
 }
 
+#[test]
+fn update_room_test() {
+
+    let (executer, _) = create_python_environtment("update_room_test1.py", r#"
+import yummy
+
+def pre_update_room(model):
+    assert(model.get_name() is None)
+    assert(model.get_description() is None)
+    assert(model.get_max_user() is None)
+    assert(model.get_join_request() is None)
+    assert(model.get_tags() is None)
+    assert(model.get_metas() is None)
+    assert(model.get_access_type() is None)
+    assert(model.get_meta_action() == yummy.constants.META_ACTION_ONLY_ADD_OR_UPDATE)
+
+def post_update_room(model, success):
+    assert(model.get_name() is None)
+    assert(model.get_description() is None)
+    assert(model.get_max_user() is None)
+    assert(model.get_join_request() is None)
+    assert(model.get_tags() is None)
+    assert(model.get_metas() is None)
+    assert(model.get_access_type() is None)
+    assert(model.get_meta_action() == yummy.constants.META_ACTION_ONLY_ADD_OR_UPDATE)
+"#);
+
+    let model = UpdateRoom {
+        request_id: Some(123),
+        auth: Arc::new(Some(UserAuth {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+        })),
+        room_id: RoomId::new(),
+        description: None,
+        name: None,
+        access_type: None,
+        join_request: None,
+        max_user: None,
+        tags: None,
+        metas: None,
+        user_permission: None,
+        meta_action: MetaAction::default(),
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_update_room(model).expect("pre_update_room returned Err");
+    let model = executer.post_update_room(model, true).expect("post_update_room returned Err");
+
+
+    let (executer, _) = create_python_environtment("update_room_test2.py", r#"
+import yummy
+
+def pre_update_room(model):
+    model.set_name("names")
+    model.set_description("descriptions")
+    model.set_max_user(0)
+    model.set_join_request(False)
+    model.set_tags(["y", "u", "m", "m", "y"])
+    model.set_metas({"1": 1024})
+    model.set_access_type(yummy.constants.ROOM_ACCESS_TYPE_FRIEND)
+
+def post_update_room(model, success):
+    assert(model.get_name() == "names")
+    assert(model.get_description() == "descriptions")
+    assert(model.get_max_user() == 0)
+    assert(model.get_join_request() is False)
+    assert(model.get_tags() == ["y", "u", "m", "m", "y"])
+    assert(model.get_metas() == {"1": 1024})
+    assert(model.get_access_type() == yummy.constants.ROOM_ACCESS_TYPE_FRIEND)
+"#);
+
+    let model = executer.pre_update_room(model).expect("pre_update_room returned Err");
+    let model = executer.post_update_room(model, true).expect("post_update_room returned Err");
+}
+
 /* Basic model checks */
 model_tester!(device_id_auth_tester, "device_id_auth_tester.py", pre_deviceid_auth, post_deviceid_auth, DeviceIdAuthRequest {
     request_id: Some(123),
@@ -935,7 +1011,7 @@ model_tester!(update_user, "update_user.py", pre_update_user, post_update_user, 
     custom_id: None,
     user_type: None,
     metas: None,
-    meta_action: None,
+    meta_action: MetaAction::default(),
     socket: Arc::new(DummyClient::default())
 });
 
@@ -952,5 +1028,25 @@ model_tester!(create_room, "create_room.py", pre_create_room, post_create_room, 
     max_user: 1024,
     tags: Vec::new(),
     metas: None,
+    socket: Arc::new(DummyClient::default())
+});
+
+
+model_tester!(update_room, "update_room.py", pre_update_room, post_update_room, UpdateRoom {
+    request_id: Some(123),
+    auth: Arc::new(Some(UserAuth {
+        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+    })),
+    room_id: RoomId::new(),
+    description: None,
+    name: None,
+    access_type: None,
+    join_request: None,
+    max_user: None,
+    tags: None,
+    metas: None,
+    user_permission: None,
+    meta_action: MetaAction::default(),
     socket: Arc::new(DummyClient::default())
 });

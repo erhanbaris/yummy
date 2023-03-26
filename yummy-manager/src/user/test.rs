@@ -680,7 +680,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
             ("4".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
             ("5".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
         ])),
-        meta_action: Some(MetaAction::RemoveUnusedMetas),
+        meta_action: MetaAction::RemoveUnusedMetas,
         ..Default::default()
     }).await??;
 
@@ -704,7 +704,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
         metas: Some(HashMap::from([
             ("6".to_string(), MetaType::Bool(true, UserMetaAccess::Me)),
         ])),
-        meta_action: Some(MetaAction::OnlyAddOrUpdate),
+        meta_action: MetaAction::OnlyAddOrUpdate,
         ..Default::default()
     }).await??;
 
@@ -748,7 +748,7 @@ async fn meta_manupulation_test_2() -> anyhow::Result<()> {
         auth: user.clone(),
         name: Some("Erhan".to_string()),
         socket: socket.clone(),
-        meta_action: Some(MetaAction::RemoveAllMetas),
+        meta_action: MetaAction::RemoveAllMetas,
         ..Default::default()
     }).await??;
 

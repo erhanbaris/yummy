@@ -128,8 +128,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         Ok(room_removed)
     }
 
-    fn configure_metas(&self, connection: &mut PooledConnection, room_id: &RoomId, metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>, meta_action: Option<MetaAction>, access_level: RoomMetaAccess) -> ConfigureMetasResult {
-        let meta_action = meta_action.unwrap_or_default();
+    fn configure_metas(&self, connection: &mut PooledConnection, room_id: &RoomId, metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>, meta_action: MetaAction, access_level: RoomMetaAccess) -> ConfigureMetasResult {
         let room_access_level_code = access_level as u8;
         let mut metas = metas;
 
@@ -319,7 +318,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
             };
             
             #[allow(unused_mut)]
-            let (mut meta, _) = self.configure_metas(connection, &room_id, model.metas.clone(), Some(MetaAction::OnlyAddOrUpdate), access_level)?;
+            let (mut meta, _) = self.configure_metas(connection, &room_id, model.metas.clone(), MetaAction::OnlyAddOrUpdate, access_level)?;
             
             self.states.create_room(&room_id, insert_date, model.name.clone(), model.description.clone(), model.access_type.clone(), model.max_user, model.tags.clone(), meta, model.join_request);
             self.states.join_to_room(&room_id, user_id, session_id, RoomUserType::Owner)?;

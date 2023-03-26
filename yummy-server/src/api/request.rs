@@ -63,7 +63,9 @@ pub enum RequestUserType {
         user_type: Option<UserType>,
 
         metas: Option<HashMap<String, MetaType<UserMetaAccess>>>,
-        meta_action: Option<MetaAction>
+
+        #[serde(default)]
+        meta_action: MetaAction
     }
 }
 
@@ -139,7 +141,7 @@ pub enum RequestRoomType {
         metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>,
         
         #[serde(default)]
-        meta_action: Option<MetaAction>,
+        meta_action: MetaAction,
 
         #[serde(default)]
         access_type: Option<CreateRoomAccessType>,

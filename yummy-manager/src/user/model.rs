@@ -65,7 +65,7 @@ pub struct UpdateUser {
     pub custom_id: Option<String>,
     pub user_type: Option<UserType>,
     pub metas: Option<HashMap<String, MetaType<UserMetaAccess>>>,
-    pub meta_action: Option<MetaAction>
+    pub meta_action: MetaAction
 }
 
 #[cfg(test)]
@@ -83,7 +83,7 @@ impl Default for UpdateUser
             device_id: None,
             custom_id: None,
             metas: None,
-            meta_action: None,
+            meta_action: MetaAction::default(),
             user_type: None,
         }
     }

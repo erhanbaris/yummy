@@ -190,7 +190,7 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
 
         DB::transaction::<_, anyhow::Error, _>(&mut connection, |connection| {
 
-            let meta_action = meta_action.clone().unwrap_or_default();
+            let meta_action = meta_action.clone();
             let user_access_level_code = user_access_level.clone() as u8;
 
             let (to_be_inserted, to_be_removed, total_metas) = match meta_action {

@@ -43,6 +43,7 @@ use crate::{
 };
 use self::model::ModelWrapper;
 use self::modules::configure_modules;
+use self::modules::model::_model::UpdateRoomWrapper;
 
 use super::{YummyPlugin, YummyPluginInstaller, YummyPluginError, PluginExecuter};
 
@@ -198,6 +199,7 @@ impl PythonPluginInstaller {
                 GetUserInformationWrapper::make_class(&vm.ctx);
                 UpdateUserWrapper::make_class(&vm.ctx);
                 CreateRoomRequestWrapper::make_class(&vm.ctx);
+                UpdateRoomWrapper::make_class(&vm.ctx);
 
                 YummyPluginContextWrapper::make_class(&vm.ctx);
                 PyYummyValidationError::extend_class(&vm.ctx, &vm.ctx.exceptions.base_exception_type);
@@ -280,7 +282,7 @@ impl FunctionType {
             FunctionType::GetUserInformation => "pre_get_user_information",
             FunctionType::UpdateUser => "pre_update_user",
             FunctionType::CreateRoom => "pre_create_room",
-            FunctionType::UpdateRoom => "NOT_IMPLEMENTED_YET",
+            FunctionType::UpdateRoom => "pre_update_room",
             FunctionType::JoinToRoom => "NOT_IMPLEMENTED_YET",
             FunctionType::ProcessWaitingUser => "NOT_IMPLEMENTED_YET",
             FunctionType::KickUserFromRoom => "NOT_IMPLEMENTED_YET",
@@ -305,7 +307,7 @@ impl FunctionType {
             FunctionType::GetUserInformation => "post_get_user_information",
             FunctionType::UpdateUser => "post_update_user",
             FunctionType::CreateRoom => "post_create_room",
-            FunctionType::UpdateRoom => "NOT_IMPLEMENTED_YET",
+            FunctionType::UpdateRoom => "post_update_room",
             FunctionType::JoinToRoom => "NOT_IMPLEMENTED_YET",
             FunctionType::ProcessWaitingUser => "NOT_IMPLEMENTED_YET",
             FunctionType::KickUserFromRoom => "NOT_IMPLEMENTED_YET",
@@ -340,7 +342,7 @@ impl YummyPlugin for PythonPlugin {
 
     // Room Manager
     create_func!(pre_create_room, post_create_room, FunctionType::CreateRoom, CreateRoomRequest, CreateRoomRequestWrapper);
-    create_dummy_func!(pre_update_room, post_update_room, FunctionType::UPDATE_ROOM, UpdateRoom);
+    create_func!(pre_update_room, post_update_room, FunctionType::UpdateRoom, UpdateRoom, UpdateRoomWrapper);
     create_dummy_func!(pre_join_to_room, post_join_to_room, FunctionType::JOIN_TO_ROOM, JoinToRoomRequest);
     create_dummy_func!(pre_process_waiting_user, post_process_waiting_user, FunctionType::PROCESS_WAITING_USER, ProcessWaitingUser);
     create_dummy_func!(pre_kick_user_from_room, post_kick_user_from_room, FunctionType::KICK_USER_FROM_ROOM, KickUserFromRoom);
