@@ -9,7 +9,7 @@ use std::io::Write;
 use yummy_cache::state::{YummyState};
 use yummy_general::password::Password;
 use yummy_model::meta::{MetaAction, UserMetaType, UserMetaAccess, RoomMetaAccess, RoomMetaType};
-use yummy_model::{UserId, SessionId, UserType, CreateRoomAccessType, RoomId};
+use yummy_model::{UserId, SessionId, UserType, CreateRoomAccessType, RoomId, RoomUserType};
 use yummy_model::auth::UserAuth;
 use yummy_model::config::YummyConfig;
 
@@ -22,7 +22,7 @@ use yummy_testing::database::get_database_pool;
 use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect};
 use crate::conn::model::UserConnected;
 use crate::plugin::PluginExecuter;
-use crate::room::model::{CreateRoomRequest, UpdateRoom};
+use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest};
 use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
 use super::PythonPluginInstaller;
@@ -155,6 +155,11 @@ constants.META_ACTION_REMOVE_ALL_METAS
 constants.ROOM_ACCESS_TYPE_PUBLIC
 constants.ROOM_ACCESS_TYPE_PRIVATE
 constants.ROOM_ACCESS_TYPE_FRIEND
+
+# RoomUserType
+constants.ROOM_USER_TYPE_USER
+constants.ROOM_USER_TYPE_MODERATOR
+constants.ROOM_USER_TYPE_OWNER
 "#);
 }
 
@@ -421,18 +426,18 @@ def post_refresh_token(model, success):
     assert(model.get_token() == "TOKEN")
 "#);
 
-let model = RefreshTokenRequest {
-    request_id: Some(123),
-    auth: Arc::new(Some(UserAuth {
-        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
-        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
-    })),
-    token: "TOKEN".to_string(),
-    socket: Arc::new(DummyClient::default())
-};
+    let model = RefreshTokenRequest {
+        request_id: Some(123),
+        auth: Arc::new(Some(UserAuth {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+        })),
+        token: "TOKEN".to_string(),
+        socket: Arc::new(DummyClient::default())
+    };
 
-let model = executer.pre_refresh_token(model).expect("pre_refresh_token returned Err");
-executer.post_refresh_token(model, true).expect("post_refresh_token returned Err");
+    let model = executer.pre_refresh_token(model).expect("pre_refresh_token returned Err");
+    executer.post_refresh_token(model, true).expect("post_refresh_token returned Err");
 }
 
 #[test]
@@ -864,6 +869,7 @@ def pre_update_room(model):
     assert(model.get_metas() is None)
     assert(model.get_access_type() is None)
     assert(model.get_meta_action() == yummy.constants.META_ACTION_ONLY_ADD_OR_UPDATE)
+    assert(model.get_user_permission() is None)
 
 def post_update_room(model, success):
     assert(model.get_name() is None)
@@ -874,6 +880,7 @@ def post_update_room(model, success):
     assert(model.get_metas() is None)
     assert(model.get_access_type() is None)
     assert(model.get_meta_action() == yummy.constants.META_ACTION_ONLY_ADD_OR_UPDATE)
+    assert(model.get_user_permission() is None)
 "#);
 
     let model = UpdateRoom {
@@ -910,6 +917,10 @@ def pre_update_room(model):
     model.set_tags(["y", "u", "m", "m", "y"])
     model.set_metas({"1": 1024})
     model.set_access_type(yummy.constants.ROOM_ACCESS_TYPE_FRIEND)
+    model.set_user_permission({
+        '79df9307-7f2a-489b-9a02-ea27952462f7': yummy.constants.ROOM_USER_TYPE_OWNER,
+        'faf727f1-ac60-4727-a393-1fe9387c4b5b': yummy.constants.ROOM_USER_TYPE_MODERATOR
+    })
 
 def post_update_room(model, success):
     assert(model.get_name() == "names")
@@ -919,10 +930,48 @@ def post_update_room(model, success):
     assert(model.get_tags() == ["y", "u", "m", "m", "y"])
     assert(model.get_metas() == {"1": 1024})
     assert(model.get_access_type() == yummy.constants.ROOM_ACCESS_TYPE_FRIEND)
+    assert(model.get_user_permission() == {
+        '79df9307-7f2a-489b-9a02-ea27952462f7': yummy.constants.ROOM_USER_TYPE_OWNER,
+        'faf727f1-ac60-4727-a393-1fe9387c4b5b': yummy.constants.ROOM_USER_TYPE_MODERATOR
+    })
 "#);
 
     let model = executer.pre_update_room(model).expect("pre_update_room returned Err");
-    let model = executer.post_update_room(model, true).expect("post_update_room returned Err");
+    executer.post_update_room(model, true).expect("post_update_room returned Err");
+}
+
+
+#[test]
+fn join_to_room_test() {
+    let (executer, _) = create_python_environtment("join_to_room_test.py", r#"
+import yummy
+
+def pre_join_to_room(model):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+    assert(model.get_room_user_type() == yummy.constants.ROOM_USER_TYPE_USER)
+
+    model.set_room_user_type(yummy.constants.ROOM_USER_TYPE_MODERATOR)
+
+def post_join_to_room(model, success):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+    assert(model.get_room_user_type() == yummy.constants.ROOM_USER_TYPE_MODERATOR)
+"#);
+
+    let model = JoinToRoomRequest {
+        request_id: Some(123),
+        auth: Arc::new(Some(UserAuth {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+        })),
+        room_id: RoomId::from("d508b370-6249-4fd3-9b3e-3aa66577a686".to_string()),
+        room_user_type: RoomUserType::User,
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_join_to_room(model).expect("pre_join_to_room returned Err");
+    let model = executer.post_join_to_room(model, true).expect("post_join_to_room returned Err");
+
+    assert_eq!(model.room_user_type, RoomUserType::Moderator);
 }
 
 /* Basic model checks */
@@ -1048,5 +1097,16 @@ model_tester!(update_room, "update_room.py", pre_update_room, post_update_room, 
     metas: None,
     user_permission: None,
     meta_action: MetaAction::default(),
+    socket: Arc::new(DummyClient::default())
+});
+
+model_tester!(join_to_room, "join_to_room.py", pre_join_to_room, post_join_to_room, JoinToRoomRequest {
+    request_id: Some(123),
+    auth: Arc::new(Some(UserAuth {
+        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+    })),
+    room_id: RoomId::new(),
+    room_user_type: RoomUserType::default(),
     socket: Arc::new(DummyClient::default())
 });

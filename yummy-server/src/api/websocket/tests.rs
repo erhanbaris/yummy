@@ -1014,7 +1014,7 @@ async fn join_room() -> anyhow::Result<()> {
     let response = serde_json::from_str::<GenericAnswer<RoomCreated>>(&receive.unwrap())?;
     assert!(response.status);
 
-    let room_id = response.result.room;
+    let room_id = response.result.room_id;
     
     client_2.send(json!({
         "type": "JoinToRoom",

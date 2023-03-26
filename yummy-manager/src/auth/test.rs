@@ -452,12 +452,12 @@ async fn double_login_test() -> anyhow::Result<()> {
     }).await??;
 
     let room_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let room_id = room_id.room;
+    let room_id = room_id.room_id;
 
     room_manager.send(JoinToRoomRequest {
         request_id: None,
         auth: user_2_auth.clone(),
-        room: room_id,
+        room_id,
         room_user_type: RoomUserType::User,
         socket:user_2_socket.clone()
     }).await??;
@@ -562,12 +562,12 @@ async fn user_disconnect_from_room_test() -> anyhow::Result<()> {
     }).await??;
 
     let room_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
-    let room_id = room_id.room;
+    let room_id = room_id.room_id;
 
     room_manager.send(JoinToRoomRequest {
         request_id: None,
         auth: user_2_auth.clone(),
-        room: room_id,
+        room_id,
         room_user_type: RoomUserType::User,
         socket:user_2_socket.clone()
     }).await??;

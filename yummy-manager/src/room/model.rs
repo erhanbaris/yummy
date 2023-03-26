@@ -29,7 +29,7 @@ pub struct CreateRoomRequest {
 pub struct JoinToRoomRequest {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
-    pub room: RoomId,
+    pub room_id: RoomId,
     pub room_user_type: RoomUserType,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
@@ -39,7 +39,7 @@ pub struct JoinToRoomRequest {
 pub struct WaitingRoomJoins {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
-    pub room: RoomId,
+    pub room_id: RoomId,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
@@ -48,7 +48,7 @@ pub struct WaitingRoomJoins {
 pub struct KickUserFromRoom {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
-    pub room: RoomId,
+    pub room_id: RoomId,
     pub user: UserId,
     pub ban: bool,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
@@ -59,7 +59,7 @@ pub struct KickUserFromRoom {
 pub struct ProcessWaitingUser {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
-    pub room: RoomId,
+    pub room_id: RoomId,
     pub user: UserId,
     pub status: bool,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
@@ -70,7 +70,7 @@ pub struct ProcessWaitingUser {
 pub struct DisconnectFromRoomRequest {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
-    pub room: RoomId,
+    pub room_id: RoomId,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
@@ -79,7 +79,7 @@ pub struct DisconnectFromRoomRequest {
 pub struct MessageToRoomRequest {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
-    pub room: RoomId,
+    pub room_id: RoomId,
     pub message: String,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
@@ -98,7 +98,7 @@ pub struct RoomListRequest {
 pub struct GetRoomRequest {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
-    pub room: RoomId,
+    pub room_id: RoomId,
     pub members: Vec<RoomInfoTypeVariant>,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
@@ -148,42 +148,42 @@ pub enum RoomError {
 #[derive(Serialize, Debug, Clone)]
 #[serde(tag = "type")]
 pub enum RoomResponse<'a> {
-    RoomCreated { room: RoomId },
+    RoomCreated { room_id: RoomId },
     Joined {
-        room: &'a RoomId,
+        room_id: &'a RoomId,
         room_name: Cow<'a, Option<String>>,
         users: Cow<'a, Vec<RoomUserInformation>>,
         metas: Cow<'a, HashMap<String, MetaType<RoomMetaAccess>>>
     },
     JoinRequested {
-        room: &'a RoomId,
+        room_id: &'a RoomId,
     },
     JoinRequestDeclined {
-        room: &'a RoomId,
+        room_id: &'a RoomId,
     },
     WaitingRoomJoins {
-        room: &'a RoomId,
+        room_id: &'a RoomId,
         users: HashMap<Arc<UserId>, RoomUserType>,
     },
     NewJoinRequest {
-        room: &'a RoomId,
+        room_id: &'a RoomId,
         user: &'a UserId,
         user_type: RoomUserType
     },
     UserJoinedToRoom {
         user: &'a UserId,
-        room: &'a RoomId
+        room_id: &'a RoomId
     },
     UserDisconnectedFromRoom {
         user: &'a UserId,
-        room: &'a RoomId
+        room_id: &'a RoomId
     },
     DisconnectedFromRoom {
-        room: &'a RoomId
+        room_id: &'a RoomId
     },
     MessageFromRoom {
         user: &'a UserId,
-        room: &'a RoomId,
+        room_id: &'a RoomId,
         message: &'a String
     },
     RoomList {

@@ -79,3 +79,11 @@ def pre_create_room(model: model.CreateRoom):
 
 def post_create_room(model: model.CreateRoom, success: bool):
     pass
+
+
+def pre_update_room(model: model.UpdateRoom):
+    pass
+
+
+def post_update_room(model: model.UpdateRoom, success: bool):
+    pass

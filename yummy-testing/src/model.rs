@@ -51,7 +51,7 @@ pub struct Joined {
 pub struct JoinRequestDeclined {
     #[serde(rename = "type")]
     pub class_type: String,
-    pub room: RoomId
+    pub room_id: RoomId
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -59,7 +59,7 @@ pub struct UserJoinedToRoom {
     #[serde(rename = "type")]
     pub class_type: String,
     pub user: UserId,
-    pub room: RoomId,
+    pub room_id: RoomId,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -67,7 +67,7 @@ pub struct NewRoomJoinRequest {
     #[serde(rename = "type")]
     pub class_type: String,
     pub user: UserId,
-    pub room: RoomId,
+    pub room_id: RoomId,
     pub user_type: RoomUserType
 }
 
@@ -75,14 +75,14 @@ pub struct NewRoomJoinRequest {
 pub struct JoinRequested {
     #[serde(rename = "type")]
     pub class_type: String,
-    pub room: RoomId
+    pub room_id: RoomId
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WaitingRoomJoinsResponse {
     #[serde(rename = "type")]
     pub class_type: String,
-    pub room: RoomId,
+    pub room_id: RoomId,
     pub users: HashMap<UserId, RoomUserType>
 }
 
@@ -90,7 +90,7 @@ pub struct WaitingRoomJoinsResponse {
 pub struct RoomCreated {
     #[serde(rename = "type")]
     pub class_type: String,
-    pub room: RoomId,
+    pub room_id: RoomId,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -98,14 +98,14 @@ pub struct UserDisconnectedFromRoom {
     #[serde(rename = "type")]
     pub class_type: String,
     pub user: UserId,
-    pub room: RoomId
+    pub room_id: RoomId
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DisconnectedFromRoom {
     #[serde(rename = "type")]
     pub class_type: String,
-    pub room: RoomId
+    pub room_id: RoomId
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -113,7 +113,7 @@ pub struct MessageReceivedFromRoom {
     #[serde(rename = "type")]
     pub class_type: String,
     pub user: UserId,
-    pub room: RoomId,
+    pub room_id: RoomId,
     pub message: String
 }
 

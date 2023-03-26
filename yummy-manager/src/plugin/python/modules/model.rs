@@ -13,7 +13,7 @@ pub mod _model {
     use rustpython_vm::builtins::{PyBaseException, PyInt, PyDict, PyStr};
     use rustpython_vm::{VirtualMachine, PyResult, PyObjectRef, TryFromBorrowedObject, PyRef, PyObject};
     use yummy_general::password::Password;
-    use yummy_model::{UserType, CreateRoomAccessType};
+    use yummy_model::{UserType, CreateRoomAccessType, UserId, RoomUserType};
     use yummy_model::meta::{MetaAction, RoomMetaType, RoomMetaAccess};
     use yummy_model::{meta::{UserMetaAccess, UserMetaType}};
     use yummy_macros::yummy_model;
@@ -23,7 +23,7 @@ pub mod _model {
 
     use crate::plugin::python::modules::base::_base::PyYummyValidationError;
     use crate::plugin::python::util::MetaTypeUtil;
-    use crate::room::model::UpdateRoom;
+    use crate::room::model::{UpdateRoom, JoinToRoomRequest};
     use crate::{auth::model::{DeviceIdAuthRequest, EmailAuthRequest, CustomIdAuthRequest, ConnUserDisconnect, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}, conn::model::UserConnected, user::model::{UpdateUser, GetUserInformation, GetUserInformationEnum}, room::model::CreateRoomRequest};
     use crate::plugin::python::ModelWrapper;
 
@@ -170,38 +170,14 @@ pub mod _model {
     model_wrapper_struct!(GetUserInformation, GetUserInformationWrapper, "GetUserInformation");
     model_wrapper_struct!(CreateRoomRequest, CreateRoomRequestWrapper, "CreateRoom");
     model_wrapper_struct!(UpdateRoom, UpdateRoomWrapper, "UpdateRoom");
+    model_wrapper_struct!(JoinToRoomRequest, JoinToRoomRequestWrapper, "JoinToRoom");
 
-    wrapper_struct!(CreateRoomAccessType, CreateRoomAccessTypeWrapper, "CreateRoomAccessType");
-
+    wrapper_struct!(UserMetaType, UserMetaTypeWrapper, "UserMetaType");
+    wrapper_struct!(RoomMetaType, RoomMetaTypeWrapper, "RoomMetaType");
+    wrapper_struct!(UserMetaAccess, UserMetaAccessWrapper, "UserMetaAccess");
+    wrapper_struct!(RoomMetaAccess, RoomMetaAccessWrapper, "RoomMetaAccess");
     
-
-    #[pyattr]
-    #[pyclass(module = false, name = "UserMetaType")]
-    #[derive(Debug, PyPayload)]
-    pub struct UserMetaTypeWrapper {
-        pub data: UserMetaType
-    }
-
-    #[pyattr]
-    #[pyclass(module = false, name = "RoomMetaType")]
-    #[derive(Debug, PyPayload)]
-    pub struct RoomMetaTypeWrapper {
-        pub data: RoomMetaType
-    }
-
-    #[pyattr]
-    #[pyclass(module = false, name = "UserMetaAccess")]
-    #[derive(Debug, PyPayload)]
-    pub struct UserMetaAccessWrapper {
-        pub data: UserMetaAccess
-    }
-
-    #[pyattr]
-    #[pyclass(module = false, name = "RoomMetaAccess")]
-    #[derive(Debug, PyPayload)]
-    pub struct RoomMetaAccessWrapper {
-        pub data: RoomMetaAccess
-    }
+    wrapper_struct!(CreateRoomAccessType, CreateRoomAccessTypeWrapper, "CreateRoomAccessType");
 
     /* **************************************************************************************************************** */
     /* **************************************************** ENUMS ***************************************************** */
@@ -782,6 +758,52 @@ pub mod _model {
             Ok(())
         }
 
+        /* User permissions functions */
+        #[pymethod]
+        pub fn get_user_permission(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            match self.data.borrow().user_permission.clone() {
+                Some(user_permission) => {
+                    let dict = vm.ctx.new_dict();
+                    
+                    for (key, value) in user_permission.iter() {
+                        dict.set_item(&key.to_string(), vm.ctx.new_bigint(&(value.clone() as u32).to_bigint().unwrap()).into(), vm)?;
+                    }
+
+                    Ok(dict.into())
+                },
+                None => Ok(vm.ctx.none().into())
+            }
+        }
+
+        #[pymethod]
+        pub fn set_user_permission(&self, user_permission: Option<PyObjectRef>, vm: &VirtualMachine) -> PyResult<()> {
+            self.data.borrow_mut().user_permission = match user_permission {
+                Some(metas) => {
+                    let mut new_user_permission = HashMap::new();
+
+                    if metas.class().fast_issubclass(vm.ctx.types.dict_type) {
+                        let dict = metas.downcast_ref::<PyDict>().unwrap();
+
+                        for (key, value) in dict {
+                            let key = match key.downcast_ref::<PyStr>() {
+                                Some(str) => str.as_str().to_string(),
+                                None => return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), "Only str type allowed for the key.".to_string()))
+                            };
+
+                            let key = UserId::from(key);
+                            new_user_permission.insert(key, RoomUserType::from(value.payload::<PyInt>().unwrap().as_u32_mask() as i32));
+                        }
+                    } else {
+                        return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), "Only dict type allowed. .".to_string()))
+                    }
+
+                    Some(new_user_permission)
+                },
+                None => None
+            };
+            Ok(())
+        }
+
         /* Tags functions */
         #[pymethod]
         pub fn get_tags(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
@@ -817,32 +839,26 @@ pub mod _model {
         }
     }
 
-    /* ########################################### UserMetaTypeWrapper ################################################# */
-    #[pyclass(flags(BASETYPE))]
-    impl UserMetaTypeWrapper {
-        pub fn new(data: UserMetaType) -> Self {
-            Self { data }
-        }
-    }
 
+    #[yummy_model(class_name="JoinToRoomRequest")]
     #[pyclass(flags(BASETYPE))]
-    impl UserMetaAccessWrapper {
-        pub fn new(data: UserMetaAccess) -> Self {
-            Self { data }
+    impl JoinToRoomRequestWrapper {
+        /* Room functions */
+        #[pymethod]
+        pub fn get_room_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_str(&self.data.borrow().room_id.to_string()[..]).into())
         }
-    }
-
-    #[pyclass(flags(BASETYPE))]
-    impl RoomMetaTypeWrapper {
-        pub fn new(data: RoomMetaType) -> Self {
-            Self { data }
+        
+        /* Room user type functions */
+        #[pymethod]
+        pub fn get_room_user_type(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_bigint(&(self.data.borrow().room_user_type.clone() as u32).to_bigint().unwrap()).into())
         }
-    }
-
-    #[pyclass(flags(BASETYPE))]
-    impl RoomMetaAccessWrapper {
-        pub fn new(data: RoomMetaAccess) -> Self {
-            Self { data }
+        
+        #[pymethod]
+        pub fn set_room_user_type(&self, room_user_type: i32) -> PyResult<()> {
+            self.data.borrow_mut().room_user_type = RoomUserType::from(room_user_type);
+            Ok(())
         }
     }
 

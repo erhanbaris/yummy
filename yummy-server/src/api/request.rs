@@ -98,7 +98,7 @@ pub enum RequestRoomType {
     
     #[serde(rename = "JoinToRoom")]
     Join {
-        room: RoomId,
+        room_id: RoomId,
 
         #[serde(default)]
         room_user_type: RoomUserType,
@@ -106,30 +106,30 @@ pub enum RequestRoomType {
     
     #[serde(rename = "RoomDisconnect")]
     Disconnect {
-        room: RoomId
+        room_id: RoomId
     },
     
     #[serde(rename = "MessageToRoom")]
     Message {
-        room: RoomId,
+        room_id: RoomId,
         message: String,
     },
     
     #[serde(rename = "KickUserFromroom")]
     Kick {
-        room: RoomId,
+        room_id: RoomId,
         user: UserId,
     },
     
     #[serde(rename = "BanUserFromroom")]
     Ban {
-        room: RoomId,
+        room_id: RoomId,
         user: UserId,
     },
     
     #[serde(rename = "UpdateRoom")]
     Update {
-        room: RoomId,
+        room_id: RoomId,
 
         #[serde(default)]
         name: Option<String>,

@@ -199,12 +199,12 @@ async fn create_new_room_for_int_player(world: &mut YummyWorld, user: String, si
 }
 
 #[when(expr = "{word} try to join {word} as {RoomUserType}")]
-async fn join_to_room(world: &mut YummyWorld, user: String, room: String, room_user_type: RoomUserType) {
-    let room = world.rooms.get(&room).cloned().unwrap_or_default();
+async fn join_to_room(world: &mut YummyWorld, user: String, room_id: String, room_user_type: RoomUserType) {
+    let room = world.rooms.get(&room_id).cloned().unwrap_or_default();
     
     send_message(world, &user, json!({
         "type": "JoinToRoom",
-        "room": room,
+        "room_id": room,
         "room_user_type": room_user_type as i32
     })).await;
 }
@@ -244,7 +244,7 @@ async fn joined_to_room(world: &mut YummyWorld, user: String, room_name: String)
 
     client.last_message = Some(message);
 
-    let room_id = received_message.as_object().unwrap().get("room").unwrap().as_str().unwrap().to_string();
+    let room_id = received_message.as_object().unwrap().get("room_id").unwrap().as_str().unwrap().to_string();
 
     client.rooms.insert(room_name.clone(), room_id.clone());
 }
@@ -255,7 +255,7 @@ async fn room_created(world: &mut YummyWorld, user: String, name: String) {
         let (client, message, received_message) = user_receive_message::<serde_json::Value>(world, &user).await;
         assert_eq!(received_message.as_object().unwrap().get("type").unwrap().as_str().unwrap(), "RoomCreated");
         client.last_message = Some(message);
-        received_message.as_object().unwrap().get("room").unwrap().as_str().unwrap().to_string()
+        received_message.as_object().unwrap().get("room_id").unwrap().as_str().unwrap().to_string()
     };
     world.rooms.insert(name, room_id);
 }

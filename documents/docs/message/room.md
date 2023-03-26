@@ -45,7 +45,7 @@
             |------------|---------|----------|-------------------------------|
             | `status`   | boolean | N        | Value should be **true**      |
             | `type`     | string  | N        | Value must be **RoomCreated** |
-            | `room`     | string  | N        | Room's ID                     |
+            | `room_id`  | string  | N        | Room's ID                     |
 
             **Example requests:**
 
@@ -53,7 +53,7 @@
             {
                 "status": true,
                 "type": "RoomCreated",
-                "room": "8e4d7516-1ee7-47d2-9387-438de3db37b9"
+                "room_id": "8e4d7516-1ee7-47d2-9387-438de3db37b9"
             }
             ```
         === ":octicons-x-16: Fail"
@@ -82,7 +82,7 @@ Joining to room require a little more attention than other parts. Room can be co
         | Field name       | Type                          | Required | Description                  | Default value |
         |------------------|-------------------------------|----------|------------------------------|---------------|
         | `type`           | string                        | Y        | Value must be **JoinToRoom** |               |
-        | `room`           | string                        | Y        | Room's ID                    |               |
+        | `room_id`        | string                        | Y        | Room's ID                    |               |
         | `room_user_type` | [RoomUserType](#roomusertype) | N        | User type at the room        | 1             |
 
         **Example requests:**
@@ -91,14 +91,14 @@ Joining to room require a little more attention than other parts. Room can be co
             ```json
             {
                 "type": "JoinToRoom",
-                "room": "8c366421-f7d8-47e1-8eed-82915280ce30"
+                "room_id": "8c366421-f7d8-47e1-8eed-82915280ce30"
             }
             ```
         === "Example 2"
             ```json
             {
                 "type": "JoinToRoom",
-                "room": "8c366421-f7d8-47e1-8eed-82915280ce30",
+                "room_id": "8c366421-f7d8-47e1-8eed-82915280ce30",
                 "room_user_type": 3
             }
             ```
@@ -111,7 +111,7 @@ Joining to room require a little more attention than other parts. Room can be co
             |-------------|-------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------|
             | `status`    | boolean                 | N        | Value should be **true**                                                                                                       |
             | `type`      | string                  | N        | Value must be **Joined**                                                                                                       |
-            | `room`      | string                  | N        | Room's ID                                                                                                                      |
+            | `room_id`   | string                  | N        | Room's ID                                                                                                                      |
             | `room_name` | string                  | Y        | Room's name                                                                                                                    |
             | `users`     | [RoomUser](#roomuser)   | N        | Array of [RoomUser](#roomuser).                                                                                                |
             | `metas`     | [[Meta]](general-objects.md#meta) | N        | Array of [Meta](general-objects.md#meta) information. This is room based information and have access level to whom see that information. |

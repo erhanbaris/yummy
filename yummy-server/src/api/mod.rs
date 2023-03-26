@@ -65,12 +65,12 @@ pub(crate) fn process_user<DB: DatabaseTrait + Unpin + 'static>(request_id: Opti
 pub(crate) fn process_room<DB: DatabaseTrait + Unpin + 'static>(request_id: Option<usize>, room_type: RequestRoomType, room_manager: Addr<RoomManager<DB>>, auth: Arc<Option<UserAuth>>, socket: Arc<dyn ClientTrait + Sync + Send>) -> ProcessResult {
     match room_type {
         RequestRoomType::Create { name, description, access_type, max_user, tags, metas, join_request } => as_response!(request_id, room_manager, CreateRoomRequest { request_id, auth, socket, name, description, access_type, max_user, tags, metas, join_request }),
-        RequestRoomType::Join { room, room_user_type } => as_response!(request_id, room_manager, JoinToRoomRequest { request_id, auth, socket, room, room_user_type }),
-        RequestRoomType::Disconnect { room } => as_response!(request_id, room_manager, DisconnectFromRoomRequest { request_id, auth, socket, room }),
-        RequestRoomType::Message { room, message } => as_response!(request_id, room_manager, MessageToRoomRequest { request_id, auth, socket, room, message }),
-        RequestRoomType::Update { room, user_permission, name, description, max_user, join_request, metas, meta_action, access_type, tags } => as_response!(request_id, room_manager, UpdateRoom { request_id, auth, socket, room_id: room , user_permission, name, description, max_user, metas, meta_action, access_type, join_request, tags }),
-        RequestRoomType::Kick { room, user } => as_response!(request_id, room_manager, KickUserFromRoom { request_id, auth, socket, room, user, ban: false }),
-        RequestRoomType::Ban { room, user } => as_response!(request_id, room_manager, KickUserFromRoom { request_id, auth, socket, room, user, ban: true }),
+        RequestRoomType::Join { room_id, room_user_type } => as_response!(request_id, room_manager, JoinToRoomRequest { request_id, auth, socket, room_id, room_user_type }),
+        RequestRoomType::Disconnect { room_id } => as_response!(request_id, room_manager, DisconnectFromRoomRequest { request_id, auth, socket, room_id }),
+        RequestRoomType::Message { room_id, message } => as_response!(request_id, room_manager, MessageToRoomRequest { request_id, auth, socket, room_id, message }),
+        RequestRoomType::Update { room_id, user_permission, name, description, max_user, join_request, metas, meta_action, access_type, tags } => as_response!(request_id, room_manager, UpdateRoom { request_id, auth, socket, room_id , user_permission, name, description, max_user, metas, meta_action, access_type, join_request, tags }),
+        RequestRoomType::Kick { room_id, user } => as_response!(request_id, room_manager, KickUserFromRoom { request_id, auth, socket, room_id, user, ban: false }),
+        RequestRoomType::Ban { room_id, user } => as_response!(request_id, room_manager, KickUserFromRoom { request_id, auth, socket, room_id, user, ban: true }),
     };
     Ok(())
 }
