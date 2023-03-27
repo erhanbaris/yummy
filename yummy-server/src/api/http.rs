@@ -361,7 +361,7 @@ pub mod tests {
             .set_json(json!({
                 "type": "User",
                 "user_type": "Get",
-                "user": original_user_model.id.to_string()
+                "user_id": original_user_model.id.to_string()
             }))
             .to_request();
 

@@ -81,7 +81,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         DB::join_to_room(connection, room_id, user_id, room_user_type)?;
 
         let message = serde_json::to_string(&RoomResponse::UserJoinedToRoom {
-            user: user_id,
+            user_id,
             room_id
         }).unwrap();
 
@@ -114,7 +114,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         DB::disconnect_from_room(&mut connection, room_id, user_id)?;
 
         let message = serde_json::to_string(&RoomResponse::UserDisconnectedFromRoom {
-            user: user_id,
+            user_id,
             room_id
         }).unwrap();
 
@@ -306,7 +306,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
 
         let room_id = DB::transaction(&mut connection, |connection| {
             let insert_date = SystemTime::now().duration_since(UNIX_EPOCH).map(|item| item.as_secs() as i32).unwrap_or_default();
-            let room_id = DB::create_room(connection, model.name.clone(), model.access_type.clone(), model.max_user, model.join_request, &model.tags)?;
+            let room_id = DB::create_room(connection, model.name.clone(), model.access_type, model.max_user, model.join_request, &model.tags)?;
 
             DB::join_to_room(connection, &room_id, user_id, RoomUserType::Owner)?;
 
@@ -320,7 +320,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
             #[allow(unused_mut)]
             let (mut meta, _) = self.configure_metas(connection, &room_id, model.metas.clone(), MetaAction::OnlyAddOrUpdate, access_level)?;
             
-            self.states.create_room(&room_id, insert_date, model.name.clone(), model.description.clone(), model.access_type.clone(), model.max_user, model.tags.clone(), meta, model.join_request);
+            self.states.create_room(&room_id, insert_date, model.name.clone(), model.description.clone(), model.access_type, model.max_user, model.tags.clone(), meta, model.join_request);
             self.states.join_to_room(&room_id, user_id, session_id, RoomUserType::Owner)?;
            
             anyhow::Ok(room_id)
@@ -470,7 +470,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
             let room_infos = self.states.get_room_info(&model.room_id, RoomMetaAccess::System, &[RoomInfoTypeVariant::Users])?;
             let users = room_infos.get_users();
 
-            let message: String = RoomResponse::NewJoinRequest { room_id: &model.room_id, user: user_id, user_type: model.room_user_type.clone() }.into();
+            let message: String = RoomResponse::NewJoinRequest { room_id: &model.room_id, user_id, user_type: model.room_user_type.clone() }.into();
             
             for user in users.iter() {
                 if user.user_type == RoomUserType::Owner || user.user_type == RoomUserType::Moderator {
@@ -500,21 +500,21 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<ProcessW
     fn handle(&mut self, model: ProcessWaitingUser, _ctx: &mut Context<Self>) -> Self::Result {        
         // Check user information
         let user_id = get_user_id_from_auth!(model);
-        let (session_id, room_user_type) = self.states.remove_user_from_waiting_list(&model.user, &model.room_id)?;
+        let (session_id, room_user_type) = self.states.remove_user_from_waiting_list(&model.user_id, &model.room_id)?;
         let mut connection = self.database.get()?;
 
         DB::transaction(&mut connection, |connection| {
-            DB::update_join_to_room_request(connection, &model.room_id, &model.user, user_id, model.status)?;
+            DB::update_join_to_room_request(connection, &model.room_id, &model.user_id, user_id, model.status)?;
             
             if model.status {
 
                 // Moderator or room owner approve join request
-                self.join_to_room(connection, model.request_id, &model.room_id, &model.user, &session_id, room_user_type)?;
+                self.join_to_room(connection, model.request_id, &model.room_id, &model.user_id, &session_id, room_user_type)?;
             } else {
                 
                 // Room join request declined
                 self.issue_system_async(SendMessage {
-                    user_id: Arc::new(model.user.clone()),
+                    user_id: Arc::new(model.user_id.clone()),
                     message: GenericAnswer::success(model.request_id, RoomResponse::JoinRequestDeclined { room_id: &model.room_id }).into()
                 });
             }
@@ -544,19 +544,19 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<KickUser
             return Err(anyhow::anyhow!(RoomError::UserDoesNotHaveEnoughPermission));
         }
 
-        let session_id = self.states.get_user_session_id(&model.user, &model.room_id)?;
+        let session_id = self.states.get_user_session_id(&model.user_id, &model.room_id)?;
         
         // Disconnect user and send message to other users
-        self.disconnect_from_room(&model.room_id, &model.user, &session_id)?;
+        self.disconnect_from_room(&model.room_id, &model.user_id, &session_id)?;
 
         if model.ban {
             
             // Update state
-            self.states.ban_user_from_room(&model.room_id, &model.user)?;
+            self.states.ban_user_from_room(&model.room_id, &model.user_id)?;
 
             // Update database
             let mut connection = self.database.get()?;
-            DB::ban_user_from_room(&mut connection, &model.room_id, &model.user, user_id)?;
+            DB::ban_user_from_room(&mut connection, &model.room_id, &model.user_id, user_id)?;
         }
 
         // Send message to use about disconnected from room
@@ -565,7 +565,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<KickUser
         }) {
             self.issue_system_async(SendMessage {
                 message,
-                user_id: Arc::new(model.user.clone())
+                user_id: Arc::new(model.user_id.clone())
             })
         }
 
@@ -578,7 +578,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<Disconne
     type Result = ();
 
     #[tracing::instrument(name="DisconnectFromRoomRequest", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="disconnect_from_room_request", no_return=true)]
+    #[yummy_macros::plugin_api(name="disconnect_from_room", no_return=true)]
     fn handle(&mut self, model: DisconnectFromRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         #[allow(clippy::unused_unit)]
@@ -593,7 +593,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="MessageToRoomRequest", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="message_to_room_request")]
+    #[yummy_macros::plugin_api(name="message_to_room")]
     fn handle(&mut self, model: MessageToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
         let sender_user_id = match model.auth.deref() {
             Some(user) => &user.user,
@@ -602,7 +602,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
 
         match self.states.get_users_from_room(&model.room_id) {
             Ok(users) => {
-                let message: String = RoomResponse::MessageFromRoom { user: sender_user_id, room_id: &model.room_id, message: &model.message }.into();
+                let message: String = RoomResponse::MessageFromRoom { user_id: sender_user_id, room_id: &model.room_id, message: &model.message }.into();
 
                 for receiver_user in users.into_iter() {
                     if receiver_user.as_ref() != sender_user_id {

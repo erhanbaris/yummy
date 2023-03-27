@@ -58,7 +58,7 @@ pub struct JoinRequestDeclined {
 pub struct UserJoinedToRoom {
     #[serde(rename = "type")]
     pub class_type: String,
-    pub user: UserId,
+    pub user_id: UserId,
     pub room_id: RoomId,
 }
 
@@ -66,7 +66,7 @@ pub struct UserJoinedToRoom {
 pub struct NewRoomJoinRequest {
     #[serde(rename = "type")]
     pub class_type: String,
-    pub user: UserId,
+    pub user_id: UserId,
     pub room_id: RoomId,
     pub user_type: RoomUserType
 }
@@ -97,7 +97,7 @@ pub struct RoomCreated {
 pub struct UserDisconnectedFromRoom {
     #[serde(rename = "type")]
     pub class_type: String,
-    pub user: UserId,
+    pub user_id: UserId,
     pub room_id: RoomId
 }
 
@@ -112,7 +112,7 @@ pub struct DisconnectedFromRoom {
 pub struct MessageReceivedFromRoom {
     #[serde(rename = "type")]
     pub class_type: String,
-    pub user: UserId,
+    pub user_id: UserId,
     pub room_id: RoomId,
     pub message: String
 }

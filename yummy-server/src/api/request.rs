@@ -48,7 +48,7 @@ pub enum RequestUserType {
 
     #[serde(rename = "GetUser")]
     Get {
-        user: UserId
+        user_id: UserId
     },
 
     #[serde(rename = "UpdateUser")]
@@ -118,13 +118,13 @@ pub enum RequestRoomType {
     #[serde(rename = "KickUserFromroom")]
     Kick {
         room_id: RoomId,
-        user: UserId,
+        user_id: UserId,
     },
     
     #[serde(rename = "BanUserFromroom")]
     Ban {
         room_id: RoomId,
-        user: UserId,
+        user_id: UserId,
     },
     
     #[serde(rename = "UpdateRoom")]

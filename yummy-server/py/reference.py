@@ -95,3 +95,36 @@ def pre_join_to_room(model: model.UpdateRoom):
 
 def post_join_to_room(model: model.JoinToRoom, success: bool):
     pass
+
+
+def pre_process_waiting_user(model: model.ProcessWaitingUser):
+    pass
+
+
+def post_process_waiting_user(model: model.ProcessWaitingUser, success: bool):
+    pass
+
+
+def pre_kick_user_from_room(model: model.KickUserFromRoom):
+    pass
+
+
+def post_kick_user_from_room(model: model.KickUserFromRoom, success: bool):
+    pass
+
+
+def pre_disconnect_from_room(model: model.DisconnectFromRoom):
+    pass
+
+
+def post_disconnect_from_room(model: model.DisconnectFromRoom, success: bool):
+    pass
+
+
+
+def pre_message_to_room(model: model.MessageToRoom):
+    pass
+
+
+def post_message_to_room(model: model.MessageToRoom, success: bool):
+    pass

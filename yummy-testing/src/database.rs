@@ -10,6 +10,6 @@ pub fn get_database_pool() -> Arc<Pool>{
     db_location.push(format!("{}.db", Uuid::new_v4()));
 
     let connection = create_connection(db_location.to_str().unwrap()).unwrap();
-    create_database(&mut connection.clone().get().unwrap()).unwrap();
+    create_database(&mut connection.get().unwrap()).unwrap();
     Arc::new(connection)
 }

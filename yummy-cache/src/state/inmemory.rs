@@ -552,7 +552,7 @@ impl YummyState {
                         RoomInfoTypeVariant::RoomName => RoomInfoType::RoomName(room.name.clone()),
                         RoomInfoTypeVariant::Description => RoomInfoType::Description(room.description.clone()),
                         RoomInfoTypeVariant::UserLength => RoomInfoType::UserLength(room.connection_count.load(std::sync::atomic::Ordering::Relaxed)),
-                        RoomInfoTypeVariant::AccessType => RoomInfoType::AccessType(room.access_type.clone()),
+                        RoomInfoTypeVariant::AccessType => RoomInfoType::AccessType(room.access_type),
                         RoomInfoTypeVariant::JoinRequest => RoomInfoType::JoinRequest(room.join_request),
                         RoomInfoTypeVariant::Users => {
                             let mut users = Vec::new();
@@ -639,7 +639,7 @@ impl YummyState {
                     RoomInfoTypeVariant::RoomName => room_info.items.push(RoomInfoType::RoomName(room_state.name.clone())),
                     RoomInfoTypeVariant::Description => room_info.items.push(RoomInfoType::Description(room_state.description.clone())),
                     RoomInfoTypeVariant::UserLength => room_info.items.push(RoomInfoType::UserLength(room_state.connection_count.load(std::sync::atomic::Ordering::Relaxed))),
-                    RoomInfoTypeVariant::AccessType => room_info.items.push(RoomInfoType::AccessType(room_state.access_type.clone())),
+                    RoomInfoTypeVariant::AccessType => room_info.items.push(RoomInfoType::AccessType(room_state.access_type)),
                     RoomInfoTypeVariant::Users => {                        
                         let mut users = Vec::new();
                         let user_cache = self.users.lock();

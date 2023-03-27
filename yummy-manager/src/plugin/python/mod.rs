@@ -43,7 +43,7 @@ use crate::{
 };
 use self::model::ModelWrapper;
 use self::modules::configure_modules;
-use self::modules::model::_model::{UpdateRoomWrapper, JoinToRoomRequestWrapper};
+use self::modules::model::_model::{UpdateRoomWrapper, JoinToRoomRequestWrapper, ProcessWaitingUserWrapper, KickUserFromRoomWrapper, DisconnectFromRoomRequestWrapper, MessageToRoomRequestWrapper};
 
 use super::{YummyPlugin, YummyPluginInstaller, YummyPluginError, PluginExecuter};
 
@@ -201,9 +201,13 @@ impl PythonPluginInstaller {
                 CreateRoomRequestWrapper::make_class(&vm.ctx);
                 UpdateRoomWrapper::make_class(&vm.ctx);
                 JoinToRoomRequestWrapper::make_class(&vm.ctx);
+                ProcessWaitingUserWrapper::make_class(&vm.ctx);
+                KickUserFromRoomWrapper::make_class(&vm.ctx);
+                DisconnectFromRoomRequestWrapper::make_class(&vm.ctx);
+                MessageToRoomRequestWrapper::make_class(&vm.ctx);
 
                 YummyPluginContextWrapper::make_class(&vm.ctx);
-                PyYummyValidationError::extend_class(&vm.ctx, &vm.ctx.exceptions.base_exception_type);
+                PyYummyValidationError::extend_class(&vm.ctx, vm.ctx.exceptions.base_exception_type);
 
                 let path = Path::new(&config.python_files_path).join("*.py").to_string_lossy().to_string();
                 log::info!("Searhing python files at {}", path);
@@ -285,10 +289,10 @@ impl FunctionType {
             FunctionType::CreateRoom => "pre_create_room",
             FunctionType::UpdateRoom => "pre_update_room",
             FunctionType::JoinToRoom => "pre_join_to_room",
-            FunctionType::ProcessWaitingUser => "NOT_IMPLEMENTED_YET",
-            FunctionType::KickUserFromRoom => "NOT_IMPLEMENTED_YET",
-            FunctionType::DisconnectFromRoomRequest => "NOT_IMPLEMENTED_YET",
-            FunctionType::MessageToRoomRequest => "NOT_IMPLEMENTED_YET",
+            FunctionType::ProcessWaitingUser => "pre_process_waiting_user",
+            FunctionType::KickUserFromRoom => "pre_kick_user_from_room",
+            FunctionType::DisconnectFromRoomRequest => "pre_disconnect_from_room",
+            FunctionType::MessageToRoomRequest => "pre_message_to_room",
             FunctionType::RoomListRequest => "NOT_IMPLEMENTED_YET",
             FunctionType::WaitingRoomJoins => "NOT_IMPLEMENTED_YET",
             FunctionType::GetRoomRequest => "NOT_IMPLEMENTED_YET",
@@ -310,10 +314,10 @@ impl FunctionType {
             FunctionType::CreateRoom => "post_create_room",
             FunctionType::UpdateRoom => "post_update_room",
             FunctionType::JoinToRoom => "post_join_to_room",
-            FunctionType::ProcessWaitingUser => "NOT_IMPLEMENTED_YET",
-            FunctionType::KickUserFromRoom => "NOT_IMPLEMENTED_YET",
-            FunctionType::DisconnectFromRoomRequest => "NOT_IMPLEMENTED_YET",
-            FunctionType::MessageToRoomRequest => "NOT_IMPLEMENTED_YET",
+            FunctionType::ProcessWaitingUser => "post_process_waiting_user",
+            FunctionType::KickUserFromRoom => "post_kick_user_from_room",
+            FunctionType::DisconnectFromRoomRequest => "post_disconnect_from_room",
+            FunctionType::MessageToRoomRequest => "post_message_to_room",
             FunctionType::RoomListRequest => "NOT_IMPLEMENTED_YET",
             FunctionType::WaitingRoomJoins => "NOT_IMPLEMENTED_YET",
             FunctionType::GetRoomRequest => "NOT_IMPLEMENTED_YET",
@@ -345,10 +349,10 @@ impl YummyPlugin for PythonPlugin {
     create_func!(pre_create_room, post_create_room, FunctionType::CreateRoom, CreateRoomRequest, CreateRoomRequestWrapper);
     create_func!(pre_update_room, post_update_room, FunctionType::UpdateRoom, UpdateRoom, UpdateRoomWrapper);
     create_func!(pre_join_to_room, post_join_to_room, FunctionType::JoinToRoom, JoinToRoomRequest, JoinToRoomRequestWrapper);
-    create_dummy_func!(pre_process_waiting_user, post_process_waiting_user, FunctionType::PROCESS_WAITING_USER, ProcessWaitingUser);
-    create_dummy_func!(pre_kick_user_from_room, post_kick_user_from_room, FunctionType::KICK_USER_FROM_ROOM, KickUserFromRoom);
-    create_dummy_func!(pre_disconnect_from_room_request, post_disconnect_from_room_request, FunctionType::DISCONNECT_FROM_ROOM_REQUEST, DisconnectFromRoomRequest);
-    create_dummy_func!(pre_message_to_room_request, post_message_to_room_request, FunctionType::MESSAGE_TO_ROOM_REQUEST, MessageToRoomRequest);
+    create_func!(pre_process_waiting_user, post_process_waiting_user, FunctionType::ProcessWaitingUser, ProcessWaitingUser, ProcessWaitingUserWrapper);
+    create_func!(pre_kick_user_from_room, post_kick_user_from_room, FunctionType::KickUserFromRoom, KickUserFromRoom, KickUserFromRoomWrapper);
+    create_func!(pre_disconnect_from_room, post_disconnect_from_room, FunctionType::DisconnectFromRoomRequest, DisconnectFromRoomRequest, DisconnectFromRoomRequestWrapper);
+    create_func!(pre_message_to_room, post_message_to_room, FunctionType::MessageToRoomRequest, MessageToRoomRequest, MessageToRoomRequestWrapper);
     create_dummy_func!(pre_room_list_request, post_room_list_request, FunctionType::ROOM_LIST_REQUEST, RoomListRequest);
     create_dummy_func!(pre_waiting_room_joins, post_waiting_room_joins, FunctionType::WAITING_ROOM_JOINS, WaitingRoomJoins);
     create_dummy_func!(pre_get_room_request, post_get_room_request, FunctionType::GET_ROOM_REQUEST, GetRoomRequest);

@@ -32,14 +32,14 @@
         | Field name | Type    | Required | Description                  |
         |------------|---------|----------|------------------------------|
         | `type`       | string  | Y        | Value must be **GetUser**  |
-        | `user`       | string  | Y        | User's unique id           |
+        | `user_id`    | string  | Y        | User's unique id           |
 
         **Example request:**
 
         ```json
         {
             "type": "GetUser",
-            "user": "258cd77c-1618-4c44-baff-6ec73c57fa85"
+            "user_id": "258cd77c-1618-4c44-baff-6ec73c57fa85"
         }
         ```
 

@@ -49,7 +49,7 @@ pub struct KickUserFromRoom {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
     pub room_id: RoomId,
-    pub user: UserId,
+    pub user_id: UserId,
     pub ban: bool,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
@@ -60,7 +60,7 @@ pub struct ProcessWaitingUser {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
     pub room_id: RoomId,
-    pub user: UserId,
+    pub user_id: UserId,
     pub status: bool,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
@@ -167,22 +167,22 @@ pub enum RoomResponse<'a> {
     },
     NewJoinRequest {
         room_id: &'a RoomId,
-        user: &'a UserId,
+        user_id: &'a UserId,
         user_type: RoomUserType
     },
     UserJoinedToRoom {
-        user: &'a UserId,
+        user_id: &'a UserId,
         room_id: &'a RoomId
     },
     UserDisconnectedFromRoom {
-        user: &'a UserId,
+        user_id: &'a UserId,
         room_id: &'a RoomId
     },
     DisconnectedFromRoom {
         room_id: &'a RoomId
     },
     MessageFromRoom {
-        user: &'a UserId,
+        user_id: &'a UserId,
         room_id: &'a RoomId,
         message: &'a String
     },

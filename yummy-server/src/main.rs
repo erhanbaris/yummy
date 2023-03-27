@@ -55,7 +55,7 @@ async fn main() -> std::io::Result<()> {
 
     let mut builder = PluginBuilder::default();
     //builder.add_installer(Box::new(LuaPluginInstaller::default()));
-    builder.add_installer(Box::new(PythonPluginInstaller::default()));
+    builder.add_installer(Box::<PythonPluginInstaller>::default());
 
     let executer = Arc::new(builder.build(config.clone(), states.clone(), database.clone()));
 

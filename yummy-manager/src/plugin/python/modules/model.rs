@@ -23,7 +23,7 @@ pub mod _model {
 
     use crate::plugin::python::modules::base::_base::PyYummyValidationError;
     use crate::plugin::python::util::MetaTypeUtil;
-    use crate::room::model::{UpdateRoom, JoinToRoomRequest};
+    use crate::room::model::{UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest};
     use crate::{auth::model::{DeviceIdAuthRequest, EmailAuthRequest, CustomIdAuthRequest, ConnUserDisconnect, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}, conn::model::UserConnected, user::model::{UpdateUser, GetUserInformation, GetUserInformationEnum}, room::model::CreateRoomRequest};
     use crate::plugin::python::ModelWrapper;
 
@@ -105,7 +105,7 @@ pub mod _model {
         ($self: expr, $target: ident, $vm: ident) => {
             match $self.data.borrow().$target {
                 Some(data) => Ok($vm.ctx.new_float(data as f64).into()),
-                None => Ok($vm.ctx.none().into())
+                None => Ok($vm.ctx.none())
             }
         };
     }
@@ -114,7 +114,7 @@ pub mod _model {
         ($self: expr, $target: ident, $vm: ident) => {
             match $self.data.borrow().$target {
                 Some(data) => Ok($vm.ctx.new_bool(data).into()),
-                None => Ok($vm.ctx.none().into())
+                None => Ok($vm.ctx.none())
             }
         };
     }
@@ -123,7 +123,7 @@ pub mod _model {
         ($self: expr, $target: ident, $vm: ident) => {
             match $self.data.borrow().$target {
                 Some(data) => Ok($vm.ctx.new_bigint(&data.to_bigint().unwrap()).into()),
-                None => Ok($vm.ctx.none().into())
+                None => Ok($vm.ctx.none())
             }
         };
     }
@@ -132,7 +132,7 @@ pub mod _model {
         ($self: expr, $target: ident, $vm: ident) => {
             match &$self.data.borrow().$target {
                 Some(data) => Ok($vm.ctx.new_str(&data.to_string()[..]).into()),
-                None => Ok($vm.ctx.none().into())
+                None => Ok($vm.ctx.none())
             }
         };
     }
@@ -141,7 +141,7 @@ pub mod _model {
         ($self: expr, $vm: ident) => {
             match $self.data.borrow().auth.deref() {
                 Some(auth) => Ok($vm.ctx.new_str(&auth.user.to_string()[..]).into()),
-                None => Ok($vm.ctx.none().into())
+                None => Ok($vm.ctx.none())
             }
         };
     }
@@ -150,7 +150,7 @@ pub mod _model {
         ($self: expr, $vm: ident) => {
             match $self.data.borrow().auth.deref() {
                 Some(auth) => Ok($vm.ctx.new_str(&auth.session.to_string()[..]).into()),
-                None => Ok($vm.ctx.none().into())
+                None => Ok($vm.ctx.none())
             }
         };
     }
@@ -171,6 +171,10 @@ pub mod _model {
     model_wrapper_struct!(CreateRoomRequest, CreateRoomRequestWrapper, "CreateRoom");
     model_wrapper_struct!(UpdateRoom, UpdateRoomWrapper, "UpdateRoom");
     model_wrapper_struct!(JoinToRoomRequest, JoinToRoomRequestWrapper, "JoinToRoom");
+    model_wrapper_struct!(ProcessWaitingUser, ProcessWaitingUserWrapper, "ProcessWaitingUser");
+    model_wrapper_struct!(KickUserFromRoom, KickUserFromRoomWrapper, "KickUserFromRoom");
+    model_wrapper_struct!(DisconnectFromRoomRequest, DisconnectFromRoomRequestWrapper, "DisconnectFromRoom");
+    model_wrapper_struct!(MessageToRoomRequest, MessageToRoomRequestWrapper, "MessageToRoom");
 
     wrapper_struct!(UserMetaType, UserMetaTypeWrapper, "UserMetaType");
     wrapper_struct!(RoomMetaType, RoomMetaTypeWrapper, "RoomMetaType");
@@ -365,13 +369,13 @@ pub mod _model {
         pub fn get_user_type(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
             match self.data.borrow().user_type {
                 Some(data) => Ok(vm.ctx.new_bigint(&(data as u32).to_bigint().unwrap()).into()),
-                None => Ok(vm.ctx.none().into())
+                None => Ok(vm.ctx.none())
             }
         }
 
         #[pymethod]
         pub fn set_user_type(&self, user_type: Option<i32>) -> PyResult<()> {
-            self.data.borrow_mut().user_type = user_type.map(|item| UserType::from(item));
+            self.data.borrow_mut().user_type = user_type.map(UserType::from);
             Ok(())
         }
 
@@ -400,7 +404,7 @@ pub mod _model {
 
                     Ok(dict.into())
                 },
-                None => Ok(vm.ctx.none().into())
+                None => Ok(vm.ctx.none())
             }
         }
 
@@ -578,7 +582,7 @@ pub mod _model {
 
                     Ok(dict.into())
                 },
-                None => Ok(vm.ctx.none().into())
+                None => Ok(vm.ctx.none())
             }
         }
 
@@ -725,7 +729,7 @@ pub mod _model {
 
                     Ok(dict.into())
                 },
-                None => Ok(vm.ctx.none().into())
+                None => Ok(vm.ctx.none())
             }
         }
 
@@ -771,7 +775,7 @@ pub mod _model {
 
                     Ok(dict.into())
                 },
-                None => Ok(vm.ctx.none().into())
+                None => Ok(vm.ctx.none())
             }
         }
 
@@ -816,7 +820,7 @@ pub mod _model {
         
                     Ok(vm.ctx.new_list(list).into())
                 },
-                None => Ok(vm.ctx.none().into())
+                None => Ok(vm.ctx.none())
             }
         }
 
@@ -839,7 +843,6 @@ pub mod _model {
         }
     }
 
-
     #[yummy_model(class_name="JoinToRoomRequest")]
     #[pyclass(flags(BASETYPE))]
     impl JoinToRoomRequestWrapper {
@@ -858,6 +861,94 @@ pub mod _model {
         #[pymethod]
         pub fn set_room_user_type(&self, room_user_type: i32) -> PyResult<()> {
             self.data.borrow_mut().room_user_type = RoomUserType::from(room_user_type);
+            Ok(())
+        }
+    }
+
+    #[yummy_model(class_name="ProcessWaitingUser")]
+    #[pyclass(flags(BASETYPE))]
+    impl ProcessWaitingUserWrapper {
+        /* Room function */
+        #[pymethod]
+        pub fn get_room_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_str(&self.data.borrow().room_id.to_string()[..]).into())
+        }
+        
+        /* User function */
+        #[pymethod]
+        pub fn get_target_user_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_str(&self.data.borrow().user_id.to_string()[..]).into())
+        }
+
+        /* Status functions */
+        #[pymethod]
+        pub fn get_status(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_bool(self.data.borrow().status).into())
+        }
+
+        #[pymethod]
+        pub fn set_status(&self, status: bool) -> PyResult<()> {
+            self.data.borrow_mut().status = status;
+            Ok(())
+        }
+    }
+
+    #[yummy_model(class_name="KickUserFromRoom")]
+    #[pyclass(flags(BASETYPE))]
+    impl KickUserFromRoomWrapper {
+        /* Room function */
+        #[pymethod]
+        pub fn get_room_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_str(&self.data.borrow().room_id.to_string()[..]).into())
+        }
+        
+        /* User function */
+        #[pymethod]
+        pub fn get_target_user_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_str(&self.data.borrow().user_id.to_string()[..]).into())
+        }
+
+        /* Ban functions */
+        #[pymethod]
+        pub fn get_ban(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_bool(self.data.borrow().ban).into())
+        }
+
+        #[pymethod]
+        pub fn set_ban(&self, status: bool) -> PyResult<()> {
+            self.data.borrow_mut().ban = status;
+            Ok(())
+        }
+    }
+
+    #[yummy_model(class_name="DisconnectFromRoomRequest")]
+    #[pyclass(flags(BASETYPE))]
+    impl DisconnectFromRoomRequestWrapper {
+        /* Room function */
+        #[pymethod]
+        pub fn get_room_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_str(&self.data.borrow().room_id.to_string()[..]).into())
+        }
+    }
+
+    #[yummy_model(class_name="MessageToRoomRequest")]
+    #[pyclass(flags(BASETYPE))]
+    impl MessageToRoomRequestWrapper {
+        /* Room function */
+        #[pymethod]
+        pub fn get_room_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_str(&self.data.borrow().room_id.to_string()[..]).into())
+        }
+
+        /* Message function */
+        #[pymethod]
+        pub fn get_message(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_str(&self.data.borrow().message[..]).into())
+        }
+
+        #[pymethod]
+        pub fn set_message(&self, message: String) -> PyResult<()> {
+            self.data.borrow_mut().message = message;
             Ok(())
         }
     }

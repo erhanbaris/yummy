@@ -22,7 +22,7 @@ use yummy_testing::database::get_database_pool;
 use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect};
 use crate::conn::model::UserConnected;
 use crate::plugin::PluginExecuter;
-use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest};
+use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest};
 use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
 use super::PythonPluginInstaller;
@@ -940,7 +940,6 @@ def post_update_room(model, success):
     executer.post_update_room(model, true).expect("post_update_room returned Err");
 }
 
-
 #[test]
 fn join_to_room_test() {
     let (executer, _) = create_python_environtment("join_to_room_test.py", r#"
@@ -973,6 +972,137 @@ def post_join_to_room(model, success):
 
     assert_eq!(model.room_user_type, RoomUserType::Moderator);
 }
+
+#[test]
+fn process_waiting_user_test() {
+    let (executer, _) = create_python_environtment("process_waiting_user_test.py", r#"
+import yummy
+
+def pre_process_waiting_user(model):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+    assert(model.get_target_user_id() == "69531fc4-bb09-41a7-aeb0-364876f1ff79")
+    assert(model.get_status() == True)
+
+    model.set_status(False)
+
+def post_process_waiting_user(model, success):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+    assert(model.get_target_user_id() == "69531fc4-bb09-41a7-aeb0-364876f1ff79")
+    assert(model.get_status() == False)
+"#);
+
+    let model = ProcessWaitingUser {
+        request_id: Some(123),
+        auth: Arc::new(Some(UserAuth {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+        })),
+        room_id: RoomId::from("d508b370-6249-4fd3-9b3e-3aa66577a686".to_string()),
+        user_id: UserId::from("69531fc4-bb09-41a7-aeb0-364876f1ff79".to_string()),
+        status: true,
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_process_waiting_user(model).expect("pre_process_waiting_user returned Err");
+    let model = executer.post_process_waiting_user(model, true).expect("post_process_waiting_user returned Err");
+
+    assert_eq!(model.status, false);
+}
+
+#[test]
+fn kick_user_from_room_test() {
+    let (executer, _) = create_python_environtment("kick_user_from_room_test.py", r#"
+import yummy
+
+def pre_kick_user_from_room(model):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+    assert(model.get_target_user_id() == "69531fc4-bb09-41a7-aeb0-364876f1ff79")
+    assert(model.get_ban() == True)
+
+    model.set_ban(False)
+
+def post_kick_user_from_room(model, success):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+    assert(model.get_target_user_id() == "69531fc4-bb09-41a7-aeb0-364876f1ff79")
+    assert(model.get_ban() == False)
+"#);
+
+    let model = KickUserFromRoom {
+        request_id: Some(123),
+        auth: Arc::new(Some(UserAuth {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+        })),
+        room_id: RoomId::from("d508b370-6249-4fd3-9b3e-3aa66577a686".to_string()),
+        user_id: UserId::from("69531fc4-bb09-41a7-aeb0-364876f1ff79".to_string()),
+        ban: true,
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_kick_user_from_room(model).expect("pre_kick_user_from_room returned Err");
+    let model = executer.post_kick_user_from_room(model, true).expect("post_kick_user_from_room returned Err");
+
+    assert_eq!(model.ban, false);
+}
+
+#[test]
+fn disconnect_from_room_request_test() {
+    let (executer, _) = create_python_environtment("disconnect_from_room_request_test.py", r#"
+import yummy
+
+def pre_disconnect_from_room(model):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+
+def post_disconnect_from_room(model, success):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+"#);
+
+    let model = DisconnectFromRoomRequest {
+        request_id: Some(123),
+        auth: Arc::new(Some(UserAuth {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+        })),
+        room_id: RoomId::from("d508b370-6249-4fd3-9b3e-3aa66577a686".to_string()),
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_disconnect_from_room(model).expect("pre_disconnect_from_room returned Err");
+    executer.post_disconnect_from_room(model, true).expect("post_disconnect_from_room returned Err");
+}
+
+#[test]
+fn message_to_room_test() {
+    let (executer, _) = create_python_environtment("message_to_room_test.py", r#"
+import yummy
+
+def pre_message_to_room(model):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+    assert(model.get_message() == "hello")
+
+    model.set_message("world")
+
+def post_message_to_room(model, success):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+    assert(model.get_message() == "world")
+"#);
+
+    let model = MessageToRoomRequest {
+        request_id: Some(123),
+        auth: Arc::new(Some(UserAuth {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+        })),
+        room_id: RoomId::from("d508b370-6249-4fd3-9b3e-3aa66577a686".to_string()),
+        message: "hello".to_string(),
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_message_to_room(model).expect("pre_message_to_room returned Err");
+    let model = executer.post_message_to_room(model, true).expect("post_message_to_room returned Err");
+    assert_eq!(&model.message, "world");
+}
+
 
 /* Basic model checks */
 model_tester!(device_id_auth_tester, "device_id_auth_tester.py", pre_deviceid_auth, post_deviceid_auth, DeviceIdAuthRequest {
@@ -1108,5 +1238,50 @@ model_tester!(join_to_room, "join_to_room.py", pre_join_to_room, post_join_to_ro
     })),
     room_id: RoomId::new(),
     room_user_type: RoomUserType::default(),
+    socket: Arc::new(DummyClient::default())
+});
+
+model_tester!(process_waiting_user, "process_waiting_user.py", pre_process_waiting_user, post_process_waiting_user, ProcessWaitingUser {
+    request_id: Some(123),
+    auth: Arc::new(Some(UserAuth {
+        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+    })),
+    room_id: RoomId::new(),
+    user_id: UserId::new(),
+    status: true,
+    socket: Arc::new(DummyClient::default())
+});
+
+model_tester!(kick_user_from_room, "kick_user_from_room.py", pre_kick_user_from_room, post_kick_user_from_room, KickUserFromRoom {
+    request_id: Some(123),
+    auth: Arc::new(Some(UserAuth {
+        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+    })),
+    room_id: RoomId::new(),
+    user_id: UserId::new(),
+    ban: true,
+    socket: Arc::new(DummyClient::default())
+});
+
+model_tester!(disconnect_from_room_request, "disconnect_from_room_request.py", pre_disconnect_from_room, post_disconnect_from_room, DisconnectFromRoomRequest {
+    request_id: Some(123),
+    auth: Arc::new(Some(UserAuth {
+        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+    })),
+    room_id: RoomId::new(),
+    socket: Arc::new(DummyClient::default())
+});
+
+model_tester!(message_to_room, "message_to_room.py", pre_message_to_room, post_message_to_room, MessageToRoomRequest {
+    request_id: Some(123),
+    auth: Arc::new(Some(UserAuth {
+        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+    })),
+    room_id: RoomId::new(),
+    message: "hello".to_string(),
     socket: Arc::new(DummyClient::default())
 });

@@ -105,7 +105,7 @@ impl MetaTypeUtil {
 
     fn inner_as_python_value<T: Default + Debug + PartialEq + Clone + From<i32>>(meta: &MetaType<T>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
         match meta {
-            MetaType::Null => Ok(vm.ctx.none().into()),
+            MetaType::Null => Ok(vm.ctx.none()),
             MetaType::Number(value, _) => Ok(vm.ctx.new_float(*value).into()),
             MetaType::String(value, _) => Ok(vm.ctx.new_str(&value[..]).into()),
             MetaType::Bool(value, _) => Ok(vm.ctx.new_bool(*value).into()),

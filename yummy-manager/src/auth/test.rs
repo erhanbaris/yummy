@@ -459,7 +459,7 @@ async fn double_login_test() -> anyhow::Result<()> {
         auth: user_2_auth.clone(),
         room_id,
         room_user_type: RoomUserType::User,
-        socket:user_2_socket.clone()
+        socket: user_2_socket.clone()
     }).await??;
 
     let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();

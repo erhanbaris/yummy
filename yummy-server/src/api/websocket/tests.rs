@@ -808,7 +808,7 @@ async fn user_get_1() -> anyhow::Result<()> {
     
     client.send(json!({
         "type": "GetUser",
-        "user": id
+        "user_id": id
     })).await;
 
     let receive = client.get_text().await;
@@ -834,7 +834,7 @@ async fn user_online_status_change() -> anyhow::Result<()> {
 
     client.send(json!({
         "type": "GetUser",
-        "user": id
+        "user_id": id
     })).await;
 
     let receive = client.get_text().await;
@@ -852,7 +852,7 @@ async fn user_online_status_change() -> anyhow::Result<()> {
 
     client.send(json!({
         "type": "GetUser",
-        "user": id
+        "user_id": id
     })).await;
 
     let receive = client.get_text().await;

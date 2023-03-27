@@ -27,7 +27,7 @@ pub mod _user {
             (Some(user_id), Some(key)) => (user_id, key),
 
             /* Return None if the arguments are not valid */
-            _ => return Ok(vm.ctx.none().into())
+            _ => return Ok(vm.ctx.none())
         };
 
         /* Get plugin context from global variables */
@@ -36,7 +36,7 @@ pub mod _user {
             Some(context) => context,
             None => {
                 log::error!("__CONTEXT__ information is null");
-                return Ok(vm.ctx.none().into()); 
+                return Ok(vm.ctx.none()); 
             }
         };
 
@@ -46,12 +46,12 @@ pub mod _user {
             Ok(Some(user_meta)) => MetaTypeUtil::as_python_value(&user_meta, vm),
 
             /* No meta for user */
-            Ok(None) => Ok(vm.ctx.none().into()),
+            Ok(None) => Ok(vm.ctx.none()),
 
             /* Something went wrong, but do not throw exception. Only return None and log error message */
             Err(error) => {
                 log::error!("Context is failed to retrieve 'get_user_meta'. Error: {}", error.to_string());
-                Ok(vm.ctx.none().into())
+                Ok(vm.ctx.none())
             }
         }
     }
@@ -66,7 +66,7 @@ pub mod _user {
             Some(user_id) => user_id,
 
             /* Return None if the arguments are not valid */
-            _ => return Ok(vm.ctx.none().into())
+            _ => return Ok(vm.ctx.none())
         };
 
         /* Get plugin context from global variables */
@@ -75,7 +75,7 @@ pub mod _user {
             Some(context) => context,
             None => {
                 log::error!("__CONTEXT__ information is null");
-                return Ok(vm.ctx.none().into()); 
+                return Ok(vm.ctx.none()); 
             }
         };
 
@@ -97,7 +97,7 @@ pub mod _user {
             /* Something went wrong, but do not throw exception. Only return None and log error message */
             Err(error) => {
                 log::error!("Context is failed to retrieve 'get_user_meta'. Error: {}", error.to_string());
-                Ok(vm.ctx.none().into())
+                Ok(vm.ctx.none())
             }
         }
     }

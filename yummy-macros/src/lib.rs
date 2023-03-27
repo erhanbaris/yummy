@@ -236,7 +236,7 @@ pub fn yummy_model(args: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         use quote::ToTokens;
-        return syn::Item::Impl(impl_item).into_token_stream().into();
+        syn::Item::Impl(impl_item).into_token_stream().into()
     }
     else {
         panic!("Only works with impl");

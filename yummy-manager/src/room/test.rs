@@ -203,15 +203,15 @@ async fn create_room_3() -> anyhow::Result<()> {
 
     // User 1 should receive other 2 users join message
     let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
-    assert_eq!(message.user, user_2.as_ref().clone().unwrap().user);
+    assert_eq!(message.user_id, user_2.as_ref().clone().unwrap().user);
 
     let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
-    assert_eq!(message.user, user_3.as_ref().clone().unwrap().user);
+    assert_eq!(message.user_id, user_3.as_ref().clone().unwrap().user);
     assert_eq!(&message.class_type[..], "UserJoinedToRoom");
 
     // User 2 should receive only user 3's join message
     let message: UserJoinedToRoom = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
-    assert_eq!(message.user, user_3.as_ref().clone().unwrap().user);
+    assert_eq!(message.user_id, user_3.as_ref().clone().unwrap().user);
     assert_eq!(&message.class_type[..], "UserJoinedToRoom");
 
     room_manager.send(CreateRoomRequest {
@@ -288,17 +288,17 @@ async fn create_room_4() -> anyhow::Result<()> {
 
     // User 1 should receive other 2 users join message
     let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
-    assert_eq!(message.user, user_2.as_ref().clone().unwrap().user);
+    assert_eq!(message.user_id, user_2.as_ref().clone().unwrap().user);
 
     let room_id = message.room_id;
 
     let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
-    assert_eq!(message.user, user_3.as_ref().clone().unwrap().user);
+    assert_eq!(message.user_id, user_3.as_ref().clone().unwrap().user);
     assert_eq!(&message.class_type[..], "UserJoinedToRoom");
 
     // User 2 should receive only user 3's join message
     let message: UserJoinedToRoom = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
-    assert_eq!(message.user, user_3.as_ref().clone().unwrap().user);
+    assert_eq!(message.user_id, user_3.as_ref().clone().unwrap().user);
     assert_eq!(&message.class_type[..], "UserJoinedToRoom");
 
     room_manager.send(DisconnectFromRoomRequest {
@@ -310,13 +310,13 @@ async fn create_room_4() -> anyhow::Result<()> {
 
     let message = user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap();
     let message: UserDisconnectedFromRoom = serde_json::from_str(&message).unwrap();
-    assert_eq!(message.user, user_1_id.clone());
+    assert_eq!(message.user_id, user_1_id.clone());
     assert_eq!(message.room_id, room_id.clone());
     assert_eq!(&message.class_type[..], "UserDisconnectedFromRoom");
 
     let message = user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap();
     let message: UserDisconnectedFromRoom = serde_json::from_str(&message).unwrap();
-    assert_eq!(message.user, user_1_id.clone());
+    assert_eq!(message.user_id, user_1_id.clone());
     assert_eq!(message.room_id, room_id.clone());
     assert_eq!(&message.class_type[..], "UserDisconnectedFromRoom");
 
@@ -383,13 +383,13 @@ async fn message_to_room() -> anyhow::Result<()> {
     // All users will receive the message
     let message = user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap();    
     let message = serde_json::from_str::<MessageReceivedFromRoom>(&message).unwrap();
-    assert_eq!(message.user, user_1_id.clone());
+    assert_eq!(message.user_id, user_1_id.clone());
     assert_eq!(message.room_id, room_id.clone());
     assert_eq!(&message.message, "HELLO");
     assert_eq!(&message.class_type[..], "MessageFromRoom");
 
     let message = serde_json::from_str::<MessageReceivedFromRoom>(&user_3_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
-    assert_eq!(message.user, user_1_id.clone());
+    assert_eq!(message.user_id, user_1_id.clone());
     assert_eq!(message.room_id, room_id.clone());
     assert_eq!(&message.message, "HELLO");
     assert_eq!(&message.class_type[..], "MessageFromRoom");
@@ -406,13 +406,13 @@ async fn message_to_room() -> anyhow::Result<()> {
 
     // All users will receive the message
     let message = serde_json::from_str::<MessageReceivedFromRoom>(&user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
-    assert_eq!(message.user, user_2_id.clone());
+    assert_eq!(message.user_id, user_2_id.clone());
     assert_eq!(message.room_id, room_id.clone());
     assert_eq!(&message.message, "WORLD");
     assert_eq!(&message.class_type[..], "MessageFromRoom");
 
     let message = serde_json::from_str::<MessageReceivedFromRoom>(&user_3_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
-    assert_eq!(message.user, user_2_id.clone());
+    assert_eq!(message.user_id, user_2_id.clone());
     assert_eq!(message.room_id, room_id.clone());
     assert_eq!(&message.message, "WORLD");
     assert_eq!(&message.class_type[..], "MessageFromRoom");
@@ -841,7 +841,7 @@ macro_rules! message_received_from_room {
     ($socket: expr, $sender: expr, $room_id: expr, $message: expr) => {
         let message = $socket.clone().messages.lock().unwrap().pop_back().unwrap();    
         let message = serde_json::from_str::<MessageReceivedFromRoom>(&message).unwrap();
-        assert_eq!(message.user, $sender.clone());
+        assert_eq!(message.user_id, $sender.clone());
         assert_eq!(message.room_id, $room_id.clone());
         assert_eq!(&message.message, $message);
         assert_eq!(&message.class_type[..], "MessageFromRoom");
@@ -1089,7 +1089,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
     let message: NewRoomJoinRequest = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
     assert_eq!(&message.class_type[..], "NewJoinRequest");
     assert_eq!(&message.room_id, &room_1_id);
-    assert_eq!(&message.user, user_2_auth_jwt.id.deref());
+    assert_eq!(&message.user_id, user_2_auth_jwt.id.deref());
     assert_eq!(message.user_type, RoomUserType::User);
 
     let message: JoinRequested = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
@@ -1114,7 +1114,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
         request_id: None,
         auth: user_1_auth.clone(),
         room_id: room_1_id,
-        user: user_2_auth_jwt.id.deref().clone(),
+        user_id: user_2_auth_jwt.id.deref().clone(),
         status: true,
         socket: user_1_socket.clone()
     }).await??;
@@ -1215,7 +1215,7 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
     let message: NewRoomJoinRequest = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
     assert_eq!(&message.class_type[..], "NewJoinRequest");
     assert_eq!(&message.room_id, &room_1_id);
-    assert_eq!(&message.user, user_2_auth_jwt.id.deref());
+    assert_eq!(&message.user_id, user_2_auth_jwt.id.deref());
     assert_eq!(message.user_type, RoomUserType::User);
 
     let message: JoinRequested = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
@@ -1240,7 +1240,7 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
         request_id: None,
         auth: user_1_auth.clone(),
         room_id: room_1_id,
-        user: user_2_auth_jwt.id.deref().clone(),
+        user_id: user_2_auth_jwt.id.deref().clone(),
         status: false,
         socket: user_1_socket.clone()
     }).await??;
@@ -1346,7 +1346,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
         request_id: None,
         auth: user_2_auth.clone(),
         room_id: room_1_id,
-        user: user_1_auth_jwt.id.deref().clone(),
+        user_id: user_1_auth_jwt.id.deref().clone(),
         socket:user_2_socket.clone(),
         ban: true
     }).await?.unwrap_err();
@@ -1359,7 +1359,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
         request_id: None,
         auth: user_1_auth.clone(),
         room_id: room_1_id,
-        user: user_2_auth_jwt.id.deref().clone(),
+        user_id: user_2_auth_jwt.id.deref().clone(),
         socket:user_1_socket.clone(),
         ban: true
     }).await??;
@@ -1473,7 +1473,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
         request_id: None,
         auth: user_2_auth.clone(),
         room_id: room_1_id,
-        user: user_1_auth_jwt.id.deref().clone(),
+        user_id: user_1_auth_jwt.id.deref().clone(),
         socket:user_2_socket.clone(),
         ban: false
     }).await?.unwrap_err();
@@ -1486,7 +1486,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
         request_id: None,
         auth: user_1_auth.clone(),
         room_id: room_1_id,
-        user: user_2_auth_jwt.id.deref().clone(),
+        user_id: user_2_auth_jwt.id.deref().clone(),
         socket:user_1_socket.clone(),
         ban: false
     }).await??;
