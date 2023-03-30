@@ -73,8 +73,8 @@ dotenv = "0.15.0"
 
 awc = { version = "3.1.1", features = ["rustls"] }
 actix-codec = "0.5.0"
-futures = "0.3.27"
-futures-util = "0.3.27"
+futures = "0.3.28"
+futures-util = "0.3.28"
 
 actix-web-actors = "4.2.0"
 actix-broker = "0.4.3"
