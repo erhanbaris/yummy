@@ -79,6 +79,43 @@ pub enum RoomInfoType {
     BannedUsers(HashSet<UserId>)
 }
 
+impl From<RoomInfoTypeVariant> for u32 {
+    fn from(value: RoomInfoTypeVariant) -> Self {
+        match value {
+            RoomInfoTypeVariant::RoomName => 0,
+            RoomInfoTypeVariant::Description => 1,
+            RoomInfoTypeVariant::Users => 2,
+            RoomInfoTypeVariant::MaxUser => 3,
+            RoomInfoTypeVariant::UserLength => 4,
+            RoomInfoTypeVariant::AccessType => 5,
+            RoomInfoTypeVariant::Tags => 6,
+            RoomInfoTypeVariant::Metas => 7,
+            RoomInfoTypeVariant::InsertDate => 8,
+            RoomInfoTypeVariant::JoinRequest => 9,
+            RoomInfoTypeVariant::BannedUsers => 10,
+        }
+    }
+}
+
+impl From<u32> for RoomInfoTypeVariant {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => RoomInfoTypeVariant::RoomName,
+            1 => RoomInfoTypeVariant::Description,
+            2 => RoomInfoTypeVariant::Users,
+            3 => RoomInfoTypeVariant::MaxUser,
+            4 => RoomInfoTypeVariant::UserLength,
+            5 => RoomInfoTypeVariant::AccessType,
+            6 => RoomInfoTypeVariant::Tags,
+            7 => RoomInfoTypeVariant::Metas,
+            8 => RoomInfoTypeVariant::InsertDate,
+            9 => RoomInfoTypeVariant::JoinRequest,
+            10 => RoomInfoTypeVariant::BannedUsers,
+            _ => RoomInfoTypeVariant::RoomName
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct RoomInfoTypeCollection {
     pub room_id: Option<RoomId>,

@@ -31,7 +31,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use crate::plugin::python::model::YummyPluginContextWrapper;
-use crate::plugin::python::modules::model::_model::{DeviceIdAuthRequestWrapper, EmailAuthRequestWrapper, CustomIdAuthRequestWrapper, LogoutRequestWrapper, UserConnectedWrapper, ConnUserDisconnectWrapper, RefreshTokenRequestWrapper, RestoreTokenRequestWrapper, GetUserInformationWrapper, UpdateUserWrapper, CreateRoomRequestWrapper};
+use crate::plugin::python::modules::model::_model::{DeviceIdAuthRequestWrapper, EmailAuthRequestWrapper, CustomIdAuthRequestWrapper, LogoutRequestWrapper, UserConnectedWrapper, ConnUserDisconnectWrapper, RefreshTokenRequestWrapper, RestoreTokenRequestWrapper, GetUserInformationWrapper, UpdateUserWrapper, CreateRoomRequestWrapper, RoomInfoTypeVariantWrapper};
 use crate::plugin::python::modules::base::_base::PyYummyValidationError;
 use crate::{
     auth::model::{ConnUserDisconnect, CustomIdAuthRequest, DeviceIdAuthRequest, EmailAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest},
@@ -43,7 +43,7 @@ use crate::{
 };
 use self::model::ModelWrapper;
 use self::modules::configure_modules;
-use self::modules::model::_model::{UpdateRoomWrapper, JoinToRoomRequestWrapper, ProcessWaitingUserWrapper, KickUserFromRoomWrapper, DisconnectFromRoomRequestWrapper, MessageToRoomRequestWrapper};
+use self::modules::model::_model::{UpdateRoomWrapper, JoinToRoomRequestWrapper, ProcessWaitingUserWrapper, KickUserFromRoomWrapper, DisconnectFromRoomRequestWrapper, MessageToRoomRequestWrapper, RoomListRequestWrapper};
 
 use super::{YummyPlugin, YummyPluginInstaller, YummyPluginError, PluginExecuter};
 
@@ -205,6 +205,7 @@ impl PythonPluginInstaller {
                 KickUserFromRoomWrapper::make_class(&vm.ctx);
                 DisconnectFromRoomRequestWrapper::make_class(&vm.ctx);
                 MessageToRoomRequestWrapper::make_class(&vm.ctx);
+                RoomListRequestWrapper::make_class(&vm.ctx);
 
                 YummyPluginContextWrapper::make_class(&vm.ctx);
                 PyYummyValidationError::extend_class(&vm.ctx, vm.ctx.exceptions.base_exception_type);
@@ -293,7 +294,7 @@ impl FunctionType {
             FunctionType::KickUserFromRoom => "pre_kick_user_from_room",
             FunctionType::DisconnectFromRoomRequest => "pre_disconnect_from_room",
             FunctionType::MessageToRoomRequest => "pre_message_to_room",
-            FunctionType::RoomListRequest => "NOT_IMPLEMENTED_YET",
+            FunctionType::RoomListRequest => "pre_room_list_request",
             FunctionType::WaitingRoomJoins => "NOT_IMPLEMENTED_YET",
             FunctionType::GetRoomRequest => "NOT_IMPLEMENTED_YET",
         }
@@ -318,7 +319,7 @@ impl FunctionType {
             FunctionType::KickUserFromRoom => "post_kick_user_from_room",
             FunctionType::DisconnectFromRoomRequest => "post_disconnect_from_room",
             FunctionType::MessageToRoomRequest => "post_message_to_room",
-            FunctionType::RoomListRequest => "NOT_IMPLEMENTED_YET",
+            FunctionType::RoomListRequest => "post_room_list_request",
             FunctionType::WaitingRoomJoins => "NOT_IMPLEMENTED_YET",
             FunctionType::GetRoomRequest => "NOT_IMPLEMENTED_YET",
         }
@@ -353,7 +354,7 @@ impl YummyPlugin for PythonPlugin {
     create_func!(pre_kick_user_from_room, post_kick_user_from_room, FunctionType::KickUserFromRoom, KickUserFromRoom, KickUserFromRoomWrapper);
     create_func!(pre_disconnect_from_room, post_disconnect_from_room, FunctionType::DisconnectFromRoomRequest, DisconnectFromRoomRequest, DisconnectFromRoomRequestWrapper);
     create_func!(pre_message_to_room, post_message_to_room, FunctionType::MessageToRoomRequest, MessageToRoomRequest, MessageToRoomRequestWrapper);
-    create_dummy_func!(pre_room_list_request, post_room_list_request, FunctionType::ROOM_LIST_REQUEST, RoomListRequest);
+    create_func!(pre_room_list_request, post_room_list_request, FunctionType::RoomListRequest, RoomListRequest, RoomListRequestWrapper);
     create_dummy_func!(pre_waiting_room_joins, post_waiting_room_joins, FunctionType::WAITING_ROOM_JOINS, WaitingRoomJoins);
     create_dummy_func!(pre_get_room_request, post_get_room_request, FunctionType::GET_ROOM_REQUEST, GetRoomRequest);
 }

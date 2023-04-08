@@ -12,6 +12,7 @@ pub mod _model {
 
     use rustpython_vm::builtins::{PyBaseException, PyInt, PyDict, PyStr};
     use rustpython_vm::{VirtualMachine, PyResult, PyObjectRef, TryFromBorrowedObject, PyRef, PyObject};
+    use yummy_cache::state::RoomInfoTypeVariant;
     use yummy_general::password::Password;
     use yummy_model::{UserType, CreateRoomAccessType, UserId, RoomUserType};
     use yummy_model::meta::{MetaAction, RoomMetaType, RoomMetaAccess};
@@ -23,7 +24,7 @@ pub mod _model {
 
     use crate::plugin::python::modules::base::_base::PyYummyValidationError;
     use crate::plugin::python::util::MetaTypeUtil;
-    use crate::room::model::{UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest};
+    use crate::room::model::{UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest};
     use crate::{auth::model::{DeviceIdAuthRequest, EmailAuthRequest, CustomIdAuthRequest, ConnUserDisconnect, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}, conn::model::UserConnected, user::model::{UpdateUser, GetUserInformation, GetUserInformationEnum}, room::model::CreateRoomRequest};
     use crate::plugin::python::ModelWrapper;
 
@@ -175,11 +176,13 @@ pub mod _model {
     model_wrapper_struct!(KickUserFromRoom, KickUserFromRoomWrapper, "KickUserFromRoom");
     model_wrapper_struct!(DisconnectFromRoomRequest, DisconnectFromRoomRequestWrapper, "DisconnectFromRoom");
     model_wrapper_struct!(MessageToRoomRequest, MessageToRoomRequestWrapper, "MessageToRoom");
+    model_wrapper_struct!(RoomListRequest, RoomListRequestWrapper, "RoomListRequest");
 
     wrapper_struct!(UserMetaType, UserMetaTypeWrapper, "UserMetaType");
     wrapper_struct!(RoomMetaType, RoomMetaTypeWrapper, "RoomMetaType");
     wrapper_struct!(UserMetaAccess, UserMetaAccessWrapper, "UserMetaAccess");
     wrapper_struct!(RoomMetaAccess, RoomMetaAccessWrapper, "RoomMetaAccess");
+    wrapper_struct!(RoomInfoTypeVariant, RoomInfoTypeVariantWrapper, "RoomInfoTypeVariant");
     
     wrapper_struct!(CreateRoomAccessType, CreateRoomAccessTypeWrapper, "CreateRoomAccessType");
 
@@ -953,6 +956,48 @@ pub mod _model {
         }
     }
 
+    #[yummy_model(class_name="RoomListRequest", no_auth=true)]
+    #[pyclass(flags(BASETYPE))]
+    impl RoomListRequestWrapper {
+        #[pymethod]
+        pub fn get_tag(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            get_nullable_string!(self, tag, vm)
+        }
+
+        #[pymethod]
+        pub fn set_tag(&self, tag: Option<String>) -> PyResult<()> {
+            set_value!(self, tag, tag);
+            Ok(())
+        }
+
+        #[pymethod]
+        pub fn get_members(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            let mut list = Vec::new();
+            
+            for value in self.data.borrow().members.clone().into_iter() {
+                list.push(vm.ctx.new_bigint(&(<RoomInfoTypeVariant as Into<u32>>::into(value).to_bigint().unwrap())).into());
+            }
+
+            Ok(vm.ctx.new_list(list).into())
+        }
+
+        #[pymethod]
+        pub fn set_members(&self, members: Vec<PyObjectRef>, vm: &VirtualMachine) -> PyResult<()> {
+            let mut new_members = Vec::new();
+
+            for member in members {
+                if member.class().fast_issubclass(vm.ctx.types.int_type) {
+                    new_members.push(member.payload::<PyInt>().unwrap().as_u32_mask().into());
+                } else {
+                    return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), "Only int type allowed. .".to_string()))
+                }
+            }
+            
+            self.data.borrow_mut().members = new_members;
+            Ok(())
+        }
+    }
+
     /* **************************************************************************************************************** */
     /* ********************************************** TRAIT IMPLEMENTS ************************************************ */
     /* **************************************************************************************************************** */
@@ -984,6 +1029,16 @@ pub mod _model {
             }
 
             Ok(CreateRoomAccessTypeWrapper { data: CreateRoomAccessType::default() })
+        }
+    }
+
+    impl TryFromBorrowedObject for RoomInfoTypeVariantWrapper {
+        fn try_from_borrowed_object(vm: &VirtualMachine, obj: &PyObject) -> Result<Self, PyRef<PyBaseException>> {
+            if obj.class().fast_issubclass(vm.ctx.types.int_type) {
+                return Ok(RoomInfoTypeVariantWrapper::new(obj.payload::<PyInt>().unwrap().as_u32_mask().into()));
+            }
+
+            panic!("");
         }
     }
 

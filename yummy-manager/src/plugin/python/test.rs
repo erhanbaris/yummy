@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::{sync::Arc, env::temp_dir};
 use std::io::Write;
 
-use yummy_cache::state::{YummyState};
+use yummy_cache::state::{YummyState, RoomInfoTypeVariant};
 use yummy_general::password::Password;
 use yummy_model::meta::{MetaAction, UserMetaType, UserMetaAccess, RoomMetaAccess, RoomMetaType};
 use yummy_model::{UserId, SessionId, UserType, CreateRoomAccessType, RoomId, RoomUserType};
@@ -22,7 +22,7 @@ use yummy_testing::database::get_database_pool;
 use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect};
 use crate::conn::model::UserConnected;
 use crate::plugin::PluginExecuter;
-use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest};
+use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest};
 use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
 use super::PythonPluginInstaller;
@@ -160,6 +160,19 @@ constants.ROOM_ACCESS_TYPE_FRIEND
 constants.ROOM_USER_TYPE_USER
 constants.ROOM_USER_TYPE_MODERATOR
 constants.ROOM_USER_TYPE_OWNER
+
+# RoomInfoType
+constants.ROOM_INFO_TYPE_ROOM_NAME
+constants.ROOM_INFO_TYPE_DESCRIPTION
+constants.ROOM_INFO_TYPE_USERS
+constants.ROOM_INFO_TYPE_MAX_USER
+constants.ROOM_INFO_TYPE_USER_LENGTH
+constants.ROOM_INFO_TYPE_ACCESS_TYPE
+constants.ROOM_INFO_TYPE_JOIN_REQUEST
+constants.ROOM_INFO_TYPE_INSERT_DATE
+constants.ROOM_INFO_TYPE_TAGS
+constants.ROOM_INFO_TYPE_BANNED_USERS
+constants.ROOM_INFO_TYPE_METAS
 "#);
 }
 
@@ -1101,6 +1114,36 @@ def post_message_to_room(model, success):
     let model = executer.pre_message_to_room(model).expect("pre_message_to_room returned Err");
     let model = executer.post_message_to_room(model, true).expect("post_message_to_room returned Err");
     assert_eq!(&model.message, "world");
+}
+
+#[test]
+fn room_list_request_test() {
+    let (executer, _) = create_python_environtment("room_list_request_test.py", r#"
+import yummy
+
+def pre_room_list_request(model):
+    assert(model.get_tag() is None)
+    model.set_tag("test")
+
+    assert(model.get_members() == [yummy.constants.ROOM_INFO_TYPE_ROOM_NAME])
+    model.set_members([yummy.constants.ROOM_INFO_TYPE_ROOM_NAME, yummy.constants.ROOM_INFO_TYPE_METAS])
+
+def post_room_list_request(model, success):
+    assert(model.get_tag() == "test")
+    assert(model.get_members() == [yummy.constants.ROOM_INFO_TYPE_ROOM_NAME, yummy.constants.ROOM_INFO_TYPE_METAS])
+"#);
+
+    let model = RoomListRequest {
+        request_id: Some(123),
+        tag: None,
+        members: vec![RoomInfoTypeVariant::RoomName],
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_room_list_request(model).expect("pre_room_list_request returned Err");
+    let model = executer.post_room_list_request(model, true).expect("post_room_list_request returned Err");
+    
+    assert_eq!(&model.tag, &Some("test".to_string()));
 }
 
 

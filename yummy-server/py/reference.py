@@ -121,7 +121,6 @@ def post_disconnect_from_room(model: model.DisconnectFromRoom, success: bool):
     pass
 
 
-
 def pre_message_to_room(model: model.MessageToRoom):
     pass
 
