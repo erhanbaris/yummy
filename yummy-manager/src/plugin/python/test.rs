@@ -22,7 +22,7 @@ use yummy_testing::database::get_database_pool;
 use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect};
 use crate::conn::model::UserConnected;
 use crate::plugin::PluginExecuter;
-use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest};
+use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest};
 use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
 use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
 use super::PythonPluginInstaller;
@@ -1144,8 +1144,65 @@ def post_room_list_request(model, success):
     let model = executer.post_room_list_request(model, true).expect("post_room_list_request returned Err");
     
     assert_eq!(&model.tag, &Some("test".to_string()));
+    assert_eq!(&model.members, &vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Metas]);
 }
 
+#[test]
+fn waiting_room_joins_test() {
+    let (executer, _) = create_python_environtment("waiting_room_joins_test.py", r#"
+import yummy
+
+def pre_waiting_room_joins(model):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+
+def post_waiting_room_joins(model, success):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+"#);
+
+    let model = WaitingRoomJoins {
+        request_id: Some(123),
+        auth: Arc::new(Some(UserAuth {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+        })),
+        room_id: RoomId::from("d508b370-6249-4fd3-9b3e-3aa66577a686".to_string()),
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_waiting_room_joins(model).expect("pre_waiting_room_joins returned Err");
+    executer.post_waiting_room_joins(model, true).expect("post_waiting_room_joins returned Err");
+}
+
+#[test]
+fn get_room_request_test() {
+    let (executer, _) = create_python_environtment("get_room_request_test.py", r#"
+import yummy
+
+def pre_get_room_request(model):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+    assert(model.get_members() == [yummy.constants.ROOM_INFO_TYPE_ROOM_NAME])
+    model.set_members([yummy.constants.ROOM_INFO_TYPE_ROOM_NAME, yummy.constants.ROOM_INFO_TYPE_METAS])
+
+def post_get_room_request(model, success):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+    assert(model.get_members() == [yummy.constants.ROOM_INFO_TYPE_ROOM_NAME, yummy.constants.ROOM_INFO_TYPE_METAS])
+"#);
+
+    let model = GetRoomRequest {
+        request_id: Some(123),
+        auth: Arc::new(Some(UserAuth {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+        })),
+        room_id: RoomId::from("d508b370-6249-4fd3-9b3e-3aa66577a686".to_string()),
+        members: vec![RoomInfoTypeVariant::RoomName],
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_get_room_request(model).expect("pre_get_room_request returned Err");
+    let model = executer.post_get_room_request(model, true).expect("post_get_room_request returned Err");
+    assert_eq!(&model.members, &vec![RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::Metas]);
+}
 
 /* Basic model checks */
 model_tester!(device_id_auth_tester, "device_id_auth_tester.py", pre_deviceid_auth, post_deviceid_auth, DeviceIdAuthRequest {
@@ -1326,5 +1383,26 @@ model_tester!(message_to_room, "message_to_room.py", pre_message_to_room, post_m
     })),
     room_id: RoomId::new(),
     message: "hello".to_string(),
+    socket: Arc::new(DummyClient::default())
+});
+
+model_tester!(waiting_room_joins, "waiting_room_joins.py", pre_waiting_room_joins, post_waiting_room_joins, WaitingRoomJoins {
+    request_id: Some(123),
+    auth: Arc::new(Some(UserAuth {
+        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+    })),
+    room_id: RoomId::new(),
+    socket: Arc::new(DummyClient::default())
+});
+
+model_tester!(get_room_request, "waiting_room_joins.py", pre_get_room_request, post_get_room_request, GetRoomRequest {
+    request_id: Some(123),
+    auth: Arc::new(Some(UserAuth {
+        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+    })),
+    room_id: RoomId::new(),
+    members: vec![RoomInfoTypeVariant::RoomName],
     socket: Arc::new(DummyClient::default())
 });

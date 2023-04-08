@@ -127,3 +127,27 @@ def pre_message_to_room(model: model.MessageToRoom):
 
 def post_message_to_room(model: model.MessageToRoom, success: bool):
     pass
+
+
+def pre_room_list_request(model: model.RoomListRequest):
+    pass
+
+
+def post_room_list_request(model: model.RoomListRequest, success: bool):
+    pass
+
+
+def pre_waiting_room_joins(model: model.WaitingRoomJoins):
+    pass
+
+
+def post_waiting_room_joins(model: model.WaitingRoomJoins, success: bool):
+    pass
+
+
+def pre_get_room_request(model: model.GetRoomRequest):
+    pass
+
+
+def post_get_room_request(model: model.GetRoomRequest, success: bool):
+    pass

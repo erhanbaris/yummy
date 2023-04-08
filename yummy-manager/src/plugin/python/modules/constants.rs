@@ -72,15 +72,15 @@ pub mod _constants {
     #[pyattr]
     const ROOM_INFO_TYPE_ACCESS_TYPE: u32 = 5; // RoomInfoTypeVariant::AccessType;
     #[pyattr]
-    const ROOM_INFO_TYPE_JOIN_REQUEST: u32 = 6; // RoomInfoTypeVariant::JoinRequest;
+    const ROOM_INFO_TYPE_TAGS: u32 = 6; // RoomInfoTypeVariant::Tags;
     #[pyattr]
-    const ROOM_INFO_TYPE_INSERT_DATE: u32 = 7; // RoomInfoTypeVariant::InsertDate;
+    const ROOM_INFO_TYPE_METAS: u32 = 7; // RoomInfoTypeVariant::Metas;
     #[pyattr]
-    const ROOM_INFO_TYPE_TAGS: u32 = 8; // RoomInfoTypeVariant::Tags;
+    const ROOM_INFO_TYPE_INSERT_DATE: u32 = 8; // RoomInfoTypeVariant::InsertDate;
     #[pyattr]
-    const ROOM_INFO_TYPE_BANNED_USERS: u32 = 9; // RoomInfoTypeVariant::BannedUsers;
+    const ROOM_INFO_TYPE_JOIN_REQUEST: u32 = 9; // RoomInfoTypeVariant::JoinRequest;
     #[pyattr]
-    const ROOM_INFO_TYPE_METAS: u32 = 10; // RoomInfoTypeVariant::Metas;
+    const ROOM_INFO_TYPE_BANNED_USERS: u32 = 10; // RoomInfoTypeVariant::BannedUsers;
 
     /* **************************************************************************************************************** */
     /* **************************************************** MACROS **************************************************** */
