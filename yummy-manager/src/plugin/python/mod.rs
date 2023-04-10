@@ -176,10 +176,7 @@ impl PythonPluginInstaller {
         interpreter
             .enter(|vm| -> vm::PyResult<()> {
                 
-                if cfg!(test) {
-                    // Only for test cases
-                    crate::plugin::python::modules::model::make_module(vm);
-                }
+                crate::plugin::python::modules::model::make_module(vm);
 
                 let mut build = || {
                     let path = Path::new(&config.python_files_path).join("*.py").to_string_lossy().to_string();

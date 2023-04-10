@@ -376,7 +376,7 @@ async fn message_to_room() -> anyhow::Result<()> {
         request_id: None,
         auth: user_1.clone(),
         room_id: room_id,
-        message: "HELLO".to_string(),
+        message: serde_json::Value::String("HELLO".to_string()),
         socket:user_1_socket.clone()
     }).await??;
 

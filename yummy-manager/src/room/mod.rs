@@ -603,6 +603,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
     #[tracing::instrument(name="MessageToRoomRequest", skip(self, _ctx))]
     #[yummy_macros::plugin_api(name="message_to_room")]
     fn handle(&mut self, model: MessageToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
+        println!("{:?}", model.message);
+
         let sender_user_id = match model.auth.deref() {
             Some(user) => &user.user,
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))

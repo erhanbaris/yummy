@@ -1,6 +1,7 @@
 use std::{fmt::Debug, sync::Arc, collections::HashMap, borrow::Cow};
 
 use actix::prelude::Message;
+use serde_json::Value;
 use yummy_cache::state::{RoomInfoTypeVariant, RoomUserInformation, RoomInfoTypeCollection};
 use yummy_general::client::ClientTrait;
 use yummy_model::{auth::UserAuth, CreateRoomAccessType, meta::{RoomMetaAccess, MetaType, MetaAction}, RoomId, RoomUserType, UserId};
@@ -80,7 +81,7 @@ pub struct MessageToRoomRequest {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
     pub room_id: RoomId,
-    pub message: String,
+    pub message: Value,
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
@@ -184,7 +185,7 @@ pub enum RoomResponse<'a> {
     MessageFromRoom {
         user_id: &'a UserId,
         room_id: &'a RoomId,
-        message: &'a String
+        message: &'a Value
     },
     RoomList {
         rooms: Vec<RoomInfoTypeCollection>

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use serde_json::Value;
 use yummy_cache::state::RoomInfoTypeVariant;
 use yummy_general::password::Password;
 use yummy_model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType, meta::{MetaType, RoomMetaAccess, UserMetaAccess, MetaAction}};
@@ -113,7 +114,7 @@ pub enum RequestRoomType {
     #[serde(rename = "MessageToRoom")]
     Message {
         room_id: RoomId,
-        message: String,
+        message: Value,
     },
     
     #[serde(rename = "KickUserFromroom")]

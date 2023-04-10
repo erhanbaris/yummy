@@ -989,12 +989,16 @@ pub mod model {
         /* Message function */
         #[pymethod]
         pub fn get_message(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            Ok(vm.ctx.new_str(&self.data.borrow().message[..]).into())
+            Ok(vm.ctx.none())
+            //Ok(vm.ctx.new_str(&self.data.borrow().message).into())
         }
 
         #[pymethod]
-        pub fn set_message(&self, message: String) -> PyResult<()> {
-            self.data.borrow_mut().message = message;
+        pub fn set_message(&self, message: PyObjectRef, vm: &VirtualMachine) -> PyResult<()> {
+            let a = rustpython_vm::py_serde::PyObjectSerializer::new(vm, &message);
+            //let value: serde_json::Value = rustpython_vm::py_serde::serialize(vm, &message, serde_json::ser::Serializer::new(writer)).unwrap();
+            //rustpython_vm::py_serde::serialize(vm, &message, rustpython_vm::py_serde::PyObjectSerializer::new());
+            //self.data.borrow_mut().message = message;
             Ok(())
         }
     }
