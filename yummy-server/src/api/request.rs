@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use yummy_cache::state::RoomInfoTypeVariant;
 use yummy_general::password::Password;
 use yummy_model::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType, meta::{MetaType, RoomMetaAccess, UserMetaAccess, MetaAction}};
 use serde::{Deserialize, Serialize};
@@ -125,6 +126,15 @@ pub enum RequestRoomType {
     Ban {
         room_id: RoomId,
         user_id: UserId,
+    },
+
+    #[serde(rename = "RoomList")]
+    List {
+        #[serde(default)]
+        tag: Option<String>,
+
+        #[serde(default)]
+        members: Vec<RoomInfoTypeVariant>,
     },
     
     #[serde(rename = "UpdateRoom")]

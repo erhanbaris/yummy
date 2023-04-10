@@ -9,7 +9,7 @@ use num_bigint::ToBigInt;
 use num_traits::Zero;
 use rustpython::vm::{VirtualMachine, PyObjectRef, PyRef, builtins::{PyBaseException, PyFloat, PyInt, PyStr, PyList}, PyResult};
 
-use super::modules::model::_model::{UserMetaTypeWrapper, RoomMetaTypeWrapper};
+use super::modules::model::model::{UserMetaTypeWrapper, RoomMetaTypeWrapper};
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */

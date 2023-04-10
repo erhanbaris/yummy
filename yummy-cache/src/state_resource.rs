@@ -6,7 +6,7 @@ use std::{sync::Arc, marker::PhantomData};
 
 use yummy_database::DatabaseTrait;
 use yummy_general::database::Pool;
-use yummy_model::{UserId, UserInformationModel, meta::{UserMetaAccess, collection::UserMetaCollection}, UserType};
+use yummy_model::{UserId, UserInformationModel, meta::{UserMetaAccess, collection::{UserMetaCollection, RoomMetaCollection}, RoomMetaAccess}, UserType, RoomId};
 
 use crate::{cache::YummyCacheResource, state::resource::YummyCacheResourceFactory};
 
@@ -31,6 +31,11 @@ pub struct UserMetaResource<DB: DatabaseTrait + ?Sized> {
 }
 
 pub struct UserTypeResource<DB: DatabaseTrait + ?Sized> {
+    database: Arc<Pool>,
+    _marker: PhantomData<DB>
+}
+
+pub struct RoomMetaResource<DB: DatabaseTrait + ?Sized> {
     database: Arc<Pool>,
     _marker: PhantomData<DB>
 }
@@ -78,6 +83,15 @@ impl<DB: DatabaseTrait + ?Sized> UserTypeResource<DB> {
     }
 }
 
+impl<DB: DatabaseTrait + ?Sized> RoomMetaResource<DB> {
+    pub fn new(database: Arc<Pool>) -> Self {
+        Self {
+            database,
+            _marker: PhantomData
+        }
+    }
+}
+
 /* **************************************************************************************************************** */
 /* ********************************************** TRAIT IMPLEMENTS ************************************************ */
 /* **************************************************************************************************************** */
@@ -93,6 +107,10 @@ impl<DB: DatabaseTrait + ?Sized + 'static> YummyCacheResourceFactory for Resourc
 
     fn user_type(&self) -> Box<dyn YummyCacheResource<K=UserId, V=yummy_model::UserType>> {
         Box::new(UserTypeResource::<DB>::new(self.database.clone()))
+    }
+
+    fn room_metas(&self) -> Box<dyn YummyCacheResource<K=RoomId, V=RoomMetaCollection>> {
+        Box::new(RoomMetaResource::<DB>::new(self.database.clone()))
     }
 }
 
@@ -124,6 +142,17 @@ impl<DB: DatabaseTrait + ?Sized> YummyCacheResource for UserTypeResource<DB> {
     fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>> {
         let mut connection = self.database.get()?;
         let result = DB::get_user_type(&mut connection, key)?;
+        Ok(Some(result))
+    }
+}
+
+impl<DB: DatabaseTrait + ?Sized> YummyCacheResource for RoomMetaResource<DB> {
+    type K=RoomId;
+    type V=RoomMetaCollection;
+
+    fn get(&self, key: &Self::K) -> anyhow::Result<Option<Self::V>> {
+        let mut connection = self.database.get()?;
+        let result = DB::get_room_meta(&mut connection, key, RoomMetaAccess::System)?;
         Ok(Some(result))
     }
 }

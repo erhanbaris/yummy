@@ -1,5 +1,46 @@
-#[rustpython::vm::pymodule]
-pub mod _model {
+use rustpython_vm::{VirtualMachine, PyObjectRef, extend_module};
+use rustpython_vm::class::PyClassImpl;
+use crate::plugin::python::YummyPluginContextWrapper;
+
+use self::model::*;
+
+use super::base::_base::PyYummyValidationError;
+
+pub fn make_module(vm: &VirtualMachine) -> PyObjectRef {
+    let module = model::make_module(vm);
+
+    PyYummyValidationError::extend_class(&vm.ctx, vm.ctx.exceptions.base_exception_type);
+
+    extend_module!(vm, module, {
+        "DeviceIdAuth" => DeviceIdAuthRequestWrapper::make_class(&vm.ctx),
+        "EmailAuth" => EmailAuthRequestWrapper::make_class(&vm.ctx),
+        "CustomIdAuth" => CustomIdAuthRequestWrapper::make_class(&vm.ctx),
+        "Logout" => LogoutRequestWrapper::make_class(&vm.ctx),
+        "UserConnected" => UserConnectedWrapper::make_class(&vm.ctx),
+        "UserDisconnected" => ConnUserDisconnectWrapper::make_class(&vm.ctx),
+        "RefreshToken" => RefreshTokenRequestWrapper::make_class(&vm.ctx),
+        "RestoreToken" => RestoreTokenRequestWrapper::make_class(&vm.ctx),
+        "GetUserInformation" => GetUserInformationWrapper::make_class(&vm.ctx),
+        "UpdateUser" => UpdateUserWrapper::make_class(&vm.ctx),
+        "CreateRoom" => CreateRoomRequestWrapper::make_class(&vm.ctx),
+        "UpdateRoom" => UpdateRoomWrapper::make_class(&vm.ctx),
+        "JoinToRoom" => JoinToRoomRequestWrapper::make_class(&vm.ctx),
+        "ProcessWaitingUser" => ProcessWaitingUserWrapper::make_class(&vm.ctx),
+        "KickUserFromRoom" => KickUserFromRoomWrapper::make_class(&vm.ctx),
+        "DisconnectFromRoom" => DisconnectFromRoomRequestWrapper::make_class(&vm.ctx),
+        "MessageToRoom" => MessageToRoomRequestWrapper::make_class(&vm.ctx),
+        "RoomListRequest" => RoomListRequestWrapper::make_class(&vm.ctx),
+        "WaitingRoomJoins" => WaitingRoomJoinsWrapper::make_class(&vm.ctx),
+        "GetRoomRequest" => GetRoomRequestWrapper::make_class(&vm.ctx),
+        "YummyPluginContext" => YummyPluginContextWrapper::make_class(&vm.ctx),
+    });
+
+    module
+}
+
+#[rustpython::vm::pymodule(name = "model")]
+pub mod model {
+
     /* **************************************************************************************************************** */
     /* **************************************************** MODS ****************************************************** */
     /* *************************************************** IMPORTS **************************************************** */
@@ -35,7 +76,7 @@ pub mod _model {
 
     macro_rules! model_wrapper_struct {
         ($model: ident, $wrapper: ident, $class_name: expr) => {
-            #[pyclass(module = "yummy", name = $class_name)]
+            #[pyclass(module = false, name = $class_name)]
             #[derive(Debug, PyPayload)]
             pub struct $wrapper {
                 pub data: Rc<RefCell< $model >>
@@ -55,7 +96,7 @@ pub mod _model {
 
     macro_rules! wrapper_struct {
         ($model: ident, $wrapper: ident, $class_name: expr) => {
-            #[pyclass(module = "yummy", name = $class_name)]
+            #[pyclass(module = false, name = $class_name)]
             #[derive(Debug, PyPayload)]
             pub struct $wrapper {
                 pub data: $model
@@ -1016,7 +1057,7 @@ pub mod _model {
         pub fn get_room_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
             Ok(vm.ctx.new_str(&self.data.borrow().room_id.to_string()[..]).into())
         }
-        
+
         #[pymethod]
         pub fn get_members(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
             let mut list = Vec::new();

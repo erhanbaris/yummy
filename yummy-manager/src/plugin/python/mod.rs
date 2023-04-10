@@ -20,7 +20,6 @@ use glob::{MatchOptions, glob_with};
 use yummy_model::config::YummyConfig;
 use rustpython::{vm as vm, InterpreterConfig};
 use strum::IntoEnumIterator;
-use vm::class::PyClassImpl;
 use vm::convert::ToPyObject;
 use vm::function::IntoFuncArgs;
 use vm::scope::Scope;
@@ -31,8 +30,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use crate::plugin::python::model::YummyPluginContextWrapper;
-use crate::plugin::python::modules::model::_model::{DeviceIdAuthRequestWrapper, EmailAuthRequestWrapper, CustomIdAuthRequestWrapper, LogoutRequestWrapper, UserConnectedWrapper, ConnUserDisconnectWrapper, RefreshTokenRequestWrapper, RestoreTokenRequestWrapper, GetUserInformationWrapper, UpdateUserWrapper, CreateRoomRequestWrapper};
-use crate::plugin::python::modules::base::_base::PyYummyValidationError;
+use crate::plugin::python::modules::model::model::{DeviceIdAuthRequestWrapper, EmailAuthRequestWrapper, CustomIdAuthRequestWrapper, LogoutRequestWrapper, UserConnectedWrapper, ConnUserDisconnectWrapper, RefreshTokenRequestWrapper, RestoreTokenRequestWrapper, GetUserInformationWrapper, UpdateUserWrapper, CreateRoomRequestWrapper};
 use crate::{
     auth::model::{ConnUserDisconnect, CustomIdAuthRequest, DeviceIdAuthRequest, EmailAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest},
     conn::model::UserConnected,
@@ -43,7 +41,7 @@ use crate::{
 };
 use self::model::ModelWrapper;
 use self::modules::configure_modules;
-use self::modules::model::_model::{UpdateRoomWrapper, JoinToRoomRequestWrapper, ProcessWaitingUserWrapper, KickUserFromRoomWrapper, DisconnectFromRoomRequestWrapper, MessageToRoomRequestWrapper, RoomListRequestWrapper, WaitingRoomJoinsWrapper, GetRoomRequestWrapper};
+use self::modules::model::model::{UpdateRoomWrapper, JoinToRoomRequestWrapper, ProcessWaitingUserWrapper, KickUserFromRoomWrapper, DisconnectFromRoomRequestWrapper, MessageToRoomRequestWrapper, RoomListRequestWrapper, WaitingRoomJoinsWrapper, GetRoomRequestWrapper};
 
 use super::{YummyPlugin, YummyPluginInstaller, YummyPluginError, PluginExecuter};
 
@@ -51,17 +49,6 @@ use super::{YummyPlugin, YummyPluginInstaller, YummyPluginError, PluginExecuter}
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
 /* **************************************************** MACROS **************************************************** */
 /* **************************************************************************************************************** */
-macro_rules! create_dummy_func {
-    ($pre: ident, $post: ident, $target: path, $model: path) => {
-        fn $pre<'a>(&self, _: Rc<RefCell<$model>>) -> Result<(), YummyPluginError> {
-            Ok(())
-        }
-        fn $post<'a>(&self, _: Rc<RefCell<$model>>, _: bool) -> Result<(), YummyPluginError> {
-            Ok(())
-        }
-    };
-}
-
 macro_rules! create_func {
     ($pre: ident, $post: ident, $function: path, $model: path, $wrapper: tt) => {
         fn $pre<'a>(&self, model: Rc<RefCell<$model>>) -> Result<(), YummyPluginError> {
@@ -188,84 +175,79 @@ impl PythonPluginInstaller {
 
         interpreter
             .enter(|vm| -> vm::PyResult<()> {
-                DeviceIdAuthRequestWrapper::make_class(&vm.ctx);
-                EmailAuthRequestWrapper::make_class(&vm.ctx);
-                CustomIdAuthRequestWrapper::make_class(&vm.ctx);
-                LogoutRequestWrapper::make_class(&vm.ctx);
-                UserConnectedWrapper::make_class(&vm.ctx);
-                ConnUserDisconnectWrapper::make_class(&vm.ctx);
-                RefreshTokenRequestWrapper::make_class(&vm.ctx);
-                RestoreTokenRequestWrapper::make_class(&vm.ctx);
-                GetUserInformationWrapper::make_class(&vm.ctx);
-                UpdateUserWrapper::make_class(&vm.ctx);
-                CreateRoomRequestWrapper::make_class(&vm.ctx);
-                UpdateRoomWrapper::make_class(&vm.ctx);
-                JoinToRoomRequestWrapper::make_class(&vm.ctx);
-                ProcessWaitingUserWrapper::make_class(&vm.ctx);
-                KickUserFromRoomWrapper::make_class(&vm.ctx);
-                DisconnectFromRoomRequestWrapper::make_class(&vm.ctx);
-                MessageToRoomRequestWrapper::make_class(&vm.ctx);
-                RoomListRequestWrapper::make_class(&vm.ctx);
-                WaitingRoomJoinsWrapper::make_class(&vm.ctx);
-                GetRoomRequestWrapper::make_class(&vm.ctx);
+                
+                if cfg!(test) {
+                    // Only for test cases
+                    crate::plugin::python::modules::model::make_module(vm);
+                }
 
-                YummyPluginContextWrapper::make_class(&vm.ctx);
-                PyYummyValidationError::extend_class(&vm.ctx, vm.ctx.exceptions.base_exception_type);
+                let mut build = || {
+                    let path = Path::new(&config.python_files_path).join("*.py").to_string_lossy().to_string();
+                    log::info!("Searhing python files at {}", path);
+            
+                    let options = MatchOptions {
+                        case_sensitive: false,
+                        require_literal_separator: false,
+                        require_literal_leading_dot: false,
+                    };
+            
+                    let paths = glob_with(&path, options).unwrap();
+                    for path in paths {
+                        let path = path.unwrap().to_string_lossy().to_string();
+                        let content = fs::read_to_string(&path).unwrap();
 
-                let path = Path::new(&config.python_files_path).join("*.py").to_string_lossy().to_string();
-                log::info!("Searhing python files at {}", path);
-        
-                let options = MatchOptions {
-                    case_sensitive: false,
-                    require_literal_separator: false,
-                    require_literal_leading_dot: false,
+                        // Read python script and parse the codes
+                        vm.insert_sys_path(vm.new_pyobj(&config.python_files_path))?;
+                        let code_obj = vm.compile(&content, vm::compiler::Mode::Exec, path.clone(),)
+                            .map_err(|err| vm.new_syntax_error(&err))?;
+                        
+                        // Create new scope for python script. It will contains locals and globals
+                        let scope = vm.new_scope_with_builtins();
+                        
+                        // Compile and run parsed python codes. We want to use scope later on
+                        if let Err(error) = vm.run_code_obj(code_obj, scope.clone()) {
+                            let mut error_message = String::new();
+                            vm.write_exception(&mut error_message, &error).unwrap();
+                            log::error!("'{}' failed to compile. Error message: {}", path, error_message);
+                            return Err(error);
+                        }
+
+                        scope.globals.set_item("__CONTEXT__", YummyPluginContextWrapper::new(executer.context.clone()).to_pyobject(vm), vm).unwrap();
+
+                        /*
+                        Build python method informations to call it later.
+                        That approach will increase function invoke performance
+                        */
+                        for function_type in FunctionType::iter() {
+                            // Get pre execution functions from python script
+                            if let Ok(function_ref) = scope.globals.get_item(function_type.get_pre_function_name(), vm) {
+                                let functions = pre_function_refs.entry(function_type).or_insert(Vec::new());
+                                functions.push(function_ref);
+                            }
+
+                            // Get post execution functions from python script
+                            if let Ok(function_ref) = scope.globals.get_item(function_type.get_post_function_name(), vm) {
+                                let functions = post_function_refs.entry(function_type).or_insert(Vec::new());
+                                functions.push(function_ref);
+                            }
+                        }
+
+                        scopes.push(scope);
+                    }
+
+                    Ok(())
                 };
-        
-                let paths = glob_with(&path, options).unwrap();
-                for path in paths {
-                    let path = path.unwrap().to_string_lossy().to_string();
-                    let content = fs::read_to_string(&path).unwrap();
 
-                    // Read python script and parse the codes
-                    let code_obj = vm.compile(&content, vm::compiler::Mode::Exec, path.clone(),)
-                        .map_err(|err| vm.new_syntax_error(&err))?;
-                    
-                    // Create new scope for python script. It will contains locals and globals
-                    let scope = vm.new_scope_with_builtins();
-                    
-                    // Compile and run parsed python codes. We want to use scope later on
-                    if let Err(error) = vm.run_code_obj(code_obj, scope.clone()) {
+                match build() {
+                    Ok(_) => Ok(()),
+                    Err(error) => {
                         let mut error_message = String::new();
                         vm.write_exception(&mut error_message, &error).unwrap();
-                        log::error!("'{}' failed to compile. Error message: {}", path, error_message);
-                        return Err(error);
+                        log::error!("Error message: {}", error_message);
+                        Err(error)
                     }
-
-                    scope.globals.set_item("__CONTEXT__", YummyPluginContextWrapper::new(executer.context.clone()).to_pyobject(vm), vm).unwrap();
-
-                    /*
-                    Build python method informations to call it later.
-                    That approach will increase function invoke performance
-                    */
-                    for function_type in FunctionType::iter() {
-                        // Get pre execution functions from python script
-                        if let Ok(function_ref) = scope.globals.get_item(function_type.get_pre_function_name(), vm) {
-                            let functions = pre_function_refs.entry(function_type).or_insert(Vec::new());
-                            functions.push(function_ref);
-                        }
-
-                        // Get post execution functions from python script
-                        if let Ok(function_ref) = scope.globals.get_item(function_type.get_post_function_name(), vm) {
-                            let functions = post_function_refs.entry(function_type).or_insert(Vec::new());
-                            functions.push(function_ref);
-                        }
-                    }
-
-                    scopes.push(scope);
                 }
-                Ok(())
-            })
-            .unwrap();
+            }).unwrap();
 
         PythonPlugin {
             interpreter,

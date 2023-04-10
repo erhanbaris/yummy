@@ -2,6 +2,7 @@
 /* **************************************************** MODS ****************************************************** */
 /* **************************************************************************************************************** */
 pub mod model;
+pub mod logic;
 
 /* **************************************************************************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
@@ -19,6 +20,7 @@ use yummy_cache::state::{RoomInfoTypeVariant, YummyState, RoomInfoType};
 use yummy_database::DatabaseTrait;
 
 use yummy_model::config::YummyConfig;
+use yummy_model::meta::collection::RoomMetaCollection;
 use yummy_model::meta::{MetaType, MetaAction};
 use yummy_model::meta::RoomMetaAccess;
 use yummy_model::user::RoomUpdate;
@@ -39,7 +41,7 @@ use self::model::*;
 /* **************************************************************************************************************** */
 const ALL_ROOM_INFO_TYPE_VARIANTS: [RoomInfoTypeVariant; 10] = [RoomInfoTypeVariant::Tags, RoomInfoTypeVariant::InsertDate, RoomInfoTypeVariant::RoomName, RoomInfoTypeVariant::AccessType, RoomInfoTypeVariant::Users, RoomInfoTypeVariant::MaxUser, RoomInfoTypeVariant::UserLength, RoomInfoTypeVariant::BannedUsers, RoomInfoTypeVariant::JoinRequest, RoomInfoTypeVariant::Metas];
 
-type ConfigureMetasResult = anyhow::Result<(Option<HashMap<String, MetaType<RoomMetaAccess>>>, HashMap<String, MetaType<RoomMetaAccess>>)>;
+type ConfigureMetasResult = anyhow::Result<(Option<HashMap<String, MetaType<RoomMetaAccess>>>, RoomMetaCollection)>;
 
 
 /* **************************************************************************************************************** */
@@ -108,7 +110,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
 
     fn disconnect_from_room(&mut self, room_id: &RoomId, user_id: &UserId, session_id: &SessionId) -> anyhow::Result<bool> {
         let room_removed = self.states.disconnect_from_room(room_id, user_id, session_id)?;
-        let users = self.states.get_users_from_room(room_id)?;
+        let users = self.states.get_users_from_room(room_id).unwrap_or_default();
         
         let mut connection = self.database.get()?;
         DB::disconnect_from_room(&mut connection, room_id, user_id)?;
@@ -151,12 +153,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
                         }
 
                         // Check for meta already added into the user
-                        let row = room_old_metas.iter().enumerate().find(|(_, item)| &item.1 == key).map(|(index, (item, _, _))| (index, item.clone()));
+                        let row = room_old_metas.iter().find(|item| &item.name == key).map(|item| (item.id.clone(), item.name.clone()));
 
                         /* Remove the key if exists in the database */
-                        if let Some((index, row_id)) = row {
-                            remove_list.push(row_id);
-                            room_old_metas.remove(index);
+                        if let Some((row_id, name)) = row {
+                            if let Some(row_id) = row_id {
+                                remove_list.push(row_id);
+                            }
+
+                            // Remove with meta name
+                            room_old_metas.remove_with_name(&name);
                         }
 
                         /* Remove meta */
@@ -171,9 +177,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
                     let insert_list = (!insert_list.is_empty()).then_some(insert_list);
                     let remove_list = (!remove_list.is_empty()).then_some(remove_list);
 
-                    (insert_list, remove_list, total_metas, room_old_metas.into_iter().map(|(_, key, value)| (key, value)).collect::<HashMap<_, _>>())
+                    (insert_list, remove_list, total_metas, room_old_metas)
                 } else {
-                    (None, None, 0, HashMap::default())
+                    (None, None, 0, RoomMetaCollection::default())
                 }
             },
 
@@ -182,7 +188,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
 
                 // Check for metas
                 if let Some(ref metas) = metas {
-                    let remove_list = DB::get_room_meta(connection, room_id, access_level)?.into_iter().map(|meta| meta.0).collect::<Vec<_>>();
+                    let remove_list = DB::get_room_meta(connection, room_id, access_level)?.into_iter().map(|meta| meta.id.unwrap_or_default()).collect::<Vec<_>>();
                     let mut insert_list = Vec::new();
 
                     for (key, value) in metas.iter() {
@@ -203,16 +209,16 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
                     let insert_list = (!insert_list.is_empty()).then_some(insert_list);
                     let remove_list = (!remove_list.is_empty()).then_some(remove_list);
 
-                    (insert_list, remove_list, total_metas, HashMap::default())
+                    (insert_list, remove_list, total_metas, RoomMetaCollection::default())
                 } else {
-                    (None, None, 0, HashMap::default())
+                    (None, None, 0, RoomMetaCollection::default())
                 }
             },
             yummy_model::meta::MetaAction::RemoveAllMetas => {
                 // Discard all new meta insertion list and remove all old meta that based on user access level.
-                let remove_list = DB::get_room_meta(connection, room_id, access_level)?.into_iter().map(|meta| meta.0).collect::<Vec<_>>();
+                let remove_list = DB::get_room_meta(connection, room_id, access_level)?.into_iter().map(|meta| meta.id.unwrap_or_default()).collect::<Vec<_>>();
                 metas = Some(HashMap::default());
-                (None, Some(remove_list), 0, HashMap::default())
+                (None, Some(remove_list), 0, RoomMetaCollection::default())
             },
         };
 
@@ -406,7 +412,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
             }
 
             if let Some(mut metas) = metas {
-                metas.extend(remaining.into_iter());
+                for meta in remaining.into_iter() {
+                    metas.insert(meta.name, meta.meta);
+                }
                 room_update_query.push(RoomInfoType::Metas(metas));
             }
 

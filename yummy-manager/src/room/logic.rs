@@ -2,19 +2,28 @@
 /* **************************************************** MODS ****************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
 /* **************************************************************************************************************** */
-use yummy_cache::{state::resource::YummyCacheResourceFactory, cache::YummyCacheResource};
-use yummy_model::{UserId, UserType, meta::collection::{UserMetaCollection, RoomMetaCollection}, UserInformationModel, RoomId};
+use std::{marker::PhantomData, sync::Arc};
+
+use yummy_cache::state::YummyState;
+use yummy_database::DatabaseTrait;
+use yummy_model::meta::collection::RoomMetaCollectionInformation;
+use yummy_model::RoomId;
+use yummy_model::config::YummyConfig;
+use yummy_model::meta::{RoomMetaType, RoomMetaAccess};
+use yummy_general::database::Pool;
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
 /* **************************************************** MACROS **************************************************** */
 /* *************************************************** STRUCTS **************************************************** */
 /* **************************************************************************************************************** */
-pub struct DummyResourceFactory;
-pub struct DummyUserInformationResource;
-pub struct DummyUserMetaResource;
-pub struct DummyUserTypeResource;
-pub struct DummyRoomMetaResource;
+#[derive(Clone)]
+pub struct RoomLogic<DB: DatabaseTrait + ?Sized> {
+    config: Arc<YummyConfig>,
+    database: Arc<Pool>,
+    states: YummyState,
+    _marker: PhantomData<DB>
+}
 
 /* **************************************************************************************************************** */
 /* **************************************************** ENUMS ***************************************************** */
@@ -22,50 +31,38 @@ pub struct DummyRoomMetaResource;
 /* *************************************************** TRAITS ***************************************************** */
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
-impl YummyCacheResourceFactory for DummyResourceFactory {
-    fn user_information(&self) -> Box<dyn YummyCacheResource<K=UserId, V=UserInformationModel>> {
-        Box::new(DummyUserInformationResource {})
+impl<DB: DatabaseTrait + ?Sized> RoomLogic<DB> {
+    pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>) -> Self {
+        Self {
+            config,
+            database,
+            states,
+            _marker: PhantomData
+        }
     }
 
-    fn user_metas(&self) -> Box<dyn YummyCacheResource<K=UserId, V=UserMetaCollection>> {
-        Box::new(DummyUserMetaResource {})
+    pub fn get_room_meta(&self, room_id: RoomId, key: String) -> anyhow::Result<Option<RoomMetaType>> {
+        Ok(self.states.get_room_meta(&room_id, RoomMetaAccess::System)?
+            .get_with_name(&key)
+            .cloned()
+            .map(|item| item.meta))
     }
 
-    fn user_type(&self) -> Box<dyn YummyCacheResource<K=UserId, V=UserType>> {
-        Box::new(DummyUserTypeResource {})
+    pub fn get_room_metas(&self, room_id: RoomId) -> anyhow::Result<Vec<RoomMetaCollectionInformation>> {
+        Ok(self.states.get_room_metas(&room_id)?)
     }
 
-    fn room_metas(&self) -> Box<dyn YummyCacheResource<K=yummy_model::RoomId, V=yummy_model::meta::collection::RoomMetaCollection>> {
-        Box::new(DummyRoomMetaResource {})
+    pub fn set_room_meta(&self, room_id: RoomId, key: String, value: RoomMetaType) -> anyhow::Result<()> {
+        Ok(self.states.set_room_meta(&room_id, key, value)?)
     }
-}
 
-impl YummyCacheResource for DummyUserInformationResource {
-    type K=UserId;
-    type V=UserInformationModel;
+    pub fn remove_all_metas(&self, room_id: RoomId) -> anyhow::Result<()> {
+        Ok(self.states.remove_all_room_metas(&room_id)?)
+    }
 
-    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
-}
-
-impl YummyCacheResource for DummyUserMetaResource {
-    type K=UserId;
-    type V=UserMetaCollection;
-
-    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
-}
-
-impl YummyCacheResource for DummyUserTypeResource {
-    type K=UserId;
-    type V=UserType;
-
-    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
-}
-
-impl YummyCacheResource for DummyRoomMetaResource {
-    type K=RoomId;
-    type V=RoomMetaCollection;
-
-    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
+    pub fn remove_room_meta(&self, room_id: RoomId, key: String) -> anyhow::Result<()> {
+        Ok(self.states.remove_room_meta(&room_id, key)?)
+    }
 }
 
 /* **************************************************************************************************************** */

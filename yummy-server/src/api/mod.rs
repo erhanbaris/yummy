@@ -71,6 +71,7 @@ pub(crate) fn process_room<DB: DatabaseTrait + Unpin + 'static>(request_id: Opti
         RequestRoomType::Update { room_id, user_permission, name, description, max_user, join_request, metas, meta_action, access_type, tags } => as_response!(request_id, room_manager, UpdateRoom { request_id, auth, socket, room_id , user_permission, name, description, max_user, metas, meta_action, access_type, join_request, tags }),
         RequestRoomType::Kick { room_id, user_id } => as_response!(request_id, room_manager, KickUserFromRoom { request_id, auth, socket, room_id, user_id, ban: false }),
         RequestRoomType::Ban { room_id, user_id } => as_response!(request_id, room_manager, KickUserFromRoom { request_id, auth, socket, room_id, user_id, ban: true }),
+        RequestRoomType::List { tag, members } => as_response!(request_id, room_manager, RoomListRequest { request_id, socket, tag, members }),
     };
     Ok(())
 }

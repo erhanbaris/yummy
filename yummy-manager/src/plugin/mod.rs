@@ -15,7 +15,7 @@ use yummy_database::{DatabaseTrait, DefaultDatabaseStore};
 use yummy_general::database::Pool;
 use yummy_model::{config::YummyConfig, UserId, meta::{UserMetaAccess, MetaType}};
 
-use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::{model::{GetUserInformation, UpdateUser}, UserLogic}, room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest}};
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::{model::{GetUserInformation, UpdateUser}, UserLogic}, room::{model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest}, logic::RoomLogic}};
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
@@ -76,6 +76,7 @@ pub struct PluginBuilder {
 #[derive(Clone)]
 pub struct YummyPluginContext<DB: DatabaseTrait + ?Sized + 'static> {
     user_logic: UserLogic<DB>,
+    room_logic: RoomLogic<DB>,
     _marker: PhantomData<DB>
 }
 
@@ -148,7 +149,8 @@ impl PluginExecuter {
         Self {
             plugins: Vec::new(),
             context: YummyPluginContext {
-                user_logic: UserLogic::new(config, states, database),
+                user_logic: UserLogic::new(config.clone(), states.clone(), database.clone()),
+                room_logic: RoomLogic::new(config, states, database),
                 _marker: PhantomData
             }
         }

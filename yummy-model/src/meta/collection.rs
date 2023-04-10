@@ -5,15 +5,18 @@
 use serde::{Serialize, de::Visitor, Deserialize, Deserializer, Serializer, ser::SerializeMap};
 use std::{fmt::{self, Debug}, marker::PhantomData, ops::Index};
 
-use crate::UserMetaId;
+use crate::{UserMetaId, RoomMetaId};
 
-use super::{MetaType, UserMetaAccess};
+use super::{MetaType, UserMetaAccess, RoomMetaAccess};
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
 /* **************************************************************************************************************** */
 pub type UserMetaCollection = MetaCollection<UserMetaAccess, UserMetaId>;
 pub type UserMetaCollectionInformation = MetaInformation<UserMetaAccess, UserMetaId>;
+
+pub type RoomMetaCollection = MetaCollection<RoomMetaAccess, RoomMetaId>;
+pub type RoomMetaCollectionInformation = MetaInformation<RoomMetaAccess, RoomMetaId>;
 
 /* **************************************************************************************************************** */
 /* **************************************************** MACROS **************************************************** */

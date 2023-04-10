@@ -3,6 +3,7 @@
 /* **************************************************************************************************************** */
 pub mod constants;
 pub mod user;
+pub mod room;
 pub mod model;
 pub mod base;
 
@@ -25,7 +26,8 @@ pub fn configure_modules(vm: &VirtualMachine) -> PyObjectRef {
     extend_module!(vm, module, {
         "constants" => constants::_constants::make_module(vm),
         "user" => user::_user::make_module(vm),
-        "model" => model::_model::make_module(vm)
+        "room" => room::_room::make_module(vm),
+        "model" => model::make_module(vm)
     });
 
     module

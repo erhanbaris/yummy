@@ -103,4 +103,8 @@ async-trait = "0.1.68"
 rustpython = {git = "http://github.com/rustpython/rustpython.git", rev = "fd028253fefa851ae22d482a86425cce0db8623b", features = ["stdlib", "freeze-stdlib"]}
 rustpython-vm = {git = "http://github.com/rustpython/rustpython.git", rev = "fd028253fefa851ae22d482a86425cce0db8623b", features = ["freeze-stdlib"]}
 
+prometheus = "0.13.3"
+actix-web-prometheus = "0.1.2"
+lazy_static = "1.4.0"
+
 moka = { version = "0.10", features = ["future"] }

@@ -7,6 +7,7 @@ use diesel::QueryDsl;
 use diesel::ExpressionMethods;
 use yummy_model::meta::RoomMetaAccess;
 use yummy_model::meta::MetaType;
+use yummy_model::meta::collection::RoomMetaCollection;
 use yummy_model::user::{RoomUpdate, RoomInsert, RoomTagInsert, RoomUserInsert, RoomUserRequestInsert, RoomUserBanInsert, RoomMetaInsert, RoomMetaModel};
 use yummy_model::{RoomId, RoomUserRequestId, RoomUserBanId};
 use yummy_model::RoomMetaId;
@@ -26,7 +27,7 @@ pub trait RoomStoreTrait: Sized {
     fn update_join_to_room_request(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId, updater_user_id: &UserId, status: bool) -> anyhow::Result<()>;
     fn disconnect_from_room(connection: &mut PooledConnection, room_id: &RoomId, user_id: &UserId) -> anyhow::Result<()>;
     fn get_join_requested_users(connection: &mut PooledConnection, room_id: &RoomId) -> anyhow::Result<Vec<(UserId, RoomUserType, bool)>>;
-    fn get_room_meta(connection: &mut PooledConnection, room_id: &RoomId, filter: RoomMetaAccess) -> anyhow::Result<Vec<(RoomMetaId, String, MetaType<RoomMetaAccess>)>>;
+    fn get_room_meta(connection: &mut PooledConnection, room_id: &RoomId, filter: RoomMetaAccess) -> anyhow::Result<RoomMetaCollection>;
     fn get_room_tag(connection: &mut PooledConnection, room_id: &RoomId) -> anyhow::Result<Vec<(RoomTagId, String)>>;
     fn remove_room_tags(connection: &mut PooledConnection, ids: Vec<RoomTagId>) -> anyhow::Result<()>;
     fn remove_room_metas(connection: &mut PooledConnection, ids: Vec<RoomMetaId>) -> anyhow::Result<()>;
@@ -191,14 +192,15 @@ impl RoomStoreTrait for SqliteStore {
     }
 
     #[tracing::instrument(name="Get room meta", skip(connection))]
-    fn get_room_meta(connection: &mut PooledConnection, room_id: &RoomId, filter: RoomMetaAccess) -> anyhow::Result<Vec<(RoomMetaId, String, MetaType<RoomMetaAccess>)>> {
+    fn get_room_meta(connection: &mut PooledConnection, room_id: &RoomId, filter: RoomMetaAccess) -> anyhow::Result<RoomMetaCollection> {
         let records: Vec<RoomMetaModel> = room_meta::table
             .select((room_meta::id, room_meta::key, room_meta::value, room_meta::meta_type, room_meta::access))
             .filter(room_meta::room_id.eq(room_id))
             .filter(room_meta::access.le(i32::from(filter)))
             .load::<RoomMetaModel>(connection)?;
 
-        let records = records.into_iter().map(|record| {
+        let mut results = RoomMetaCollection::new();
+        for record in records.into_iter() {
             let RoomMetaModel { id, key, value, meta_type, access } = record;
 
             let meta = match meta_type {
@@ -208,11 +210,10 @@ impl RoomStoreTrait for SqliteStore {
                 4 => MetaType::List(Box::new(serde_json::from_str(&value[..]).unwrap_or_default()), access.into()),
                 _ => MetaType::String("".to_string(), access.into()),
             };
-
-            (id, key, meta)
-        }).collect();
+            results.add_with_id(id, key, meta);
+        }
             
-        Ok(records)
+        Ok(results)
     }
 
     #[tracing::instrument(name="Get room tags", skip(connection))]

@@ -88,10 +88,6 @@ Automatic generated room password's length. <br/>
 Sqlite database path. <br/>
 :octicons-milestone-24: **Default**: `yummy.db` <br/>
 
-### `DEFAULT_LUA_FILES_PATH` <br/>
-Lua script files location. <br/>
-:octicons-milestone-24: **Default**: `./server/lua/` <br/>
-
 ### `REDIS_URL` <br/>
 Redis connection information. <br/>
 :octicons-milestone-24: **Default**: `redis://127.0.0.1/` <br/>

@@ -10,6 +10,7 @@ use yummy_model::SendMessage;
 use yummy_model::SessionId;
 use yummy_model::UserInformationModel;
 use yummy_model::UserType;
+use yummy_model::meta::collection::RoomMetaCollection;
 use yummy_model::meta::collection::UserMetaCollection;
 
 use crate::cache::YummyCacheResource;
@@ -32,6 +33,7 @@ pub struct DummyResourceFactory;
 pub struct DummyUserInformationResource;
 pub struct DummyUserMetaResource;
 pub struct DummyUserTypeResource;
+pub struct DummyRoomMetaResource;
 
 /* **************************************************************************************************************** */
 /* **************************************************** ENUMS ***************************************************** */
@@ -63,6 +65,10 @@ impl YummyCacheResourceFactory for DummyResourceFactory {
     fn user_type(&self) -> Box<dyn YummyCacheResource<K=UserId, V=UserType>> {
         Box::new(DummyUserTypeResource {})
     }
+
+    fn room_metas(&self) -> Box<dyn YummyCacheResource<K=RoomId, V=yummy_model::meta::collection::RoomMetaCollection>> {
+        Box::new(DummyRoomMetaResource {})
+    }
 }
 
 impl YummyCacheResource for DummyUserInformationResource {
@@ -82,6 +88,13 @@ impl YummyCacheResource for DummyUserMetaResource {
 impl YummyCacheResource for DummyUserTypeResource {
     type K=UserId;
     type V=UserType;
+
+    fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
+}
+
+impl YummyCacheResource for DummyRoomMetaResource {
+    type K=RoomId;
+    type V=RoomMetaCollection;
 
     fn get(&self, _: &Self::K) -> anyhow::Result<Option<Self::V>> { Ok(None) }
 }

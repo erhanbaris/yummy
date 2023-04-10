@@ -3,6 +3,7 @@ mod api;
 
 use std::sync::Arc;
 
+use prometheus::{IntCounterVec, opts};
 use yummy_database::DefaultDatabaseStore;
 use yummy_manager::plugin::python::PythonPluginInstaller;
 use yummy_model::config::{get_configuration, configure_environment};
@@ -22,13 +23,25 @@ use yummy_cache::state_resource::ResourceFactory;
 use actix::Actor;
 use actix_web::error::InternalError;
 use actix_web::web::{JsonConfig, QueryConfig};
-use actix_web::{web, HttpResponse};
+use actix_web::{web, HttpResponse, Responder};
 use actix_web::{middleware, App, HttpServer, web::Data};
 
+use actix_web_prometheus::PrometheusMetricsBuilder;
+
 use crate::api::websocket::websocket_endpoint;
+use actix_web::get;
+
+#[get("/health")]
+async fn health(counter: web::Data<IntCounterVec>) -> impl Responder {
+    counter.with_label_values(&["method", "path"]).inc();
+    HttpResponse::Ok().finish()
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+
+    let counter_opts = opts!("deneme", "HTTP requests total").namespace("api");
+    let counter = IntCounterVec::new(counter_opts, &["method", "path"]).unwrap();
 
     use yummy_manager::room::RoomManager;
 
@@ -47,6 +60,16 @@ async fn main() -> std::io::Result<()> {
     let mut connection = database.clone().get().unwrap();
     yummy_database::create_database(&mut connection).unwrap_or_default();
 
+    let prometheus = PrometheusMetricsBuilder::new("api")
+        .endpoint("/metrics")
+        .build()
+        .unwrap();
+
+    prometheus
+        .registry
+        .register(Box::new(counter.clone()))
+        .unwrap();
+
     #[cfg(feature = "stateless")]
     let redis_client = r2d2::Pool::new(redis::Client::open(config.redis_url.clone()).unwrap()).unwrap();
     let resource_factory = ResourceFactory::<DefaultDatabaseStore>::new(database.clone());
@@ -54,7 +77,6 @@ async fn main() -> std::io::Result<()> {
     let states = YummyState::new(config.clone(), Box::new(resource_factory), #[cfg(feature = "stateless")] redis_client.clone());
 
     let mut builder = PluginBuilder::default();
-    //builder.add_installer(Box::new(LuaPluginInstaller::default()));
     builder.add_installer(Box::<PythonPluginInstaller>::default());
 
     let executer = Arc::new(builder.build(config.clone(), states.clone(), database.clone()));
@@ -81,8 +103,11 @@ async fn main() -> std::io::Result<()> {
             .app_data(user_manager.clone())
             .app_data(room_manager.clone())
             .app_data(conn_manager.clone())
+            .app_data(web::Data::new(counter.clone()))
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
+            .wrap(prometheus.clone())
+            .service(health)
             .route("/v1/socket", web::get().to(websocket_endpoint::<DefaultDatabaseStore>))
     });
 

@@ -88,10 +88,10 @@ fn meta() -> anyhow::Result<()> {
     assert_eq!(meta.len(), 2);
 
     // Remove meta
-    SqliteStore::remove_room_metas(&mut connection, vec![meta[0].0.clone()])?;
+    SqliteStore::remove_room_metas(&mut connection, vec![meta[0].id.as_ref().unwrap().clone()])?;
     let meta = SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::Owner)?;
-    assert_eq!(meta[0].1, "players".to_string());
-    assert_eq!(meta[0].2, MetaType::List(Box::new(vec![MetaType::Number(12345.0, RoomMetaAccess::Anonymous), MetaType::Number(67890.0, RoomMetaAccess::Anonymous)]), RoomMetaAccess::Owner));
+    assert_eq!(meta[0].name, "players".to_string());
+    assert_eq!(meta[0].meta, MetaType::List(Box::new(vec![MetaType::Number(12345.0, RoomMetaAccess::Anonymous), MetaType::Number(67890.0, RoomMetaAccess::Anonymous)]), RoomMetaAccess::Owner));
 
     assert_eq!(SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::Owner)?.len(), 1);
     assert_eq!(SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::Anonymous)?.len(), 0);
@@ -107,13 +107,13 @@ fn meta() -> anyhow::Result<()> {
     // Filter with anonymous
     let meta = SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::Anonymous)?;
     assert_eq!(meta.len(), 1);
-    assert_eq!(meta.into_iter().map(|(_, key, value)| (key, value)).collect::<Vec<(String, MetaType<RoomMetaAccess>)>>(), vec![
+    assert_eq!(meta.into_iter().map(|meta| (meta.name, meta.meta)).collect::<Vec<(String, MetaType<RoomMetaAccess>)>>(), vec![
         ("location".to_string(), MetaType::String("copenhagen".to_string(), RoomMetaAccess::Anonymous))]);
 
     // Filter with system
     let meta = SqliteStore::get_room_meta(&mut connection, &room, RoomMetaAccess::System)?;
     assert_eq!(meta.len(), 3);
-    assert_eq!(meta.into_iter().map(|(_, key, value)| (key, value)).collect::<Vec<(String, MetaType<RoomMetaAccess>)>>(), vec![
+    assert_eq!(meta.into_iter().map(|meta| (meta.name, meta.meta)).collect::<Vec<(String, MetaType<RoomMetaAccess>)>>(), vec![
         ("players".to_string(), MetaType::List(Box::new(vec![MetaType::Number(12345.0, RoomMetaAccess::Anonymous), MetaType::Number(67890.0, RoomMetaAccess::Anonymous)]), RoomMetaAccess::Owner)),
         ("location".to_string(), MetaType::String("copenhagen".to_string(), RoomMetaAccess::Anonymous)),
         ("score".to_string(), MetaType::Number(123.0, RoomMetaAccess::Owner))]);

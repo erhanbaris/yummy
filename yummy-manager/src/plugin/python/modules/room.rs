@@ -1,13 +1,13 @@
 #[rustpython::vm::pymodule]
-pub mod _user {
+pub mod _room {
     /* **************************************************************************************************************** */
     /* **************************************************** MODS ****************************************************** */
     /* *************************************************** IMPORTS **************************************************** */
     /* **************************************************************************************************************** */
-    use yummy_model::{meta::UserMetaAccess, UserId};
+    use yummy_model::{meta::RoomMetaAccess, RoomId};
     use rustpython_vm::{VirtualMachine, PyResult, PyObjectRef, function::OptionalArg};
 
-    use crate::plugin::python::{model::YummyPluginContextWrapper, util::MetaTypeUtil, modules::model::model::UserMetaAccessWrapper};
+    use crate::plugin::python::{model::YummyPluginContextWrapper, util::MetaTypeUtil, modules::model::model::RoomMetaAccessWrapper};
 
     /* **************************************************************************************************************** */
     /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
@@ -18,13 +18,13 @@ pub mod _user {
     /* **************************************************************************************************************** */
     
     #[pyfunction]
-    pub fn get_user_meta(user_id: Option<String>, key: Option<String>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+    pub fn get_room_meta(room_id: Option<String>, key: Option<String>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
 
         /* Validate arguments */
-        let (user_id, key) = match (user_id, key) {
+        let (room_id, key) = match (room_id, key) {
 
             /* All arguments are valid */
-            (Some(user_id), Some(key)) => (user_id, key),
+            (Some(room_id), Some(key)) => (room_id, key),
 
             /* Return None if the arguments are not valid */
             _ => return Ok(vm.ctx.none())
@@ -40,30 +40,30 @@ pub mod _user {
             }
         };
 
-        match context.data.user_logic.get_user_meta(UserId::from(user_id), key) {
+        match context.data.room_logic.get_room_meta(RoomId::from(room_id), key) {
 
-            /* User's meta found */
-            Ok(Some(user_meta)) => MetaTypeUtil::as_python_value(&user_meta, vm),
+            /* Room's meta found */
+            Ok(Some(room_meta)) => MetaTypeUtil::as_python_value(&room_meta, vm),
 
-            /* No meta for user */
+            /* No meta for room */
             Ok(None) => Ok(vm.ctx.none()),
 
             /* Something went wrong, but do not throw exception. Only return None and log error message */
             Err(error) => {
-                log::error!("Context is failed to retrieve 'get_user_meta'. Error: {}", error.to_string());
+                log::error!("Context is failed to retrieve 'get_room_meta'. Error: {}", error.to_string());
                 Ok(vm.ctx.none())
             }
         }
     }
     
     #[pyfunction]
-    pub fn get_user_metas(user_id: Option<String>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+    pub fn get_room_metas(room_id: Option<String>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
         
         /* Validate arguments */
-        let user_id = match user_id {
+        let room_id = match room_id {
 
             /* All arguments are valid */
-            Some(user_id) => user_id,
+            Some(room_id) => room_id,
 
             /* Return None if the arguments are not valid */
             _ => return Ok(vm.ctx.none())
@@ -79,9 +79,9 @@ pub mod _user {
             }
         };
 
-        match context.data.user_logic.get_user_metas(UserId::from(user_id)) {
+        match context.data.room_logic.get_room_metas(RoomId::from(room_id)) {
 
-            /* User's metas found */
+            /* Room's metas found */
             Ok(metas) => {
 
                 let python_dict = vm.ctx.new_dict();
@@ -96,20 +96,20 @@ pub mod _user {
 
             /* Something went wrong, but do not throw exception. Only return None and log error message */
             Err(error) => {
-                log::error!("Context is failed to retrieve 'get_user_meta'. Error: {}", error.to_string());
+                log::error!("Context is failed to retrieve 'get_room_meta'. Error: {}", error.to_string());
                 Ok(vm.ctx.none())
             }
         }
     }
     
     #[pyfunction]
-    pub fn set_user_meta(user_id: Option<String>, key: Option<String>, value: PyObjectRef, access_level: OptionalArg<UserMetaAccessWrapper>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+    pub fn set_room_meta(room_id: Option<String>, key: Option<String>, value: PyObjectRef, access_level: OptionalArg<RoomMetaAccessWrapper>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
         
         /* Validate arguments */
-        let (user_id, key) = match (user_id, key) {
+        let (room_id, key) = match (room_id, key) {
 
             /* All arguments are valid */
-            (Some(user_id), Some(key)) => (user_id, key),
+            (Some(room_id), Some(key)) => (room_id, key),
 
             /* Return None if the arguments are not valid */
             _ => return Ok(vm.ctx.new_bool(false).into())
@@ -118,7 +118,7 @@ pub mod _user {
         /* Configure meta access level */
         let access_level = match access_level {
             OptionalArg::Present(access_level) => access_level.data,
-            OptionalArg::Missing => UserMetaAccess::System
+            OptionalArg::Missing => RoomMetaAccess::System
         };
 
         /* Get plugin context from global variables */
@@ -132,29 +132,29 @@ pub mod _user {
         };
 
         /* Build meta information */
-        let value = MetaTypeUtil::parse_user_meta(vm, &value, access_level)?;
+        let value = MetaTypeUtil::parse_room_meta(vm, &value, access_level)?;
 
-        match context.data.user_logic.set_user_meta(UserId::from(user_id), key, value.data) {
+        match context.data.room_logic.set_room_meta(RoomId::from(room_id), key, value.data) {
 
-            /* User's meta update/inserted, return True */
+            /* Room's meta update/inserted, return True */
             Ok(_) => Ok(vm.ctx.new_bool(true).into()),
 
             /* Something went wrong, but do not throw exception. Only return False and log error message */
             Err(error) => {
-                log::error!("Context is failed to retrieve 'set_user_meta'. Error: {}", error.to_string());
+                log::error!("Context is failed to retrieve 'set_room_meta'. Error: {}", error.to_string());
                 Ok(vm.ctx.new_bool(false).into())
             }
         }
     }
 
     #[pyfunction]
-    pub fn remove_user_metas(user_id: Option<String>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+    pub fn remove_room_metas(room_id: Option<String>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
         
         /* Validate arguments */
-        let user_id = match user_id {
+        let room_id = match room_id {
 
             /* All arguments are valid */
-            Some(user_id) => user_id,
+            Some(room_id) => room_id,
 
             /* Return None if the arguments are not valid */
             _ => return Ok(vm.ctx.new_bool(false).into())
@@ -170,26 +170,26 @@ pub mod _user {
             }
         };
 
-        match context.data.user_logic.remove_all_metas(UserId::from(user_id)) {
+        match context.data.room_logic.remove_all_metas(RoomId::from(room_id)) {
 
-            /* User's metas removed */
+            /* Room's metas removed */
             Ok(_) => Ok(vm.ctx.new_bool(true).into()),
 
             /* Something went wrong, but do not throw exception. Only return None and log error message */
             Err(error) => {
-                log::error!("Context is failed to retrieve 'remove_user_metas'. Error: {}", error.to_string());
+                log::error!("Context is failed to retrieve 'remove_room_metas'. Error: {}", error.to_string());
                 Ok(vm.ctx.new_bool(false).into())
             }
         }
     }
 
     #[pyfunction]
-    pub fn remove_user_meta(user_id: Option<String>, key: Option<String>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+    pub fn remove_room_meta(room_id: Option<String>, key: Option<String>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
         /* Validate arguments */
-        let (user_id, key) = match (user_id, key) {
+        let (room_id, key) = match (room_id, key) {
 
             /* All arguments are valid */
-            (Some(user_id), Some(key)) => (user_id, key),
+            (Some(room_id), Some(key)) => (room_id, key),
 
             /* Return None if the arguments are not valid */
             _ => return Ok(vm.ctx.new_bool(false).into())
@@ -205,14 +205,14 @@ pub mod _user {
             }
         };
 
-        match context.data.user_logic.remove_user_meta(UserId::from(user_id), key) {
+        match context.data.room_logic.remove_room_meta(RoomId::from(room_id), key) {
 
-            /* User's metas removed */
+            /* Room's metas removed */
             Ok(_) => Ok(vm.ctx.new_bool(true).into()),
 
             /* Something went wrong, but do not throw exception. Only return None and log error message */
             Err(error) => {
-                log::error!("Context is failed to retrieve 'remove_user_meta'. Error: {}", error.to_string());
+                log::error!("Context is failed to retrieve 'remove_room_meta'. Error: {}", error.to_string());
                 Ok(vm.ctx.new_bool(false).into())
             }
         }

@@ -87,7 +87,7 @@ impl UserStoreTrait for SqliteStore {
 
         let mut results = UserMetaCollection::new();
 
-        for record in records.into_iter(){
+        for record in records.into_iter() {
             let UserMetaModel { id, key, value, meta_type, access } = record;
 
             let meta = match meta_type {

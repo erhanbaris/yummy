@@ -11,7 +11,7 @@ use std::sync::atomic::AtomicUsize;
 use yummy_model::*;
 use yummy_model::meta::*;
 use yummy_model::config::YummyConfig;
-use yummy_model::meta::collection::{UserMetaCollection, UserMetaCollectionInformation};
+use yummy_model::meta::collection::{UserMetaCollection, UserMetaCollectionInformation, RoomMetaCollection, RoomMetaCollectionInformation};
 
 use crate::cache::{YummyCache, YummyCacheResource};
 
@@ -68,7 +68,8 @@ pub struct YummyState {
     session_to_room: Arc<parking_lot::Mutex<std::collections::HashMap<SessionId, std::collections::HashSet<RoomId>>>>,
     user_informations: Arc<YummyCache<UserId, UserInformationModel>>,
     user_types: Arc<YummyCache<UserId, UserType>>,
-    user_metas: Arc<YummyCache<UserId, UserMetaCollection>>
+    user_metas: Arc<YummyCache<UserId, UserMetaCollection>>,
+    room_metas: Arc<YummyCache<RoomId, RoomMetaCollection>>
 }
 
 /* **************************************************************************************************************** */
@@ -82,6 +83,7 @@ impl YummyState {
         let user_informations = YummyCache::new(config.clone(), resource_factory.user_information());
         let user_metas = YummyCache::new(config.clone(), resource_factory.user_metas());
         let user_types = YummyCache::new(config.clone(), resource_factory.user_type());
+        let room_metas = YummyCache::new(config.clone(), resource_factory.room_metas());
 
         Self {
             config,
@@ -92,7 +94,8 @@ impl YummyState {
             session_to_room: Arc::new(parking_lot::Mutex::default()),
             user_informations: Arc::new(user_informations),
             user_metas: Arc::new(user_metas),
-            user_types: Arc::new(user_types)
+            user_types: Arc::new(user_types),
+            room_metas: Arc::new(room_metas),
         }
     }
 
@@ -139,8 +142,28 @@ impl YummyState {
         }
     }
 
+    pub fn get_room_meta(&self, room_id: &RoomId, access: RoomMetaAccess) -> Result<RoomMetaCollection, YummyStateError> {
+        match self.room_metas.get(room_id)? {
+            Some(mut metas) => {
+                let access_type = access as i32;
+                metas = metas
+                    .into_iter()
+                    .filter(|meta| meta.meta.get_access_level() as i32 <= access_type)
+                    .collect::<RoomMetaCollection>();
+                Ok(metas)
+            },
+            None => Ok(RoomMetaCollection::new())
+        }
+    }
+
     pub fn get_user_metas(&self, user_id: &UserId) -> Result<Vec<UserMetaCollectionInformation>, YummyStateError> {
         Ok(self.user_metas.get(user_id)?
+            .map(|metas| metas.get_data())
+            .unwrap_or_default())
+    }
+
+    pub fn get_room_metas(&self, room_id: &RoomId) -> Result<Vec<RoomMetaCollectionInformation>, YummyStateError> {
+        Ok(self.room_metas.get(room_id)?
             .map(|metas| metas.get_data())
             .unwrap_or_default())
     }
@@ -157,8 +180,25 @@ impl YummyState {
         Ok(())
     }
 
+    pub fn set_room_meta(&self, room_id: &RoomId, key: String, value: RoomMetaType) -> Result<(), YummyStateError> {
+        let mut metas = match self.room_metas.get(room_id)? {
+            Some(metas) => metas,
+            None => RoomMetaCollection::new()
+        };
+
+        metas.add(key, value);
+        self.room_metas.set(room_id, metas)?;
+
+        Ok(())
+    }
+
     pub fn remove_all_user_metas(&self, user_id: &UserId) -> Result<(), YummyStateError> {
         self.user_metas.remove(user_id);
+        Ok(())
+    }
+
+    pub fn remove_all_room_metas(&self, room_id: &RoomId) -> Result<(), YummyStateError> {
+        self.room_metas.remove(room_id);
         Ok(())
     }
 
@@ -167,6 +207,17 @@ impl YummyState {
             Some(mut metas) => {
                 metas.remove_with_name(&key);
                 self.user_metas.set(user_id, metas)?;
+                Ok(())
+            },
+            None => Ok(())
+        }
+    }
+
+    pub fn remove_room_meta(&self, room_id: &RoomId, key: String) -> Result<(), YummyStateError> {
+        match self.room_metas.get(room_id)? {
+            Some(mut metas) => {
+                metas.remove_with_name(&key);
+                self.room_metas.set(room_id, metas)?;
                 Ok(())
             },
             None => Ok(())
