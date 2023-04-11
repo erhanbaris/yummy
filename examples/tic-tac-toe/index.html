@@ -92,7 +92,7 @@
                     this.connection.send(JSON.stringify({
                         "type": "CreateRoom",
                         "name": this.custom_id + "'s room",
-                        "max-user": 2
+                        "max_user": 2
                     }));
                 },
                 room_list() {
@@ -161,7 +161,6 @@
                         }
 
                         case "RoomList": {
-                            console.log(this.rooms);
                             app.rooms = message.rooms;
                             break;
                         }

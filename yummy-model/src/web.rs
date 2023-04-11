@@ -12,12 +12,14 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 /* **************************************************************************************************************** */
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Answer {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<usize>,
     pub status: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GenericAnswer<T> {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<usize>,
     pub status: bool,
 
