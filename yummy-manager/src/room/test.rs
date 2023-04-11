@@ -400,7 +400,7 @@ async fn message_to_room() -> anyhow::Result<()> {
         request_id: None,
         auth: user_2.clone(),
         room_id: room_id,
-        message: "WORLD".to_string(),
+        message: serde_json::Value::String("WORLD".to_string()),
         socket:user_2_socket.clone()
     }).await??;
 
@@ -966,7 +966,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
         request_id: None,
         auth: user_1_auth.clone(),
         room_id: room_1_id,
-        message: "hello 1".to_string(),
+        message: serde_json::Value::String("hello 1".to_string()),
         socket:user_1_socket.clone()
     }).await??;
 
@@ -976,7 +976,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
         request_id: None,
         auth: user_1_auth.clone(),
         room_id: room_2_id,
-        message: "hello 2".to_string(),
+        message: serde_json::Value::String("hello 2".to_string()),
         socket:user_1_socket.clone()
     }).await??;
 
@@ -986,7 +986,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
         request_id: None,
         auth: user_2_auth.clone(),
         room_id: room_1_id,
-        message: "world 1".to_string(),
+        message: serde_json::Value::String("world 1".to_string()),
         socket:user_2_socket.clone()
     }).await??;
 
@@ -996,7 +996,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
         request_id: None,
         auth: user_2_auth.clone(),
         room_id: room_2_id,
-        message: "world 2".to_string(),
+        message: serde_json::Value::String("world 2".to_string()),
         socket:user_2_socket.clone()
     }).await??;
 

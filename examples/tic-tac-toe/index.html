@@ -25,7 +25,7 @@
                 </div>
                 <div class="uk-width-expand@m uk-align-right">
                     <ul class="uk-iconnav">
-                        <li><a href="#" uk-icon="icon: plus" @click="new_room()"> New Room </a></li>
+                        <li><a href="#" uk-icon="icon: plus" @click="create_new_room()"> New Room </a></li>
                         <li><a href="#" uk-icon="icon: refresh" @click="room_list()"> Refresh </a></li>
                     </ul>
                 </div>
@@ -76,6 +76,7 @@
         var app = new Vue({
             el: '#app',
             data: {
+                game_started: false,
                 connection: "",
                 custom_id: "",
                 room_id: "",
@@ -87,10 +88,11 @@
             },
 
             methods: {
-                new_room() {
+                create_new_room() {
                     this.connection.send(JSON.stringify({
                         "type": "CreateRoom",
-                        "name": this.custom_id + "'s room"
+                        "name": this.custom_id + "'s room",
+                        "max-user": 2
                     }));
                 },
                 room_list() {
@@ -111,13 +113,24 @@
                 slot_used(index) {
                     return this.board[index] != "&nbsp;";
                 },
-                play(index, type) {
+                play(index, slot) {
                     this.connection.send(JSON.stringify({
                         "type": "MessageToRoom",
                         "room_id": this.room_id,
-                        "message": "play;" + index + ";" + type
+                        "message": {
+                            "type": "play",
+                            "slot": index
+                        }
                     }));
-                    Vue.set(this.board, index, type)
+                    Vue.set(this.board, index, slot)
+                },
+                send_message(index, message) {
+                    this.connection.send(JSON.stringify({
+                        "type": "MessageToRoom",
+                        "room_id": this.room_id,
+                        "message": message
+                    }));
+                    Vue.set(this.board, index, slot)
                 }
             },
 
@@ -134,31 +147,34 @@
                 connection.onmessage = (event) => {
                     const message = JSON.parse(event.data);
 
-                    if (message.status) {
-                        switch (message.type) {
-                            case "Authenticated": {
-                                // Update user
-                                connection.send(JSON.stringify({
-                                    "type": "UpdateUser",
-                                    "name": this.custom_id,
-                                }));
+                    switch (message.type) {
+                        case "Authenticated": {
+                            // Update user
+                            connection.send(JSON.stringify({
+                                "type": "UpdateUser",
+                                "name": this.custom_id,
+                            }));
 
-                                // Get room list
-                                this.room_list();
-                                break;
-                            }
+                            // Get room list
+                            this.room_list();
+                            break;
+                        }
 
-                            case "RoomList": {
-                                console.log(this.rooms);
-                                app.rooms = message.rooms;
-                                break;
-                            }
+                        case "RoomList": {
+                            console.log(this.rooms);
+                            app.rooms = message.rooms;
+                            break;
+                        }
 
-                            case "Joined":
-                            case "RoomCreated": {
-                                this.room_id = message.room_id;
-                                break;
-                            }
+                        case "Joined":
+                        case "RoomCreated": {
+                            this.room_id = message.room_id;
+                            break;
+                        }
+
+                        case "MessageFromRoom": {
+                            Vue.set(this.board, message.message.slot, "X")
+                            break;
                         }
                     }
                     console.log(message)

@@ -1107,7 +1107,7 @@ def post_message_to_room(model, success):
             session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
         })),
         room_id: RoomId::from("d508b370-6249-4fd3-9b3e-3aa66577a686".to_string()),
-        message: "hello".to_string(),
+        message: serde_json::Value::String("hello".to_string()),
         socket: Arc::new(DummyClient::default())
     };
 
@@ -1382,7 +1382,7 @@ model_tester!(message_to_room, "message_to_room.py", pre_message_to_room, post_m
         session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
     })),
     room_id: RoomId::new(),
-    message: "hello".to_string(),
+    message: serde_json::Value::String("hello".to_string()),
     socket: Arc::new(DummyClient::default())
 });
 

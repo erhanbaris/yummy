@@ -52,7 +52,7 @@ pub mod model {
     use num_bigint::ToBigInt;
 
     use rustpython_vm::builtins::{PyBaseException, PyInt, PyDict, PyStr};
-    use rustpython_vm::{VirtualMachine, PyResult, PyObjectRef, TryFromBorrowedObject, PyRef, PyObject};
+    use rustpython_vm::{VirtualMachine, PyResult, PyObjectRef, TryFromBorrowedObject, PyRef, PyObject, py_serde};
     use yummy_cache::state::RoomInfoTypeVariant;
     use yummy_general::password::Password;
     use yummy_model::{UserType, CreateRoomAccessType, UserId, RoomUserType};
@@ -989,16 +989,19 @@ pub mod model {
         /* Message function */
         #[pymethod]
         pub fn get_message(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-            Ok(vm.ctx.none())
-            //Ok(vm.ctx.new_str(&self.data.borrow().message).into())
+            match py_serde::deserialize(vm, self.data.borrow().message.clone()) {
+                Ok(message) => Ok(message),
+                Err(error) => Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), error.to_string()))
+            }
         }
 
         #[pymethod]
         pub fn set_message(&self, message: PyObjectRef, vm: &VirtualMachine) -> PyResult<()> {
-            let a = rustpython_vm::py_serde::PyObjectSerializer::new(vm, &message);
-            //let value: serde_json::Value = rustpython_vm::py_serde::serialize(vm, &message, serde_json::ser::Serializer::new(writer)).unwrap();
-            //rustpython_vm::py_serde::serialize(vm, &message, rustpython_vm::py_serde::PyObjectSerializer::new());
-            //self.data.borrow_mut().message = message;
+            let obj_serializer = rustpython_vm::py_serde::PyObjectSerializer::new(vm, &message);
+            self.data.borrow_mut().message = match serde_json::value::to_value(obj_serializer) {
+                Ok(message) => message,
+                Err(error) => return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), error.to_string()))
+            };
             Ok(())
         }
     }
@@ -1036,7 +1039,7 @@ pub mod model {
                 if member.class().fast_issubclass(vm.ctx.types.int_type) {
                     new_members.push(member.payload::<PyInt>().unwrap().as_u32_mask().into());
                 } else {
-                    return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), "Only int type allowed. .".to_string()))
+                    return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), "Only int type allowed.".to_string()))
                 }
             }
             
