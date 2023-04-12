@@ -1,6 +1,7 @@
 import constants
 import model
 import user
+import room
 
 from typing import NoReturn
 
@@ -12,4 +13,4 @@ def fail(message: str) -> NoReturn:
     ...
 
 
-__all__ = ["constants", "model", "user"]
+__all__ = ["constants", "model", "user", "room"]

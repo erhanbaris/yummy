@@ -1,4 +1,5 @@
 from yummy import model
+from yummy import room
 import random
 
 GAME_STATUS_PLAYER_1_WIN = 0
@@ -90,27 +91,47 @@ def play(board, row, col, player):
 
 
 def pre_create_room(model: model.CreateRoom):
-
     # 2 player is more than enough
     model.set_max_user(2)
 
-    # Get metas to update player information
-    metas = model.get_metas()
-
-    if metas is None:
-        metas = {}
-
-    # First player is X
-    metas["X"] = model.get_user_id()
-    metas["O"] = ""
-    metas["next-player"] = "X"
-
-    # Copy play board
-    metas["board"] = BASE_BOARD.copy()
-
-    model.set_metas(metas)
-
 
 def post_create_room(model: model.CreateRoom, success: bool):
-    # Ok, successfully room created
-    print("ROOM CREATED")
+    if success:
+        # Ok, successfully room created
+        print("ROOM CREATED")
+        
+        # Get metas to update player information
+        metas = model.get_metas()
+
+        if metas is None:
+            metas = {}
+
+        # First player is X
+        metas["player-1"]    = model.get_user_id()
+        metas["player-2"]    = None
+        metas["next-player"] = 'X'
+
+        # Copy play board
+        metas["board"] = BASE_BOARD.copy()
+
+        model.set_metas(metas)
+
+def post_join_to_room(model: model.JoinToRoom, success: bool):
+    if success:
+        metas = room.get_room_metas(model.get_room_id())
+
+        if metas is None:
+            raise Exception("Something went wrong. Sorry.")
+        
+        metas["player-2"] = model.get_user_id()
+
+        # Lets find who will start first
+        value = random.randint(0, 1)
+        if value == 1:
+            metas["X"] = metas["player-1"]
+            metas["O"] = metas["player-2"]
+        else:
+            metas["X"] = metas["player-2"]
+            metas["O"] = metas["player-1"]
+
+        

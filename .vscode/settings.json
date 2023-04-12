@@ -1,4 +1,6 @@
 {
+    "python.analysis.extraPaths": ["./yummy-server/py/"],
+
     "cucumberautocomplete.steps": ["server/tests/steps.txt"],
     "cucumberautocomplete.strictGherkinCompletion": true,
     "cucumberautocomplete.syncfeatures": "server/tests/*.feature",

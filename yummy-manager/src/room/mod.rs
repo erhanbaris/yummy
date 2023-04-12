@@ -34,6 +34,7 @@ use crate::plugin::PluginExecuter;
 use crate::{get_user_session_id_from_auth, get_user_id_from_auth, get_session_id_from_auth};
 use crate::user::model::UserError;
 
+use self::logic::RoomLogic;
 use self::model::*;
 
 /* **************************************************************************************************************** */
@@ -53,6 +54,7 @@ pub struct RoomManager<DB: DatabaseTrait + ?Sized> {
     database: Arc<Pool>,
     states: YummyState,
     executer: Arc<PluginExecuter>,
+    logic: RoomLogic<DB>,
     _marker: PhantomData<DB>
 }
 
@@ -65,10 +67,11 @@ pub struct RoomManager<DB: DatabaseTrait + ?Sized> {
 impl<DB: DatabaseTrait + ?Sized> RoomManager<DB> {
     pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>, executer: Arc<PluginExecuter>) -> Self {
         Self {
-            config,
-            database,
-            states,
+            config: config.clone(),
+            database: database.clone(),
+            states: states.clone(),
             executer,
+            logic: RoomLogic::new(config, states, database),
             _marker: PhantomData
         }
     }
