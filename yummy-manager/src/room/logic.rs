@@ -4,13 +4,18 @@
 /* **************************************************************************************************************** */
 use std::{marker::PhantomData, sync::Arc};
 
+use anyhow::anyhow;
+use actix_broker::{SystemBroker, Broker};
+use serde_json::Value;
 use yummy_cache::state::YummyState;
 use yummy_database::DatabaseTrait;
 use yummy_model::meta::collection::RoomMetaCollectionInformation;
-use yummy_model::RoomId;
+use yummy_model::{RoomId, UserId, SendMessage};
 use yummy_model::config::YummyConfig;
 use yummy_model::meta::{RoomMetaType, RoomMetaAccess};
 use yummy_general::database::Pool;
+
+use super::model::RoomResponse;
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
@@ -62,6 +67,59 @@ impl<DB: DatabaseTrait + ?Sized> RoomLogic<DB> {
 
     pub fn remove_room_meta(&self, room_id: RoomId, key: String) -> anyhow::Result<()> {
         Ok(self.states.remove_room_meta(&room_id, key)?)
+    }
+
+    pub fn message_to_room(&self, room_id: &RoomId, sender_user_id: Option<&UserId>, message: &Value) -> anyhow::Result<()> {
+        match self.states.get_users_from_room(room_id) {
+            Ok(users) => {
+
+                /* Serialize the message */
+                let message: String = RoomResponse::MessageFromRoom { user_id: sender_user_id, room_id, message }.into();
+
+                /* System internal messages will not have UserId information */
+                if let Some(sender_user_id) = sender_user_id {
+
+                    // Discart sender from list
+                    let users = users.into_iter().filter(|receiver_user| receiver_user.as_ref() != sender_user_id);
+                    for receiver_user in users.into_iter() {
+                        Broker::<SystemBroker>::issue_async(SendMessage {
+                            message: message.clone(),
+                            user_id: receiver_user
+                        });
+                    }
+                }
+                else {
+
+                    // Send message to all users
+                    for receiver_user in users.into_iter() {
+                        Broker::<SystemBroker>::issue_async(SendMessage {
+                            message: message.clone(),
+                            user_id: receiver_user
+                        });
+                    }
+                }
+
+                Ok(())
+            }
+            Err(error) => Err(anyhow!(error))
+        }
+    }
+
+    pub fn message_to_room_user(&self, room_id: &RoomId, user_id: &UserId, sender_user_id: Option<&UserId>, message: &Value) -> anyhow::Result<()> {
+        if self.states.is_user_in_room(user_id, room_id)? {
+
+            /* Serialize the message */
+            let message: String = RoomResponse::MessageFromRoom { user_id: sender_user_id, room_id, message }.into();
+
+            Broker::<SystemBroker>::issue_async(SendMessage {
+                message: message.clone(),
+                user_id: Arc::new(user_id.clone())
+            });
+
+            Ok(())
+        } else {
+            Err(anyhow!("User could not found in room"))
+        }
     }
 }
 

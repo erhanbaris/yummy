@@ -15,7 +15,6 @@ use std::{marker::PhantomData, ops::Deref};
 use std::sync::Arc;
 use actix::{Context, Actor, Handler};
 use actix_broker::{BrokerSubscribe, BrokerIssue};
-use anyhow::anyhow;
 use yummy_cache::state::{RoomInfoTypeVariant, YummyState, RoomInfoType};
 use yummy_database::DatabaseTrait;
 
@@ -307,7 +306,6 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
     #[tracing::instrument(name="CreateRoom", skip(self, _ctx))]
     #[yummy_macros::plugin_api(name="create_room")]
     fn handle(&mut self, model: CreateRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
-        
         // Check user information
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
 
@@ -606,31 +604,14 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
     #[tracing::instrument(name="MessageToRoomRequest", skip(self, _ctx))]
     #[yummy_macros::plugin_api(name="message_to_room")]
     fn handle(&mut self, model: MessageToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
-        println!("{:?}", model.message);
-
         let sender_user_id = match model.auth.deref() {
             Some(user) => &user.user,
             None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
         };
 
-        match self.states.get_users_from_room(&model.room_id) {
-            Ok(users) => {
-                let message: String = RoomResponse::MessageFromRoom { user_id: sender_user_id, room_id: &model.room_id, message: &model.message }.into();
-
-                for receiver_user in users.into_iter() {
-                    if receiver_user.as_ref() != sender_user_id {
-                        self.issue_system_async(SendMessage {
-                            message: message.clone(),
-                            user_id: receiver_user
-                        });
-                    }
-                }
-
-                model.socket.send(Answer::success(model.request_id).into());
-                Ok(())
-            }
-            Err(error) => Err(anyhow!(error))
-        }
+        self.logic.message_to_room(&model.room_id, Some(sender_user_id), &model.message)?;
+        model.socket.send(Answer::success(model.request_id).into());
+        Ok(())
     }
 }
 

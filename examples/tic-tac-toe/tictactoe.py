@@ -1,5 +1,6 @@
 from yummy import model
 from yummy import room
+from yummy import fail
 import random
 
 GAME_STATUS_PLAYER_1_WIN = 0
@@ -67,10 +68,6 @@ def is_board_filled(board):
     return True
 
 
-def swap_player_turn(player):
-    return 'X' if player == 'O' else 'O'
-
-
 def get_random_first_player():
     return random.randint(0, 1)
 
@@ -87,51 +84,110 @@ def play(board, row, col, player):
         print("Match Draw!")
         return (True, None)
 
-    return (False, swap_player_turn(board, player))
+    return (False, None)
 
 
 def pre_create_room(model: model.CreateRoom):
+    metas = model.get_metas()
+
+    if metas is None:
+        metas = {}
+        
     # 2 player is more than enough
     model.set_max_user(2)
 
+    # First player is X
+    metas["player-1"]    = model.get_user_id()
+    metas["player-2"]    = None
+    metas["next-player"] = 'X'
+
+    # Copy play board
+    metas["board"] = BASE_BOARD.copy()
+
+    model.set_metas(metas)
 
 def post_create_room(model: model.CreateRoom, success: bool):
     if success:
         # Ok, successfully room created
         print("ROOM CREATED")
-        
-        # Get metas to update player information
-        metas = model.get_metas()
-
-        if metas is None:
-            metas = {}
-
-        # First player is X
-        metas["player-1"]    = model.get_user_id()
-        metas["player-2"]    = None
-        metas["next-player"] = 'X'
-
-        # Copy play board
-        metas["board"] = BASE_BOARD.copy()
-
-        model.set_metas(metas)
 
 def post_join_to_room(model: model.JoinToRoom, success: bool):
     if success:
-        metas = room.get_room_metas(model.get_room_id())
+        room_id = model.get_room_id()
+        metas   = room.get_room_metas(model.get_room_id())
 
         if metas is None:
             raise Exception("Something went wrong. Sorry.")
         
-        metas["player-2"] = model.get_user_id()
+        room.set_room_meta(room_id, "player-2", model.get_user_id())
 
         # Lets find who will start first
         value = random.randint(0, 1)
-        if value == 1:
-            metas["X"] = metas["player-1"]
-            metas["O"] = metas["player-2"]
-        else:
-            metas["X"] = metas["player-2"]
-            metas["O"] = metas["player-1"]
 
+        if value == 1:
+            room.set_room_meta(room_id, "X", room.get_room_meta(room_id, "player-1"))
+            room.set_room_meta(room_id, "O", room.get_room_meta(room_id, "player-2"))
+        else:
+            room.set_room_meta(room_id, "O", room.get_room_meta(room_id, "player-1"))
+            room.set_room_meta(room_id, "X", room.get_room_meta(room_id, "player-2"))
         
+        room.set_room_meta(room_id, "next-mark", "X")
+        room.message_to_room_user(room_id, room.get_room_meta(room_id, "X"), {
+            "type": "Start",
+            "mark": "X",
+            "next-mark": "X"
+        })
+        room.message_to_room_user(room_id, room.get_room_meta(room_id, "O"), {
+            "type": "Start",
+            "mark": "O",
+            "next-mark": "X"
+        })
+
+def pre_message_to_room(model: model.MessageToRoom):
+    message      = model.get_message()
+    message_type = message.get("type")
+    metas        = room.get_room_metas(model.get_room_id())
+    next_player  = metas[metas["next-mark"]]
+
+    if message_type == "play" and next_player != model.get_user_id():
+        fail("It is not your turn")
+
+def post_message_to_room(model: model.MessageToRoom, success: bool):
+    if success:
+        room_id      = model.get_room_id()
+        message      = model.get_message()
+        message_type = message.get("type")
+        metas        = room.get_room_metas(room_id)
+
+        if message_type == "play":
+            next_mark = metas["next-mark"]
+            slot      = message.get("slot")
+
+            # User can play
+            print("Fine to play")
+            board = metas.get("board")
+            print(board, slot / 3, slot % 3, next_mark)
+            (finished, won) = play(board, int(slot / 3), int(slot % 3), next_mark)
+
+            if finished is False:
+                new_next_mark = "O" if next_mark == "X" else "X"
+                room.set_room_meta(room_id, "next-mark", new_next_mark)
+
+                room.message_to_room_user(room_id, room.get_room_meta(room_id, new_next_mark), {
+                    "type": "YourTurn"
+                })
+            else:
+                player_1 = room.get_room_meta(room_id, "player-1")
+                player_2 = room.get_room_meta(room_id, "player-2")
+
+                if won == GAME_STATUS_PLAYER_1_WIN:
+                    room.message_to_room_user(room_id, player_1, { "type": "Win" })
+                    room.message_to_room_user(room_id, player_2, { "type": "Lose" })
+
+                elif won == GAME_STATUS_PLAYER_2_WIN:
+                    room.message_to_room_user(room_id, player_2, { "type": "Win" })
+                    room.message_to_room_user(room_id, player_1, { "type": "Lose" })
+
+                else:
+                    room.message_to_room_user(room_id, player_2, { "type": "Draw" })
+                    room.message_to_room_user(room_id, player_1, { "type": "Draw" })

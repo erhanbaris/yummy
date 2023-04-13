@@ -556,6 +556,18 @@ impl YummyState {
         }
     }
 
+    #[tracing::instrument(name="is_user_in_room", skip(self))]
+    pub fn is_user_in_room(&self, user_id: &UserId, room_id: &RoomId) -> Result<bool, YummyStateError> {
+        match self.rooms.lock().get(room_id) {
+            Some(room) => {
+                Ok(room.connections
+                    .iter()
+                    .any(|(_, connection)| connection.user_id.as_ref() == user_id))
+            }
+            None => Err(YummyStateError::RoomNotFound)
+        }
+    }
+
     #[tracing::instrument(name="get_user_location", skip(self))]
     pub fn get_user_location(&self, user_id: Arc<UserId>) -> Option<String> {
         None

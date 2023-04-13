@@ -20,11 +20,12 @@ use std::borrow::Cow;
 use std::sync::Arc;
 use std::fmt::Debug;
 
+use serde::de::Visitor;
 use yummy_model::meta::{RoomMetaAccess, MetaType};
 use yummy_model::{UserId, RoomUserType, CreateRoomAccessType, RoomId};
 use serde::ser::SerializeMap;
 use strum_macros::EnumDiscriminants;
-use serde::{Serialize, Deserialize, Serializer};
+use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -64,7 +65,7 @@ pub struct RoomUserInformation {
 }
 
 #[derive(Debug, Clone, EnumDiscriminants, PartialEq, Deserialize)]
-#[strum_discriminants(name(RoomInfoTypeVariant), derive(Serialize, Deserialize))]
+#[strum_discriminants(name(RoomInfoTypeVariant))]
 pub enum RoomInfoType {
     RoomName(Option<String>),
     Description(Option<String>),
@@ -113,6 +114,47 @@ impl From<u32> for RoomInfoTypeVariant {
             10 => RoomInfoTypeVariant::BannedUsers,
             _ => RoomInfoTypeVariant::RoomName
         }
+    }
+}
+
+impl Serialize for RoomInfoTypeVariant {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_i32(u32::from(*self) as i32)
+    }
+}
+
+impl<'de> Deserialize<'de> for RoomInfoTypeVariant {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct IntegerVisitor;
+        impl<'de> Visitor<'de> for IntegerVisitor {
+            type Value = RoomInfoTypeVariant;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("an u64")
+            }
+
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(RoomInfoTypeVariant::from(value as u32))
+            }
+
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(RoomInfoTypeVariant::from(value as u32))
+            }
+        }
+
+        deserializer.deserialize_i32(IntegerVisitor)
     }
 }
 

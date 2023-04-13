@@ -36,3 +36,17 @@ def remove_room_metas(room_id: str) -> bool:
     Remove all room's metas.
     """
     ...
+
+
+def message_to_room(room_id: str, message: any) -> bool:
+    """
+    Send message to room users
+    """
+    ...
+
+
+def message_to_room_user(room_id: str, user_id: str, message: any) -> bool:
+    """
+    Send message to room user
+    """
+    ...

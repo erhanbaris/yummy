@@ -183,7 +183,8 @@ pub enum RoomResponse<'a> {
         room_id: &'a RoomId
     },
     MessageFromRoom {
-        user_id: &'a UserId,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        user_id: Option<&'a UserId>,
         room_id: &'a RoomId,
         message: &'a Value
     },
