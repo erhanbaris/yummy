@@ -147,6 +147,11 @@ def pre_message_to_room(model: model.MessageToRoom):
     message      = model.get_message()
     message_type = message.get("type")
     metas        = room.get_room_metas(model.get_room_id())
+    
+    # Is game started?
+    if "player-2" not in metas:
+        fail("Game not started yet.")
+        
     next_player  = metas[metas["next-mark"]]
 
     if message_type == "play" and next_player != model.get_user_id():

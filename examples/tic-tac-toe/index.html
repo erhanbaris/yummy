@@ -146,6 +146,10 @@
 
                 connection.onmessage = (event) => {
                     const message = JSON.parse(event.data);
+                    if (message.status == false) {
+                        UIkit.notification({message: message.error, status: 'danger'});
+                        return;
+                    }
 
                     switch (message.type) {
                         case "Authenticated": {
