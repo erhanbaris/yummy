@@ -28,7 +28,7 @@ Our main goal of the developing this application is support game developer to ma
 - [ ] Create **system** user at startup to configure system remotely
 - [X] Support for pre and post API calls
 - [X] Room metadata
-- [X] Lua runtimes
+- [X] Python runtimes
 - [X] Multiple room support for user
 - [X] Room join request
 - [X] Ban and kick from room

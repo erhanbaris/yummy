@@ -5,12 +5,12 @@
 === "Code"
     !!! success ""
 
-        ```lua
-        function pre_get_user_information(model)
-        end
+        ```python
+        def pre_get_user_information(model):
+            pass
 
-        function post_get_user_information(model, successed)
-        end
+        def post_get_user_information(model, successed):
+            pass
         ```
 === "Model details"
     !!! success ""

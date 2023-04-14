@@ -10,7 +10,6 @@ use yummy_model::config::{get_configuration, configure_environment};
 use yummy_general::tls::load_rustls_config;
 use yummy_model::web::json_error_handler;
 
-//use yummy_manager::plugin::lua::*;
 use yummy_manager::conn::ConnectionManager;
 use yummy_manager::user::UserManager;
 use yummy_manager::auth::AuthManager;

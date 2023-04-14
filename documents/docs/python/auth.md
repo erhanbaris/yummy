@@ -5,12 +5,12 @@
 === "Code"
     !!! success ""
 
-        ```lua
-        function pre_email_auth(model)
-        end
+        ```python
+        def pre_email_auth(model):
+            pass
 
-        function post_email_auth(model, successed)
-        end
+        def post_email_auth(model, successed):
+            pass
         ```
 === "Model details"
     !!! success ""
@@ -30,12 +30,12 @@
 === "Code"
     !!! success ""
 
-        ```lua
-        function pre_deviceid_auth(model)
-        end
+        ```python
+        def pre_deviceid_auth(model):
+            pass
 
-        function post_deviceid_auth(model, successed)
-        end
+        def post_deviceid_auth(model, successed):
+            pass
         ```
 === "Model details"
     !!! success ""
@@ -52,12 +52,12 @@
 === "Code"
     !!! success ""
 
-        ```lua
-        function pre_customid_auth(model)
-        end
+        ```python
+        def pre_customid_auth(model):
+            pass
 
-        function post_customid_auth(model, successed)
-        end
+        def post_customid_auth(model, successed):
+            pass
         ```
 === "Model details"
     !!! success ""
@@ -74,12 +74,12 @@
 === "Code"
     !!! success ""
 
-        ```lua
-        function pre_logout(model)
-        end
+        ```python
+        def pre_logout(model):
+            pass
 
-        function post_logout(model, successed)
-        end
+        def post_logout(model, successed):
+            pass
         ```
 === "Model details"
     !!! success ""
@@ -94,12 +94,12 @@
 === "Code"
     !!! success ""
 
-        ```lua
-        function pre_restore_token(model)
-        end
+        ```python
+        def pre_restore_token(model):
+            pass
 
-        function post_restore_token(model, successed)
-        end
+        def post_restore_token(model, successed):
+            pass
         ```
 === "Model details"
     !!! success ""
@@ -116,12 +116,12 @@
 === "Code"
     !!! success ""
 
-        ```lua
-        function pre_refresh_token(model)
-        end
+        ```python
+        def pre_refresh_token(model):
+            pass
 
-        function post_refresh_token(model, successed)
-        end
+        def post_refresh_token(model, successed):
+            pass
         ```
 === "Model details"
     !!! success ""
