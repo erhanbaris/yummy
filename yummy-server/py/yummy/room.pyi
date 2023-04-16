@@ -50,3 +50,10 @@ def message_to_room_user(room_id: str, user_id: str, message: any) -> bool:
     Send message to room user
     """
     ...
+
+
+def raw_message_to_room_user(room_id: str, message: any) -> bool:
+    """
+    Send raw message to room user
+    """
+    ...

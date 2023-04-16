@@ -6,12 +6,14 @@ use std::collections::HashMap;
 use std::{sync::Arc, env::temp_dir};
 use std::io::Write;
 
-use yummy_cache::state::{YummyState, RoomInfoTypeVariant};
-use yummy_general::password::Password;
+use yummy_model::state::RoomInfoTypeVariant;
+use yummy_model::password::Password;
 use yummy_model::meta::{MetaAction, UserMetaType, UserMetaAccess, RoomMetaAccess, RoomMetaType};
 use yummy_model::{UserId, SessionId, UserType, CreateRoomAccessType, RoomId, RoomUserType};
 use yummy_model::auth::UserAuth;
 use yummy_model::config::YummyConfig;
+
+use yummy_cache::state::YummyState;
 
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
@@ -22,9 +24,9 @@ use yummy_testing::database::get_database_pool;
 use crate::auth::model::{EmailAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect};
 use crate::conn::model::UserConnected;
 use crate::plugin::PluginExecuter;
-use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest};
+use crate::room::model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest, Play};
 use crate::user::model::{GetUserInformation, GetUserInformationEnum, UpdateUser};
-use crate::{plugin::{PluginBuilder}, auth::model::{DeviceIdAuthRequest}};
+use crate::{plugin::{PluginBuilder}, auth::model::DeviceIdAuthRequest};
 use super::PythonPluginInstaller;
 
 /* **************************************************************************************************************** */
@@ -1117,6 +1119,38 @@ def post_message_to_room(model, success):
 }
 
 #[test]
+fn play_test() {
+    let (executer, _) = create_python_environtment("play_test.py", r#"
+import yummy
+
+def pre_play(model):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+    assert(model.get_message() == "hello")
+
+    model.set_message("world")
+
+def post_play(model, success):
+    assert(model.get_room_id() == "d508b370-6249-4fd3-9b3e-3aa66577a686")
+    assert(model.get_message() == "world")
+"#);
+
+    let model = Play {
+        request_id: Some(123),
+        auth: Arc::new(Some(UserAuth {
+            user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+            session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+        })),
+        room_id: RoomId::from("d508b370-6249-4fd3-9b3e-3aa66577a686".to_string()),
+        message: serde_json::Value::String("hello".to_string()),
+        socket: Arc::new(DummyClient::default())
+    };
+
+    let model = executer.pre_play(model).expect("pre_message_to_room returned Err");
+    let model = executer.post_play(model, true).expect("post_message_to_room returned Err");
+    assert_eq!(&model.message, "world");
+}
+
+#[test]
 fn room_list_request_test() {
     let (executer, _) = create_python_environtment("room_list_request_test.py", r#"
 import yummy
@@ -1372,6 +1406,17 @@ model_tester!(disconnect_from_room_request, "disconnect_from_room_request.py", p
         session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
     })),
     room_id: RoomId::new(),
+    socket: Arc::new(DummyClient::default())
+});
+
+model_tester!(play, "play.py", pre_play, post_play, Play {
+    request_id: Some(123),
+    auth: Arc::new(Some(UserAuth {
+        user: UserId::from("294a6097-b8ea-4daa-b699-9f0c0c119c6d".to_string()),
+        session: SessionId::from("1bca52a9-4b98-45dd-bda9-93468d1b583f".to_string())
+    })),
+    room_id: RoomId::new(),
+    message: serde_json::Value::String("hello".to_string()),
     socket: Arc::new(DummyClient::default())
 });
 

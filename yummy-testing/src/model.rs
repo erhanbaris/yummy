@@ -7,7 +7,7 @@ use yummy_model::UserId;
 use yummy_model::RoomId;
 use yummy_model::RoomUserType;
 
-use yummy_cache::state::RoomUserInformation;
+use yummy_model::state::RoomUserInformation;
 
 macro_rules! into_impl {
     ($name: ident) => {

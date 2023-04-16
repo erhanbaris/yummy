@@ -20,7 +20,6 @@ diesel.workspace = true
 
 thiserror.workspace = true
 anyhow.workspace = true
-secrecy.workspace = true
 
 jsonwebtoken.workspace = true
 futures.workspace = true

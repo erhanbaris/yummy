@@ -33,6 +33,7 @@ pub fn make_module(vm: &VirtualMachine) -> PyObjectRef {
         "WaitingRoomJoins" => WaitingRoomJoinsWrapper::make_class(&vm.ctx),
         "GetRoomRequest" => GetRoomRequestWrapper::make_class(&vm.ctx),
         "YummyPluginContext" => YummyPluginContextWrapper::make_class(&vm.ctx),
+        "Play" => PlayWrapper::make_class(&vm.ctx),
     });
 
     module
@@ -53,8 +54,8 @@ pub mod model {
 
     use rustpython_vm::builtins::{PyBaseException, PyInt, PyDict, PyStr};
     use rustpython_vm::{VirtualMachine, PyResult, PyObjectRef, TryFromBorrowedObject, PyRef, PyObject, py_serde};
-    use yummy_cache::state::RoomInfoTypeVariant;
-    use yummy_general::password::Password;
+    use yummy_model::state::RoomInfoTypeVariant;
+    use yummy_model::password::Password;
     use yummy_model::{UserType, CreateRoomAccessType, UserId, RoomUserType};
     use yummy_model::meta::{MetaAction, RoomMetaType, RoomMetaAccess};
     use yummy_model::{meta::{UserMetaAccess, UserMetaType}};
@@ -65,7 +66,7 @@ pub mod model {
 
     use crate::plugin::python::modules::base::_base::PyYummyValidationError;
     use crate::plugin::python::util::MetaTypeUtil;
-    use crate::room::model::{UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest};
+    use crate::room::model::{UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest, Play};
     use crate::{auth::model::{DeviceIdAuthRequest, EmailAuthRequest, CustomIdAuthRequest, ConnUserDisconnect, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest}, conn::model::UserConnected, user::model::{UpdateUser, GetUserInformation, GetUserInformationEnum}, room::model::CreateRoomRequest};
     use crate::plugin::python::ModelWrapper;
 
@@ -220,6 +221,7 @@ pub mod model {
     model_wrapper_struct!(RoomListRequest, RoomListRequestWrapper, "RoomListRequest");
     model_wrapper_struct!(WaitingRoomJoins, WaitingRoomJoinsWrapper, "WaitingRoomJoins");
     model_wrapper_struct!(GetRoomRequest, GetRoomRequestWrapper, "GetRoomRequest");
+    model_wrapper_struct!(Play, PlayWrapper, "Play");
 
     wrapper_struct!(UserMetaType, UserMetaTypeWrapper, "UserMetaType");
     wrapper_struct!(RoomMetaType, RoomMetaTypeWrapper, "RoomMetaType");
@@ -1089,6 +1091,35 @@ pub mod model {
             }
             
             self.data.borrow_mut().members = new_members;
+            Ok(())
+        }
+    }
+
+    #[yummy_model(class_name="Play")]
+    #[pyclass(flags(BASETYPE))]
+    impl PlayWrapper {
+        /* Room function */
+        #[pymethod]
+        pub fn get_room_id(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            Ok(vm.ctx.new_str(&self.data.borrow().room_id.to_string()[..]).into())
+        }
+
+        /* Message function */
+        #[pymethod]
+        pub fn get_message(&self, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+            match py_serde::deserialize(vm, self.data.borrow().message.clone()) {
+                Ok(message) => Ok(message),
+                Err(error) => Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), error.to_string()))
+            }
+        }
+
+        #[pymethod]
+        pub fn set_message(&self, message: PyObjectRef, vm: &VirtualMachine) -> PyResult<()> {
+            let obj_serializer = rustpython_vm::py_serde::PyObjectSerializer::new(vm, &message);
+            self.data.borrow_mut().message = match serde_json::value::to_value(obj_serializer) {
+                Ok(message) => message,
+                Err(error) => return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), error.to_string()))
+            };
             Ok(())
         }
     }

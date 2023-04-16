@@ -14,7 +14,7 @@ use yummy_database::{DatabaseTrait, DefaultDatabaseStore};
 use yummy_general::database::Pool;
 use yummy_model::{config::YummyConfig, UserId, meta::{UserMetaAccess, MetaType}};
 
-use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::{model::{GetUserInformation, UpdateUser}, UserLogic}, room::{model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest}, logic::RoomLogic}};
+use crate::{auth::model::{EmailAuthRequest, DeviceIdAuthRequest, CustomIdAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest, ConnUserDisconnect}, conn::model::UserConnected, user::{model::{GetUserInformation, UpdateUser}, UserLogic}, room::{model::{CreateRoomRequest, UpdateRoom, JoinToRoomRequest, ProcessWaitingUser, KickUserFromRoom, DisconnectFromRoomRequest, MessageToRoomRequest, RoomListRequest, WaitingRoomJoins, GetRoomRequest, Play}, logic::RoomLogic}};
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
@@ -138,6 +138,7 @@ pub trait YummyPlugin {
     create_plugin_func!(pre_room_list_request, post_room_list_request, RoomListRequest);
     create_plugin_func!(pre_waiting_room_joins, post_waiting_room_joins, WaitingRoomJoins);
     create_plugin_func!(pre_get_room_request, post_get_room_request, GetRoomRequest);
+    create_plugin_func!(pre_play, post_play, Play);
 }
 
 /* **************************************************************************************************************** */
@@ -190,6 +191,7 @@ impl PluginExecuter {
     create_executer_func!(pre_room_list_request, post_room_list_request, RoomListRequest);
     create_executer_func!(pre_waiting_room_joins, post_waiting_room_joins, WaitingRoomJoins);
     create_executer_func!(pre_get_room_request, post_get_room_request, GetRoomRequest);
+    create_executer_func!(pre_play, post_play, Play);
 }
 
 impl<DB: yummy_database::DatabaseTrait> YummyPluginContext<DB> {

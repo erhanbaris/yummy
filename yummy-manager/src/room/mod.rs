@@ -15,7 +15,7 @@ use std::{marker::PhantomData, ops::Deref};
 use std::sync::Arc;
 use actix::{Context, Actor, Handler};
 use actix_broker::{BrokerSubscribe, BrokerIssue};
-use yummy_cache::state::{RoomInfoTypeVariant, YummyState, RoomInfoType};
+use yummy_cache::state::YummyState;
 use yummy_database::DatabaseTrait;
 
 use yummy_model::config::YummyConfig;
@@ -27,6 +27,7 @@ use yummy_model::{RoomId, UserId, RoomUserType, UserType, SessionId, SendMessage
 use yummy_model::web::{GenericAnswer, Answer};
 use yummy_general::database::Pool;
 use yummy_general::database::PooledConnection;
+use yummy_model::state::{RoomInfoType, RoomInfoTypeVariant};
 
 use crate::auth::model::{AuthError, RoomUserDisconnect};
 use crate::plugin::PluginExecuter;
@@ -105,7 +106,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         
         self.issue_system_async(SendMessage {
             user_id: Arc::new(user_id.clone()),
-            message: GenericAnswer::success(request_id, RoomResponse::Joined { room_name, users, metas, room_id }).into()
+            message: GenericAnswer::success(request_id, RoomResponse::JoinToRoom { room_name, users, metas, room_id }).into()
         });
         Ok(())
     }
@@ -610,6 +611,24 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
         };
 
         self.logic.message_to_room(&model.room_id, Some(sender_user_id), &model.message)?;
+        model.socket.send(Answer::success(model.request_id).into());
+        Ok(())
+    }
+}
+
+
+impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<Play> for RoomManager<DB> {
+    type Result = anyhow::Result<()>;
+
+    #[tracing::instrument(name="Play", skip(self, _ctx))]
+    #[yummy_macros::plugin_api(name="play")]
+    fn handle(&mut self, model: Play, _ctx: &mut Context<Self>) -> Self::Result {
+        let sender_user_id = match model.auth.deref() {
+            Some(user) => &user.user,
+            None => return Err(anyhow::anyhow!(AuthError::TokenNotValid))
+        };
+
+        self.logic.play(&model.room_id, Some(sender_user_id), &model.message)?;
         model.socket.send(Answer::success(model.request_id).into());
         Ok(())
     }

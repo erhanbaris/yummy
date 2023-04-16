@@ -1,4 +1,3 @@
-pub mod request;
 pub mod websocket;
 
 #[cfg(test)]
@@ -9,7 +8,8 @@ use std::sync::Arc;
 use actix::Addr;
 use yummy_database::DatabaseTrait;
 use yummy_general::client::ClientTrait;
-use yummy_model::auth::UserAuth;
+use yummy_model::{auth::UserAuth, request::RequestUserType};
+use yummy_model::request::{RequestAuthType, RequestRoomType};
 use yummy_manager::auth::AuthManager;
 use yummy_manager::room::RoomManager;
 use yummy_manager::user::UserManager;
@@ -18,10 +18,6 @@ use yummy_manager::user::model::*;
 use yummy_manager::room::model::*;
 
 use validator::{Validate, ValidationErrors};
-
-use crate::api::request::{RequestAuthType, RequestUserType};
-
-use self::request::RequestRoomType;
 
 macro_rules! as_response {
     ($request_id: expr, $manager: expr, $message: expr) => {
@@ -68,6 +64,7 @@ pub(crate) fn process_room<DB: DatabaseTrait + Unpin + 'static>(request_id: Opti
         RequestRoomType::Join { room_id, room_user_type } => as_response!(request_id, room_manager, JoinToRoomRequest { request_id, auth, socket, room_id, room_user_type }),
         RequestRoomType::Disconnect { room_id } => as_response!(request_id, room_manager, DisconnectFromRoomRequest { request_id, auth, socket, room_id }),
         RequestRoomType::Message { room_id, message } => as_response!(request_id, room_manager, MessageToRoomRequest { request_id, auth, socket, room_id, message }),
+        RequestRoomType::Play { room_id, message } => as_response!(request_id, room_manager, Play { request_id, auth, socket, room_id, message }),
         RequestRoomType::Update { room_id, user_permission, name, description, max_user, join_request, metas, meta_action, access_type, tags } => as_response!(request_id, room_manager, UpdateRoom { request_id, auth, socket, room_id , user_permission, name, description, max_user, metas, meta_action, access_type, join_request, tags }),
         RequestRoomType::Kick { room_id, user_id } => as_response!(request_id, room_manager, KickUserFromRoom { request_id, auth, socket, room_id, user_id, ban: false }),
         RequestRoomType::Ban { room_id, user_id } => as_response!(request_id, room_manager, KickUserFromRoom { request_id, auth, socket, room_id, user_id, ban: true }),

@@ -26,8 +26,14 @@ num-traits.workspace = true
 num-derive.workspace = true
 
 jsonwebtoken.workspace = true
-
 dotenv.workspace = true
+secrecy.workspace = true
+
+anyhow.workspace = true
+thiserror.workspace = true
+
+strum.workspace = true
+strum_macros.workspace = true
 
 # stateless dependencies
 redis = { workspace = true, optional = true }

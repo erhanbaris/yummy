@@ -1,5 +1,6 @@
 from yummy import model
 from yummy import room
+from yummy import constants
 from yummy import fail
 import random
 
@@ -142,6 +143,9 @@ def post_join_to_room(model: model.JoinToRoom, success: bool):
             "mark": "O",
             "next-mark": "X"
         })
+
+def pre_room_list_request(model: model.RoomListRequest):
+    model.set_members([constants.ROOM_INFO_TYPE_ROOM_NAME, constants.ROOM_INFO_TYPE_USER_LENGTH])
 
 def pre_message_to_room(model: model.MessageToRoom):
     message      = model.get_message()

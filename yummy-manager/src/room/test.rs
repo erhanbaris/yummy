@@ -4,7 +4,7 @@ use yummy_model::CreateRoomAccessType;
 #[allow(unused_mut)]
 
 use yummy_model::config::configure_environment;
-use yummy_cache::state::RoomUserInformation;
+use yummy_model::state::RoomUserInformation;
 use uuid::Uuid;
 use yummy_testing::model::*;
 
@@ -187,7 +187,7 @@ async fn create_room_3() -> anyhow::Result<()> {
 
     let message: GenericAnswer<Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     let message = message.result;
-    assert_eq!(&message.class_type[..], "Joined");
+    assert_eq!(&message.class_type[..], "JoinToRoom");
 
     room_manager.send(JoinToRoomRequest {
         request_id: None,
@@ -199,7 +199,7 @@ async fn create_room_3() -> anyhow::Result<()> {
 
     let message: GenericAnswer<Joined> = serde_json::from_str(&user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     let message = message.result;
-    assert_eq!(&message.class_type[..], "Joined");
+    assert_eq!(&message.class_type[..], "JoinToRoom");
 
     // User 1 should receive other 2 users join message
     let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
@@ -270,7 +270,7 @@ async fn create_room_4() -> anyhow::Result<()> {
 
     let message: GenericAnswer<Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     let message = message.result;
-    assert_eq!(&message.class_type[..], "Joined");
+    assert_eq!(&message.class_type[..], "JoinToRoom");
 
     room_manager.send(JoinToRoomRequest {
         request_id: None,
@@ -282,7 +282,7 @@ async fn create_room_4() -> anyhow::Result<()> {
 
     let message: GenericAnswer<Joined> = serde_json::from_str(&user_3_socket.clone().messages.lock().unwrap().pop_front().unwrap()).unwrap();
     let message = message.result;
-    assert_eq!(&message.class_type[..], "Joined");
+    assert_eq!(&message.class_type[..], "JoinToRoom");
 
     let user_1_id = user_1.clone().deref().as_ref().unwrap().user.clone();
 
@@ -1121,7 +1121,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
 
     let message: GenericAnswer<Joined> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
     let message = message.result;
-    assert_eq!(&message.class_type[..], "Joined");
+    assert_eq!(&message.class_type[..], "JoinToRoom");
 
     let message: Answer = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
     assert!(message.status);
@@ -1339,7 +1339,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
     }).await??;
 
     let message: Joined = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
-    assert_eq!(&message.class_type[..], "Joined");
+    assert_eq!(&message.class_type[..], "JoinToRoom");
 
     // Not enough permission to ban user
     room_manager.send(KickUserFromRoom {
@@ -1466,7 +1466,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
     }).await??;
 
     let message: Joined = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
-    assert_eq!(&message.class_type[..], "Joined");
+    assert_eq!(&message.class_type[..], "JoinToRoom");
 
     // Not enough permission to ban user
     room_manager.send(KickUserFromRoom {
@@ -1504,7 +1504,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
     }).await??;
 
     let message: Joined = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
-    assert_eq!(&message.class_type[..], "Joined");
+    assert_eq!(&message.class_type[..], "JoinToRoom");
     
     /* #endregion */
 

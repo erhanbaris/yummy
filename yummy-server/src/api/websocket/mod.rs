@@ -12,6 +12,7 @@ use yummy_model::auth::UserAuth;
 use yummy_general::client::ClientTrait;
 use yummy_general::error::YummyError;
 use yummy_model::UserAuthenticated;
+use yummy_model::request::Request;
 use yummy_model::web::GenericAnswer;
 use yummy_manager::auth::model::StartUserTimeout;
 use yummy_manager::room::RoomManager;
@@ -32,7 +33,6 @@ use yummy_manager::auth::AuthManager;
 use yummy_model::config::YummyConfig;
 use crate::api::process_auth;
 use crate::api::process_user;
-use crate::api::request::*;
 
 use super::ProcessResult;
 use super::process_room;

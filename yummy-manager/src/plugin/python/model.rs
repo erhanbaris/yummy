@@ -2,7 +2,7 @@
 /* **************************************************** MODS ****************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
 /* **************************************************************************************************************** */
-use std::cell::RefCell;
+use std::{cell::RefCell, sync::Arc};
 use std::fmt::Debug;
 use std::rc::Rc;
 
@@ -17,9 +17,9 @@ use crate::plugin::YummyPluginContext;
 /* **************************************************************************************************************** */
 
 #[pyclass(module = false, name = "YummyPluginContext")]
-#[derive(PyPayload)]
+#[derive(PyPayload, Clone)]
 pub struct YummyPluginContextWrapper {
-    pub data: YummyPluginContext<DefaultDatabaseStore>
+    pub data: Arc<YummyPluginContext<DefaultDatabaseStore>>
 }
 
 /* **************************************************************************************************************** */
@@ -38,7 +38,7 @@ pub trait ModelWrapper {
 #[pyclass(flags(BASETYPE))]
 impl YummyPluginContextWrapper {
     pub fn new(data: YummyPluginContext<DefaultDatabaseStore>) -> Self {
-        Self { data }
+        Self { data: Arc::new(data) }
     }
 }
 

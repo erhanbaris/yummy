@@ -59,8 +59,9 @@
                 <div class="uk-column-1-3" style="width: 400px;">
 
                     <div class="uk-margin" v-for="(item, index) in board">
-                        <a href="#" class="uk-icon-link" @click="play(index, 'X')">
-                            <div class="uk-card uk-card-default uk-card-body" v-bind:class="{ 'uk-background-primary uk-light': item != '&nbsp;' }"> 
+                        <a href="#" class="uk-icon-link" @click="play(index)">
+                            <div class="uk-card uk-card-default uk-card-body"
+                                v-bind:class="{ 'uk-background-primary uk-light': item != '&nbsp;' }">
                                 <span v-html="item"></span>
                             </div>
                         </a>
@@ -71,19 +72,102 @@
 
     </div>
     <script>
+        const YUMMY_MESSAGE_TYPE = {
+            Authenticated: "Authenticated",
+            RoomCreated: "RoomCreated",
+            MessageFromRoom: "MessageFromRoom",
+            RoomList: "RoomList",
+            UserJoinedToRoom: "UserJoinedToRoom",
+            JoinToRoom: "JoinToRoom"
+        };
+
+        class YummyClient {
+            constructor(url) {
+                this.url = url;
+                this.connected = false;
+                this.authenticated = false;
+                this.token = "";
+                this.callbacks = {};
+            }
+
+            connect() {
+                this.connection = new WebSocket(this.url);
+                this.connection.onopen = () => this.connected = true;
+                this.connection.onmessage = (event) => {
+                    const message = JSON.parse(event.data);
+
+                    if (message.type == "Authenticated") {
+                        this.authenticated = true;
+                        this.token = message.token;
+                    }
+                };
+                
+            }
+
+            get isConnected() {
+                return this.connected;
+            }
+
+            get isAuthenticated() {
+                return this.authenticated;
+            }
+
+            on(type, func) {
+                this.callbacks[type] = func;
+            }
+
+            authViaCustomId(id) {
+                this.#sendMessage({
+                    "type": "AuthCustomId",
+                    "id": id
+                });
+            }
+
+            createRoom(extend) {
+                this.#sendMessage({ "type": "CreateRoom" }, extend);
+            }
+
+            roomList(extend) {
+                this.#sendMessage({ "type": "RoomList" }, extend);
+            }
+            
+            messageToRoom(room_id, extend) {
+                this.#sendMessage({ "type": "MessageToRoom", "room_id": room_id }, extend);
+            }
+            
+            joinToRoom(room_id, extend) {
+                this.#sendMessage({ "type": "JoinToRoom", "room_id": room_id }, extend);
+            }
+
+            play(room_id, message) {
+                this.#sendMessage({ "type": "MessageToRoom", "room_id": room_id, "message": message });
+            }
+
+            #sendMessage(message, extend) {
+                if (this.connected()) {
+                    this.connection.send(JSON.stringify(Object.assign(message, extend)));
+                }
+            }
+        }
+
         const URL = "ws://127.0.0.1:9090/v1/socket?x-yummy-api=YummyYummy";
+        let SEND_MESSAGE_TYPE = {
+            PLAY: 1
+        };
 
         var app = new Vue({
             el: '#app',
             data: {
+                client: new YummyClient(URL),
+                slot: 0,
                 game_started: false,
                 connection: "",
                 custom_id: "",
                 room_id: "",
                 rooms: [],
                 board: ["&nbsp;", "&nbsp;", "&nbsp;",
-                        "&nbsp;", "&nbsp;", "&nbsp;",
-                        "&nbsp;", "&nbsp;", "&nbsp;"
+                    "&nbsp;", "&nbsp;", "&nbsp;",
+                    "&nbsp;", "&nbsp;", "&nbsp;"
                 ]
             },
 
@@ -91,14 +175,12 @@
                 create_new_room() {
                     this.connection.send(JSON.stringify({
                         "type": "CreateRoom",
-                        "name": this.custom_id + "'s room",
-                        "max_user": 2
+                        "name": this.custom_id + "'s room"
                     }));
                 },
                 room_list() {
                     this.connection.send(JSON.stringify({
-                        "type": "RoomList",
-                        "members": [4, 0, 6]
+                        "type": "RoomList"
                     }));
                 },
                 jon_to_room(room_id) {
@@ -113,16 +195,13 @@
                 slot_used(index) {
                     return this.board[index] != "&nbsp;";
                 },
-                play(index, slot) {
+                play(slot) {
+                    this.slot = slot;
                     this.connection.send(JSON.stringify({
-                        "type": "MessageToRoom",
+                        "type": "Play",
                         "room_id": this.room_id,
-                        "message": {
-                            "type": "play",
-                            "slot": index
-                        }
+                        "message": slot
                     }));
-                    Vue.set(this.board, index, slot)
                 },
                 send_message(index, message) {
                     this.connection.send(JSON.stringify({
@@ -147,8 +226,12 @@
                 connection.onmessage = (event) => {
                     const message = JSON.parse(event.data);
                     if (message.status == false) {
-                        UIkit.notification({message: message.error, status: 'danger'});
+                        UIkit.notification({ message: message.error, status: 'danger' });
                         return;
+                    }
+
+                    if (message.request_id == SEND_MESSAGE_TYPE.PLAY) {
+                        Vue.set(this.board, this.index, slot)
                     }
 
                     switch (message.type) {
@@ -169,13 +252,14 @@
                             break;
                         }
 
-                        case "Joined":
+                        case "JoinToRoom":
                         case "RoomCreated": {
                             this.room_id = message.room_id;
                             break;
                         }
 
                         case "MessageFromRoom": {
+
                             Vue.set(this.board, message.message.slot, "X")
                             break;
                         }

@@ -1,5 +1,5 @@
 use diesel::*;
-use yummy_general::password::Password;
+use yummy_model::password::Password;
 use yummy_model::{UserId, UserType};
 use yummy_model::user::UserInsert;
 use yummy_model::user::LoginInfo;

@@ -1,10 +1,10 @@
 use std::{fmt::Debug, sync::Arc};
 use actix::prelude::Message;
-use yummy_model::{auth::UserAuth, SessionId};
+use yummy_model::{auth::UserAuth, SessionId, password::Password};
 use serde::Serialize;
 use thiserror::Error;
 use validator::{Validate, ValidationError};
-use yummy_general::{client::ClientTrait, password::Password};
+use yummy_general::client::ClientTrait;
 
 fn validate_unique_password(pass: &Password) -> Result<(), ValidationError> {
     let pass = pass.get();

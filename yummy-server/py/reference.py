@@ -151,3 +151,11 @@ def pre_get_room_request(model: model.GetRoomRequest):
 
 def post_get_room_request(model: model.GetRoomRequest, success: bool):
     pass
+
+
+def pre_play(model: model.Play):
+    pass
+
+
+def post_play(model: model.Play, success: bool):
+    pass

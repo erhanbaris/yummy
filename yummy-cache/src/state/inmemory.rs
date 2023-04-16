@@ -7,15 +7,17 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::borrow::Borrow;
 use std::sync::atomic::AtomicUsize;
+use std::collections::HashSet;
 
+use serde::{Serialize, Deserialize};
 use yummy_model::*;
 use yummy_model::meta::*;
 use yummy_model::config::YummyConfig;
+use yummy_model::state::*;
 use yummy_model::meta::collection::{UserMetaCollection, UserMetaCollectionInformation, RoomMetaCollection, RoomMetaCollectionInformation};
 
 use crate::cache::{YummyCache, YummyCacheResource};
 
-use super::*;
 use super::resource::YummyCacheResourceFactory;
 
 /* **************************************************************************************************************** */
@@ -566,6 +568,11 @@ impl YummyState {
             }
             None => Err(YummyStateError::RoomNotFound)
         }
+    }
+
+    #[tracing::instrument(name="is_room_exists", skip(self))]
+    pub fn is_room_exists(&self, room_id: &RoomId) -> Result<bool, YummyStateError> {
+        Ok(self.rooms.lock().contains_key(room_id))
     }
 
     #[tracing::instrument(name="get_user_location", skip(self))]

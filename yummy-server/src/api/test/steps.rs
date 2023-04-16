@@ -239,7 +239,7 @@ async fn succeeded(world: &mut YummyWorld, user: String) {
 async fn joined_to_room(world: &mut YummyWorld, user: String, room_name: String) {
     let (client, message, received_message) = user_receive_message::<serde_json::Value>(world, &user).await;
     assert_eq!(received_message.as_object().unwrap().get("room_name").cloned().unwrap_or(serde_json::Value::String("".to_string())).as_str().unwrap_or_default(), &room_name);
-    assert_eq!(received_message.as_object().unwrap().get("type").unwrap().as_str().unwrap(), "Joined");
+    assert_eq!(received_message.as_object().unwrap().get("type").unwrap().as_str().unwrap(), "JoinToRoom");
     assert_eq!(received_message.as_object().unwrap().get("status").unwrap().as_bool().unwrap(), true);
 
     client.last_message = Some(message);

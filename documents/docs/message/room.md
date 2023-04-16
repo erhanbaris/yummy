@@ -121,7 +121,7 @@ Joining to room require a little more attention than other parts. Room can be co
             ```json
             {
                 "status": true,
-                "type": "Joined",
+                "type": "JoinToRoom",
                 "room_name": null,
                 "users": [
                     {

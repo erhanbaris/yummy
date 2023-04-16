@@ -2,7 +2,7 @@ use std::{fmt::Debug, sync::Arc, collections::HashMap, borrow::Cow};
 
 use actix::prelude::Message;
 use serde_json::Value;
-use yummy_cache::state::{RoomInfoTypeVariant, RoomUserInformation, RoomInfoTypeCollection};
+use yummy_model::state::{RoomInfoTypeVariant, RoomUserInformation, RoomInfoTypeCollection};
 use yummy_general::client::ClientTrait;
 use yummy_model::{auth::UserAuth, CreateRoomAccessType, meta::{RoomMetaAccess, MetaType, MetaAction}, RoomId, RoomUserType, UserId};
 use serde::Serialize;
@@ -106,6 +106,16 @@ pub struct GetRoomRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+pub struct Play {
+    pub request_id: Option<usize>, 
+    pub auth: Arc<Option<UserAuth>>,
+    pub room_id: RoomId,
+    pub message: Value,
+    pub socket: Arc<dyn ClientTrait + Sync + Send>
+}
+
+#[derive(Message, Validate, Debug)]
+#[rtype(result = "anyhow::Result<()>")]
 pub struct UpdateRoom {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -150,7 +160,7 @@ pub enum RoomError {
 #[serde(tag = "type")]
 pub enum RoomResponse<'a> {
     RoomCreated { room_id: RoomId },
-    Joined {
+    JoinToRoom {
         room_id: &'a RoomId,
         room_name: Cow<'a, Option<String>>,
         users: Cow<'a, Vec<RoomUserInformation>>,
@@ -183,6 +193,12 @@ pub enum RoomResponse<'a> {
         room_id: &'a RoomId
     },
     MessageFromRoom {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        user_id: Option<&'a UserId>,
+        room_id: &'a RoomId,
+        message: &'a Value
+    },
+    Play {
         #[serde(skip_serializing_if = "Option::is_none")]
         user_id: Option<&'a UserId>,
         room_id: &'a RoomId,

@@ -31,6 +31,7 @@ use std::ops::Deref;
 
 use crate::plugin::python::model::YummyPluginContextWrapper;
 use crate::plugin::python::modules::model::model::{DeviceIdAuthRequestWrapper, EmailAuthRequestWrapper, CustomIdAuthRequestWrapper, LogoutRequestWrapper, UserConnectedWrapper, ConnUserDisconnectWrapper, RefreshTokenRequestWrapper, RestoreTokenRequestWrapper, GetUserInformationWrapper, UpdateUserWrapper, CreateRoomRequestWrapper};
+use crate::room::model::Play;
 use crate::{
     auth::model::{ConnUserDisconnect, CustomIdAuthRequest, DeviceIdAuthRequest, EmailAuthRequest, LogoutRequest, RefreshTokenRequest, RestoreTokenRequest},
     conn::model::UserConnected,
@@ -41,7 +42,7 @@ use crate::{
 };
 use self::model::ModelWrapper;
 use self::modules::configure_modules;
-use self::modules::model::model::{UpdateRoomWrapper, JoinToRoomRequestWrapper, ProcessWaitingUserWrapper, KickUserFromRoomWrapper, DisconnectFromRoomRequestWrapper, MessageToRoomRequestWrapper, RoomListRequestWrapper, WaitingRoomJoinsWrapper, GetRoomRequestWrapper};
+use self::modules::model::model::{UpdateRoomWrapper, JoinToRoomRequestWrapper, ProcessWaitingUserWrapper, KickUserFromRoomWrapper, DisconnectFromRoomRequestWrapper, MessageToRoomRequestWrapper, RoomListRequestWrapper, WaitingRoomJoinsWrapper, GetRoomRequestWrapper, PlayWrapper};
 
 use super::{YummyPlugin, YummyPluginInstaller, YummyPluginError, PluginExecuter};
 
@@ -98,7 +99,8 @@ pub enum FunctionType {
     MessageToRoomRequest,
     RoomListRequest,
     WaitingRoomJoins,
-    GetRoomRequest
+    GetRoomRequest,
+    Play
 }
 
 /* **************************************************************************************************************** */
@@ -278,6 +280,7 @@ impl FunctionType {
             FunctionType::RoomListRequest => "pre_room_list_request",
             FunctionType::WaitingRoomJoins => "pre_waiting_room_joins",
             FunctionType::GetRoomRequest => "pre_get_room_request",
+            FunctionType::Play => "pre_play",
         }
     }
 
@@ -303,6 +306,7 @@ impl FunctionType {
             FunctionType::RoomListRequest => "post_room_list_request",
             FunctionType::WaitingRoomJoins => "post_waiting_room_joins",
             FunctionType::GetRoomRequest => "post_get_room_request",
+            FunctionType::Play => "post_play",
         }
     }
 }
@@ -338,6 +342,7 @@ impl YummyPlugin for PythonPlugin {
     create_func!(pre_room_list_request, post_room_list_request, FunctionType::RoomListRequest, RoomListRequest, RoomListRequestWrapper);
     create_func!(pre_waiting_room_joins, post_waiting_room_joins, FunctionType::WaitingRoomJoins, WaitingRoomJoins, WaitingRoomJoinsWrapper);
     create_func!(pre_get_room_request, post_get_room_request, FunctionType::GetRoomRequest, GetRoomRequest, GetRoomRequestWrapper);
+    create_func!(pre_play, post_play, FunctionType::Play, Play, PlayWrapper);
 }
 
 impl YummyPluginInstaller for PythonPluginInstaller {
