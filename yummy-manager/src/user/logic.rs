@@ -7,6 +7,7 @@ use std::{marker::PhantomData, sync::Arc, ops::Deref};
 use yummy_cache::state::YummyState;
 use yummy_database::DatabaseTrait;
 use yummy_model::meta::collection::{UserMetaCollection, UserMetaCollectionInformation};
+use yummy_model::request::RequestUserTypeVariant;
 use yummy_model::user::UserUpdate;
 use yummy_model::{UserId, UserType, UserInformationModel, UserMetaId};
 use yummy_model::config::YummyConfig;
@@ -335,9 +336,9 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
             let response = match has_user_update {
                 true => match DB::update_user(connection, target_user_id, &updates)? {
                     0 => return Err(anyhow::anyhow!(UserError::UserNotFound)),
-                    _ => Answer::success(model.request_id)
+                    _ => Answer::success(model.request_id, RequestUserTypeVariant::Update)
                 },
-                false => Answer::success(model.request_id)
+                false => Answer::success(model.request_id, RequestUserTypeVariant::Update)
             };
 
             // Update user cache

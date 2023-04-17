@@ -22,6 +22,7 @@ use yummy_model::UserId;
 
 use actix_broker::*;
 
+use yummy_model::request::RequestAuthTypeVariant;
 use yummy_model::web::Answer;
 #[cfg(feature = "stateless")]
 use redis::Commands;
@@ -130,7 +131,7 @@ impl Handler<ConnUserDisconnect> for ConnectionManager {
             Some(user) => &user.user,
             None => {
                 if model.send_message {
-                    model.socket.send(Answer::fail(model.request_id).into());
+                    model.socket.send(Answer::fail(model.request_id, RequestAuthTypeVariant::Logout).into());
                 }
                 return
             }
@@ -140,13 +141,13 @@ impl Handler<ConnUserDisconnect> for ConnectionManager {
 
         if user_removed.is_none() {
             if model.send_message {
-                model.socket.send(Answer::fail(model.request_id).into());
+                model.socket.send(Answer::fail(model.request_id, RequestAuthTypeVariant::Logout).into());
             }
             return;
         }
         
         if model.send_message {
-            model.socket.send(Answer::success(model.request_id).into());
+            model.socket.send(Answer::success(model.request_id, RequestAuthTypeVariant::Logout).into());
         }
         
         self.issue_system_async(RoomUserDisconnect {

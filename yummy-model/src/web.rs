@@ -15,10 +15,12 @@ pub struct Answer {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<usize>,
     pub status: bool,
+    pub response_type: String
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct GenericAnswer<T> {
+pub struct GenericAnswer<T>
+{
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<usize>,
     pub status: bool,
@@ -49,12 +51,20 @@ pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
 impl Answer {
-    pub fn success(request_id: Option<usize>) -> Self {
-        Self { request_id, status: true }
+    pub fn success<T>(request_id: Option<usize>, response_type: T) -> Self where T: serde::Serialize {
+        Self {
+            request_id,
+            status: true,
+            response_type: serde_json::to_string(&response_type).unwrap_or_default()
+        }
     }
     
-    pub fn fail(request_id: Option<usize>) -> Self {
-        Self { request_id, status: false }
+    pub fn fail<T>(request_id: Option<usize>, response_type: T) -> Self where T: serde::Serialize {
+        Self {
+            request_id,
+            status: false,
+            response_type: serde_json::to_string(&response_type).unwrap_or_default()
+        }
     }
 }
 

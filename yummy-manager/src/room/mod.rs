@@ -22,6 +22,7 @@ use yummy_model::config::YummyConfig;
 use yummy_model::meta::collection::RoomMetaCollection;
 use yummy_model::meta::{MetaType, MetaAction};
 use yummy_model::meta::RoomMetaAccess;
+use yummy_model::request::RequestRoomTypeVariant;
 use yummy_model::user::RoomUpdate;
 use yummy_model::{RoomId, UserId, RoomUserType, UserType, SessionId, SendMessage};
 use yummy_model::web::{GenericAnswer, Answer};
@@ -391,9 +392,9 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
             match has_room_update {
                 true => match DB::update_room(connection, &model.room_id, &updates)? {
                     0 => return Err(anyhow::anyhow!(UserError::UserNotFound)),
-                    _ => model.socket.send(Answer::success(model.request_id).into())
+                    _ => model.socket.send(Answer::success(model.request_id, RequestRoomTypeVariant::Update).into())
                 },
-                false => model.socket.send(Answer::success(model.request_id).into())
+                false => model.socket.send(Answer::success(model.request_id, RequestRoomTypeVariant::Update).into())
             };
 
             // Update all caches
@@ -530,7 +531,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<ProcessW
             }
 
             // Send operation successfully executed message to operator
-            model.socket.send(Answer::success(model.request_id).into());
+            model.socket.send(Answer::success(model.request_id, RequestRoomTypeVariant::ProcessWaitingUser).into());
             anyhow::Ok(())
         })?;
         
@@ -579,7 +580,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<KickUser
             })
         }
 
-        model.socket.send(Answer::success(model.request_id).into());
+        model.socket.send(Answer::success(model.request_id, RequestRoomTypeVariant::Kick).into());
         Ok(())
     }
 }
@@ -595,7 +596,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<Disconne
         let (user_id, session_id) = get_user_session_id_from_auth!(model, ());
 
         self.disconnect_from_room(&model.room_id, user_id, session_id).unwrap_or_default();
-        model.socket.send(Answer::success(model.request_id).into());
+        model.socket.send(Answer::success(model.request_id, RequestRoomTypeVariant::Disconnect).into());
     }
 }
 
@@ -611,7 +612,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
         };
 
         self.logic.message_to_room(&model.room_id, Some(sender_user_id), &model.message)?;
-        model.socket.send(Answer::success(model.request_id).into());
+        model.socket.send(Answer::success(model.request_id, RequestRoomTypeVariant::Message).into());
         Ok(())
     }
 }
@@ -629,7 +630,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<Play> fo
         };
 
         self.logic.play(&model.room_id, Some(sender_user_id), &model.message)?;
-        model.socket.send(Answer::success(model.request_id).into());
+        model.socket.send(Answer::success(model.request_id, RequestRoomTypeVariant::Kick).into());
         Ok(())
     }
 }
