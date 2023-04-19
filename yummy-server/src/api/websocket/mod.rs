@@ -96,7 +96,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
             Request::Room { request_id, room_type } => process_room(request_id, room_type, self.room_manager.clone(), user_info, socket),
         };
 
-        if let Err((request_id, error)) = validation {
+        if let Err((request_id, request_type, error)) = validation {
             ctx.text(serde_json::to_string(&GenericAnswer::fail(request_id, error.to_string())).unwrap())
         }
 
@@ -161,7 +161,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> StreamHandler<Result<ws::Mess
             _ => Ok(()),
         };
 
-        if let Err((request_id, error)) = result {
+        if let Err((request_id, request_type, error)) = result {
             ctx.text(String::from(GenericAnswer::fail(request_id, error.to_string())));
         }
     }

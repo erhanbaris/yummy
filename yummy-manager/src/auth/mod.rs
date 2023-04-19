@@ -25,6 +25,7 @@ use anyhow::{anyhow, Ok};
 use yummy_model::{UserId, SessionId};
 use yummy_general::database::Pool;
 
+use crate::YummyModel;
 use crate::plugin::PluginExecuter;
 use self::model::*;
 use crate::conn::model::UserConnected;
@@ -123,7 +124,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="EmailAuth", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="email_auth")]
+    #[yummy_macros::plugin_api(name="email_auth", model="EmailAuthRequest")]
     fn handle(&mut self, model: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
         let mut connection = self.database.get()?;
         let user_info = DB::user_login_via_email(&mut connection, &model.email)?;
@@ -151,7 +152,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth_jwt);
-        model.socket.send(GenericAnswer::success(model.request_id, AuthResponse::Authenticated { token }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, EmailAuthRequest::get_request_type(), AuthResponse::Authenticated { token }).into());
         Ok(())
     }
 }
@@ -160,7 +161,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="DeviceIdAuth", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="deviceid_auth")]
+    #[yummy_macros::plugin_api(name="deviceid_auth", model="DeviceIdAuthRequest")]
     fn handle(&mut self, model: DeviceIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
         
         let mut connection = self.database.get()?;
@@ -181,7 +182,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
-        model.socket.send(GenericAnswer::success(model.request_id, AuthResponse::Authenticated { token }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, DeviceIdAuthRequest::get_request_type(), AuthResponse::Authenticated { token }).into());
         Ok(())
     }
 }
@@ -190,7 +191,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="CustomIdAuth", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="customid_auth")]
+    #[yummy_macros::plugin_api(name="customid_auth", model="CustomIdAuthRequest")]
     fn handle(&mut self, model: CustomIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
         
         let mut connection = self.database.get()?;
@@ -220,7 +221,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRe
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="Logout", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="logout")]
+    #[yummy_macros::plugin_api(name="logout", model="LogoutRequest")]
     fn handle(&mut self, model: LogoutRequest, _ctx: &mut Context<Self>) -> Self::Result {
         self.issue_system_async(ConnUserDisconnect {
             request_id: model.request_id,
@@ -236,7 +237,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="RefreshToken", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="refresh_token")]
+    #[yummy_macros::plugin_api(name="refresh_token", model="RefreshTokenRequest")]
     fn handle(&mut self, model: RefreshTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         disconnect_if_already_auth!(model, self, ctx);        
@@ -256,7 +257,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="RestoreToken", skip(self, ctx))]
-    #[yummy_macros::plugin_api(name="restore_token")]
+    #[yummy_macros::plugin_api(name="restore_token", model="RestoreTokenRequest")]
     fn handle(&mut self, model: RestoreTokenRequest, ctx: &mut Context<Self>) -> Self::Result {
         match validate_auth(self.config.clone(), &model.token[..]) {
             Some(auth) => {

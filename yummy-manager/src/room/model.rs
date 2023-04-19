@@ -7,11 +7,13 @@ use yummy_general::client::ClientTrait;
 use yummy_model::{auth::UserAuth, CreateRoomAccessType, meta::{RoomMetaAccess, MetaType, MetaAction}, RoomId, RoomUserType, UserId};
 use serde::Serialize;
 use thiserror::Error;
+use yummy_macros::model;
 use validator::Validate;
 
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestRoomTypeVariant::Create")]
 pub struct CreateRoomRequest {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -27,6 +29,7 @@ pub struct CreateRoomRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestRoomTypeVariant::Join")]
 pub struct JoinToRoomRequest {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -37,6 +40,7 @@ pub struct JoinToRoomRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestRoomTypeVariant::WaitingRoomJoins")]
 pub struct WaitingRoomJoins {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -46,6 +50,7 @@ pub struct WaitingRoomJoins {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestRoomTypeVariant::Kick")]
 pub struct KickUserFromRoom {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -57,6 +62,7 @@ pub struct KickUserFromRoom {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestRoomTypeVariant::ProcessWaitingUser")]
 pub struct ProcessWaitingUser {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -68,6 +74,7 @@ pub struct ProcessWaitingUser {
 
 #[derive(Message, Validate, Debug, Clone)]
 #[rtype(result = "()")]
+#[model(request_type="RequestRoomTypeVariant::RoomDisconnect")]
 pub struct DisconnectFromRoomRequest {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -77,6 +84,7 @@ pub struct DisconnectFromRoomRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestRoomTypeVariant::MessageToRoom")]
 pub struct MessageToRoomRequest {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -87,6 +95,7 @@ pub struct MessageToRoomRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestRoomTypeVariant::RoomList")]
 pub struct RoomListRequest {
     pub request_id: Option<usize>, 
     pub tag: Option<String>,
@@ -96,6 +105,7 @@ pub struct RoomListRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestRoomTypeVariant::GetRoom")]
 pub struct GetRoomRequest {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -106,6 +116,7 @@ pub struct GetRoomRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestRoomTypeVariant::Play")]
 pub struct Play {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -116,6 +127,7 @@ pub struct Play {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestRoomTypeVariant::UpdateRoom")]
 pub struct UpdateRoom {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,

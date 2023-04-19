@@ -5,6 +5,7 @@ use serde::Serialize;
 use thiserror::Error;
 use validator::{Validate, ValidationError};
 use yummy_general::client::ClientTrait;
+use yummy_macros::model;
 
 fn validate_unique_password(pass: &Password) -> Result<(), ValidationError> {
     let pass = pass.get();
@@ -17,6 +18,7 @@ fn validate_unique_password(pass: &Password) -> Result<(), ValidationError> {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestAuthTypeVariant::Email")]
 pub struct EmailAuthRequest {
     pub request_id: Option<usize>,
     pub auth: Arc<Option<UserAuth>>,

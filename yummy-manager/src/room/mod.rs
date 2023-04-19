@@ -30,6 +30,7 @@ use yummy_general::database::Pool;
 use yummy_general::database::PooledConnection;
 use yummy_model::state::{RoomInfoType, RoomInfoTypeVariant};
 
+use crate::YummyModel;
 use crate::auth::model::{AuthError, RoomUserDisconnect};
 use crate::plugin::PluginExecuter;
 use crate::{get_user_session_id_from_auth, get_user_id_from_auth, get_session_id_from_auth};
@@ -306,7 +307,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="CreateRoom", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="create_room")]
+    #[yummy_macros::plugin_api(name="create_room", model="CreateRoomRequest")]
     fn handle(&mut self, model: CreateRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
         // Check user information
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
@@ -345,7 +346,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRo
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="UpdateRoom", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="update_room")]
+    #[yummy_macros::plugin_api(name="update_room", model="UpdateRoom")]
     fn handle(&mut self, model: UpdateRoom, _ctx: &mut Context<Self>) -> Self::Result {
 
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
@@ -433,7 +434,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<WaitingR
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="WaitingRoomJoins", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="waiting_room_joins")]
+    #[yummy_macros::plugin_api(name="waiting_room_joins", model="WaitingRoomJoins")]
     fn handle(&mut self, model: WaitingRoomJoins, _ctx: &mut Context<Self>) -> Self::Result {
         // Check user information
         let session_id = get_session_id_from_auth!(model);
@@ -457,7 +458,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="JoinToRoom", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="join_to_room")]
+    #[yummy_macros::plugin_api(name="join_to_room", model="JoinToRoomRequest")]
     fn handle(&mut self, model: JoinToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {        
         // Check user information
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
@@ -507,7 +508,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<ProcessW
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="ProcessWaitingUser", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="process_waiting_user")]
+    #[yummy_macros::plugin_api(name="process_waiting_user", model="ProcessWaitingUser")]
     fn handle(&mut self, model: ProcessWaitingUser, _ctx: &mut Context<Self>) -> Self::Result {        
         // Check user information
         let user_id = get_user_id_from_auth!(model);
@@ -544,7 +545,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<KickUser
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="KickUserFromRoom", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="kick_user_from_room")]
+    #[yummy_macros::plugin_api(name="kick_user_from_room", model="KickUserFromRoom")]
     fn handle(&mut self, model: KickUserFromRoom, _ctx: &mut Context<Self>) -> Self::Result {        
         let (user_id, session_id) = get_user_session_id_from_auth!(model);
 
@@ -589,7 +590,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<Disconne
     type Result = ();
 
     #[tracing::instrument(name="DisconnectFromRoomRequest", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="disconnect_from_room", no_return=true)]
+    #[yummy_macros::plugin_api(name="disconnect_from_room", model="DisconnectFromRoomRequest", no_return=true)]
     fn handle(&mut self, model: DisconnectFromRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         #[allow(clippy::unused_unit)]
@@ -604,7 +605,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<MessageT
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="MessageToRoomRequest", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="message_to_room")]
+    #[yummy_macros::plugin_api(name="message_to_room", model="MessageToRoomRequest")]
     fn handle(&mut self, model: MessageToRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
         let sender_user_id = match model.auth.deref() {
             Some(user) => &user.user,
@@ -622,7 +623,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<Play> fo
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="Play", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="play")]
+    #[yummy_macros::plugin_api(name="play", model="Play")]
     fn handle(&mut self, model: Play, _ctx: &mut Context<Self>) -> Self::Result {
         let sender_user_id = match model.auth.deref() {
             Some(user) => &user.user,
@@ -639,7 +640,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomList
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="RoomListRequest", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="room_list_request")]
+    #[yummy_macros::plugin_api(name="room_list_request", model="RoomListRequest")]
     fn handle(&mut self, model: RoomListRequest, _ctx: &mut Context<Self>) -> Self::Result {
         let members = if model.members.is_empty() {
             &ALL_ROOM_INFO_TYPE_VARIANTS
@@ -657,7 +658,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetRoomR
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="GetRoomRequest", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="get_room_request")]
+    #[yummy_macros::plugin_api(name="get_room_request", model="GetRoomRequest")]
     fn handle(&mut self, model: GetRoomRequest, _ctx: &mut Context<Self>) -> Self::Result {
         
         // Check user information
@@ -671,7 +672,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetRoomR
 
         let access_level = self.get_access_level_for_room(user_id, session_id, &model.room_id)?;
         let room = self.states.get_room_info(&model.room_id, access_level, members)?;
-        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::RoomInfo { room }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, GetRoomRequest::get_request_type(), RoomResponse::RoomInfo { room }).into());
         Ok(())
     }
 }

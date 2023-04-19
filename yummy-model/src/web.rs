@@ -3,7 +3,7 @@
 /* *************************************************** IMPORTS **************************************************** */
 /* **************************************************************************************************************** */
 use actix_web::{error::{JsonPayloadError, InternalError}, HttpRequest, HttpResponse};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize};
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
@@ -15,6 +15,8 @@ pub struct Answer {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<usize>,
     pub status: bool,
+
+    #[serde(rename = "type")]
     pub response_type: String
 }
 
@@ -24,6 +26,9 @@ pub struct GenericAnswer<T>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<usize>,
     pub status: bool,
+    
+    #[serde(rename = "type")]
+    pub response_type: &'static str,
 
     #[serde(flatten)]
     pub result: T,
@@ -79,18 +84,20 @@ impl From<Answer> for String {
 
 impl<T> GenericAnswer<T>
 where T: Serialize {
-    pub fn success(request_id: Option<usize>, result: T) -> Self {
+    pub fn success(request_id: Option<usize>, response_type: &'static str, result: T) -> Self {
         Self {
             request_id,
             status: true,
+            response_type,
             result
         }
     }
     
-    pub fn fail(request_id: Option<usize>, result: T) -> GenericAnswer<ErrorResponse<T>> {
+    pub fn fail(request_id: Option<usize>, response_type: &'static str, result: T) -> GenericAnswer<ErrorResponse<T>> {
         GenericAnswer {
             request_id,
             status: false,
+            response_type,
             result: ErrorResponse { error: result}
         }
     }
@@ -105,12 +112,6 @@ impl<T: Serialize> From<GenericAnswer<T>> for String {
                 String::new()
             }
         }
-    }
-}
-
-impl<T: DeserializeOwned> From<String> for GenericAnswer<T> {
-    fn from(source: String) -> Self {
-        serde_json::from_str(&source).unwrap()
     }
 }
 
