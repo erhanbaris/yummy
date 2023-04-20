@@ -14,6 +14,7 @@ use yummy_model::config::YummyConfig;
 use yummy_model::web::GenericAnswer;
 use yummy_general::database::Pool;
 use yummy_cache::state::YummyState;
+use crate::YummyModel;
 use crate::plugin::PluginExecuter;
 
 pub use self::logic::UserLogic;

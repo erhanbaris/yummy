@@ -108,7 +108,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         
         self.issue_system_async(SendMessage {
             user_id: Arc::new(user_id.clone()),
-            message: GenericAnswer::success(request_id, RoomResponse::JoinToRoom { room_name, users, metas, room_id }).into()
+            message: GenericAnswer::success(request_id, JoinToRoomRequest::get_request_type(), RoomResponse::JoinToRoom { room_name, users, metas, room_id }).into()
         });
         Ok(())
     }
@@ -337,7 +337,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
         })?;
         
 
-        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::RoomCreated { room_id }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, CreateRoomRequest::get_request_type(), RoomResponse::RoomCreated { room_id }).into());
         Ok(())
     }
 }
@@ -449,7 +449,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<WaitingR
         }
 
         let users = self.states.get_join_requests(&model.room_id)?;
-        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::WaitingRoomJoins { room_id: &model.room_id, users }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, JoinToRoomRequest::get_request_type(), RoomResponse::WaitingRoomJoins { room_id: &model.room_id, users }).into());
         Ok(())
     }
 }
@@ -494,7 +494,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
             }
 
             // Send message to user about waiting for approvement
-            model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::JoinRequested { room_id: &model.room_id }).into());
+            model.socket.send(GenericAnswer::success(model.request_id, JoinToRoomRequest::get_request_type(), RoomResponse::JoinRequested { room_id: &model.room_id }).into());
         } else {
             // User can directly try to join room
             self.join_to_room(&mut connection,  model.request_id, &model.room_id, user_id, session_id, model.room_user_type.clone())?;
@@ -527,7 +527,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<ProcessW
                 // Room join request declined
                 self.issue_system_async(SendMessage {
                     user_id: Arc::new(model.user_id.clone()),
-                    message: GenericAnswer::success(model.request_id, RoomResponse::JoinRequestDeclined { room_id: &model.room_id }).into()
+                    message: GenericAnswer::success(model.request_id, ProcessWaitingUser::get_request_type(), RoomResponse::JoinRequestDeclined { room_id: &model.room_id }).into()
                 });
             }
 
@@ -649,7 +649,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomList
         };
 
         let rooms = self.states.get_rooms(&model.tag, members)?;
-        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::RoomList { rooms }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, RoomListRequest::get_request_type(), RoomResponse::RoomList { rooms }).into());
         Ok(())
     }
 }

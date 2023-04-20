@@ -36,6 +36,7 @@ pub struct EmailAuthRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestAuthTypeVariant::Refresh")]
 pub struct RefreshTokenRequest {
     pub request_id: Option<usize>,
 
@@ -49,6 +50,7 @@ pub struct RefreshTokenRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestAuthTypeVariant::Restore")]
 pub struct RestoreTokenRequest {
     pub request_id: Option<usize>,
 
@@ -62,6 +64,7 @@ pub struct RestoreTokenRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestAuthTypeVariant::Logout")]
 pub struct LogoutRequest {
     pub request_id: Option<usize>,
     pub auth: Arc<Option<UserAuth>>,
@@ -83,6 +86,7 @@ pub struct StopUserTimeout {
 
 #[derive(Message, Debug, Validate)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestAuthTypeVariant::AuthDeviceId")]
 pub struct DeviceIdAuthRequest {
     pub request_id: Option<usize>,
 
@@ -102,6 +106,7 @@ impl DeviceIdAuthRequest {
 
 #[derive(Message, Debug, Validate)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestAuthTypeVariant::AuthCustomId")]
 pub struct CustomIdAuthRequest {
     pub request_id: Option<usize>,
     pub auth: Arc<Option<UserAuth>>,

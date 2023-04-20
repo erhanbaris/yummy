@@ -70,7 +70,8 @@ pub(crate) fn process_room<DB: DatabaseTrait + Unpin + 'static>(request_id: Opti
         RequestRoomType::Kick { room_id, user_id } => as_response!(request_id, RequestRoomTypeVariant::Kick, room_manager, KickUserFromRoom { request_id, auth, socket, room_id, user_id, ban: false }),
         RequestRoomType::Ban { room_id, user_id } => as_response!(request_id, RequestRoomTypeVariant::Ban, room_manager, KickUserFromRoom { request_id, auth, socket, room_id, user_id, ban: true }),
         RequestRoomType::List { tag, members } => as_response!(request_id, RequestRoomTypeVariant::List, room_manager, RoomListRequest { request_id, socket, tag, members }),
-        RequestRoomType::ProcessWaitingUser { room_id, user_id, status } => as_response!(request_id, RequestRoomTypeVariant::ProcessWaitingUser, room_manager, ProcessWaitingUser { request_id, auth, socket, room_id, user_id, status })
+        RequestRoomType::ProcessWaitingUser { room_id, user_id, status } => as_response!(request_id, RequestRoomTypeVariant::ProcessWaitingUser, room_manager, ProcessWaitingUser { request_id, auth, socket, room_id, user_id, status }),
+        RequestRoomType::WaitingRoomJoins { room_id } => as_response!(request_id, RequestRoomTypeVariant::WaitingRoomJoins, room_manager, WaitingRoomJoins { request_id, auth, socket, room_id })
     };
     Ok(())
 }

@@ -82,7 +82,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
             Ok(message) => message,
             Err(error) => {
                 println!("{}", error);
-                ctx.text(serde_json::to_string(&GenericAnswer::fail(None, "Wrong message format")).unwrap());
+                ctx.text(serde_json::to_string(&GenericAnswer::fail(None, "", "Wrong message format")).unwrap());
                 return Ok(());
             }
         };
@@ -97,7 +97,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
         };
 
         if let Err((request_id, request_type, error)) = validation {
-            ctx.text(serde_json::to_string(&GenericAnswer::fail(request_id, error.to_string())).unwrap())
+            ctx.text(serde_json::to_string(&GenericAnswer::fail(request_id, request_type, error.to_string())).unwrap())
         }
 
         Ok(())
@@ -162,7 +162,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> StreamHandler<Result<ws::Mess
         };
 
         if let Err((request_id, request_type, error)) = result {
-            ctx.text(String::from(GenericAnswer::fail(request_id, error.to_string())));
+            ctx.text(String::from(GenericAnswer::fail(request_id, request_type, error.to_string())));
         }
     }
 }

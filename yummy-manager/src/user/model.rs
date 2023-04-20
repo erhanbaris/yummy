@@ -5,9 +5,11 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use actix::prelude::Message;
 use validator::Validate;
+use yummy_macros::model;
 
 #[derive(Message, Validate, Clone, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestUserTypeVariant::Get")]
 pub struct GetUserInformation {
     pub request_id: Option<usize>,
     pub query: GetUserInformationEnum,
@@ -51,6 +53,7 @@ pub enum GetUserInformationEnum {
 
 #[derive(Clone, Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="RequestUserTypeVariant::Update")]
 pub struct UpdateUser {
     pub request_id: Option<usize>,
     pub auth: Arc<Option<UserAuth>>,

@@ -212,7 +212,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
-        model.socket.send(GenericAnswer::success(model.request_id, AuthResponse::Authenticated { token }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, CustomIdAuthRequest::get_request_type(), AuthResponse::Authenticated { token }).into());
         Ok(())
     }
 }
@@ -245,7 +245,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
         match validate_auth(self.config.clone(), &model.token[..]) {
             Some(claims) => {
                 let (token, _) = self.generate_token(&claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session), claims.user.user_type)?;
-                model.socket.send(GenericAnswer::success(model.request_id, AuthResponse::Authenticated { token }).into());
+                model.socket.send(GenericAnswer::success(model.request_id, RefreshTokenRequest::get_request_type(), AuthResponse::Authenticated { token }).into());
                 Ok(())
             },
             None => Err(anyhow!(AuthError::TokenNotValid))
@@ -279,7 +279,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
                     socket: model.socket.clone()
                 });
                 model.socket.authenticated(auth);
-                model.socket.send(GenericAnswer::success(model.request_id, AuthResponse::Authenticated { token }).into());
+                model.socket.send(GenericAnswer::success(model.request_id, RestoreTokenRequest::get_request_type(), AuthResponse::Authenticated { token }).into());
                 Ok(())
             },
             None => Err(anyhow!(AuthError::TokenNotValid))
