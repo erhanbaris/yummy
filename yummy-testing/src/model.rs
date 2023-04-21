@@ -19,6 +19,7 @@ macro_rules! into_impl {
 
         impl From<String> for $name {
             fn from(source: String) -> Self {
+                println!("{}", &source);
                 serde_json::from_str(&source).unwrap()
             }
         }

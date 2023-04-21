@@ -102,7 +102,7 @@ async fn create_room_1() -> anyhow::Result<()> {
         socket:recipient.clone()
     }).await??;
 
-    let room_id: RoomCreated = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id: yummy_testing::model::RoomCreated = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_id = room_id.room_id;
 
     let session_id = match user.as_ref() {
@@ -134,7 +134,7 @@ async fn create_room_2() -> anyhow::Result<()> {
         socket:recipient.clone()
     }).await??;
 
-    let room_created: RoomCreated = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_created: yummy_testing::model::RoomCreated = recipient.clone().messages.lock().unwrap().pop_back().unwrap().into();
 
     let session_id = match user.as_ref() {
         Some(user) => &user.session,
@@ -172,7 +172,7 @@ async fn create_room_3() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let room_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id: yummy_testing::model::RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_id = room_id.room_id;
 
     assert!(!room_id.is_empty());
@@ -255,7 +255,7 @@ async fn create_room_4() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let room_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id: yummy_testing::model::RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_id = room_id.room_id;
 
     assert!(!room_id.is_empty());
@@ -349,7 +349,7 @@ async fn message_to_room() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let room_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id: yummy_testing::model::RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_id = room_id.room_id;
 
     assert!(!room_id.is_empty());
@@ -504,7 +504,7 @@ async fn room_meta_check() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let room_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id: yummy_testing::model::RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_id = room_id.room_id;
 
     room_manager.send(JoinToRoomRequest {
@@ -578,7 +578,7 @@ async fn room_meta_update() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let room_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id: yummy_testing::model::RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_id = room_id.room_id;
 
     room_manager.send(UpdateRoom {
@@ -763,7 +763,7 @@ async fn room_update() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let room_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_id: yummy_testing::model::RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_id = room_id.room_id;
 
     room_manager.send(JoinToRoomRequest {
@@ -917,7 +917,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let room_1_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_1_id: yummy_testing::model::RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_1_id = room_1_id.room_id;
 
     room_manager.send(CreateRoomRequest {
@@ -933,7 +933,7 @@ async fn multi_room_support() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
 
-    let room_2_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_2_id: yummy_testing::model::RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_2_id = room_2_id.room_id;
 
     room_manager.send(JoinToRoomRequest {
@@ -1075,7 +1075,7 @@ async fn room_join_request_approve() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
     
-    let room_1_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_1_id: yummy_testing::model::RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_1_id = room_1_id.room_id;
 
     room_manager.send(JoinToRoomRequest {
@@ -1201,7 +1201,7 @@ async fn room_join_request_decline() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
     
-    let room_1_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_1_id: yummy_testing::model::RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_1_id = room_1_id.room_id;
 
     room_manager.send(JoinToRoomRequest {
@@ -1327,7 +1327,7 @@ async fn user_ban_test() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
     
-    let room_1_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_1_id: yummy_testing::model::RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_1_id = room_1_id.room_id;
 
     room_manager.send(JoinToRoomRequest {
@@ -1454,7 +1454,7 @@ async fn kick_ban_test() -> anyhow::Result<()> {
         socket:user_1_socket.clone()
     }).await??;
     
-    let room_1_id: RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let room_1_id: yummy_testing::model::RoomCreated = user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
     let room_1_id = room_1_id.room_id;
 
     room_manager.send(JoinToRoomRequest {

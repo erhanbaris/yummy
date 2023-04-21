@@ -4,6 +4,7 @@ pub mod model;
 mod test;
 mod logic;
 
+use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -47,7 +48,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
     #[yummy_macros::plugin_api(name="get_user_information", model="GetUserInformation")]
     fn handle(&mut self, model: GetUserInformation, _ctx: &mut Context<Self>) -> Self::Result {
         let user = self.logic.get_user_information(&model)?;
-        model.socket.send(GenericAnswer::success(model.request_id, GetUserInformation::get_request_type(), UserResponse::UserInfo { user }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(GetUserInformation::get_request_type()), UserResponse::UserInfo { user }).into());
         Ok(())
     }
 }

@@ -49,11 +49,11 @@ pub fn plugin_api(args: TokenStream, input: TokenStream) -> TokenStream {
             },
             quote! {
                if let Err(result) = response.as_ref() {
-                   __socket__.send(yummy_model::WebsocketMessage::fail(__request_id__, #request_type ::get_request_type(), result.to_string()).0)
+                   __socket__.send(yummy_model::WebsocketMessage::fail(__request_id__, Cow::Borrowed( #request_type ::get_request_type()), result.to_string()).0)
                }
            },
            quote! {
-                __socket__.send(yummy_model::WebsocketMessage::fail(__request_id__, #request_type ::get_request_type(), error.to_string()).0);
+                __socket__.send(yummy_model::WebsocketMessage::fail(__request_id__, Cow::Borrowed( #request_type ::get_request_type()), error.to_string()).0);
                 return Err(error.into());
           })
         },

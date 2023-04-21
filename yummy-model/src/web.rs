@@ -2,8 +2,10 @@
 /* **************************************************** MODS ****************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
 /* **************************************************************************************************************** */
+use std::borrow::Cow;
+
 use actix_web::{error::{JsonPayloadError, InternalError}, HttpRequest, HttpResponse};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
@@ -21,14 +23,14 @@ pub struct Answer {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct GenericAnswer<T>
+pub struct GenericAnswer<'a, T>
 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<usize>,
     pub status: bool,
     
     #[serde(rename = "type")]
-    pub response_type: &'static str,
+    pub response_type: Cow<'a, str>,
 
     #[serde(flatten)]
     pub result: T,
@@ -82,9 +84,9 @@ impl From<Answer> for String {
     }
 }
 
-impl<T> GenericAnswer<T>
+impl<'a, T> GenericAnswer<'a, T>
 where T: Serialize {
-    pub fn success(request_id: Option<usize>, response_type: &'static str, result: T) -> Self {
+    pub fn success(request_id: Option<usize>, response_type: Cow<'a, str>, result: T) -> Self {
         Self {
             request_id,
             status: true,
@@ -93,7 +95,7 @@ where T: Serialize {
         }
     }
     
-    pub fn fail(request_id: Option<usize>, response_type: &'static str, result: T) -> GenericAnswer<ErrorResponse<T>> {
+    pub fn fail(request_id: Option<usize>, response_type: Cow<'a, str>, result: T) -> GenericAnswer<ErrorResponse<T>> {
         GenericAnswer {
             request_id,
             status: false,
@@ -103,7 +105,7 @@ where T: Serialize {
     }
 }
 
-impl<T: Serialize> From<GenericAnswer<T>> for String {
+impl<'a, T: Serialize> From<GenericAnswer<'_, T>> for String {
     fn from(source: GenericAnswer<T>) -> Self {
         match serde_json::to_string(&source) {
             Ok(data) => data,
@@ -112,6 +114,12 @@ impl<T: Serialize> From<GenericAnswer<T>> for String {
                 String::new()
             }
         }
+    }
+}
+
+impl<'a, T: DeserializeOwned> From<String> for GenericAnswer<'_, T> {
+    fn from(source: String) -> Self {
+        serde_json::from_str(&source).unwrap()
     }
 }
 

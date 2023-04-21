@@ -9,12 +9,14 @@ pub mod logic;
 /* **************************************************************************************************************** */
 #[cfg(test)]
 mod test;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{marker::PhantomData, ops::Deref};
 use std::sync::Arc;
 use actix::{Context, Actor, Handler};
 use actix_broker::{BrokerSubscribe, BrokerIssue};
+use serde::Serialize;
 use yummy_cache::state::YummyState;
 use yummy_database::DatabaseTrait;
 
@@ -108,7 +110,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         
         self.issue_system_async(SendMessage {
             user_id: Arc::new(user_id.clone()),
-            message: GenericAnswer::success(request_id, JoinToRoomRequest::get_request_type(), RoomResponse::JoinToRoom { room_name, users, metas, room_id }).into()
+            message: GenericAnswer::success(request_id, Cow::Borrowed(JoinToRoomRequest::get_request_type()), RoomResponse::JoinToRoom { room_name, users, metas, room_id }).into()
         });
         Ok(())
     }
@@ -335,12 +337,14 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
            
             anyhow::Ok(room_id)
         })?;
-        
 
-        model.socket.send(GenericAnswer::success(model.request_id, CreateRoomRequest::get_request_type(), RoomResponse::RoomCreated { room_id }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(CreateRoomRequest::get_request_type()), RoomCreated { room_id }).into());
         Ok(())
     }
 }
+
+#[derive(Serialize, Debug, Clone)]
+struct RoomCreated { room_id: RoomId }
 
 impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateRoom> for RoomManager<DB> {
     type Result = anyhow::Result<()>;
@@ -449,7 +453,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<WaitingR
         }
 
         let users = self.states.get_join_requests(&model.room_id)?;
-        model.socket.send(GenericAnswer::success(model.request_id, JoinToRoomRequest::get_request_type(), RoomResponse::WaitingRoomJoins { room_id: &model.room_id, users }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(JoinToRoomRequest::get_request_type()), RoomResponse::WaitingRoomJoins { room_id: &model.room_id, users }).into());
         Ok(())
     }
 }
@@ -494,7 +498,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
             }
 
             // Send message to user about waiting for approvement
-            model.socket.send(GenericAnswer::success(model.request_id, JoinToRoomRequest::get_request_type(), RoomResponse::JoinRequested { room_id: &model.room_id }).into());
+            model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(JoinToRoomRequest::get_request_type()), RoomResponse::JoinRequested { room_id: &model.room_id }).into());
         } else {
             // User can directly try to join room
             self.join_to_room(&mut connection,  model.request_id, &model.room_id, user_id, session_id, model.room_user_type.clone())?;
@@ -527,7 +531,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<ProcessW
                 // Room join request declined
                 self.issue_system_async(SendMessage {
                     user_id: Arc::new(model.user_id.clone()),
-                    message: GenericAnswer::success(model.request_id, ProcessWaitingUser::get_request_type(), RoomResponse::JoinRequestDeclined { room_id: &model.room_id }).into()
+                    message: GenericAnswer::success(model.request_id, Cow::Borrowed(ProcessWaitingUser::get_request_type()), RoomResponse::JoinRequestDeclined { room_id: &model.room_id }).into()
                 });
             }
 
@@ -649,7 +653,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomList
         };
 
         let rooms = self.states.get_rooms(&model.tag, members)?;
-        model.socket.send(GenericAnswer::success(model.request_id, RoomListRequest::get_request_type(), RoomResponse::RoomList { rooms }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(RoomListRequest::get_request_type()), RoomResponse::RoomList { rooms }).into());
         Ok(())
     }
 }
@@ -672,7 +676,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetRoomR
 
         let access_level = self.get_access_level_for_room(user_id, session_id, &model.room_id)?;
         let room = self.states.get_room_info(&model.room_id, access_level, members)?;
-        model.socket.send(GenericAnswer::success(model.request_id, GetRoomRequest::get_request_type(), RoomResponse::RoomInfo { room }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(GetRoomRequest::get_request_type()), RoomResponse::RoomInfo { room }).into());
         Ok(())
     }
 }

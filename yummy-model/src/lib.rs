@@ -14,6 +14,7 @@ pub mod request;
 pub mod password;
 pub mod state;
 
+use std::borrow::Cow;
 /* **************************************************************************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
 /* **************************************************************************************************************** */
@@ -211,12 +212,12 @@ pub enum RoomUserType {
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
 impl WebsocketMessage {
-    pub fn success<T: Debug + Serialize + DeserializeOwned>(request_id: Option<usize>, response_type: &'static str, message: T) -> WebsocketMessage {
+    pub fn success<'a, T: Debug + Serialize + DeserializeOwned>(request_id: Option<usize>, response_type: Cow<'a, str>, message: T) -> WebsocketMessage {
         let message = serde_json::to_string(&GenericAnswer::success(request_id, response_type, message));
         WebsocketMessage(message.unwrap())
     }
     
-    pub fn fail<T: Debug + Serialize + DeserializeOwned>(request_id: Option<usize>, response_type: &'static str, message: T) -> WebsocketMessage {
+    pub fn fail<'a, T: Debug + Serialize + DeserializeOwned>(request_id: Option<usize>, response_type: Cow<'a, str>, message: T) -> WebsocketMessage {
         let message = serde_json::to_string(&GenericAnswer::fail(request_id, response_type, message));
         WebsocketMessage(message.unwrap())
     }
