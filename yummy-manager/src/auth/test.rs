@@ -462,8 +462,8 @@ async fn double_login_test() -> anyhow::Result<()> {
         socket: user_2_socket.clone()
     }).await??;
 
-    let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
-    assert_eq!(&message.class_type[..], "UserJoinedToRoom");
+    let message: GenericAnswer<UserJoinedToRoom> = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    assert_eq!(&message.response_type[..], "JoinToRoom");
     /* #endregion */
 
     /* #region Re-auth */
@@ -478,8 +478,9 @@ async fn double_login_test() -> anyhow::Result<()> {
     /* #endregion */
 
     /* #region Receive user disconnected message */
-    let message: UserDisconnectedFromRoom = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
-    assert_eq!(&message.class_type[..], "UserDisconnectedFromRoom");
+    let message = user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap();
+    let message: GenericAnswer<UserDisconnectedFromRoom> = serde_json::from_str(&message).unwrap();
+    assert_eq!(&message.response_type[..], "UserDisconnectedFromRoom");
     /* #endregion */
 
     return Ok(());
@@ -572,8 +573,8 @@ async fn user_disconnect_from_room_test() -> anyhow::Result<()> {
         socket:user_2_socket.clone()
     }).await??;
 
-    let message: UserJoinedToRoom = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
-    assert_eq!(&message.class_type[..], "UserJoinedToRoom");
+    let message: GenericAnswer<UserJoinedToRoom> = serde_json::from_str(&user_1_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    assert_eq!(&message.response_type[..], "JoinToRoom");
     /* #endregion */
 
     /* #region Start disconnect timeout */
@@ -585,8 +586,8 @@ async fn user_disconnect_from_room_test() -> anyhow::Result<()> {
     /* #endregion */
 
     /* #region Receive user disconnected message */
-    let message: UserDisconnectedFromRoom = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
-    assert_eq!(&message.class_type[..], "UserDisconnectedFromRoom");
+    let message: GenericAnswer<UserDisconnectedFromRoom> = serde_json::from_str(&user_2_socket.clone().messages.lock().unwrap().pop_back().unwrap()).unwrap();
+    assert_eq!(&message.response_type[..], "UserDisconnectedFromRoom");
     /* #endregion */
 
     return Ok(());

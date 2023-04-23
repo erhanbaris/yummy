@@ -124,7 +124,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="EmailAuth", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="email_auth", model="EmailAuthRequest")]
+    #[yummy_macros::plugin_api(name="email_auth")]
     fn handle(&mut self, model: EmailAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
         let mut connection = self.database.get()?;
         let user_info = DB::user_login_via_email(&mut connection, &model.email)?;
@@ -152,7 +152,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth_jwt);
-        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(EmailAuthRequest::get_request_type()), AuthResponse::Authenticated { token }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), Authenticated { token }).into());
         Ok(())
     }
 }
@@ -161,7 +161,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="DeviceIdAuth", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="deviceid_auth", model="DeviceIdAuthRequest")]
+    #[yummy_macros::plugin_api(name="deviceid_auth")]
     fn handle(&mut self, model: DeviceIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
         
         let mut connection = self.database.get()?;
@@ -182,7 +182,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
-        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(DeviceIdAuthRequest::get_request_type()), AuthResponse::Authenticated { token }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), Authenticated { token }).into());
         Ok(())
     }
 }
@@ -191,7 +191,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="CustomIdAuth", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="customid_auth", model="CustomIdAuthRequest")]
+    #[yummy_macros::plugin_api(name="customid_auth")]
     fn handle(&mut self, model: CustomIdAuthRequest, _ctx: &mut Context<Self>) -> Self::Result {
         
         let mut connection = self.database.get()?;
@@ -212,7 +212,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
-        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(CustomIdAuthRequest::get_request_type()), AuthResponse::Authenticated { token }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), Authenticated { token }).into());
         Ok(())
     }
 }
@@ -221,7 +221,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<LogoutRe
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="Logout", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="logout", model="LogoutRequest")]
+    #[yummy_macros::plugin_api(name="logout")]
     fn handle(&mut self, model: LogoutRequest, _ctx: &mut Context<Self>) -> Self::Result {
         self.issue_system_async(ConnUserDisconnect {
             request_id: model.request_id,
@@ -237,7 +237,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="RefreshToken", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="refresh_token", model="RefreshTokenRequest")]
+    #[yummy_macros::plugin_api(name="refresh_token")]
     fn handle(&mut self, model: RefreshTokenRequest, _ctx: &mut Context<Self>) -> Self::Result {
 
         disconnect_if_already_auth!(model, self, ctx);        
@@ -245,7 +245,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
         match validate_auth(self.config.clone(), &model.token[..]) {
             Some(claims) => {
                 let (token, _) = self.generate_token(&claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session), claims.user.user_type)?;
-                model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(RefreshTokenRequest::get_request_type()), AuthResponse::Authenticated { token }).into());
+                model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), Authenticated { token }).into());
                 Ok(())
             },
             None => Err(anyhow!(AuthError::TokenNotValid))
@@ -257,7 +257,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="RestoreToken", skip(self, ctx))]
-    #[yummy_macros::plugin_api(name="restore_token", model="RestoreTokenRequest")]
+    #[yummy_macros::plugin_api(name="restore_token")]
     fn handle(&mut self, model: RestoreTokenRequest, ctx: &mut Context<Self>) -> Self::Result {
         match validate_auth(self.config.clone(), &model.token[..]) {
             Some(auth) => {
@@ -279,7 +279,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
                     socket: model.socket.clone()
                 });
                 model.socket.authenticated(auth);
-                model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(RestoreTokenRequest::get_request_type()), AuthResponse::Authenticated { token }).into());
+                model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), Authenticated { token }).into());
                 Ok(())
             },
             None => Err(anyhow!(AuthError::TokenNotValid))

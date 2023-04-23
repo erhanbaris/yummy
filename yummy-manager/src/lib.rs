@@ -7,5 +7,5 @@ pub mod plugin;
 mod macros;
 
 pub trait YummyModel {
-    fn get_request_type() -> &'static str;
+    fn get_request_type(&self) -> &'static str;
 }

@@ -27,6 +27,8 @@ pub struct GenericAnswer<'a, T>
 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<usize>,
+
+    #[serde(default)]
     pub status: bool,
     
     #[serde(rename = "type")]

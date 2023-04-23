@@ -45,10 +45,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="GetUserInformation", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="get_user_information", model="GetUserInformation")]
+    #[yummy_macros::plugin_api(name="get_user_information")]
     fn handle(&mut self, model: GetUserInformation, _ctx: &mut Context<Self>) -> Self::Result {
         let user = self.logic.get_user_information(&model)?;
-        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(GetUserInformation::get_request_type()), UserResponse::UserInfo { user }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), user).into());
         Ok(())
     }
 }
@@ -57,7 +57,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<UpdateUs
     type Result = anyhow::Result<()>;
 
     #[tracing::instrument(name="UpdateUser", skip(self, _ctx))]
-    #[yummy_macros::plugin_api(name="update_user", model="UpdateUser")]
+    #[yummy_macros::plugin_api(name="update_user")]
     fn handle(&mut self, model: UpdateUser, _ctx: &mut Context<Self>) -> Self::Result {
         let user = self.logic.update_user(&model)?;
         model.socket.send(user.into());

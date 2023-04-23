@@ -210,10 +210,28 @@ async fn join_to_room(world: &mut YummyWorld, user: String, room_id: String, roo
 }
 
 /* Thens */
-#[then(expr = "{word} authenticated")]
-async fn authenticated(world: &mut YummyWorld, user: String) {
+#[then(expr = "{word} email authenticated")]
+async fn email_authenticated(world: &mut YummyWorld, user: String) {
     let (client, message, received_message) = user_receive_message::<serde_json::Value>(world, &user).await;
-    assert_eq!(received_message.as_object().unwrap().get("type").unwrap().as_str().unwrap(), "Authenticated");
+    assert_eq!(received_message.as_object().unwrap().get("type").unwrap().as_str().unwrap(), "AuthEmail");
+    
+    client.last_message = Some(message);
+    client.token = received_message.as_object().unwrap().get("token").unwrap().as_str().unwrap().to_string();
+}
+
+#[then(expr = "{word} customid authenticated")]
+async fn customid_authenticated(world: &mut YummyWorld, user: String) {
+    let (client, message, received_message) = user_receive_message::<serde_json::Value>(world, &user).await;
+    assert_eq!(received_message.as_object().unwrap().get("type").unwrap().as_str().unwrap(), "AuthCustomId");
+    
+    client.last_message = Some(message);
+    client.token = received_message.as_object().unwrap().get("token").unwrap().as_str().unwrap().to_string();
+}
+
+#[then(expr = "{word} deviceid authenticated")]
+async fn deviceid_authenticated(world: &mut YummyWorld, user: String) {
+    let (client, message, received_message) = user_receive_message::<serde_json::Value>(world, &user).await;
+    assert_eq!(received_message.as_object().unwrap().get("type").unwrap().as_str().unwrap(), "AuthDeviceId");
     
     client.last_message = Some(message);
     client.token = received_message.as_object().unwrap().get("token").unwrap().as_str().unwrap().to_string();
@@ -253,7 +271,7 @@ async fn joined_to_room(world: &mut YummyWorld, user: String, room_name: String)
 async fn room_created(world: &mut YummyWorld, user: String, name: String) {
     let room_id = {
         let (client, message, received_message) = user_receive_message::<serde_json::Value>(world, &user).await;
-        assert_eq!(received_message.as_object().unwrap().get("type").unwrap().as_str().unwrap(), "RoomCreated");
+        assert_eq!(received_message.as_object().unwrap().get("type").unwrap().as_str().unwrap(), "CreateRoom");
         client.last_message = Some(message);
         received_message.as_object().unwrap().get("room_id").unwrap().as_str().unwrap().to_string()
     };

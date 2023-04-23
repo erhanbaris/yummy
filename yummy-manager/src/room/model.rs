@@ -13,7 +13,7 @@ use validator::Validate;
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
-#[model(request_type="RequestRoomTypeVariant::Create")]
+#[model(request_type="CreateRoom")]
 pub struct CreateRoomRequest {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -29,7 +29,7 @@ pub struct CreateRoomRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
-#[model(request_type="RequestRoomTypeVariant::Join")]
+#[model(request_type="JoinToRoom")]
 pub struct JoinToRoomRequest {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -40,7 +40,7 @@ pub struct JoinToRoomRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
-#[model(request_type="RequestRoomTypeVariant::WaitingRoomJoins")]
+#[model(request_type="WaitingRoomJoins")]
 pub struct WaitingRoomJoins {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -50,7 +50,7 @@ pub struct WaitingRoomJoins {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
-#[model(request_type="RequestRoomTypeVariant::Kick")]
+#[model(request_type="Kick")]
 pub struct KickUserFromRoom {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -62,7 +62,7 @@ pub struct KickUserFromRoom {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
-#[model(request_type="RequestRoomTypeVariant::ProcessWaitingUser")]
+#[model(request_type="ProcessWaitingUser")]
 pub struct ProcessWaitingUser {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -74,7 +74,7 @@ pub struct ProcessWaitingUser {
 
 #[derive(Message, Validate, Debug, Clone)]
 #[rtype(result = "()")]
-#[model(request_type="RequestRoomTypeVariant::RoomDisconnect")]
+#[model(request_type="RoomDisconnect")]
 pub struct DisconnectFromRoomRequest {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -84,7 +84,7 @@ pub struct DisconnectFromRoomRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
-#[model(request_type="RequestRoomTypeVariant::MessageToRoom")]
+#[model(request_type="MessageToRoom")]
 pub struct MessageToRoomRequest {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -95,7 +95,7 @@ pub struct MessageToRoomRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
-#[model(request_type="RequestRoomTypeVariant::RoomList")]
+#[model(request_type="RoomList")]
 pub struct RoomListRequest {
     pub request_id: Option<usize>, 
     pub tag: Option<String>,
@@ -105,7 +105,7 @@ pub struct RoomListRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
-#[model(request_type="RequestRoomTypeVariant::GetRoom")]
+#[model(request_type="GetRoom")]
 pub struct GetRoomRequest {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -116,7 +116,7 @@ pub struct GetRoomRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
-#[model(request_type="RequestRoomTypeVariant::Play")]
+#[model(request_type="Play")]
 pub struct Play {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -127,7 +127,7 @@ pub struct Play {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
-#[model(request_type="RequestRoomTypeVariant::UpdateRoom")]
+#[model(request_type="UpdateRoom")]
 pub struct UpdateRoom {
     pub request_id: Option<usize>, 
     pub auth: Arc<Option<UserAuth>>,
@@ -142,6 +142,64 @@ pub struct UpdateRoom {
     pub max_user: Option<usize>,
     pub tags: Option<Vec<String>>,
     pub user_permission: Option<HashMap<UserId, RoomUserType>>
+}
+
+
+
+#[derive(Serialize, Debug, Clone)]
+pub struct RoomCreated {
+    pub room_id: RoomId
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct JoinToRoom<'a> {
+    pub result: &'a str,
+    pub room_id: &'a RoomId,
+    pub room_name: Cow<'a, Option<String>>,
+    pub users: Cow<'a, Vec<RoomUserInformation>>,
+    pub metas: Cow<'a, HashMap<String, MetaType<RoomMetaAccess>>>
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct UserJoinedToRoom<'a> {
+    pub user_id: &'a UserId,
+    pub room_id: &'a RoomId
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct RoomList {
+    pub rooms: Vec<RoomInfoTypeCollection>
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct NewJoinRequest<'a> {
+    pub room_id: &'a RoomId,
+    pub user_id: &'a UserId,
+    pub user_type: RoomUserType
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct JoinRequested<'a> {
+    pub result: &'a str,
+    pub room_id: &'a RoomId,
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct WaitingRoomJoinsResponse<'a> {
+    pub room_id: &'a RoomId,
+    pub users: HashMap<Arc<UserId>, RoomUserType>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct JoinRequestDeclined<'a> {
+    pub result: &'a str,
+    pub room_id: &'a RoomId,
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct RoomInfo {
+    #[serde(flatten)]
+    pub room: RoomInfoTypeCollection
 }
 
 #[derive(Error, Debug)]
@@ -171,32 +229,6 @@ pub enum RoomError {
 #[derive(Serialize, Debug, Clone)]
 #[serde(tag = "type")]
 pub enum RoomResponse<'a> {
-    RoomCreated { room_id: RoomId },
-    JoinToRoom {
-        room_id: &'a RoomId,
-        room_name: Cow<'a, Option<String>>,
-        users: Cow<'a, Vec<RoomUserInformation>>,
-        metas: Cow<'a, HashMap<String, MetaType<RoomMetaAccess>>>
-    },
-    JoinRequested {
-        room_id: &'a RoomId,
-    },
-    JoinRequestDeclined {
-        room_id: &'a RoomId,
-    },
-    WaitingRoomJoins {
-        room_id: &'a RoomId,
-        users: HashMap<Arc<UserId>, RoomUserType>,
-    },
-    NewJoinRequest {
-        room_id: &'a RoomId,
-        user_id: &'a UserId,
-        user_type: RoomUserType
-    },
-    UserJoinedToRoom {
-        user_id: &'a UserId,
-        room_id: &'a RoomId
-    },
     UserDisconnectedFromRoom {
         user_id: &'a UserId,
         room_id: &'a RoomId
@@ -215,13 +247,6 @@ pub enum RoomResponse<'a> {
         user_id: Option<&'a UserId>,
         room_id: &'a RoomId,
         message: &'a Value
-    },
-    RoomList {
-        rooms: Vec<RoomInfoTypeCollection>
-    },
-    RoomInfo {
-        #[serde(flatten)]
-        room: RoomInfoTypeCollection
     }
 }
 

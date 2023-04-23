@@ -11,9 +11,6 @@ use darling::FromMeta;
     name: String,
 
     #[darling(default)]
-    model: String,
-
-    #[darling(default)]
     no_socket: bool,
 
     #[darling(default)]
@@ -41,19 +38,18 @@ pub fn plugin_api(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let (clone_socket, send_result, finish_with_error) = match has_message_sent_capability {
         true => {
-            let request_type= proc_macro2::Ident::new(&format!("{}", args.model), proc_macro2::Span::call_site());
-
             (quote! {
                 let __socket__ = model.socket.clone();
                 let __request_id__ = model.request_id.clone();
+                let __request_type__ = model.get_request_type().clone();
             },
             quote! {
                if let Err(result) = response.as_ref() {
-                   __socket__.send(yummy_model::WebsocketMessage::fail(__request_id__, Cow::Borrowed( #request_type ::get_request_type()), result.to_string()).0)
+                   __socket__.send(yummy_model::WebsocketMessage::fail(__request_id__, Cow::Borrowed( __request_type__ ), result.to_string()).0)
                }
            },
            quote! {
-                __socket__.send(yummy_model::WebsocketMessage::fail(__request_id__, Cow::Borrowed( #request_type ::get_request_type()), error.to_string()).0);
+                __socket__.send(yummy_model::WebsocketMessage::fail(__request_id__, Cow::Borrowed( __request_type__ ), error.to_string()).0);
                 return Err(error.into());
           })
         },
@@ -274,8 +270,8 @@ pub fn model(args: TokenStream, item: TokenStream) -> TokenStream {
         #item_struct
 
         impl crate::YummyModel for #name {
-            fn get_request_type() -> &'static str {
-                #request_type.into()
+            fn get_request_type(&self) -> &'static str {
+                #request_type
             }
         }
     }.into()

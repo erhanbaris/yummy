@@ -147,6 +147,15 @@ pub struct SendMessage {
     pub message: String
 }
 
+#[derive(Debug, Serialize)]
+pub struct BuildMessage<'a, T> where T: Debug {
+    #[serde(rename = "type")]
+    pub message_type: &'a str,
+
+    #[serde(flatten)]
+    pub message: T
+}
+
 #[derive(Message, Debug)]
 #[rtype(result = "()")]
 pub struct UserAuthenticated(pub UserJwt);
@@ -220,6 +229,15 @@ impl WebsocketMessage {
     pub fn fail<'a, T: Debug + Serialize + DeserializeOwned>(request_id: Option<usize>, response_type: Cow<'a, str>, message: T) -> WebsocketMessage {
         let message = serde_json::to_string(&GenericAnswer::fail(request_id, response_type, message));
         WebsocketMessage(message.unwrap())
+    }
+}
+
+impl SendMessage {
+    pub fn build<T>(message_type: &str, message: T) -> String where T: Serialize + Debug {
+        serde_json::to_string(&BuildMessage {
+            message_type,
+            message
+        }).unwrap()
     }
 }
 

@@ -1,15 +1,16 @@
 use std::{fmt::Debug, sync::Arc, collections::HashMap};
 use yummy_general::client::ClientTrait;
-use yummy_model::{auth::UserAuth, UserId, UserType, meta::{UserMetaAccess, MetaType, MetaAction}, UserInformationModel};
+use yummy_model::{auth::UserAuth, UserId, UserType, meta::{UserMetaAccess, MetaType, MetaAction}};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use actix::prelude::Message;
 use validator::Validate;
 use yummy_macros::model;
 
+use crate::YummyModel;
+
 #[derive(Message, Validate, Clone, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
-#[model(request_type="RequestUserTypeVariant::Get")]
 pub struct GetUserInformation {
     pub request_id: Option<usize>,
     pub query: GetUserInformationEnum,
@@ -43,6 +44,16 @@ impl GetUserInformation {
     }
 }
 
+
+impl YummyModel for GetUserInformation {
+    fn get_request_type(&self) -> &'static str {
+        match self.query {
+            GetUserInformationEnum::Me(_) => "Me",
+            _ => "Get"
+        }
+    }
+}
+
 #[derive(Debug)]
 #[derive(Clone)]
 pub enum GetUserInformationEnum {
@@ -53,7 +64,7 @@ pub enum GetUserInformationEnum {
 
 #[derive(Clone, Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
-#[model(request_type="RequestUserTypeVariant::Update")]
+#[model(request_type="Update")]
 pub struct UpdateUser {
     pub request_id: Option<usize>,
     pub auth: Arc<Option<UserAuth>>,
@@ -139,13 +150,4 @@ pub enum UserError {
 
     #[error("'{0}' meta access level cannot be bigger than users access level")]
     MetaAccessLevelCannotBeBiggerThanUsersAccessLevel(String)
-}
-
-#[derive(Serialize, Debug, Clone)]
-#[serde(tag = "type")]
-pub enum UserResponse {
-    UserInfo {
-        #[serde(flatten)]
-        user: UserInformationModel
-    },
 }
