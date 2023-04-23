@@ -70,7 +70,7 @@ jobs:
             -o ./cov_normal.json
 
     - name: Codecov
-      uses: codecov/codecov-action@v3.1.2
+      uses: codecov/codecov-action@v3.1.3
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: ./cov_normal.json
