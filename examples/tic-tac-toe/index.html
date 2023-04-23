@@ -73,7 +73,7 @@
     </div>
     <script>
         const YUMMY_MESSAGE_TYPE = {
-            Authenticated: "Authenticated",
+            AuthCustomId: "AuthCustomId",
             RoomCreated: "CreateRoom",
             MessageFromRoom: "MessageFromRoom",
             RoomList: "RoomList",
@@ -87,14 +87,23 @@
                 this.authenticated = false;
                 this.token = "";
                 this.callbacks = {};
+                this.indexer = 0;
             }
 
-            connect() {
+            connect(func) {
                 this.connection = new WebSocket(this.url);
-                this.connection.onopen = () => this.connected = true;
+                this.connection.onopen = () => {
+                    this.connected = true;
+                    func()
+                };
+
                 this.connection.onmessage = (event) => {
                     const message = JSON.parse(event.data);
 
+                    if (message.request_id in this.callbacks) {
+                        this.callbacks[message.request_id](message.status, message);
+                    }
+                    
                     if (message.type == "Authenticated") {
                         this.authenticated = true;
                         this.token = message.token;
@@ -111,15 +120,11 @@
                 return this.authenticated;
             }
 
-            on(type, func) {
-                this.callbacks[type] = func;
-            }
-
-            authViaCustomId(id) {
+            authViaCustomId(id, func) {
                 this.#sendMessage({
                     "type": "AuthCustomId",
                     "id": id
-                });
+                }, {}, func);
             }
 
             createRoom(extend) {
@@ -142,9 +147,13 @@
                 this.#sendMessage({ "type": "MessageToRoom", "room_id": room_id, "message": message });
             }
 
-            #sendMessage(message, extend) {
-                if (this.connected()) {
-                    this.connection.send(JSON.stringify(Object.assign(message, extend)));
+            #sendMessage(message, extend, func) {
+                if (this.isConnected) {
+                    let new_message = Object.assign(message, extend);
+                    new_message.request_id = ++this.indexer;
+                    this.connection.send(JSON.stringify(new_message));
+
+                    this.callbacks[message.request_id] = func;
                 }
             }
         }
@@ -204,6 +213,7 @@
                 },
                 send_message(index, message) {
                     this.connection.send(JSON.stringify({
+                        "request_id": index,
                         "type": "MessageToRoom",
                         "room_id": this.room_id,
                         "message": message
@@ -213,9 +223,16 @@
             },
 
             created() {
+
+                this.custom_id = "USER-" + window.crypto.getRandomValues(new Uint32Array(1))[0].toString(8);
+                this.client.connect(() => {
+                    this.client.authViaCustomId(this.custom_id, (status, data) => {
+                        console.log((status, data));
+                    });
+                });
+
                 let connection = new WebSocket(URL);
                 connection.onopen = () => {
-                    this.custom_id = "USER-" + window.crypto.getRandomValues(new Uint32Array(1))[0].toString(8);
                     connection.send(JSON.stringify({
                         "type": "AuthCustomId",
                         "id": this.custom_id
