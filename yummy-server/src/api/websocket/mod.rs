@@ -17,6 +17,7 @@ use yummy_model::web::GenericAnswer;
 use yummy_manager::auth::model::StartUserTimeout;
 use yummy_manager::room::RoomManager;
 use yummy_manager::user::UserManager;
+use std::borrow::Cow;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Instant;
@@ -82,7 +83,7 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
             Ok(message) => message,
             Err(error) => {
                 println!("{}", error);
-                ctx.text(serde_json::to_string(&GenericAnswer::fail(None, "Wrong message format")).unwrap());
+                ctx.text(serde_json::to_string(&GenericAnswer::fail(None, Cow::Borrowed(""), "Wrong message format")).unwrap());
                 return Ok(());
             }
         };
@@ -96,8 +97,8 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
             Request::Room { request_id, room_type } => process_room(request_id, room_type, self.room_manager.clone(), user_info, socket),
         };
 
-        if let Err((request_id, error)) = validation {
-            ctx.text(serde_json::to_string(&GenericAnswer::fail(request_id, error.to_string())).unwrap())
+        if let Err((request_id, request_type, error)) = validation {
+            ctx.text(serde_json::to_string(&GenericAnswer::fail(request_id, Cow::Borrowed(request_type), error.to_string())).unwrap())
         }
 
         Ok(())
@@ -161,8 +162,8 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> StreamHandler<Result<ws::Mess
             _ => Ok(()),
         };
 
-        if let Err((request_id, error)) = result {
-            ctx.text(String::from(GenericAnswer::fail(request_id, error.to_string())));
+        if let Err((request_id, request_type, error)) = result {
+            ctx.text(String::from(GenericAnswer::fail(request_id, Cow::Borrowed(request_type), error.to_string())));
         }
     }
 }

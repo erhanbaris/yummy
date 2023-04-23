@@ -4,6 +4,7 @@ pub mod model;
 mod test;
 mod logic;
 
+use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -14,6 +15,7 @@ use yummy_model::config::YummyConfig;
 use yummy_model::web::GenericAnswer;
 use yummy_general::database::Pool;
 use yummy_cache::state::YummyState;
+use crate::YummyModel;
 use crate::plugin::PluginExecuter;
 
 pub use self::logic::UserLogic;
@@ -46,7 +48,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetUserI
     #[yummy_macros::plugin_api(name="get_user_information")]
     fn handle(&mut self, model: GetUserInformation, _ctx: &mut Context<Self>) -> Self::Result {
         let user = self.logic.get_user_information(&model)?;
-        model.socket.send(GenericAnswer::success(model.request_id, UserResponse::UserInfo { user }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), user).into());
         Ok(())
     }
 }

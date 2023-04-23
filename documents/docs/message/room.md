@@ -52,7 +52,7 @@
             ```json
             {
                 "status": true,
-                "type": "RoomCreated",
+                "type": "CreateRoom",
                 "room_id": "8e4d7516-1ee7-47d2-9387-438de3db37b9"
             }
             ```

@@ -2,7 +2,7 @@ extern crate darling;
 
 use proc_macro::*;
 use quote::quote;
-use syn::{ItemFn, parse_macro_input, AttributeArgs, ImplItem, ImplItemMethod};
+use syn::{ItemFn, parse_macro_input, AttributeArgs, ImplItem, ImplItemMethod, DeriveInput, ItemStruct};
 use darling::FromMeta;
 
 #[derive(FromMeta)]
@@ -41,14 +41,15 @@ pub fn plugin_api(args: TokenStream, input: TokenStream) -> TokenStream {
             (quote! {
                 let __socket__ = model.socket.clone();
                 let __request_id__ = model.request_id.clone();
+                let __request_type__ = model.get_request_type().clone();
             },
             quote! {
                if let Err(result) = response.as_ref() {
-                   __socket__.send(yummy_model::WebsocketMessage::fail(__request_id__, result.to_string()).0)
+                   __socket__.send(yummy_model::WebsocketMessage::fail(__request_id__, Cow::Borrowed( __request_type__ ), result.to_string()).0)
                }
            },
            quote! {
-                __socket__.send(yummy_model::WebsocketMessage::fail(__request_id__, error.to_string()).0);
+                __socket__.send(yummy_model::WebsocketMessage::fail(__request_id__, Cow::Borrowed( __request_type__ ), error.to_string()).0);
                 return Err(error.into());
           })
         },
@@ -107,7 +108,7 @@ pub fn plugin_api(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 #[derive(FromMeta)]
- struct YummyModelMacroArgs {
+ struct YummyPyModelMacroArgs {
     #[allow(dead_code)]
     class_name: String,
     
@@ -119,10 +120,10 @@ pub fn plugin_api(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn yummy_model(args: TokenStream, item: TokenStream) -> TokenStream {
+pub fn yummy_pymodel(args: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as AttributeArgs);
 
-    let args = match YummyModelMacroArgs::from_list(&args) {
+    let args = match YummyPyModelMacroArgs::from_list(&args) {
         Ok(v) => v,
         Err(e) => { return TokenStream::from(e.write_errors()); }
     };
@@ -241,4 +242,37 @@ pub fn yummy_model(args: TokenStream, item: TokenStream) -> TokenStream {
     else {
         panic!("Only works with impl");
     }
+}
+
+#[derive(FromMeta)]
+ struct YummyModelMacroArgs {
+    #[allow(dead_code)]
+    request_type: String
+}
+
+#[proc_macro_attribute]
+pub fn model(args: TokenStream, item: TokenStream) -> TokenStream {
+    let item_clone = item.clone();
+    let item_struct = parse_macro_input!(item_clone as ItemStruct);
+
+    let ast: DeriveInput = syn::parse(item).unwrap();
+    let args = parse_macro_input!(args as AttributeArgs);
+
+    let args = match YummyModelMacroArgs::from_list(&args) {
+        Ok(v) => v,
+        Err(e) => { return TokenStream::from(e.write_errors()); }
+    };
+
+    let name = &ast.ident;
+    let request_type = args.request_type;
+
+    quote! {
+        #item_struct
+
+        impl crate::YummyModel for #name {
+            fn get_request_type(&self) -> &'static str {
+                #request_type
+            }
+        }
+    }.into()
 }

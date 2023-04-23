@@ -1,10 +1,11 @@
 use std::{fmt::Debug, sync::Arc};
 use actix::prelude::Message;
-use yummy_model::{auth::UserAuth, SessionId, password::Password};
 use serde::Serialize;
+use yummy_model::{auth::UserAuth, SessionId, password::Password};
 use thiserror::Error;
 use validator::{Validate, ValidationError};
 use yummy_general::client::ClientTrait;
+use yummy_macros::model;
 
 fn validate_unique_password(pass: &Password) -> Result<(), ValidationError> {
     let pass = pass.get();
@@ -17,6 +18,7 @@ fn validate_unique_password(pass: &Password) -> Result<(), ValidationError> {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="AuthEmail")]
 pub struct EmailAuthRequest {
     pub request_id: Option<usize>,
     pub auth: Arc<Option<UserAuth>>,
@@ -34,6 +36,7 @@ pub struct EmailAuthRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="Refresh")]
 pub struct RefreshTokenRequest {
     pub request_id: Option<usize>,
 
@@ -47,6 +50,7 @@ pub struct RefreshTokenRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="Restore")]
 pub struct RestoreTokenRequest {
     pub request_id: Option<usize>,
 
@@ -60,6 +64,7 @@ pub struct RestoreTokenRequest {
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="Logout")]
 pub struct LogoutRequest {
     pub request_id: Option<usize>,
     pub auth: Arc<Option<UserAuth>>,
@@ -81,6 +86,7 @@ pub struct StopUserTimeout {
 
 #[derive(Message, Debug, Validate)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="AuthDeviceId")]
 pub struct DeviceIdAuthRequest {
     pub request_id: Option<usize>,
 
@@ -100,6 +106,7 @@ impl DeviceIdAuthRequest {
 
 #[derive(Message, Debug, Validate)]
 #[rtype(result = "anyhow::Result<()>")]
+#[model(request_type="AuthCustomId")]
 pub struct CustomIdAuthRequest {
     pub request_id: Option<usize>,
     pub auth: Arc<Option<UserAuth>>,
@@ -141,6 +148,11 @@ pub struct AuthUserDisconnect {
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
+#[derive(Serialize, Debug, Clone)]
+pub struct Authenticated {
+    pub token: String
+}
+
 #[derive(Error, Debug)]
 pub enum AuthError {
     #[error("Email and/or password not valid")]
@@ -155,10 +167,3 @@ pub enum AuthError {
     #[error("User not logged in")]
     UserNotLoggedIn
 }
-
-#[derive(Serialize, Debug, Clone)]
-#[serde(tag = "type")]
-pub enum AuthResponse {
-    Authenticated { token: String }
-}
-

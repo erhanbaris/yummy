@@ -120,8 +120,9 @@ async fn get_private_user_2() -> anyhow::Result<()> {
         session: user.user.session
     })), socket.clone())).await??;
 
-   
-    let auth: GenericAnswer<UserInformationModel> = socket.clone().messages.lock().unwrap().pop_back().unwrap().into();
+    let message = socket.clone().messages.lock().unwrap().pop_back().unwrap();
+    println!(">>> {}", message);
+    let auth: GenericAnswer<UserInformationModel> = message.into();
     let user = auth.result;
 
     assert_eq!(user.device_id, Some("1234567890".to_string()));

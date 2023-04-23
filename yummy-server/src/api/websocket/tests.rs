@@ -370,14 +370,25 @@ async fn fail_auth_via_custom_id_3() -> anyhow::Result<()> {
 
     let mut client = yummy_general::websocket::WebsocketTestClient::<String, String>::new(server.url("/v1/socket") , yummy_model::config::DEFAULT_API_KEY_NAME.to_string(), yummy_model::config::DEFAULT_DEFAULT_INTEGRATION_KEY.to_string()).await;
 
+    let request = yummy_model::request::Request::Auth {
+        request_id: None,
+        auth_type: yummy_model::request::RequestAuthType::CustomId {
+            id: "123".to_string()
+        }
+    };
+
+    let request = serde_json::to_string(&request).unwrap();
+    println!("request {:?}", request);
+
     let request = json!({
         "type": "AuthCustomId",
-        "id": 123
+        "id": "123"
     });
     client.send(request).await;
     let receive = client.get_text().await;
     assert!(receive.is_some());
 
+    println!("receive {:?}", &receive);
     let response = serde_json::from_str::<Answer>(&receive.unwrap())?;
     assert!(!response.status);
     Ok(())

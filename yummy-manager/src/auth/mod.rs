@@ -9,7 +9,7 @@ pub mod model;
 /* **************************************************************************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
 /* **************************************************************************************************************** */
-use std::ops::Deref;
+use std::{ops::Deref, borrow::Cow};
 use actix_broker::BrokerIssue;
 use yummy_cache::state::YummyState;
 use yummy_model::{auth::{generate_auth, UserJwt, validate_auth}, web::GenericAnswer, UserType};
@@ -25,6 +25,7 @@ use anyhow::{anyhow, Ok};
 use yummy_model::{UserId, SessionId};
 use yummy_general::database::Pool;
 
+use crate::YummyModel;
 use crate::plugin::PluginExecuter;
 use self::model::*;
 use crate::conn::model::UserConnected;
@@ -151,7 +152,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<EmailAut
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth_jwt);
-        model.socket.send(GenericAnswer::success(model.request_id, AuthResponse::Authenticated { token }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), Authenticated { token }).into());
         Ok(())
     }
 }
@@ -181,7 +182,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<DeviceId
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
-        model.socket.send(GenericAnswer::success(model.request_id, AuthResponse::Authenticated { token }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), Authenticated { token }).into());
         Ok(())
     }
 }
@@ -211,7 +212,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CustomId
             socket: model.socket.clone()
         });
         model.socket.authenticated(auth);
-        model.socket.send(GenericAnswer::success(model.request_id, AuthResponse::Authenticated { token }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), Authenticated { token }).into());
         Ok(())
     }
 }
@@ -244,7 +245,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RefreshT
         match validate_auth(self.config.clone(), &model.token[..]) {
             Some(claims) => {
                 let (token, _) = self.generate_token(&claims.user.id, claims.user.name, claims.user.email, Some(claims.user.session), claims.user.user_type)?;
-                model.socket.send(GenericAnswer::success(model.request_id, AuthResponse::Authenticated { token }).into());
+                model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), Authenticated { token }).into());
                 Ok(())
             },
             None => Err(anyhow!(AuthError::TokenNotValid))
@@ -278,7 +279,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RestoreT
                     socket: model.socket.clone()
                 });
                 model.socket.authenticated(auth);
-                model.socket.send(GenericAnswer::success(model.request_id, AuthResponse::Authenticated { token }).into());
+                model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), Authenticated { token }).into());
                 Ok(())
             },
             None => Err(anyhow!(AuthError::TokenNotValid))

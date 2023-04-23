@@ -74,10 +74,9 @@
     <script>
         const YUMMY_MESSAGE_TYPE = {
             Authenticated: "Authenticated",
-            RoomCreated: "RoomCreated",
+            RoomCreated: "CreateRoom",
             MessageFromRoom: "MessageFromRoom",
             RoomList: "RoomList",
-            UserJoinedToRoom: "UserJoinedToRoom",
             JoinToRoom: "JoinToRoom"
         };
 
@@ -253,7 +252,7 @@
                         }
 
                         case "JoinToRoom":
-                        case "RoomCreated": {
+                        case "CreateRoom": {
                             this.room_id = message.room_id;
                             break;
                         }

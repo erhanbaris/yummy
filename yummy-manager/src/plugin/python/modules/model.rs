@@ -59,7 +59,7 @@ pub mod model {
     use yummy_model::{UserType, CreateRoomAccessType, UserId, RoomUserType};
     use yummy_model::meta::{MetaAction, RoomMetaType, RoomMetaAccess};
     use yummy_model::{meta::{UserMetaAccess, UserMetaType}};
-    use yummy_macros::yummy_model;
+    use yummy_macros::yummy_pymodel;
     use rustpython::vm::{pyclass, PyPayload};
     use rustpython::vm::builtins::PyIntRef;
     use rustpython_vm::class::PyClassImpl;
@@ -237,7 +237,7 @@ pub mod model {
     /* *************************************************** TRAITS ***************************************************** */
     /* ************************************************* IMPLEMENTS *************************************************** */
     /* **************************************************************************************************************** */
-    #[yummy_model(class_name="UserConnected", no_request_id=true, no_auth=true)]
+    #[yummy_pymodel(class_name="UserConnected", no_request_id=true, no_auth=true)]
     #[pyclass(flags(BASETYPE))]
     impl UserConnectedWrapper {
         #[pymethod]
@@ -246,7 +246,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="RefreshTokenRequest")]
+    #[yummy_pymodel(class_name="RefreshTokenRequest")]
     #[pyclass(flags(BASETYPE))]
     impl RefreshTokenRequestWrapper {
         #[pymethod]
@@ -255,7 +255,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="RestoreTokenRequest")]
+    #[yummy_pymodel(class_name="RestoreTokenRequest")]
     #[pyclass(flags(BASETYPE))]
     impl RestoreTokenRequestWrapper {
         #[pymethod]
@@ -264,7 +264,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="GetUserInformation", no_auth=true)]
+    #[yummy_pymodel(class_name="GetUserInformation", no_auth=true)]
     #[pyclass(flags(BASETYPE))]
     impl GetUserInformationWrapper {
         #[pymethod]
@@ -324,7 +324,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="ConnUserDisconnect")]
+    #[yummy_pymodel(class_name="ConnUserDisconnect")]
     #[pyclass(flags(BASETYPE))]
     impl ConnUserDisconnectWrapper {
         #[pymethod]
@@ -339,11 +339,11 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="LogoutRequest")]
+    #[yummy_pymodel(class_name="LogoutRequest")]
     #[pyclass(flags(BASETYPE))]
     impl LogoutRequestWrapper {}
 
-    #[yummy_model(class_name="UpdateUser")]
+    #[yummy_pymodel(class_name="UpdateUser")]
     #[pyclass(flags(BASETYPE))]
     impl UpdateUserWrapper {
         /* Name functions */
@@ -486,7 +486,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="DeviceIdAuthRequest")]
+    #[yummy_pymodel(class_name="DeviceIdAuthRequest")]
     #[pyclass(flags(BASETYPE))]
     impl DeviceIdAuthRequestWrapper {
         #[pymethod]
@@ -501,7 +501,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="EmailAuthRequest")]
+    #[yummy_pymodel(class_name="EmailAuthRequest")]
     #[pyclass(flags(BASETYPE))]
     impl EmailAuthRequestWrapper {
 
@@ -539,7 +539,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="CustomIdAuthRequest")]
+    #[yummy_pymodel(class_name="CustomIdAuthRequest")]
     #[pyclass(flags(BASETYPE))]
     impl CustomIdAuthRequestWrapper {
         #[pymethod]
@@ -554,7 +554,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="CreateRoomRequest")]
+    #[yummy_pymodel(class_name="CreateRoomRequest")]
     #[pyclass(flags(BASETYPE))]
     impl CreateRoomRequestWrapper {
         /* Name functions */
@@ -692,7 +692,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="UpdateRoom")]
+    #[yummy_pymodel(class_name="UpdateRoom")]
     #[pyclass(flags(BASETYPE))]
     impl UpdateRoomWrapper {
         /* RoomId functions */
@@ -891,7 +891,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="JoinToRoomRequest")]
+    #[yummy_pymodel(class_name="JoinToRoomRequest")]
     #[pyclass(flags(BASETYPE))]
     impl JoinToRoomRequestWrapper {
         /* Room functions */
@@ -913,7 +913,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="ProcessWaitingUser")]
+    #[yummy_pymodel(class_name="ProcessWaitingUser")]
     #[pyclass(flags(BASETYPE))]
     impl ProcessWaitingUserWrapper {
         /* Room function */
@@ -941,7 +941,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="KickUserFromRoom")]
+    #[yummy_pymodel(class_name="KickUserFromRoom")]
     #[pyclass(flags(BASETYPE))]
     impl KickUserFromRoomWrapper {
         /* Room function */
@@ -969,7 +969,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="DisconnectFromRoomRequest")]
+    #[yummy_pymodel(class_name="DisconnectFromRoomRequest")]
     #[pyclass(flags(BASETYPE))]
     impl DisconnectFromRoomRequestWrapper {
         /* Room function */
@@ -979,7 +979,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="MessageToRoomRequest")]
+    #[yummy_pymodel(class_name="MessageToRoomRequest")]
     #[pyclass(flags(BASETYPE))]
     impl MessageToRoomRequestWrapper {
         /* Room function */
@@ -1008,7 +1008,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="RoomListRequest", no_auth=true)]
+    #[yummy_pymodel(class_name="RoomListRequest", no_auth=true)]
     #[pyclass(flags(BASETYPE))]
     impl RoomListRequestWrapper {
         #[pymethod]
@@ -1050,7 +1050,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="WaitingRoomJoins")]
+    #[yummy_pymodel(class_name="WaitingRoomJoins")]
     #[pyclass(flags(BASETYPE))]
     impl WaitingRoomJoinsWrapper {
         #[pymethod]
@@ -1059,7 +1059,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="GetRoomRequest")]
+    #[yummy_pymodel(class_name="GetRoomRequest")]
     #[pyclass(flags(BASETYPE))]
     impl GetRoomRequestWrapper {
         #[pymethod]
@@ -1095,7 +1095,7 @@ pub mod model {
         }
     }
 
-    #[yummy_model(class_name="Play")]
+    #[yummy_pymodel(class_name="Play")]
     #[pyclass(flags(BASETYPE))]
     impl PlayWrapper {
         /* Room function */

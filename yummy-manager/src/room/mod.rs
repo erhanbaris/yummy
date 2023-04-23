@@ -9,12 +9,14 @@ pub mod logic;
 /* **************************************************************************************************************** */
 #[cfg(test)]
 mod test;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{marker::PhantomData, ops::Deref};
 use std::sync::Arc;
 use actix::{Context, Actor, Handler};
 use actix_broker::{BrokerSubscribe, BrokerIssue};
+use serde::Serialize;
 use yummy_cache::state::YummyState;
 use yummy_database::DatabaseTrait;
 
@@ -28,8 +30,9 @@ use yummy_model::{RoomId, UserId, RoomUserType, UserType, SessionId, SendMessage
 use yummy_model::web::{GenericAnswer, Answer};
 use yummy_general::database::Pool;
 use yummy_general::database::PooledConnection;
-use yummy_model::state::{RoomInfoType, RoomInfoTypeVariant};
+use yummy_model::state::{RoomInfoType, RoomInfoTypeVariant, RoomUserInformation, RoomInfoTypeCollection};
 
+use crate::YummyModel;
 use crate::auth::model::{AuthError, RoomUserDisconnect};
 use crate::plugin::PluginExecuter;
 use crate::{get_user_session_id_from_auth, get_user_id_from_auth, get_session_id_from_auth};
@@ -86,10 +89,10 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         
         DB::join_to_room(connection, room_id, user_id, room_user_type)?;
 
-        let message = serde_json::to_string(&RoomResponse::UserJoinedToRoom {
+        let message = SendMessage::build("JoinToRoom", UserJoinedToRoom {
             user_id,
             room_id
-        }).unwrap();
+        });
 
         for user_id in users.into_iter() {
             self.issue_system_async(SendMessage {
@@ -107,7 +110,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> RoomManager<DB> 
         
         self.issue_system_async(SendMessage {
             user_id: Arc::new(user_id.clone()),
-            message: GenericAnswer::success(request_id, RoomResponse::JoinToRoom { room_name, users, metas, room_id }).into()
+            message: GenericAnswer::success(request_id, Cow::Borrowed("JoinToRoom"), JoinToRoom { result: "Joined", room_name, users, metas, room_id }).into()
         });
         Ok(())
     }
@@ -334,9 +337,8 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<CreateRo
            
             anyhow::Ok(room_id)
         })?;
-        
 
-        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::RoomCreated { room_id }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), RoomCreated { room_id }).into());
         Ok(())
     }
 }
@@ -448,7 +450,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<WaitingR
         }
 
         let users = self.states.get_join_requests(&model.room_id)?;
-        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::WaitingRoomJoins { room_id: &model.room_id, users }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), WaitingRoomJoinsResponse { room_id: &model.room_id, users }).into());
         Ok(())
     }
 }
@@ -481,7 +483,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
             let room_infos = self.states.get_room_info(&model.room_id, RoomMetaAccess::System, &[RoomInfoTypeVariant::Users])?;
             let users = room_infos.get_users();
 
-            let message: String = RoomResponse::NewJoinRequest { room_id: &model.room_id, user_id, user_type: model.room_user_type.clone() }.into();
+            let message: String = SendMessage::build("NewJoinRequest", NewJoinRequest { room_id: &model.room_id, user_id, user_type: model.room_user_type.clone() });
             
             for user in users.iter() {
                 if user.user_type == RoomUserType::Owner || user.user_type == RoomUserType::Moderator {
@@ -493,7 +495,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<JoinToRo
             }
 
             // Send message to user about waiting for approvement
-            model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::JoinRequested { room_id: &model.room_id }).into());
+            model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), JoinRequested { result: "Requested", room_id: &model.room_id }).into());
         } else {
             // User can directly try to join room
             self.join_to_room(&mut connection,  model.request_id, &model.room_id, user_id, session_id, model.room_user_type.clone())?;
@@ -526,7 +528,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<ProcessW
                 // Room join request declined
                 self.issue_system_async(SendMessage {
                     user_id: Arc::new(model.user_id.clone()),
-                    message: GenericAnswer::success(model.request_id, RoomResponse::JoinRequestDeclined { room_id: &model.room_id }).into()
+                    message: GenericAnswer::success(model.request_id, Cow::Borrowed("JoinToRoom"), JoinRequestDeclined { result: "Declined", room_id: &model.room_id }).into()
                 });
             }
 
@@ -648,7 +650,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<RoomList
         };
 
         let rooms = self.states.get_rooms(&model.tag, members)?;
-        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::RoomList { rooms }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), RoomList { rooms }).into());
         Ok(())
     }
 }
@@ -671,7 +673,7 @@ impl<DB: DatabaseTrait + ?Sized + std::marker::Unpin + 'static> Handler<GetRoomR
 
         let access_level = self.get_access_level_for_room(user_id, session_id, &model.room_id)?;
         let room = self.states.get_room_info(&model.room_id, access_level, members)?;
-        model.socket.send(GenericAnswer::success(model.request_id, RoomResponse::RoomInfo { room }).into());
+        model.socket.send(GenericAnswer::success(model.request_id, Cow::Borrowed(model.get_request_type()), RoomInfo { room }).into());
         Ok(())
     }
 }

@@ -19,6 +19,7 @@ macro_rules! into_impl {
 
         impl From<String> for $name {
             fn from(source: String) -> Self {
+                println!("{}", &source);
                 serde_json::from_str(&source).unwrap()
             }
         }
@@ -41,23 +42,19 @@ pub struct AuthenticatedModel {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Joined {
-    #[serde(rename = "type")]
-    pub class_type: String,
     pub room_name: Option<String>,
-    pub users: Vec<RoomUserInformation>
+    pub users: Vec<RoomUserInformation>,
+    pub metas: serde_json::Value
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JoinRequestDeclined {
-    #[serde(rename = "type")]
-    pub class_type: String,
-    pub room_id: RoomId
+    pub room_id: RoomId,
+    pub result: String
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserJoinedToRoom {
-    #[serde(rename = "type")]
-    pub class_type: String,
     pub user_id: UserId,
     pub room_id: RoomId,
 }
@@ -72,31 +69,18 @@ pub struct NewRoomJoinRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct JoinRequested {
-    #[serde(rename = "type")]
-    pub class_type: String,
-    pub room_id: RoomId
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 pub struct WaitingRoomJoinsResponse {
-    #[serde(rename = "type")]
-    pub class_type: String,
     pub room_id: RoomId,
     pub users: HashMap<UserId, RoomUserType>
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RoomCreated {
-    #[serde(rename = "type")]
-    pub class_type: String,
-    pub room_id: RoomId,
+    pub room_id: RoomId
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserDisconnectedFromRoom {
-    #[serde(rename = "type")]
-    pub class_type: String,
     pub user_id: UserId,
     pub room_id: RoomId
 }
@@ -115,6 +99,12 @@ pub struct MessageReceivedFromRoom {
     pub user_id: UserId,
     pub room_id: RoomId,
     pub message: String
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JoinRequested {
+    pub room_id: RoomId,
+    pub result: String
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

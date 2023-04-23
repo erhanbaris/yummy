@@ -113,6 +113,15 @@ pub enum RequestRoomType {
         #[serde(default)]
         metas: Option<HashMap<String, MetaType<RoomMetaAccess>>>
     },
+
+    #[strum_discriminants(serde(rename = "GetRoom"))]
+    #[serde(rename = "GetRoom")]
+    GetRoom {
+        room_id: RoomId,
+
+        #[serde(default)]
+        members: Vec<RoomInfoTypeVariant>,
+    },
     
     #[strum_discriminants(serde(rename = "JoinToRoom"))]
     #[serde(rename = "JoinToRoom")]
@@ -198,6 +207,12 @@ pub enum RequestRoomType {
         
         #[serde(default)]
         user_permission: Option<HashMap<UserId, RoomUserType>>
+    },
+
+    #[strum_discriminants(serde(rename = "WaitingRoomJoins"))]
+    #[serde(rename = "WaitingRoomJoins")]
+    WaitingRoomJoins {
+        room_id: RoomId
     },
 
     #[strum_discriminants(serde(rename = "ProcessWaitingUser"))]
