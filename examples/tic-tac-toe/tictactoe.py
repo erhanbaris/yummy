@@ -4,10 +4,6 @@ from yummy import constants
 from yummy import fail
 import random
 
-GAME_STATUS_PLAYER_1_WIN = 0
-GAME_STATUS_PLAYER_2_WIN = 1
-GAME_STATUS_DRAW = 2
-
 BASE_BOARD = [['-', '-', '-'], 
               ['-', '-', '-'],
               ['-', '-', '-']]
@@ -161,18 +157,22 @@ def pre_play(model: model.Play):
 
 def post_play(model: model.Play, success: bool):
     if success:
-        room_id      = model.get_room_id()
-        message      = model.get_message()
-        metas        = room.get_room_metas(room_id)
+        room_id   = model.get_room_id()
+        slot      = model.get_message()
+        metas     = room.get_room_metas(room_id)
 
-        next_mark = metas["next-mark"]
-        slot      = message.get("slot")
+        next_mark   = metas["next-mark"]
+        next_player = metas[next_mark] # Player id
+
+        if next_player != model.get_user_id():
+            fail("Not your turn")
 
         # User can play
-        print("Fine to play")
         board = metas.get("board")
-        print(board, slot / 3, slot % 3, next_mark)
         (finished, won) = play(board, int(slot / 3), int(slot % 3), next_mark)
+
+        # Update board
+        room.set_room_meta(model.get_room_id(), "board", board)
 
         if finished is False:
             new_next_mark = "O" if next_mark == "X" else "X"
@@ -182,17 +182,17 @@ def post_play(model: model.Play, success: bool):
                 "type": "YourTurn"
             })
         else:
-            player_1 = room.get_room_meta(room_id, "player-1")
-            player_2 = room.get_room_meta(room_id, "player-2")
+            X = room.get_room_meta(room_id, "X")
+            O = room.get_room_meta(room_id, "O")
 
-            if won == GAME_STATUS_PLAYER_1_WIN:
-                room.message_to_room_user(room_id, player_1, { "type": "Win" })
-                room.message_to_room_user(room_id, player_2, { "type": "Lose" })
+            if won == "X":
+                room.message_to_room_user(room_id, X, { "type": "Win" })
+                room.message_to_room_user(room_id, O, { "type": "Lose" })
 
-            elif won == GAME_STATUS_PLAYER_2_WIN:
-                room.message_to_room_user(room_id, player_2, { "type": "Win" })
-                room.message_to_room_user(room_id, player_1, { "type": "Lose" })
+            elif won == "O":
+                room.message_to_room_user(room_id, O, { "type": "Win" })
+                room.message_to_room_user(room_id, X, { "type": "Lose" })
 
             else:
-                room.message_to_room_user(room_id, player_2, { "type": "Draw" })
-                room.message_to_room_user(room_id, player_1, { "type": "Draw" })
+                room.message_to_room_user(room_id, X, { "type": "Draw" })
+                room.message_to_room_user(room_id, O, { "type": "Draw" })

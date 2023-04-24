@@ -1,21 +1,24 @@
-use std::fmt::Debug;
-
 /* **************************************************************************************************************** */
 /* **************************************************** MODS ****************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
 /* **************************************************************************************************************** */
+use std::fmt::Debug;
 use yummy_model::meta::{UserMetaAccess, UserMetaType, MetaType, RoomMetaType, RoomMetaAccess};
 use num_bigint::ToBigInt;
 use num_traits::Zero;
 use rustpython::vm::{VirtualMachine, PyObjectRef, PyRef, builtins::{PyBaseException, PyFloat, PyInt, PyStr, PyList}, PyResult};
+use rustpython_vm::class::PyClassImpl;
 
-use super::modules::model::model::{UserMetaTypeWrapper, RoomMetaTypeWrapper};
+use crate::plugin::python::modules::base::_base::PyYummyValidationError;
+
+use super::{modules::model::model::{UserMetaTypeWrapper, RoomMetaTypeWrapper}, model::YummyPluginContextWrapper};
 
 /* **************************************************************************************************************** */
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
 /* **************************************************** MACROS **************************************************** */
 /* *************************************************** STRUCTS **************************************************** */
 /* **************************************************************************************************************** */
+pub struct RustPythonUtil;
 pub struct MetaTypeUtil;
 
 /* **************************************************************************************************************** */
@@ -24,6 +27,21 @@ pub struct MetaTypeUtil;
 /* *************************************************** TRAITS ***************************************************** */
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
+impl RustPythonUtil {
+    pub fn get_context(vm: &VirtualMachine) -> PyResult<YummyPluginContextWrapper> {
+        let context = vm.current_globals().get_item("__CONTEXT__", vm)?;
+        let context = match context.payload::<YummyPluginContextWrapper>() {
+            Some(context) => context,
+            None => {
+                log::error!("__CONTEXT__ information is null");
+                return Err(vm.new_exception_msg(PyYummyValidationError::make_class(&vm.ctx), "__CONTEXT__ information is null".to_string())); 
+            }
+        };
+
+        Ok(context.clone())
+    }
+}
+
 impl MetaTypeUtil {
     pub fn parse_user_meta(vm: &VirtualMachine, obj: &PyObjectRef, access: UserMetaAccess) -> Result<UserMetaTypeWrapper, PyRef<PyBaseException>> {
             

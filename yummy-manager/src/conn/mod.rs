@@ -5,6 +5,7 @@ pub mod model;
 #[cfg(test)]
 mod test;
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -131,7 +132,7 @@ impl Handler<ConnUserDisconnect> for ConnectionManager {
             Some(user) => &user.user,
             None => {
                 if model.send_message {
-                    model.socket.send(Answer::fail(model.request_id, RequestAuthTypeVariant::Logout).into());
+                    model.socket.send(Answer::fail(model.request_id, Cow::Borrowed(RequestAuthTypeVariant::Logout.into())).into());
                 }
                 return
             }
@@ -141,13 +142,13 @@ impl Handler<ConnUserDisconnect> for ConnectionManager {
 
         if user_removed.is_none() {
             if model.send_message {
-                model.socket.send(Answer::fail(model.request_id, RequestAuthTypeVariant::Logout).into());
+                model.socket.send(Answer::fail(model.request_id, Cow::Borrowed(RequestAuthTypeVariant::Logout.into())).into());
             }
             return;
         }
         
         if model.send_message {
-            model.socket.send(Answer::success(model.request_id, RequestAuthTypeVariant::Logout).into());
+            model.socket.send(Answer::success(model.request_id, Cow::Borrowed(RequestAuthTypeVariant::Logout.into())).into());
         }
         
         self.issue_system_async(RoomUserDisconnect {

@@ -150,7 +150,7 @@ impl PluginExecuter {
             plugins: Vec::new(),
             context: YummyPluginContext {
                 user_logic: UserLogic::new(config.clone(), states.clone(), database.clone()),
-                room_logic: RoomLogic::new(config, states, database),
+                room_logic: RoomLogic::new(states),
                 _marker: PhantomData
             }
         }
