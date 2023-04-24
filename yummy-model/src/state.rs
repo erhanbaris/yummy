@@ -1,3 +1,7 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use std::collections::{HashMap, HashSet};
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -10,6 +14,62 @@ use serde::ser::SerializeMap;
 use strum_macros::EnumDiscriminants;
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use thiserror::Error;
+
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* **************************************************************************************************************** */
+macro_rules! generate_room_type_getter {
+    ($name: ident, $variant: path, $response: ty) => {
+        pub fn $name(&self) -> Cow<'_, $response> {        
+            for item in self.items.iter() {
+                match item {
+                    $variant(value) => return Cow::Borrowed(value),
+                    _ => ()
+                };
+            }
+    
+            Cow::Owned(<$response>::default())
+        }
+    }
+}
+
+/* **************************************************************************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct RoomInfoTypeCollection {
+    pub room_id: Option<RoomId>,
+    pub items: Vec<RoomInfoType>
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
+pub struct RoomUserInformation {
+    pub user_id: Arc<UserId>,
+    pub name: Option<String>,
+
+    #[serde(rename = "type")]
+    pub user_type: RoomUserType
+}
+
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* **************************************************************************************************************** */
+#[derive(Debug, Clone, EnumDiscriminants, PartialEq, Deserialize)]
+#[strum_discriminants(name(RoomInfoTypeVariant))]
+pub enum RoomInfoType {
+    RoomName(Option<String>),
+    Description(Option<String>),
+    Users(Vec<RoomUserInformation>),
+    MaxUser(usize),
+    UserLength(usize),
+    AccessType(CreateRoomAccessType),
+    Tags(Vec<String>),
+    Metas(HashMap<String, MetaType<RoomMetaAccess>>),
+    InsertDate(i32),
+    JoinRequest(bool),
+    BannedUsers(HashSet<UserId>)
+}
 
 #[derive(Error, Debug)]
 pub enum YummyStateError {
@@ -38,31 +98,12 @@ pub enum YummyStateError {
     CacheError(#[from] anyhow::Error)
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
-pub struct RoomUserInformation {
-    pub user_id: Arc<UserId>,
-    pub name: Option<String>,
-
-    #[serde(rename = "type")]
-    pub user_type: RoomUserType
-}
-
-#[derive(Debug, Clone, EnumDiscriminants, PartialEq, Deserialize)]
-#[strum_discriminants(name(RoomInfoTypeVariant))]
-pub enum RoomInfoType {
-    RoomName(Option<String>),
-    Description(Option<String>),
-    Users(Vec<RoomUserInformation>),
-    MaxUser(usize),
-    UserLength(usize),
-    AccessType(CreateRoomAccessType),
-    Tags(Vec<String>),
-    Metas(HashMap<String, MetaType<RoomMetaAccess>>),
-    InsertDate(i32),
-    JoinRequest(bool),
-    BannedUsers(HashSet<UserId>)
-}
-
+/* **************************************************************************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* **************************************************************************************************************** */
 impl From<RoomInfoTypeVariant> for u32 {
     fn from(value: RoomInfoTypeVariant) -> Self {
         match value {
@@ -141,42 +182,6 @@ impl<'de> Deserialize<'de> for RoomInfoTypeVariant {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct RoomInfoTypeCollection {
-    pub room_id: Option<RoomId>,
-    pub items: Vec<RoomInfoType>
-}
-
-macro_rules! generate_room_type_getter {
-    ($name: ident, $variant: path, $response: ty) => {
-        pub fn $name(&self) -> Cow<'_, $response> {        
-            for item in self.items.iter() {
-                match item {
-                    $variant(value) => return Cow::Borrowed(value),
-                    _ => ()
-                };
-            }
-    
-            Cow::Owned(<$response>::default())
-        }
-    }
-}
-
-impl RoomInfoTypeCollection {       
-    generate_room_type_getter!(get_room_name, RoomInfoType::RoomName, Option<String>);
-    generate_room_type_getter!(get_description, RoomInfoType::Description, Option<String>);
-    generate_room_type_getter!(get_users, RoomInfoType::Users, Vec<RoomUserInformation>);
-    generate_room_type_getter!(get_max_user, RoomInfoType::MaxUser, usize);
-    generate_room_type_getter!(get_user_length, RoomInfoType::UserLength, usize);
-    generate_room_type_getter!(get_access_type, RoomInfoType::AccessType, CreateRoomAccessType);
-    generate_room_type_getter!(get_tags, RoomInfoType::Tags, Vec<String>);
-    generate_room_type_getter!(get_metas, RoomInfoType::Metas, HashMap<String, MetaType<RoomMetaAccess>>);
-    generate_room_type_getter!(get_insert_date, RoomInfoType::InsertDate, i32);
-    generate_room_type_getter!(get_join_request, RoomInfoType::JoinRequest, bool);
-    generate_room_type_getter!(get_banned_users, RoomInfoType::BannedUsers, HashSet<UserId>);
-
-}
-
 impl Serialize for RoomInfoTypeCollection {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -206,3 +211,25 @@ impl Serialize for RoomInfoTypeCollection {
         items.end()
     }
 }
+
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* **************************************************************************************************************** */
+impl RoomInfoTypeCollection {       
+    generate_room_type_getter!(get_room_name, RoomInfoType::RoomName, Option<String>);
+    generate_room_type_getter!(get_description, RoomInfoType::Description, Option<String>);
+    generate_room_type_getter!(get_users, RoomInfoType::Users, Vec<RoomUserInformation>);
+    generate_room_type_getter!(get_max_user, RoomInfoType::MaxUser, usize);
+    generate_room_type_getter!(get_user_length, RoomInfoType::UserLength, usize);
+    generate_room_type_getter!(get_access_type, RoomInfoType::AccessType, CreateRoomAccessType);
+    generate_room_type_getter!(get_tags, RoomInfoType::Tags, Vec<String>);
+    generate_room_type_getter!(get_metas, RoomInfoType::Metas, HashMap<String, MetaType<RoomMetaAccess>>);
+    generate_room_type_getter!(get_insert_date, RoomInfoType::InsertDate, i32);
+    generate_room_type_getter!(get_join_request, RoomInfoType::JoinRequest, bool);
+    generate_room_type_getter!(get_banned_users, RoomInfoType::BannedUsers, HashSet<UserId>);
+
+}
+
+/* **************************************************************************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */

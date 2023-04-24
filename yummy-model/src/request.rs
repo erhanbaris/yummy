@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 use strum_macros::EnumDiscriminants;
-use strum_macros::IntoStaticStr;
 use crate::state::RoomInfoTypeVariant;
 
 use crate::password::Password;
@@ -10,7 +9,7 @@ use crate::{UserId, UserType, CreateRoomAccessType, RoomId, RoomUserType, meta::
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, EnumDiscriminants, Debug)]
-#[strum_discriminants(name(RequestAuthTypeVariant), derive(Deserialize, Serialize, IntoStaticStr))]
+#[strum_discriminants(name(RequestAuthTypeVariant), derive(Deserialize, Serialize))]
 #[serde(tag = "type")]
 pub enum RequestAuthType {
     #[strum_discriminants(serde(rename = "AuthEmail"))]
@@ -53,7 +52,7 @@ pub enum RequestAuthType {
 }
 
 #[derive(Deserialize, Serialize, EnumDiscriminants, Debug)]
-#[strum_discriminants(name(RequestUserTypeVariant), derive(Deserialize, Serialize, IntoStaticStr))]
+#[strum_discriminants(name(RequestUserTypeVariant), derive(Deserialize, Serialize))]
 #[serde(tag = "type")]
 pub enum RequestUserType {
     #[strum_discriminants(serde(rename = "Me"))]
@@ -86,7 +85,7 @@ pub enum RequestUserType {
 }
 
 #[derive(Deserialize, Serialize, EnumDiscriminants, Debug)]
-#[strum_discriminants(name(RequestRoomTypeVariant), derive(Deserialize, Serialize, IntoStaticStr))]
+#[strum_discriminants(name(RequestRoomTypeVariant), derive(Deserialize, Serialize))]
 #[serde(tag = "type")]
 pub enum RequestRoomType {
     #[strum_discriminants(serde(rename = "CreateRoom"))]
@@ -152,15 +151,15 @@ pub enum RequestRoomType {
         message: Value,
     },
     
-    #[strum_discriminants(serde(rename = "KickUserFromroom"))]
-    #[serde(rename = "KickUserFromroom")]
+    #[strum_discriminants(serde(rename = "KickUserFromRoom"))]
+    #[serde(rename = "KickUserFromRoom")]
     Kick {
         room_id: RoomId,
         user_id: UserId,
     },
     
-    #[strum_discriminants(serde(rename = "BanUserFromroom"))]
-    #[serde(rename = "BanUserFromroom")]
+    #[strum_discriminants(serde(rename = "BanUserFromRoom"))]
+    #[serde(rename = "BanUserFromRoom")]
     Ban {
         room_id: RoomId,
         user_id: UserId,
@@ -249,5 +248,49 @@ pub enum Request {
 
         #[serde(flatten)]
         room_type: RequestRoomType
+    }
+}
+
+impl From<RequestUserTypeVariant> for &'static str {
+    fn from(value: RequestUserTypeVariant) -> Self {
+        match value {
+            RequestUserTypeVariant::Me => "Me",
+            RequestUserTypeVariant::Get => "GetUser",
+            RequestUserTypeVariant::Update => "UpdateUser",
+        }
+    }
+}
+
+
+impl From<RequestAuthTypeVariant> for &'static str {
+    fn from(value: RequestAuthTypeVariant) -> Self {
+        match value {
+            RequestAuthTypeVariant::Email => "AuthEmail",
+            RequestAuthTypeVariant::DeviceId => "AuthDeviceId",
+            RequestAuthTypeVariant::CustomId => "AuthCustomId",
+            RequestAuthTypeVariant::Refresh => "RefreshToken",
+            RequestAuthTypeVariant::Restore => "RestoreToken",
+            RequestAuthTypeVariant::Logout => "Logout",
+        }
+    }
+}
+
+
+impl From<RequestRoomTypeVariant> for &'static str {
+    fn from(value: RequestRoomTypeVariant) -> Self {
+        match value {
+            RequestRoomTypeVariant::Create => "CreateRoom",
+            RequestRoomTypeVariant::GetRoom => "GetRoom",
+            RequestRoomTypeVariant::Join => "JoinToRoom",
+            RequestRoomTypeVariant::Disconnect => "RoomDisconnect",
+            RequestRoomTypeVariant::Message => "MessageToRoom",
+            RequestRoomTypeVariant::Play => "Play",
+            RequestRoomTypeVariant::Kick => "KickUserFromRoom",
+            RequestRoomTypeVariant::Ban => "BanUserFromRoom",
+            RequestRoomTypeVariant::List => "RoomList",
+            RequestRoomTypeVariant::Update => "UpdateUser",
+            RequestRoomTypeVariant::WaitingRoomJoins => "WaitingRoomJoins",
+            RequestRoomTypeVariant::ProcessWaitingUser => "ProcessWaitingUser",
+        }
     }
 }

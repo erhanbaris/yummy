@@ -1,6 +1,12 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* **************************************************************************************************************** */
 #[cfg(test)]
 mod tests;
 
+/* **************************************************************************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use actix::Recipient;
 use actix_web::HttpRequest;
 use actix_web::web::Data;
@@ -38,6 +44,31 @@ use crate::api::process_user;
 use super::ProcessResult;
 use super::process_room;
 
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
+pub struct GameWebsocket<DB: DatabaseTrait + ?Sized + Unpin + 'static> {
+    auth_manager: Addr<AuthManager<DB>>,
+    user_manager: Addr<UserManager<DB>>,
+    room_manager: Addr<RoomManager<DB>>,
+    hb: Instant,
+    user_auth: Arc<Option<UserAuth>>,
+    config: Arc<YummyConfig>,
+    client: Arc<dyn ClientTrait + Sync + Send>
+}
+
+#[derive(Debug)]
+struct GameWebsocketClient {
+    sender: Recipient<WebsocketMessage>,
+    auth: Recipient<UserAuthenticated>
+}
+
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* **************************************************************************************************************** */
 pub async fn websocket_endpoint<DB: DatabaseTrait + Unpin + 'static>(req: HttpRequest, stream: Payload, config: Data<Arc<YummyConfig>>, auth_manager: Data<Addr<AuthManager<DB>>>, user_manager: Data<Addr<UserManager<DB>>>, room_manager: Data<Addr<RoomManager<DB>>>, _: ApiIntegration) -> Result<actix_web::HttpResponse, YummyError> {
     let config = config.get_ref();
 
@@ -49,16 +80,10 @@ pub async fn websocket_endpoint<DB: DatabaseTrait + Unpin + 'static>(req: HttpRe
         .map_err(YummyError::from)
 }
 
-pub struct GameWebsocket<DB: DatabaseTrait + ?Sized + Unpin + 'static> {
-    auth_manager: Addr<AuthManager<DB>>,
-    user_manager: Addr<UserManager<DB>>,
-    room_manager: Addr<RoomManager<DB>>,
-    hb: Instant,
-    user_auth: Arc<Option<UserAuth>>,
-    config: Arc<YummyConfig>,
-    client: Arc<dyn ClientTrait + Sync + Send>
-}
-
+/* **************************************************************************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
 impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
     pub fn new(
         config: Arc<YummyConfig>,
@@ -117,6 +142,18 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> GameWebsocket<DB> {
     }
 }
 
+impl GameWebsocketClient {
+    pub fn new<DB: DatabaseTrait + ?Sized + Unpin + 'static>(address: Addr<GameWebsocket<DB>>) -> Self {
+        Self {
+            sender: address.clone().recipient(),
+            auth: address.recipient()
+        }
+    }
+}
+
+/* **************************************************************************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* **************************************************************************************************************** */
 impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Actor for GameWebsocket<DB> {
     type Context = ws::WebsocketContext<Self>;
 
@@ -190,21 +227,6 @@ impl<DB: DatabaseTrait + ?Sized + Unpin + 'static> Handler<UserAuthenticated> fo
     }
 }
 
-#[derive(Debug)]
-struct GameWebsocketClient {
-    sender: Recipient<WebsocketMessage>,
-    auth: Recipient<UserAuthenticated>
-}
-
-impl GameWebsocketClient {
-    pub fn new<DB: DatabaseTrait + ?Sized + Unpin + 'static>(address: Addr<GameWebsocket<DB>>) -> Self {
-        Self {
-            sender: address.clone().recipient(),
-            auth: address.recipient()
-        }
-    }
-}
-
 impl ClientTrait for GameWebsocketClient {
     fn send(&self, message: String) {
         self.sender.do_send(WebsocketMessage(message));
@@ -214,3 +236,7 @@ impl ClientTrait for GameWebsocketClient {
         self.auth.do_send(UserAuthenticated(user));
     }
 }
+/* **************************************************************************************************************** */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */

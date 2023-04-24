@@ -11,9 +11,7 @@ use yummy_cache::state::YummyState;
 use yummy_database::DatabaseTrait;
 use yummy_model::meta::collection::RoomMetaCollectionInformation;
 use yummy_model::{RoomId, UserId, SendMessage};
-use yummy_model::config::YummyConfig;
 use yummy_model::meta::{RoomMetaType, RoomMetaAccess};
-use yummy_general::database::Pool;
 
 use super::model::RoomResponse;
 
@@ -24,8 +22,6 @@ use super::model::RoomResponse;
 /* **************************************************************************************************************** */
 #[derive(Clone)]
 pub struct RoomLogic<DB: DatabaseTrait + ?Sized> {
-    config: Arc<YummyConfig>,
-    database: Arc<Pool>,
     states: YummyState,
     _marker: PhantomData<DB>
 }
@@ -37,10 +33,8 @@ pub struct RoomLogic<DB: DatabaseTrait + ?Sized> {
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
 impl<DB: DatabaseTrait + ?Sized> RoomLogic<DB> {
-    pub fn new(config: Arc<YummyConfig>, states: YummyState, database: Arc<Pool>) -> Self {
+    pub fn new(states: YummyState) -> Self {
         Self {
-            config,
-            database,
             states,
             _marker: PhantomData
         }

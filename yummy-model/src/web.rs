@@ -13,13 +13,13 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 /* *************************************************** STRUCTS **************************************************** */
 /* **************************************************************************************************************** */
 #[derive(Debug, Deserialize, Serialize)]
-pub struct Answer {
+pub struct Answer<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<usize>,
     pub status: bool,
 
     #[serde(rename = "type")]
-    pub response_type: String
+    pub response_type: Cow<'a, str>
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -59,20 +59,20 @@ pub fn json_error_handler(err: JsonPayloadError, _: &HttpRequest) -> actix_web::
 /* *************************************************** TRAITS ***************************************************** */
 /* ************************************************* IMPLEMENTS *************************************************** */
 /* **************************************************************************************************************** */
-impl Answer {
-    pub fn success<T>(request_id: Option<usize>, response_type: T) -> Self where T: serde::Serialize {
+impl<'a> Answer<'a> {
+    pub fn success(request_id: Option<usize>, response_type: Cow<'a, str>) -> Self {
         Self {
             request_id,
             status: true,
-            response_type: serde_json::to_string(&response_type).unwrap_or_default()
+            response_type
         }
     }
     
-    pub fn fail<T>(request_id: Option<usize>, response_type: T) -> Self where T: serde::Serialize {
+    pub fn fail(request_id: Option<usize>, response_type: Cow<'a, str>) -> Self {
         Self {
             request_id,
             status: false,
-            response_type: serde_json::to_string(&response_type).unwrap_or_default()
+            response_type
         }
     }
 }
@@ -80,7 +80,7 @@ impl Answer {
 /* **************************************************************************************************************** */
 /* ********************************************** TRAIT IMPLEMENTS ************************************************ */
 /* **************************************************************************************************************** */
-impl From<Answer> for String {
+impl<'a> From<Answer<'a>> for String {
     fn from(source: Answer) -> Self {
         serde_json::to_string(&source).unwrap()
     }

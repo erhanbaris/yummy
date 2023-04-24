@@ -1,3 +1,7 @@
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
+/* **************************************************************************************************************** */
 use std::{fmt::Debug, sync::Arc};
 use actix::prelude::Message;
 use serde::Serialize;
@@ -7,14 +11,11 @@ use validator::{Validate, ValidationError};
 use yummy_general::client::ClientTrait;
 use yummy_macros::model;
 
-fn validate_unique_password(pass: &Password) -> Result<(), ValidationError> {
-    let pass = pass.get();
-    if pass.len() > 32 || pass.len() < 3 {
-        return Err(ValidationError::new("Length should be between 3 to 32 chars"));
-    }
-
-    Ok(())
-}
+/* **************************************************************************************************************** */
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+/* **************************************************** MACROS **************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
+/* **************************************************************************************************************** */
 
 #[derive(Message, Validate, Debug)]
 #[rtype(result = "anyhow::Result<()>")]
@@ -98,11 +99,6 @@ pub struct DeviceIdAuthRequest {
     pub socket: Arc<dyn ClientTrait + Sync + Send>
 }
 
-impl DeviceIdAuthRequest {
-    pub fn new(request_id: Option<usize>, auth: Arc<Option<UserAuth>>, id: String, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
-        Self { request_id, auth, id, socket }
-    }
-}
 
 #[derive(Message, Debug, Validate)]
 #[rtype(result = "anyhow::Result<()>")]
@@ -115,12 +111,6 @@ pub struct CustomIdAuthRequest {
     pub id: String,
 
     pub socket: Arc<dyn ClientTrait + Sync + Send>
-}
-
-impl CustomIdAuthRequest {
-    pub fn new(request_id: Option<usize>, auth: Arc<Option<UserAuth>>, id: String, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
-        Self { request_id, auth, id, socket }
-    }
 }
 
 #[derive(Message, Validate, Debug, Clone)]
@@ -153,6 +143,9 @@ pub struct Authenticated {
     pub token: String
 }
 
+/* **************************************************************************************************************** */
+/* **************************************************** ENUMS ***************************************************** */
+/* **************************************************************************************************************** */
 #[derive(Error, Debug)]
 pub enum AuthError {
     #[error("Email and/or password not valid")]
@@ -167,3 +160,37 @@ pub enum AuthError {
     #[error("User not logged in")]
     UserNotLoggedIn
 }
+
+/* **************************************************************************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+/* **************************************************************************************************************** */
+fn validate_unique_password(pass: &Password) -> Result<(), ValidationError> {
+    let pass = pass.get();
+    if pass.len() > 32 || pass.len() < 3 {
+        return Err(ValidationError::new("Length should be between 3 to 32 chars"));
+    }
+
+    Ok(())
+}
+
+/* **************************************************************************************************************** */
+/* *************************************************** TRAITS ***************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+/* **************************************************************************************************************** */
+impl DeviceIdAuthRequest {
+    pub fn new(request_id: Option<usize>, auth: Arc<Option<UserAuth>>, id: String, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
+        Self { request_id, auth, id, socket }
+    }
+}
+
+impl CustomIdAuthRequest {
+    pub fn new(request_id: Option<usize>, auth: Arc<Option<UserAuth>>, id: String, socket: Arc<dyn ClientTrait + Sync + Send>) -> Self {
+        Self { request_id, auth, id, socket }
+    }
+}
+
+/* **************************************************************************************************************** */
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */

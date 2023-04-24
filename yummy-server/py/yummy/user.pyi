@@ -9,6 +9,12 @@ def get_user_meta(user_id: str, key: str) -> Optional[MetaType]:
     """
     ...
 
+def get_user_meta_access(user_id: str, key: str) -> Optional[int]:
+    """
+    Get user's meta type information with key.
+    """
+    ...
+
 
 def set_user_meta(user_id: str, key: str, value: MetaType, access_level: Optional[int]) -> bool:
     """

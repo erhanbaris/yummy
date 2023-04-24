@@ -7,7 +7,7 @@ pub mod _user {
     use yummy_model::{meta::UserMetaAccess, UserId};
     use rustpython_vm::{VirtualMachine, PyResult, PyObjectRef, function::OptionalArg};
 
-    use crate::plugin::python::{model::YummyPluginContextWrapper, util::MetaTypeUtil, modules::model::model::UserMetaAccessWrapper};
+    use crate::plugin::python::{util::{MetaTypeUtil, RustPythonUtil}, modules::model::model::UserMetaAccessWrapper};
 
     /* **************************************************************************************************************** */
     /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
@@ -30,20 +30,39 @@ pub mod _user {
             _ => return Ok(vm.ctx.none())
         };
 
-        /* Get plugin context from global variables */
-        let context = vm.current_globals().get_item("__CONTEXT__", vm)?;
-        let context = match context.payload::<YummyPluginContextWrapper>() {
-            Some(context) => context,
-            None => {
-                log::error!("__CONTEXT__ information is null");
-                return Ok(vm.ctx.none()); 
-            }
-        };
-
-        match context.data.user_logic.get_user_meta(UserId::from(user_id), key) {
+        match RustPythonUtil::get_context(vm)?.data.user_logic.get_user_meta(UserId::from(user_id), key) {
 
             /* User's meta found */
             Ok(Some(user_meta)) => MetaTypeUtil::as_python_value(&user_meta, vm),
+
+            /* No meta for user */
+            Ok(None) => Ok(vm.ctx.none()),
+
+            /* Something went wrong, but do not throw exception. Only return None and log error message */
+            Err(error) => {
+                log::error!("Context is failed to retrieve 'get_user_meta'. Error: {}", error.to_string());
+                Ok(vm.ctx.none())
+            }
+        }
+    }
+
+    #[pyfunction]
+    pub fn get_user_meta_access(user_id: Option<String>, key: Option<String>, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
+
+        /* Validate arguments */
+        let (user_id, key) = match (user_id, key) {
+
+            /* All arguments are valid */
+            (Some(user_id), Some(key)) => (user_id, key),
+
+            /* Return None if the arguments are not valid */
+            _ => return Ok(vm.ctx.none())
+        };
+
+        match RustPythonUtil::get_context(vm)?.data.user_logic.get_user_meta(UserId::from(user_id), key) {
+
+            /* User's meta found */
+            Ok(Some(user_meta)) => MetaTypeUtil::get_meta_type(&user_meta, vm),
 
             /* No meta for user */
             Ok(None) => Ok(vm.ctx.none()),
@@ -69,17 +88,7 @@ pub mod _user {
             _ => return Ok(vm.ctx.none())
         };
 
-        /* Get plugin context from global variables */
-        let context = vm.current_globals().get_item("__CONTEXT__", vm)?;
-        let context = match context.payload::<YummyPluginContextWrapper>() {
-            Some(context) => context,
-            None => {
-                log::error!("__CONTEXT__ information is null");
-                return Ok(vm.ctx.none()); 
-            }
-        };
-
-        match context.data.user_logic.get_user_metas(UserId::from(user_id)) {
+        match RustPythonUtil::get_context(vm)?.data.user_logic.get_user_metas(UserId::from(user_id)) {
 
             /* User's metas found */
             Ok(metas) => {
@@ -121,20 +130,10 @@ pub mod _user {
             OptionalArg::Missing => UserMetaAccess::System
         };
 
-        /* Get plugin context from global variables */
-        let context = vm.current_globals().get_item("__CONTEXT__", vm)?;
-        let context = match context.payload::<YummyPluginContextWrapper>() {
-            Some(context) => context,
-            None => {
-                log::error!("__CONTEXT__ information is null");
-                return Ok(vm.ctx.new_bool(false).into())
-            }
-        };
-
         /* Build meta information */
         let value = MetaTypeUtil::parse_user_meta(vm, &value, access_level)?;
 
-        match context.data.user_logic.set_user_meta(UserId::from(user_id), key, value.data) {
+        match RustPythonUtil::get_context(vm)?.data.user_logic.set_user_meta(UserId::from(user_id), key, value.data) {
 
             /* User's meta update/inserted, return True */
             Ok(_) => Ok(vm.ctx.new_bool(true).into()),
@@ -160,17 +159,7 @@ pub mod _user {
             _ => return Ok(vm.ctx.new_bool(false).into())
         };
 
-        /* Get plugin context from global variables */
-        let context = vm.current_globals().get_item("__CONTEXT__", vm)?;
-        let context = match context.payload::<YummyPluginContextWrapper>() {
-            Some(context) => context,
-            None => {
-                log::error!("__CONTEXT__ information is null");
-                return Ok(vm.ctx.new_bool(false).into()); 
-            }
-        };
-
-        match context.data.user_logic.remove_all_metas(UserId::from(user_id)) {
+        match RustPythonUtil::get_context(vm)?.data.user_logic.remove_all_metas(UserId::from(user_id)) {
 
             /* User's metas removed */
             Ok(_) => Ok(vm.ctx.new_bool(true).into()),
@@ -195,17 +184,7 @@ pub mod _user {
             _ => return Ok(vm.ctx.new_bool(false).into())
         };
 
-        /* Get plugin context from global variables */
-        let context = vm.current_globals().get_item("__CONTEXT__", vm)?;
-        let context = match context.payload::<YummyPluginContextWrapper>() {
-            Some(context) => context,
-            None => {
-                log::error!("__CONTEXT__ information is null");
-                return Ok(vm.ctx.new_bool(false).into()); 
-            }
-        };
-
-        match context.data.user_logic.remove_user_meta(UserId::from(user_id), key) {
+        match RustPythonUtil::get_context(vm)?.data.user_logic.remove_user_meta(UserId::from(user_id), key) {
 
             /* User's metas removed */
             Ok(_) => Ok(vm.ctx.new_bool(true).into()),

@@ -2,6 +2,7 @@
 /* **************************************************** MODS ****************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
 /* **************************************************************************************************************** */
+use std::borrow::Cow;
 use std::{marker::PhantomData, sync::Arc, ops::Deref};
 
 use yummy_cache::state::YummyState;
@@ -336,9 +337,9 @@ impl<DB: DatabaseTrait + ?Sized> UserLogic<DB> {
             let response = match has_user_update {
                 true => match DB::update_user(connection, target_user_id, &updates)? {
                     0 => return Err(anyhow::anyhow!(UserError::UserNotFound)),
-                    _ => Answer::success(model.request_id, RequestUserTypeVariant::Update)
+                    _ => Answer::success(model.request_id, Cow::Borrowed(RequestUserTypeVariant::Update.into()))
                 },
-                false => Answer::success(model.request_id, RequestUserTypeVariant::Update)
+                false => Answer::success(model.request_id, Cow::Borrowed(RequestUserTypeVariant::Update.into()))
             };
 
             // Update user cache
