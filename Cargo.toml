@@ -83,7 +83,7 @@ actix-cors = "0.6.4"
 actix-files = "0.6.2"
 
 diesel = { version = "2.0.4", features = ["sqlite", "numeric", "r2d2"] }
-diesel-derive-enum = { version = "2.0.1", features = ["sqlite"] }
+diesel-derive-enum = { version = "2.1.0", features = ["sqlite"] }
 
 tempfile = "3.5.0"
 tempdir = "0.3.7"
