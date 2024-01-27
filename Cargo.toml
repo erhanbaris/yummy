@@ -96,7 +96,7 @@ syn = { version = "1", features = ["full"] }
 proc-macro2 = "1.0.63"
 quote = "1.0.29"
 darling = "0.20.1"
-libsqlite3-sys = { version = "^0.25.2", features = ["bundled"] }
+libsqlite3-sys = { version = "^0.28.0", features = ["bundled"] }
 
 cucumber = "0.19.1"
 async-trait = "0.1.68"
