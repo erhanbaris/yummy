@@ -56,7 +56,7 @@ num-derive = "0.3.3"
 num-traits = "0.2.15"
 num-bigint = "0.4.3"
 
-strum = "0.24"
+strum = "0.26"
 strum_macros = "0.24"
 
 thiserror = "1.0.40"
